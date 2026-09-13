@@ -342,13 +342,24 @@ export interface VersionedGroupProps {
   onRetitle?: (title: string) => void
   /** fired on Enter or blur after the description line is edited in place — there is no field;
    *  see `description`. The string arrives whitespace-normalised and trimmed, and empty is a
-   *  legitimate value: it clears the line back to its invitation. */
+   *  legitimate value: it clears the line back to its invitation.
+   *  A CARD RENDERED WITHOUT THIS OPENS NO DESCRIPTION, even in `editMode` — the row's field is
+   *  gated on the handler, not on the mode (2026-09-06, found by the app's OB-110 port; OB-160).
+   *  Passing `editMode` alone opened a line that could not be committed and then called an
+   *  undefined handler on save. A caller does nothing for this; it is stated because a port that
+   *  forwards `editMode` straight through reproduces it and looks correct in the source. */
   onDescribe?: (description: string) => void
   /** a version was picked from the menu */
   onSelect?: (id: string) => void
   /** fired on Enter or blur after the live version's name is edited in place — the pencil opens
    *  it with the other two, there is no field, and an EMPTY commit clears the name back to its
-   *  placeholder, same as `title`/`description` (changed 2026-08-28; it used to be refused) */
+   *  placeholder, same as `title`/`description` (changed 2026-08-28; it used to be refused).
+   *  THE NAME FIELD BELONGS TO THE VERSION SHOWING, NOT TO THE EDIT SESSION (2026-09-06, found by
+   *  the app's OB-110 port; OB-160). The field seeds its value ONCE, when editing opens, so a
+   *  version picked from the picker WHILE editing must remount it — this file keys it on the
+   *  version's id. A port that keeps the seed-once field but drops the key shows the previous
+   *  version's name and, on commit, writes that name onto the newly-picked version. An effect
+   *  dependency cannot express it: the version changes without `editing` changing. */
   onRename?: (id: string, name: string) => void
   /** create a version and select it — the card then goes into edit mode, so the new version
    *  can be named at once */
@@ -462,9 +473,12 @@ function DescLine({ text, placeholder, indent, onCommit, onCancel, editMode = fa
       fontSize: 'var(--fs-caption)', lineHeight: 'var(--lh-tight)',
     }}>
       <InlineText value={text || ''} placeholder={placeholder} multiline={multiline}
-        /* ★ LOCAL guard: the DS opens the line on `editMode` alone, and a read-only description
-           (no `onDescribe`) would then open with nothing to commit to. Editable only when it can
-           commit. */
+        /* A READ-ONLY DESCRIPTION DOES NOT OPEN (2026-09-06, found by this port's OB-110 work;
+           OB-160). This passed `editMode` alone, so a card rendered without `onDescribe` opened a
+           description it could not commit and then called an undefined handler on save. The row's
+           own first line already refuses to draw with neither handler nor text — this is the same
+           condition applied to the field. Local here from 2026-09-05, the DS's own rule since
+           2026-09-06. */
         editing={editMode && !!onCommit}
         autoFocus={false}
         /* an empty commit is meaningful here: it clears the line back to its invitation. A
@@ -1150,18 +1164,20 @@ export function VersionedGroup({
        `setTitleCol(0)` on a column already 0 renders nothing, so returning here
        meant the measurement never ran at all and every over-long title drew clipped
        with no ellipsis. Fall through instead. */
+    /* eslint-disable react-hooks/set-state-in-effect -- see the note above: one rule report per
+       effect, placed on the first unsuppressed write, so a line directive on either write alone
+       leaves the other reported */
     if (colKeyRef.current !== colKey) {
       colKeyRef.current = colKey
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- see the note above
       if (titleCol !== 0) { setTitleCol(0); return }
     }
     /* `titleCol === 0` means the FULL string is on screen, which is the only state
        this may be measured in — see the note above. */
     if (titleCol === 0) {
       const w = Math.round(el.getBoundingClientRect().width)
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- see the note above
       if (w > 0) setTitleCol(w)
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [colKey, titleCol])
 
   /* THE PICKER'S NAME CLIPS THE SAME WAY, and needs none of the two-pass care: its
@@ -1642,10 +1658,13 @@ export function VersionedGroup({
           {/* the live version's name, edited in place like the other two. It wraps to
               two lines, so the single-line field it used to open had the same
               collapse the title's did. */}
-          {/* ★ LOCAL `key`: the field is seeded once, at the transition into editing, so a version
-              picked WHILE editing would otherwise keep showing the previous version's name. Keyed
-              by the version, the field remounts and seeds from the newly-picked one — which is
-              what "the field now belongs to the newly-picked version" has to mean. */}
+          {/* KEYED BY THE VERSION (2026-09-06, found by this port's OB-110 work; OB-160). The field
+              seeds itself ONCE, at the transition into editing, so with edit mode open a version
+              picked from the list left the PREVIOUS version's name in the field — and committing
+              then wrote that name onto the newly-picked version. The key remounts the field, which
+              is what "the field belongs to the version now showing" has to mean; the effect's deps
+              cannot express it, because the version changed without `editing` changing. Local here
+              from 2026-09-05, the DS's own rule since 2026-09-06. */}
           <InlineText key={active.id} value={active.name || ''} placeholder={versionNamePlaceholder}
             restPlaceholder={''}
             /* AND IT ENDS IN "…" WHEN ITS CAP CUT IT, for the same reason the title
