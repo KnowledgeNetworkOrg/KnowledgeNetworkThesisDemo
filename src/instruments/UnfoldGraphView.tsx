@@ -21,7 +21,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { LEGEND_INSET, PaneScroller } from '@/ds'
-import { byId, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL } from '../corpus/graph'
+import { byId, domainOf, EDGE_COLOR, EDGE_LABEL } from '../corpus/graph'
+import { colorOf } from '../model/color'
 import type { EdgeType } from '../corpus/graph'
 import { edgesTouching } from '../model/flat'
 import { UnfoldStartPicker } from './UnfoldView'
@@ -300,7 +301,7 @@ export default function UnfoldGraphView({ bus, initialStart = null, resetTo = nu
                     cx={n.x}
                     cy={n.y}
                     r={R}
-                    fill={DOMAIN_COLOR[domainOf(n.id)] ?? '#475569'}
+                    fill={colorOf(domainOf(n.id))}
                     stroke={isOpen ? '#f59e0b' : '#fff'}
                     strokeWidth={isOpen ? 3 : 2}
                     style={{ cursor: 'pointer' }}
@@ -351,7 +352,7 @@ export default function UnfoldGraphView({ bus, initialStart = null, resetTo = nu
                                 className="text-left px-1.5 py-1 rounded border border-slate-200 hover:border-amber-400 hover:bg-amber-50 text-[10.5px] flex items-center gap-1"
                               >
                                 <span className="text-slate-400 shrink-0">{r.out ? '→' : '←'}</span>
-                                <span className="truncate" style={{ color: DOMAIN_COLOR[domainOf(r.id)] }}>
+                                <span className="truncate" style={{ color: colorOf(domainOf(r.id)) }}>
                                   {byId.get(r.id)!.title}
                                 </span>
                                 {onMap && <span className="ml-auto shrink-0 text-[9px] font-bold text-amber-600">↗ on map</span>}

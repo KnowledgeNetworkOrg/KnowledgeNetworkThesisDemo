@@ -25,7 +25,8 @@
 import { useMemo, useState } from 'react'
 
 import { LEGEND_INSET, PaneScroller } from '@/ds'
-import { byId, domainIds, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL, topicsUnder } from '../corpus/graph'
+import { byId, domainIds, domainOf, EDGE_COLOR, EDGE_LABEL, topicsUnder } from '../corpus/graph'
+import { colorOf } from '../model/color'
 import type { EdgeType } from '../corpus/graph'
 import { degreeOf, edgesTouching, HUB_IDS } from '../model/flat'
 
@@ -116,7 +117,7 @@ export function UnfoldStartPicker({ heading, sub, onStart }: { heading: string; 
               key={id}
               onClick={() => onStart(id)}
               className="px-2.5 py-1 rounded-lg border-2 text-[12px] font-semibold bg-white hover:bg-amber-50"
-              style={{ borderColor: DOMAIN_COLOR[domainOf(id)], color: DOMAIN_COLOR[domainOf(id)] }}
+              style={{ borderColor: colorOf(domainOf(id)), color: colorOf(domainOf(id)) }}
             >
               {byId.get(id)!.title}
               <span className="text-slate-400 font-normal ml-1.5">{degreeOf.get(id)} links</span>
@@ -127,7 +128,7 @@ export function UnfoldStartPicker({ heading, sub, onStart }: { heading: string; 
         <div className="grid grid-cols-6 gap-4">
           {domainIds.map((d) => (
             <div key={d}>
-              <div className="text-[11px] font-bold mb-1.5" style={{ color: DOMAIN_COLOR[d] }}>
+              <div className="text-[11px] font-bold mb-1.5" style={{ color: colorOf(d) }}>
                 {byId.get(d)!.title}
               </div>
               <div className="flex flex-col gap-1">
@@ -268,7 +269,7 @@ export default function UnfoldView() {
                     cx={p.x}
                     cy={p.y}
                     r={R}
-                    fill={DOMAIN_COLOR[domainOf(n.id)] ?? '#475569'}
+                    fill={colorOf(domainOf(n.id))}
                     stroke={isOpen ? '#f59e0b' : '#fff'}
                     strokeWidth={isOpen ? 3 : 2}
                     style={{ cursor: 'pointer' }}
@@ -322,7 +323,7 @@ export default function UnfoldView() {
                               className="text-left px-1.5 py-1 rounded border border-slate-200 hover:border-amber-400 hover:bg-amber-50 text-[10.5px] flex items-center gap-1"
                             >
                               <span className="text-slate-400 shrink-0">{r.out ? '→' : '←'}</span>
-                              <span className="truncate" style={{ color: DOMAIN_COLOR[domainOf(r.id)] }}>
+                              <span className="truncate" style={{ color: colorOf(domainOf(r.id)) }}>
                                 {byId.get(r.id)!.title}
                               </span>
                             </button>

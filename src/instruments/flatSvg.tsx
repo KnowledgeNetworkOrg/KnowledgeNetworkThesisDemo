@@ -3,7 +3,8 @@
 // all-edges hairball layer (kept available as a toggle on purpose —
 // seeing it is the argument for hiding it, ComfyUI's "hide links" precedent).
 
-import { edges, EDGE_COLOR, byId, domainOf, DOMAIN_COLOR } from '../corpus/graph'
+import { edges, EDGE_COLOR, byId, domainOf } from '../corpus/graph'
+import { colorOf } from '../model/color'
 import { leafPos, HUB_IDS, edgesTouching } from '../model/flat'
 
 export function EdgeMarkers() {
@@ -81,7 +82,7 @@ export interface DotProps {
 /** One leaf: dot colored by domain (or override), label to the right, hub ring. */
 export function LeafDot({ id, r = 7, fill, muted, hi, scale = 1, labelSize = 10, onEnter, onLeave, onClick }: DotProps) {
   const p = leafPos[id]
-  const color = fill ?? DOMAIN_COLOR[domainOf(id)]
+  const color = fill ?? colorOf(domainOf(id))
   const isHub = HUB_IDS.includes(id)
   return (
     <g

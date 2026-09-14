@@ -22,9 +22,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 
 import { AppHeader, CountBadge, EDGE_TOKEN, FamilyColumn, InstrumentGroup, InstrumentRow, Pane, PresetButton, SectionLabel } from '@/ds'
-import type { DomainCode, EdgeKind } from '@/ds'
+import type { EdgeKind } from '@/ds'
 
-import { byId, domainOf } from '../corpus/graph'
+import { byId, topicHueOf } from '../corpus/graph'
 import { platform } from '../platform'
 import PresenterScreen from '../present/PresenterScreen'
 import { PROJECTOR_QUERY, PROJECTOR_WINDOW } from '../present/projector'
@@ -387,7 +387,7 @@ export default function StudioView() {
         <AppHeader
           product="thesis-demo"
           corpusLine="instrument palette — toggle views on the sidebar, everything shares one focus / route / trail bus"
-          focus={bus.focus ? { title: byId.get(bus.focus)!.title, domain: domainOf(bus.focus) as DomainCode } : null}
+          focus={bus.focus ? { title: byId.get(bus.focus)!.title, domain: topicHueOf(bus.focus) ?? '' } : null}
         >
           <span aria-label="studio-visited">
             <CountBadge value={bus.visited.size} label="visited" />

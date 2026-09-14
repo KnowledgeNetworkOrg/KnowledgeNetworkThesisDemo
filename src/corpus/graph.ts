@@ -20,6 +20,11 @@ export interface GNode {
   title: string
   /** the edge-bearing level: one of the 53 teaching topics */
   topic?: true
+  /** the ring hue this TOP-LEVEL topic was handed when it was created — stored with the
+   *  topic, never derived from its name or its position (DS OB-153). A rename keeps it, a
+   *  delete frees it; `src/model/topichue.ts` is the mechanism, this field is the storage.
+   *  Only the depth-1 nodes carry one; everything beneath inherits it (`topicHueOf`). */
+  hue?: string
 }
 
 export interface GEdge {
@@ -31,19 +36,22 @@ export interface GEdge {
 
 export const ROOT_ID = 'root'
 
-// ── Palette (validated 6+3-slot categorical set; see dataviz skill, 2026-07-10)
-// Domains take six hues (node identity); edge types take three + neutral gray.
-// Keeping the channels hue-disjoint means an edge color can never be misread
-// as a domain color. `depends_on` is the most common type, so it gets the
+// ── Palette ──────────────────────────────────────────────────────────────────
+// THERE IS NO DOMAIN COLOUR TABLE (DS OB-153, 2026-09-14). Six authored hexes
+// lived here until then. The owner's ruling: the topics are not fixed — this is a
+// general graphing tool and a topic is whatever the user makes — so a six-entry
+// table was the wrong shape whatever its values. A top-level topic is handed a
+// RING HUE NAME by creation order (`src/model/topichue.ts`), the name is stored on
+// the node (`GNode.hue`, below on each domain's declaration), and every drawing
+// resolves it through `topicPaint()` / `topicPaintValues()`. The demo graph ships
+// with its six slots already saved — one graph's stored state, the same kind a
+// user's graph carries — chosen to sit near the old look: leaf, violet, iris,
+// river, amber, fern. Delete this corpus and no topic-colour logic is left behind.
+//
+// Edge types take three hues + neutral gray, kept hue-disjoint from the ring's
+// first eight topics by the walk (`TOPIC_WALK`): an edge colour can never be
+// misread as a topic colour. `depends_on` is the most common type, so it gets the
 // gray: the prerequisite backbone recedes, rarer semantic links pop.
-export const DOMAIN_COLOR: Record<string, string> = {
-  sys: '#008300', // green — hardware, PCB
-  math: '#4a3aa7', // violet — abstraction
-  cs: '#2a78d6', // blue — the core
-  net: '#0891b2', // teal — comms
-  sec: '#eda100', // yellow — caution
-  se: '#1baf7a', // aqua — shipping
-}
 
 // THE NATURALISED COLUMN, NOT THE RAW ONE (OB-123). Until 2026-09-03 these were
 // full-saturation orange, red and hot pink drawn over paper pastels, while every
@@ -84,8 +92,8 @@ export const EDGE_LABEL: Record<EdgeType, string> = {
 // ── Tree ────────────────────────────────────────────────────────────────────
 const N: GNode[] = [{ id: ROOT_ID, kind: 'container', parentId: null, title: 'Computer Science' }]
 
-function container(id: string, parentId: string, title: string): string {
-  N.push({ id, kind: 'container', parentId, title })
+function container(id: string, parentId: string, title: string, hue?: string): string {
+  N.push(hue ? { id, kind: 'container', parentId, title, hue } : { id, kind: 'container', parentId, title })
   return id
 }
 const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-')
@@ -102,7 +110,7 @@ function topics(parentId: string, prefix: string, titles: string[]) {
 }
 
 // level 2: domains, level 3: modules, level 4 (5 in the tooling branch): topics…
-const sys = container('sys', ROOT_ID, 'Computer Systems')
+const sys = container('sys', ROOT_ID, 'Computer Systems', 'leaf')
 topics(container('dig', sys, 'Digital Logic'), 'dig', [
   'Binary & Data Representation',
   'Transistors & Logic Gates',
@@ -118,7 +126,7 @@ topics(container('os', sys, 'Operating Systems'), 'os', [
   'Concurrency & Synchronization',
 ])
 
-const math = container('math', ROOT_ID, 'Mathematical Foundations')
+const math = container('math', ROOT_ID, 'Mathematical Foundations', 'violet')
 topics(container('dm', math, 'Discrete Mathematics'), 'dm', [
   'Propositional Logic',
   'Set Theory & Functions',
@@ -128,7 +136,7 @@ topics(container('dm', math, 'Discrete Mathematics'), 'dm', [
 ])
 topics(container('am', math, 'Applied Mathematics'), 'am', ['Probability & Statistics', 'Linear Algebra', 'Modular Arithmetic'])
 
-const cs = container('cs', ROOT_ID, 'Core Computer Science')
+const cs = container('cs', ROOT_ID, 'Core Computer Science', 'iris')
 topics(container('ds', cs, 'Data Structures'), 'ds', ['Arrays & Lists', 'Hash Tables', 'Trees & Heaps', 'Graph Representations'])
 topics(container('alg', cs, 'Algorithms'), 'alg', ['Complexity & Big-O', 'Sorting & Searching', 'Graph Traversal', 'Dynamic Programming'])
 topics(container('pl', cs, 'Languages & Compilers'), 'pl', [
@@ -138,11 +146,11 @@ topics(container('pl', cs, 'Languages & Compilers'), 'pl', [
   'Compilers & Interpreters',
 ])
 
-const net = container('net', ROOT_ID, 'Networking')
+const net = container('net', ROOT_ID, 'Networking', 'river')
 topics(container('stk', net, 'Protocol Stack'), 'stk', ['Link Layer & Ethernet', 'IP & Routing', 'TCP & UDP', 'DNS & Naming'])
 topics(container('web', net, 'Web & Services'), 'web', ['HTTP & REST', 'Sockets & APIs'])
 
-const sec = container('sec', ROOT_ID, 'Security')
+const sec = container('sec', ROOT_ID, 'Security', 'amber')
 topics(container('cry', sec, 'Cryptography'), 'cry', [
   'Symmetric Encryption',
   'Public-Key Cryptography',
@@ -151,7 +159,7 @@ topics(container('cry', sec, 'Cryptography'), 'cry', [
 ])
 topics(container('app', sec, 'Applied Security'), 'app', ['Authentication & Authorization', 'Common Vulnerabilities'])
 
-const se = container('se', ROOT_ID, 'Software Engineering')
+const se = container('se', ROOT_ID, 'Software Engineering', 'fern')
 topics(container('prc', se, 'Practices'), 'prc', ['Version Control', 'Code Review', 'Design Patterns'])
 topics(container('tst', se, 'Testing'), 'tst', ['Unit Testing', 'Integration Testing', 'Property-Based Testing'])
 const tool = container('tool', se, 'Tooling')
@@ -222,6 +230,13 @@ export function domainOf(id: string): string {
 }
 
 export const domainIds = (childrenOf.get(ROOT_ID) ?? []).map((d) => d.id)
+
+/** the ring hue NAME stored on the top-level topic `id` descends from — the one fact every
+ *  drawing of a node's colour starts from. `undefined` for the root and for a domain with
+ *  no stored hue, which every reader resolves to the anchor fallback rather than to nothing. */
+export function topicHueOf(id: string): string | undefined {
+  return byId.get(domainOf(id))?.hue
+}
 
 /** Topic ids inside the subtree rooted at `id` — the id itself if it IS a
  * topic, every topic below it for containers above the topic level, and []

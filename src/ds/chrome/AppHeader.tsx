@@ -3,7 +3,6 @@ import type { ReactNode } from 'react'
 import { useClipped } from './IconButton'
 
 import { DomainDot } from '../graph/DomainDot'
-import type { DomainCode } from '../graph/vocab'
 
 /** The product bar. Brand in plain type (P.Kt has no mark), the corpus line, the
  *  live focus, counts, session actions. Typed port of the DS AppHeader.jsx
@@ -16,7 +15,7 @@ export interface AppHeaderProps {
   /** one lower-case line describing the loaded corpus */
   corpusLine?: string
   /** the bus's current focus */
-  focus?: { title: string; domain: DomainCode } | null
+  focus?: { title: string; domain: string } | null
   /** counts and session buttons, right-aligned */
   children?: ReactNode
 }

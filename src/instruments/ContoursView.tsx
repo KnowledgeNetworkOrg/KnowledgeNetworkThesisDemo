@@ -10,7 +10,8 @@
 import { useMemo, useState } from 'react'
 
 import { PaneCanvas } from '@/ds'
-import { byId, domainOf, DOMAIN_COLOR, domainIds, edges, topicsUnder } from '../corpus/graph'
+import { byId, domainOf, domainIds, edges, topicsUnder } from '../corpus/graph'
+import { colorOf } from '../model/color'
 import {
   FLAT_W,
   FLAT_H,
@@ -53,7 +54,7 @@ function emst(members: string[]): [string, string][] {
 
 const domainGroups: Group[] = domainIds.map((d) => ({
   label: byId.get(d)!.title,
-  color: DOMAIN_COLOR[d],
+  color: colorOf(d),
   members: topicsUnder(d),
 }))
 const communityGroups: Group[] = communities.map((members, ci) => ({
@@ -182,7 +183,7 @@ export default function ContoursView() {
         {traced && (
           <>
             <span className="w-px h-4 bg-slate-200" />
-            <span className="font-semibold" style={{ color: DOMAIN_COLOR[domainOf(traced)] }}>
+            <span className="font-semibold" style={{ color: colorOf(domainOf(traced)) }}>
               {byId.get(traced)!.title}
             </span>
             <span className="text-slate-400">{edgesTouching(traced).length} links</span>

@@ -27,7 +27,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 
 import { DomainDot, IconButton, PaneScroller, wrapTip } from '@/ds'
 import { byId, nodes, pathTo } from '../../corpus/graph'
-import { domainCodeOf } from '../../model/domaincode'
+import { topicHueOf } from '../../corpus/graph'
 import type { AuthorState } from './authordraft'
 import { DT } from './authordnd'
 import type { HoverBinding } from '../../studio/bus'
@@ -256,7 +256,7 @@ export default function Palette({
                       only the optical nudge that lines the dot up with the first
                       line of a two-line hit. */}
                   <span className="mt-1 inline-flex shrink-0">
-                    <DomainDot domain={domainCodeOf(id)} size={6} />
+                    <DomainDot topic={topicHueOf(id)} size={6} />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-[11px] leading-tight text-slate-800 truncate">{n.title}</span>

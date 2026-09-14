@@ -19,7 +19,8 @@
 //     last chapter with no break and no heading.
 
 import { PaneScroller } from '@/ds'
-import { byId, domainOf, DOMAIN_COLOR } from '../../corpus/graph'
+import { byId, domainOf } from '../../corpus/graph'
+import { colorOf } from '../../model/color'
 import { isLeaf, type Stop } from './mockwalk'
 
 /** leaves in a resolved subtree. `resolveRoad` has already picked one variant per
@@ -41,7 +42,7 @@ export default function WalkChapters({ walk }: { walk: Stop[] }) {
     for (const s of stops) {
       if (isLeaf(s)) {
         n += 1
-        const color = DOMAIN_COLOR[domainOf(s.node)]
+        const color = colorOf(domainOf(s.node))
         rows.push(
           <div key={key++} className="flex items-center gap-2 py-[3px]" style={{ paddingLeft: depth * 20 }}>
             <span className="w-5 shrink-0 text-right text-[11px] tabular-nums text-slate-400">{n}</span>

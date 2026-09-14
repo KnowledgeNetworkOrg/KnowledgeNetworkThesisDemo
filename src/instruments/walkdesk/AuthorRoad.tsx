@@ -31,13 +31,13 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 
-import { byId, childrenOf, domainIds, domainOf } from '../../corpus/graph'
+import { byId, childrenOf, domainIds, topicHueOf } from '../../corpus/graph'
 import {
   ARROW_METRICS, NodeArrow, NodeChip, NodePicker, chipBorder, chipSizeOf, shaftTailOffset,
   VersionedGroup, GroupGeometry, GROUP_METRICS,
   wrapTip, PaneScroller,
 } from '@/ds'
-import type { DomainCode, GroupSpec, NodeOption } from '@/ds'
+import type { GroupSpec, NodeOption } from '@/ds'
 import type { AuthorState, Path } from './authordraft'
 import { pathKey, useFreshGroup } from './authordraft'
 import { bandFor, DT, gapFor, handleDrop } from './authordnd'
@@ -72,7 +72,7 @@ const NODE_MAXH = 66
 function optionFor(id: string): NodeOption {
   const n = byId.get(id)!
   const kids = n.topic ? [] : (childrenOf.get(id) ?? []).map((k) => optionFor(k.id))
-  return { id, title: n.title, domain: domainOf(id) as DomainCode, children: kids.length ? kids : undefined }
+  return { id, title: n.title, domain: topicHueOf(id) ?? '', children: kids.length ? kids : undefined }
 }
 const NODE_OPTIONS: NodeOption[] = domainIds.map(optionFor)
 /** the step number as the CHIP is handed it — LOCAL to the container it sits in, so
@@ -274,7 +274,7 @@ function layoutRoad(
   const leafSize = (node: string, outline: string, optional: boolean): { w: number; h: number } => {
     const c = chipSizeOf({
       title: byId.get(node)?.title ?? '',
-      domain: domainOf(node) as DomainCode,
+      domain: topicHueOf(node) ?? '',
       index: leafIndex(outline),
       mark: 'border', wrap: true, optional,
       onDelete: () => {},
@@ -796,7 +796,7 @@ export default function AuthorRoad({
                   <NodeChip
                     title={byId.get(s.node)!.title}
                     index={leafIndex(pl.outline)}
-                    domain={domainOf(s.node) as DomainCode}
+                    domain={topicHueOf(s.node) ?? ''}
                     mark="border"
                     wrap
                     optional={!!s.optional}

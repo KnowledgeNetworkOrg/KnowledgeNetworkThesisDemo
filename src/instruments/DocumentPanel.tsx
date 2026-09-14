@@ -19,9 +19,8 @@
 import { useSyncExternalStore } from 'react'
 
 import { DocHeader, LEGEND_INSET, SectionLabel, WalkCard } from '@/ds'
-import type { DomainCode } from '@/ds'
 
-import { byId, domainOf, pathTo, ROOT_ID } from '../corpus/graph'
+import { byId, pathTo, ROOT_ID, topicHueOf } from '../corpus/graph'
 import { DOC_BODY } from '../corpus/docs'
 import { listWalks, subscribeWalks } from '../model/walkstore'
 import type { Bus } from '../studio/bus'
@@ -44,7 +43,7 @@ export default function DocumentPanel({ bus }: { bus: Bus }) {
 
   return (
     <div aria-label="document-panel">
-      <DocHeader kind={n.topic ? 'topic' : n.kind} title={n.title} domain={domainOf(currentId) as DomainCode} ancestry={ancestry} />
+      <DocHeader kind={n.topic ? 'topic' : n.kind} title={n.title} domain={topicHueOf(currentId) ?? ''} ancestry={ancestry} />
 
       {/* OB-143: the body's text starts under the legend's first letter — LEFT only, by the
           constant. The right padding is the scrollbar's and stays. DocHeader above pads its

@@ -4,16 +4,14 @@ import type { CSSProperties, ReactNode } from 'react'
 
 import { DomainDot } from './DomainDot'
 import { NodeChip, CHIP_METRICS as M } from './NodeChip'
-import type { DomainCode } from './vocab'
 import { IconButton, useClipped } from '../chrome/IconButton'
 
 export interface NodeOption {
   id: string
   title: string
-  /** typed `DomainCode` rather than the DS's `string` — a deliberate local deviation
-   *  (see PROVENANCE.json): this app's `NodeChip`/`DomainDot` already require the
-   *  6-code union, and every caller here is the corpus, which only ever produces one. */
-  domain: DomainCode
+  /** a ring hue name — what the corpus stores on a topic (`topicHueOf`). `string`, as the
+   *  DS has it; the six-code union this once carried is gone (OB-153). */
+  domain: string
   /** nested options, indented one step further. A node with children is still itself pickable */
   children?: NodeOption[]
 }

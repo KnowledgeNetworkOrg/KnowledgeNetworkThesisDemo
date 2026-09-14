@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { HUE_RING, TOPIC_SEPARATION_MIN, topicPaint, topicSlots } from '../ds/graph/DomainDot'
-import { domainIds } from '../corpus/graph'
+import { HUE_RING, TOPIC_SEPARATION_MIN, topicSlots } from '../ds/graph/DomainDot'
+import { domainIds, topicHueOf } from '../corpus/graph'
 import { countryRings } from './nested'
 import { fillOf, hexToOklch, territoryFillOf, topicTerritoryFills } from './color'
 import type { XY } from './derive'
@@ -60,7 +60,7 @@ const twinsApart = (i: number): [number, number] => [i, 0]
 
 describe('OB-171 — the generation-0 shade, adopted from the DS', () => {
   it('(3) the shipped corpus, six domains: every top-level fill is pixel-identical to the flat fill, all slots zero', () => {
-    const out = topicTerritoryFills(domainIds.map((d) => ({ id: d, rings: countryRings[d] })), (d) => topicPaint(d).hue, (d) => fillOf(d))
+    const out = topicTerritoryFills(domainIds.map((d) => ({ id: d, rings: countryRings[d] })), (d) => topicHueOf(d) ?? null, (d) => fillOf(d))
     expect([...out.values()].map((v) => v.slot)).toEqual(domainIds.map(() => 0))
     for (const d of domainIds) expect(territoryFillOf(d), d).toBe(fillOf(d))
   })

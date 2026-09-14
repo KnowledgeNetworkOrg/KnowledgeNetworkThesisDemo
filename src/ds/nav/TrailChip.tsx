@@ -1,6 +1,5 @@
 import { useState } from 'react'
 
-import type { DomainCode } from '../graph/vocab'
 import { DomainDot } from '../graph/DomainDot'
 import { wrapTip } from '../chrome/IconButton'
 
@@ -9,7 +8,12 @@ import { wrapTip } from '../chrome/IconButton'
  *  Typed port of the DS TrailChip.jsx. */
 export interface TrailChipProps {
   title: string
-  domain: DomainCode
+  /** a ring hue name (`'teal'`) — what the corpus stores on a topic (`topicHueOf`); resolved by
+   *  `domainToken()`. **Typed `string`**, as the DS's own contract has been since 2026-08-21j: a
+   *  closed six-code union was compiled into the adherence lint, and a general corpus passing a
+   *  ring hue was reported as an invalid prop (OB-153 retired the union here). The NAME is still
+   *  wrong — this is a topic, not a domain — and OB-061 decides the rename on both sides at once. */
+  domain: string
   /** the three-letter writer tag: MAP TREE LNK TRL WLK GPH NAV */
   via?: string
   /** the focus crossed a typed link rather than stepping through containment */

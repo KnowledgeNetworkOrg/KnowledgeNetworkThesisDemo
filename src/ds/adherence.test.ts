@@ -348,7 +348,10 @@ describe('our DS ports document what the DS documents', () => {
   // `string` anyway — so it took that prose on the way past. Every prop the three new
   // connections components and the two new shared ones (Breadcrumb, CollapseChevron) added is
   // documented, so the rehaul itself moves this number by nothing.
-  const BUDGET = 87
+  // 87 -> 84 on 2026-09-14 (OB-153): TrailChip's, TreeRow's and DocHeader's `domain` were bare
+  // here while the DS's .d.ts had documented all three since 2026-08-21j — they took that prose
+  // when the six-code union was retired and each widened to `string`.
+  const BUDGET = 84
 
   const undocumented: string[] = []
   for (const f of tsxUnder('src/ds')) {
