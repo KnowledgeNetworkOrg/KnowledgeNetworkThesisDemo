@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { topicPaint } from '../ds/graph/DomainDot'
+import { familySlots, topicPaint } from '../ds/graph/DomainDot'
 import { domainIds } from '../corpus/graph'
 import { provinceRings, territories } from './nested'
 import { familyOf, hexToOklch, inkOf, labelInkOf, territoryFillOf, territoryNeighboursOf, territorySlotOf } from './color'
@@ -115,5 +115,63 @@ describe('OB-119 — the territory fill is pinned to its family', () => {
     }
     console.log(`OB-119 labelInkOf over ${domains.size + regions.length} labels: below 4.5:1 ${below} | worst ${worst.toFixed(2)} | differs from inkOf ${moved}`)
     expect(below).toBe(0)
+  })
+})
+
+/* OB-162 — the PROVINCE tier constrains every edge. Level 1 is the one tier where two touching
+ * regions usually belong to different domains, and hue was supposed to separate those; it did not
+ * for `dig` (sys, leaf 148°) beside `prc` (se, fern 166°) — eighteen degrees apart, both in slot 0,
+ * 0.0156 in OKLab, under a just-noticeable difference, so two provinces read as one region. Ruled
+ * by the owner 2026-09-06: at that tier `familySlots` is fed one family value for every region, so
+ * every shared border is constrained. The NESTED tiers keep cross-family edges dropped — they
+ * rarely touch across domains, and dropping them is what keeps a family's five slots spread. */
+describe('OB-162 — the province tier constrains every edge', () => {
+  const provinces = Object.keys(provinceRings)
+  const provinceSet = new Set(provinces)
+
+  it('(1) two touching provinces never share a slot, whatever their families', () => {
+    let crossFamilyPairs = 0
+    for (const id of provinces)
+      for (const nb of territoryNeighboursOf(id)) {
+        if (!provinceSet.has(nb)) continue
+        if (familyOf(nb) !== familyOf(id)) crossFamilyPairs++
+        expect(territorySlotOf(nb), `${id} and ${nb} touch and share slot ${territorySlotOf(id)}`).not.toBe(territorySlotOf(id))
+      }
+    /* the clause has teeth only if provinces of different families actually touch */
+    expect(crossFamilyPairs).toBeGreaterThan(0)
+  })
+
+  it('(1) the nested tiers are unchanged: still familySlots over same-family edges only', () => {
+    const byTier = new Map<number, string[]>()
+    for (const t of territories) byTier.set(t.tier, [...(byTier.get(t.tier) ?? []), t.id])
+    let crossFamilyShared = 0
+    for (const [tier, ids] of byTier) {
+      const at = new Map(ids.map((id, i) => [id, i]))
+      const neighbours = ids.map((id) => territoryNeighboursOf(id).filter((n) => at.has(n)).map((n) => at.get(n)!))
+      const family = ids.map((id) => familyOf(id)!)
+      const expected = familySlots(neighbours, { family })
+      ids.forEach((id, i) => expect(territorySlotOf(id), `tier ${tier}: ${id}`).toBe(expected[i]))
+      for (const id of ids) for (const nb of territoryNeighboursOf(id)) if (familyOf(nb) !== familyOf(id) && territorySlotOf(nb) === territorySlotOf(id)) crossFamilyShared++
+    }
+    console.log(`OB-162 nested tiers: cross-family touching pairs still sharing a slot ${crossFamilyShared / 2} (allowed there — the flag did not leak)`)
+  })
+
+  it('(2) the 1704-pair measurement: dig ~ prc at or above 0.09, nothing under 0.020, five slots at most', () => {
+    expect(territoryNeighboursOf('dig')).toContain('prc')
+    const digPrc = deltaE(territoryFillOf('dig'), territoryFillOf('prc'))
+    const seen = new Set<string>()
+    const ds: number[] = []
+    for (const id of regions)
+      for (const nb of territoryNeighboursOf(id)) {
+        const key = id < nb ? id + '|' + nb : nb + '|' + id
+        if (seen.has(key)) continue
+        seen.add(key)
+        ds.push(deltaE(territoryFillOf(id), territoryFillOf(nb)))
+      }
+    const slotsInUse = new Set(regions.map((id) => territorySlotOf(id))).size
+    console.log(`OB-162 dig ~ prc ${digPrc.toFixed(4)} | pairs ${ds.length} | <0.020: ${ds.filter((d) => d < 0.02).length} | slots in use ${slotsInUse}`)
+    expect(digPrc).toBeGreaterThanOrEqual(0.09)
+    expect(ds.filter((d) => d < 0.02).length).toBe(0)
+    expect(slotsInUse).toBeLessThanOrEqual(5)
   })
 })

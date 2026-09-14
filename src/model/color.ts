@@ -28,8 +28,8 @@
 //               type, not a muddy colored gray, on a hue-tinted/glowing cell
 
 import { childrenOf, domainIds, DOMAIN_COLOR } from '../corpus/graph'
-import { familySlots, nestedFamilyPaint } from '@/ds'
-import { provinceRings, territories } from './nested'
+import { familySlots, nestedFamilyPaint, topicPaint, topicSlots } from '@/ds'
+import { countryRings, provinceRings, territories } from './nested'
 import type { XY } from './derive'
 
 // ── OKLab/OKLCH ↔ sRGB (Björn Ottosson's matrices, D65) ─────────────────────
@@ -166,9 +166,10 @@ const FALLBACK = { anchor: '#64748b', fill: '#e2e8f0', ink: '#334155', inkStrong
 // its own lineage hue, checkable and checked (territoryfill.test.ts). Depth
 // is no longer a channel at all: it was the wrong axis (who a region touches
 // decides confusability, not how deep it is) and the map already draws depth
-// as the ancestor boundary ladder. Domains need none of this: each owns its
-// authored anchor hue, distinct from every other by construction, so they
-// reuse `fillMap` unchanged.
+// as the ancestor boundary ladder. Domains need none of this WHILE THE RING
+// HOLDS: each owns its authored anchor hue, distinct from every other by
+// construction, so they reuse `fillMap` unchanged — until a corpus's 17th
+// top-level topic wraps onto the 1st's hue; see "Generation 0" below (OB-171).
 //
 // The ASSIGNMENT is the DS's too, `familySlots()`: a graph colouring only
 // promises two touching regions DIFFERENT slots and says nothing about how far
@@ -183,6 +184,19 @@ const FALLBACK = { anchor: '#64748b', fill: '#e2e8f0', ink: '#334155', inkStrong
 // groups matching what the map paints side by side at once: all provinces
 // (level 1, which can sit shoulder to shoulder across DIFFERENT domains), and
 // each tier of the nested atlas separately (model/nested.ts).
+//
+// THE PROVINCE TIER CONSTRAINS EVERY EDGE (OB-162, ruled by the owner
+// 2026-09-06). Level 1 is the one tier where two touching regions usually
+// belong to DIFFERENT domains, and hue was supposed to separate those. It did
+// not for `dig` (sys, leaf 148°) beside `prc` (se, fern 166°): eighteen degrees
+// apart, both in slot 0, 0.0156 in OKLab — under a just-noticeable difference,
+// so two provinces read as one region. So at that tier `familySlots` is fed
+// ONE family value for every region and every shared border is constrained;
+// measured, the pair lifts to ~0.10 with the same slots in use and nothing
+// under 0.020 anywhere. The nested tiers keep cross-family edges DROPPED:
+// they rarely touch across domains, and dropping them is what keeps a
+// family's five slots spread. From here on the province tier is a different
+// colouring problem from the nested ones, and the flag below says so.
 const EPS = 0.3 // world units — cells run 50+ units across (model/nested.ts)
 
 function segDist(a1: XY, a2: XY, b1: XY, b2: XY): number {
@@ -252,13 +266,15 @@ const territoryFillMap = new Map<string, string>()
 const territorySlotMap = new Map<string, number>()
 const territoryNeighbourMap = new Map<string, readonly string[]>()
 
-function paintGroup(regions: { id: string; rings: XY[][] }[]) {
+function paintGroup(regions: { id: string; rings: XY[][] }[], { constrainEveryEdge = false } = {}) {
   const adj = regionAdjacency(regions)
   const ids = regions.map((r) => r.id)
   const at = new Map(ids.map((id, i) => [id, i]))
   const neighbours = ids.map((id) => [...adj.get(id)!].map((n) => at.get(n)!))
   const family = ids.map((id) => familyMap.get(id) ?? '')
-  const slots = familySlots(neighbours, { family })
+  /* one family value for every region = every shared border constrained (the DS's own
+     whole-tier form of the call); the fill still takes each region's REAL family */
+  const slots = familySlots(neighbours, { family: constrainEveryEdge ? ids.map(() => 'tier') : family })
   ids.forEach((id, i) => {
     territorySlotMap.set(id, slots[i])
     territoryNeighbourMap.set(id, [...adj.get(id)!])
@@ -266,8 +282,50 @@ function paintGroup(regions: { id: string; rings: XY[][] }[]) {
   })
 }
 
-for (const d of domainIds) territoryFillMap.set(d, fillMap.get(d)!)
-paintGroup(Object.keys(provinceRings).map((m) => ({ id: m, rings: provinceRings[m] })))
+// ── Generation 0: stored hue, derived shade (OB-171, 2026-09-14) ────────────
+// The ring has sixteen stops and the assignment wraps, so a corpus's 17th
+// top-level topic is handed the 1st's hue exactly. On a chip that costs
+// nothing; on the map two identical fills that SHARE A BORDER read as one
+// region, and by the owner's ruling (2026-09-05) nothing may report it — no
+// threshold, no notice, no prompt to group topics. So the DS's `topicSlots()`
+// steps the touching twin one rung down the same family ladder the nested
+// tiers use, and steps nothing else: a region with no same-hue NEIGHBOUR keeps
+// slot 0 and draws today's flat `fillMap` value, byte for byte, which is what
+// makes this safe to adopt — every map of sixteen topics or fewer, and every
+// map whose twins do not touch, is pixel-identical to before. Adjacency comes
+// from the GEOMETRY (`regionAdjacency` over the domains' country rings, the
+// same test the provinces get), never from the tree; the hue array is the
+// STORED assignment (`topicPaint(domain).hue`, off `DOMAIN_TOKEN`), never
+// recomputed; and the slot is derived here at render time and persisted
+// nowhere — it is a fact about who a region touches, not identity.
+// The nearest rung that clears `TOPIC_SEPARATION_MIN`, not the furthest: the
+// DS measured the furthest-slot rule (what `familySlots` rightly does inside a
+// family) drawing the one graded twin as the single saturated cell on a pastel
+// map. Six domains ship today, so on this corpus every slot is zero; the rule
+// is exercised by topicfill.test.ts on a synthetic seventeen-topic map.
+/** the generation-0 fills — one entry per region: the slot `topicSlots` gave it and the fill
+ *  the map draws (today's `flat` fill at slot 0, the family ladder's rung otherwise). Exported
+ *  for the test that puts seventeen top-level topics in front of it; the map reads the result
+ *  through `territoryFillOf`. */
+export function topicTerritoryFills(
+  regions: { id: string; rings: XY[][] }[],
+  hueName: (id: string) => string | null,
+  flat: (id: string) => string,
+): Map<string, { slot: number; fill: string }> {
+  const adj = regionAdjacency(regions)
+  const ids = regions.map((r) => r.id)
+  const at = new Map(ids.map((id, i) => [id, i]))
+  const neighbours = ids.map((id) => [...adj.get(id)!].map((n) => at.get(n)!))
+  const hue = ids.map((id) => hueName(id))
+  const slots = topicSlots(neighbours, { hue })
+  return new Map(ids.map((id, i) => [id, {
+    slot: slots[i],
+    fill: slots[i] === 0 ? flat(id) : (oklchStringToHex(nestedFamilyPaint(hue[i] ?? undefined, { slot: slots[i] }).fill) ?? flat(id)),
+  }]))
+}
+
+for (const [d, { fill }] of topicTerritoryFills(domainIds.map((d) => ({ id: d, rings: countryRings[d] })), (d) => topicPaint(d).hue, (d) => fillMap.get(d)!)) territoryFillMap.set(d, fill)
+paintGroup(Object.keys(provinceRings).map((m) => ({ id: m, rings: provinceRings[m] })), { constrainEveryEdge: true })
 
 const territoriesByTier = new Map<number, typeof territories>()
 for (const t of territories) {
