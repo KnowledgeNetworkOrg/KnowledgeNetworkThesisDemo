@@ -7,7 +7,10 @@
 //   (1) clicking a line at rest opens nothing — only the pencil opens the three together;
 //   (4) Escape reverts all three to their last-committed values;
 //   (2) committing an empty title clears it, and at rest an empty title draws nothing;
-//   (5b) adding a version puts the card back into edit mode.
+//   (5b) adding a version puts the card back into edit mode;
+//   and, OB-160 (1): with edit mode open, picking another version from the picker shows THAT
+//   version's name in the field, and a commit writes it to that version, not to the one that
+//   was showing before.
 // Every reading is off the DOM: how many `contenteditable` lines the card holds, which one
 // has the focus, and what the card's text reads after each gesture.
 //
@@ -150,6 +153,32 @@ try {
   await outsideMousedown()
   await page.waitForTimeout(300)
   ok('and the new version can be named at once', (await text()).includes('Second take'), (await text()).replace(/\n/g, ' | '))
+
+  // ── OB-160 (1): the name field belongs to the version showing, not to the edit session ──
+  // The field seeds its value once, when editing opens. Without a remount on the version's id,
+  // picking another version while editing kept showing the previous version's name, and a
+  // commit then wrote that name onto the newly-picked version.
+  await pencil()
+  const verField = () => open().nth(2).innerText()
+  // the picker row is clicked at its LEFT EDGE (the check mark): while editing, the version
+  // name in that row is an open field that swallows a click on the row's centre
+  const openPicker = async () => { await card().locator('[role="button"]').first().click({ position: { x: 8, y: 10 } }); await page.waitForTimeout(250) }
+  ok('OB-160: the pencil reopens the three lines with the version field reading "Second take"', (await openCount()) === 3 && (await verField()).includes('Second take'), await verField())
+  await openPicker()
+  await page.locator('[role="option"]').first().click()
+  await page.waitForTimeout(300)
+  ok('picking the first version WHILE editing keeps edit mode open', (await openCount()) === 3, `${await openCount()} open`)
+  ok('and the version field now shows the picked version, not "Second take"', !(await verField()).includes('Second take'), JSON.stringify(await verField()))
+  await open().nth(2).click()
+  await page.keyboard.type('First take')
+  await outsideMousedown()
+  await page.waitForTimeout(300)
+  ok('a commit writes the typed name to the PICKED version', (await text()).includes('First take') && !(await text()).includes('Second take'), (await text()).replace(/\n/g, ' | '))
+  await wakeHead()
+  await openPicker()
+  await page.locator('[role="option"]').nth(1).click()
+  await page.waitForTimeout(300)
+  ok('and the other version still carries its own name — "Second take" was not overwritten', (await text()).includes('Second take') && !(await text()).includes('First take'), (await text()).replace(/\n/g, ' | '))
   ok('no page errors', errors.filter((e) => e.startsWith('pageerror')).length === 0)
 } catch (e) {
   errors.push('exception: ' + (e && e.stack || e))
