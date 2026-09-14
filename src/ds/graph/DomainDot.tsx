@@ -226,6 +226,103 @@ export function familySlots(neighbours: readonly (readonly number[])[] = [], { f
   return slot
 }
 
+/** THE SEPARATION A TOUCHING SAME-HUE PAIR MUST CLEAR, in OKLab, and it is CHOSEN rather than
+ *  derived — do not re-derive it. It is calibrated against a number this system already ships and
+ *  has looked at: inside a family, the closest touching pair on the real corpus measures 0.0466
+ *  and the ladder was judged to be doing its job there. 0.045 sits just under that, so the first
+ *  rung of the ladder (slot 0 to slot 1, 0.0496 apart) clears it and a generation-0 twin moves by
+ *  one step instead of four. For scale at the other end: the province-tier pass treated anything
+ *  under 0.020 as two regions reading as one. */
+export const TOPIC_SEPARATION_MIN = 0.045
+
+/** WHICH SHADE OF ITS OWN HUE A TOP-LEVEL TOPIC TAKES, when the palette has wrapped and two
+ *  same-hue territories turn out to TOUCH. Hand it the same adjacency `familySlots()` takes plus
+ *  the STORED hue name per region; get back one slot per region for `nestedFamilyPaint`.
+ *
+ *  THE PALETTE'S WRAP IS NOT A BUG AND THIS IS NOT A SEVENTEENTH COLOUR. `nextTopicSlot()` walks
+ *  sixteen hues and then wraps, so a corpus's 17th topic is handed the 1st topic's hue exactly.
+ *  For a dot or a chip that costs a reader nothing — two chips sharing a hue are never side by
+ *  side. A MAP TERRITORY IS DIFFERENT: it is a filled region with neighbours, and two identical
+ *  fills that share a border read as ONE region, so a 60-node graph silently draws as a 40-node
+ *  one. Nothing reports it, and by the owner's ruling (2026-09-05) nothing may: no prompting to
+ *  group topics, no threshold, no notice. It is a picture this system has to draw correctly and
+ *  silently at any width, which is why this is a call and not a documented rule.
+ *
+ *  NOTE THE SHAPE OF THE FAULT — IT DEPENDS ON ADJACENCY, NOT ON THE COUNT. Seventeen topics with
+ *  the two same-hue ones far apart is fine and must stay untouched; sixteen plus one, touching, is
+ *  not. So a region with no same-hue NEIGHBOUR keeps slot 0, and the guarantee that follows is the
+ *  one worth checking a port against: for any map whose twins do not touch — every map of sixteen
+ *  topics or fewer included — this returns all zeros and not one territory changes colour.
+ *
+ *  TWO CLOCKS, AND THIS IS THE HALF THAT IS DERIVED. The owner ruled (2026-09-05) that a topic's
+ *  HUE is stored the moment it is assigned, so reopening a map never re-colours it: that is
+ *  identity, and identity is stored. The SLOT is not identity — it is a fact about who a region
+ *  touches, and it changes when the user adds a node or the layout re-solves. So it is derived at
+ *  render time, here, from the same geometry the tessellation came from. A stored slot would be a
+ *  saved answer to a question whose inputs had moved.
+ *
+ *  `hue[i]` is region `i`'s stored ring-hue NAME (what `nextTopicSlot()` returned and the host
+ *  wrote down), `neighbours[i]` the region indices it shares a border with — the host's GEOMETRY,
+ *  never its tree, for the reason `familySlots()` gives at length. Regions are compared only
+ *  against same-hue neighbours: a rose beside a jade is already two families apart and moving
+ *  either would spend a lightness step on a difference the hue has already made.
+ *
+ *  THE NEAREST SLOT THAT CLEARS THE FLOOR, NOT THE FURTHEST — and this is a deliberate departure
+ *  from `familySlots()`, which takes the free slot furthest from what its neighbours hold. That
+ *  rule is right where it lives: inside a family many regions spread across all five slots, and
+ *  maximising the smallest gap is what keeps the whole assignment readable. GENERATION 0 IS A
+ *  DIFFERENT PROBLEM WEARING THE SAME CLOTHES. Here every region that is not a touching twin is
+ *  pinned at slot 0, so exactly one region moves and "furthest from my neighbour" is always slot 4,
+ *  every time. Measured on the DS's specimen (`topic-wrap.card.html`): the graded twin came out at
+ *  oklch(0.72 0.13) in a field where every other territory is oklch(0.90 0.05) — the single
+ *  saturated cell on an otherwise pastel map. On a map where fill encodes topic identity, the
+ *  disambiguated region then also reads as the most important one, which is a meaning nobody asked
+ *  it to carry. So this walks the ladder from the top and takes the FIRST slot that clears
+ *  `TOPIC_SEPARATION_MIN` against every placed same-hue neighbour, and only falls back to the
+ *  furthest if nothing clears. Enough to see the border, not enough to shout.
+ *
+ *  THE LADDER IS SHARED WITH THE NESTED TIERS, so a fill value alone never identifies a tier: a
+ *  generation-0 twin at slot 1 draws exactly what a nested descendant at slot 1 draws. That is not
+ *  a collision to design out — depth is carried by the ancestor boundary ladder (thin between
+ *  siblings, heavy between groups), never by fill, which is the same reason `nestedFamilyPaint`
+ *  dropped depth as a channel. */
+export function topicSlots(neighbours: readonly (readonly number[])[] = [], { hue = [] as readonly (string | null | undefined)[] }: { hue?: readonly (string | null | undefined)[] } = {}): number[] {
+  const n = neighbours.length
+  const slot: number[] = new Array(n).fill(0)
+  const nb = (i: number) => neighbours[i] || []
+  const twin = (a: number, b: number) => hue[a] != null && hue[a] === hue[b]
+  const load = (i: number) => nb(i).filter((j) => twin(i, j)).length
+  const order: number[] = []
+  for (let i = 0; i < n; i++) if (load(i) > 0) order.push(i)
+  /* most-constrained first, index as the tie-break, so one tessellation always gives one answer */
+  order.sort((a, b) => (load(b) - load(a)) || (a - b))
+  const placed = new Set<number>()
+  for (const i of order) {
+    const against = nb(i).filter((j) => twin(i, j) && placed.has(j))
+    let best = 0
+    if (against.length) {
+      /* nearest first: the smallest step down the ladder that clears the floor against ALL of
+         them. `worst` is this candidate's separation from the neighbour it is closest to. */
+      let fallback = 0
+      let fallbackScore = -1
+      best = -1
+      for (let k = 0; k < FAMILY_SLOTS; k++) {
+        let worst = Infinity
+        for (const j of against) worst = Math.min(worst, SLOT_DIST[k][slot[j]])
+        if (worst > fallbackScore) { fallbackScore = worst; fallback = k }
+        if (worst >= TOPIC_SEPARATION_MIN) { best = k; break }
+      }
+      /* nothing clears: a region with same-hue neighbours already spread across the ladder. Take
+         the furthest, as `familySlots()` would, rather than returning a value known to be too
+         close. Reachable only with three or more mutually touching twins of one hue. */
+      if (best < 0) best = fallback
+    }
+    slot[i] = best
+    placed.add(i)
+  }
+  return slot
+}
+
 /** PAINT FOR A NODE NESTED INSIDE A FAMILY'S HUE, arbitrarily deep — a map territory four levels
  *  into one domain, a tree branch several folds deep, anywhere a whole subtree shares one
  *  `topicPaint()` hue and would otherwise read as one undifferentiated blob.
