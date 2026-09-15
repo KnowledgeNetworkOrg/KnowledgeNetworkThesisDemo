@@ -4,7 +4,11 @@
 // the visibility eye hides the walk the map is drawing — pins and arrows together —
 // and a CHANGE OF WALK shows the new walk without a click. Hidden is per-walk state
 // (`src/model/walkvisibility.ts` says why, and its unit test proves the rule); this
-// proves the rule is wired to the eye, the drawing and the bus.
+// proves the rule is wired to the eye, the drawing and the bus. And the other half of
+// the item's done-when (added 2026-09-14): the DOCK is never hidden by the eye — it stays
+// mounted and usable while the walk is hidden, a seek moves its readout with nothing drawn
+// on the map, the eye brings the drawing back at the CURRENT position, and the eye wears
+// its slash and no moss wash (the slash is the whole state).
 //
 // WHAT COUNTS AS "the drawing". The whole walk layer is one `<g data-routepath>`
 // gated by the flag (OB-122 put pins AND arrows inside it), so "hidden" is that
@@ -88,11 +92,39 @@ ok('the eye names the DRAWING, not its nodes', (await eyeSays()) === 'hide the w
 await playButtons().nth(0).click()
 await page.waitForTimeout(700)
 ok('walk A activated draws on the map', await drawn())
+const face = (label) => page.getByLabel(label, { exact: true }).evaluate((el) => getComputedStyle(el).borderColor + ' | ' + getComputedStyle(el).backgroundColor)
+const faceShown = await face('hide the walk')
 
 await eye().click()
 await page.waitForTimeout(300)
 ok('the eye hides walk A — the whole drawing is gone', !(await drawn()))
 ok('and the eye now offers to show it', (await eyeSays()) === 'show the walk', `reads "${await eyeSays()}"`)
+
+// ── the dock is the CONTROL, the pins are the drawing: hiding one never hides the other ─
+const dock = () => page.locator('[data-walk-dock]')
+const readout = async () => {
+  const t = await dock().locator('button').filter({ hasText: /\d+ \/ \d+/ }).first().textContent()
+  const m = /(\d+) \/ (\d+)/.exec(t || '')
+  return m ? { cur: Number(m[1]), n: Number(m[2]) } : null
+}
+ok('THE DOCK STAYS MOUNTED while the walk is hidden', (await dock().count()) === 1)
+ok('the eye wears its slash and NO moss wash: hidden, its border and face are exactly what they were shown — the slash is the whole state', (await face('show the walk')) === faceShown, `${await face('show the walk')} vs ${faceShown}`)
+const rHidden0 = await readout()
+await dock().focus()
+await page.keyboard.press('ArrowRight')
+await page.waitForTimeout(400)
+const rHidden1 = await readout()
+ok('and it is USABLE: a seek moves the dock\'s readout', !!rHidden0 && !!rHidden1 && rHidden1.cur === rHidden0.cur + 1, `${JSON.stringify(rHidden0)} -> ${JSON.stringify(rHidden1)}`)
+ok('while the map still draws nothing for the walk', !(await drawn()))
+await eye().click()
+await page.waitForTimeout(400)
+ok('the eye brings the drawing back', await drawn())
+const pinSteps = await page.$$eval('svg[data-nested] [data-routestop]', (els) => els.map((el) => el.getAttribute('data-step')))
+const covers = (s, cur) => { const m = /^(\d+)(?:-(\d+))?$/.exec(s || ''); return !!m && cur >= Number(m[1]) && cur <= Number(m[2] ?? m[1]) }
+ok('at the CURRENT position: the pin for the readout\'s stop is among those drawn', pinSteps.some((s) => covers(s, rHidden1.cur)), `readout ${JSON.stringify(rHidden1)}, pins ${pinSteps.join(',')}`)
+await eye().click()
+await page.waitForTimeout(300)
+ok('hidden again for the level-change check', !(await drawn()))
 
 const levelOf = () => page.evaluate(() => document.querySelector('svg[data-nested]')?.getAttribute('data-level'))
 const levelBefore = await levelOf()
