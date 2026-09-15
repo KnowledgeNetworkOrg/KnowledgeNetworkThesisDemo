@@ -108,6 +108,9 @@ const readout = async () => {
   return m ? { cur: Number(m[1]), n: Number(m[2]) } : null
 }
 ok('THE DOCK STAYS MOUNTED while the walk is hidden', (await dock().count()) === 1)
+// the pointer is still resting on the eye after the click — move it off, or this reads the hover face
+await page.mouse.move(5, 5)
+await page.waitForTimeout(250)
 ok('the eye wears its slash and NO moss wash: hidden, its border and face are exactly what they were shown — the slash is the whole state', (await face('show the walk')) === faceShown, `${await face('show the walk')} vs ${faceShown}`)
 const rHidden0 = await readout()
 await dock().focus()
