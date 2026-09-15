@@ -234,8 +234,17 @@ const P = {
                      carries " (optional)" and `StopTitle` gives it a third clamped line so the word
                      is never swallowed by a two-line name (the strip's own rule). Was 64 for two. */
 }
+const FOLD_MS = 280 /* the fold: the two rails' height transition and the chevron's turn. The open row
+                       unmounts this long after a close, so it cannot drift from the animation.
+                       PUBLISHED as `WALK_DOCK_METRICS.fold` — the host's floating chrome rides the
+                       dock's live height (rule 2b in the DS `.d.ts`; MapView) and must move on the
+                       same clock. */
 export const WALK_DOCK_METRICS = {
   ...P,
+  /** CHOSEN: ms of the open/close fold. What the host's floating chrome transitions over (rule 2b
+   *  of the DS contract): whatever the host moves with the dock's height animates for exactly this
+   *  long, with `--ease-soft`, so it reads as the dock pushing it rather than a second animation. */
+  fold: FOLD_MS,
   /** DERIVED: padTop + row + railGap + rail + padBottom + border = 63. What the auto-fit insets. */
   closed: P.padTop + P.row + P.railGap + P.rail + P.padBottom + P.border,
   /** DERIVED: padTop + row + rowH + padBottom + border = 113. Covers `open − closed` of map. */
@@ -252,8 +261,6 @@ export const WALK_DOCK_METRICS = {
 }
 
 const SOFT = 'var(--ease-soft)'
-const FOLD_MS = 280 /* the fold: the two rails' height transition and the chevron's turn. The open row
-                       unmounts this long after a close, so it cannot drift from the animation. */
 const FOLD = FOLD_MS + 'ms'
 
 export type WalkDockMetric = 'position' | 'percent'
@@ -572,8 +579,27 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
           } as CSSProperties}>
           <div style={{ position: 'relative', display: 'flex', minWidth: 'max-content', paddingTop: 2 }}>
             {rowLive ? <Fragment>
-            <div aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, top: rowLineTop, height: rowLineH, borderRadius: 'var(--radius-pill)', background: 'var(--bark-100)', transition: 'height .15s ' + SOFT + ', top .15s ' + SOFT }} />
-            <div aria-hidden="true" style={{ position: 'absolute', left: 0, top: rowLineTop, height: rowLineH, width: pos * M.stopW + M.stopW / 2, borderRadius: 'var(--radius-pill)', background: 'var(--accent-walk)', opacity: 0.55, transition: 'height .15s ' + SOFT + ', top .15s ' + SOFT }} />
+            {/* THE LINE SPANS DOT CENTRE TO DOT CENTRE, not the columns' full width (OB-157). Each
+               stop is a `stopW` column with its dot centred, so the first centre sits `stopW / 2`
+               in and the last one `stopW / 2` short of the end — a `left: 0; right: 0` track hung
+               half a column off BOTH ends. It read as a line continuing past the last stop, which
+               on a walk means "there is more after this", the one thing the last stop must not
+               say (owner, seen at 13 / 13, 2026-09-05, where scrolling to the end puts the overhang
+               against empty space). The closed rail never had this: its ticks are placed at
+               `i / last`, so its line already ends on a tick. At one stop the track has zero width
+               and draws nothing — one stop is not a journey.
+               ★ LOCAL: A WIDTH, NOT A `right` INSET. The DS's fix is `right: stopW / 2`, which ends
+               on the last dot only when the row is at least as wide as its scroller. This row's
+               container is a block child of the scroller with `minWidth: max-content`, so a walk
+               narrower than the pane (the seed draft: 7 stops, 476px, in a ~780px pane) stretches
+               the container to the pane's width and the track overhangs the last dot by the
+               difference — measured 171px at 7 / 7, the same fault at a larger size. A width of
+               `last * stopW` from the first centre ends on the last centre whether the row scrolls
+               or not. Reported in the receipt. */}
+            <div aria-hidden="true" data-walk-dock-track="" style={{ position: 'absolute', left: M.stopW / 2, width: Math.max(0, last * M.stopW), top: rowLineTop, height: rowLineH, borderRadius: 'var(--radius-pill)', background: 'var(--bark-100)', transition: 'height .15s ' + SOFT + ', top .15s ' + SOFT }} />
+            {/* the walked part ends ON the current dot's centre, and starts on the first one's — at
+               position 0 a `left: 0` fill stuck out to the left of stop 1 with nothing walked. */}
+            <div aria-hidden="true" data-walk-dock-fill="" style={{ position: 'absolute', left: M.stopW / 2, top: rowLineTop, height: rowLineH, width: Math.max(0, pos * M.stopW), borderRadius: 'var(--radius-pill)', background: 'var(--accent-walk)', opacity: 0.55, transition: 'height .15s ' + SOFT + ', top .15s ' + SOFT }} />
             {steps.map((s, i) => {
               const st = stopState(i, cur)
               const b = walkBand(i, pos, band)
@@ -583,7 +609,7 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
                    it a second later — two tooltips for one pointer rest. The attribute survives
                    only for a host that passes no `renderPreview`, where a clamped title would
                    otherwise have no way to be read in full. */
-                <div key={s.id} title={renderPreview ? undefined : wrapTip(s.optional ? s.title + ' (optional)' : s.title)} style={{ position: 'relative', flex: 'none', width: M.stopW, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, opacity: Math.max(b.ink, 0.35 * (1 - b.near) + b.near) }}>
+                <div key={s.id} data-walk-dock-stop={i} title={renderPreview ? undefined : wrapTip(s.optional ? s.title + ' (optional)' : s.title)} style={{ position: 'relative', flex: 'none', width: M.stopW, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, opacity: Math.max(b.ink, 0.35 * (1 - b.near) + b.near) }}>
                   <div style={{ height: M.walker, display: 'flex', alignItems: 'flex-end', color: 'var(--accent-walk)' }}>
                     {i === cur ? <WalkerMark size={M.walker} animated={playing} /> : null}
                   </div>

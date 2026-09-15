@@ -255,6 +255,15 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   const play = useWalkPlayback(bus)
   // the wall shows the whole walk still: no dock, no band (OB-139 rule 4)
   const dockShown = !wall && routeIsWalk(bus.route, play.steps)
+  // THE DOCK'S OPEN STATE IS HELD HERE (OB-156), because the floating chrome has to read it:
+  // rule 2b of the DS's WalkDock contract lifts every floating control by the dock's LIVE
+  // height — `closed` while closed, `open` while open — never by a measured DOM height.
+  const [dockOpen, setDockOpen] = useState(false)
+  // 12px from the pane's bottom edge; over the dock's live height while one is mounted
+  const chromeBottom = 12 + (dockShown ? (dockOpen ? WALK_DOCK_METRICS.open : WALK_DOCK_METRICS.closed) : 0)
+  // and it moves on the dock's OWN fold (`WALK_DOCK_METRICS.fold`, never a retyped 280), with
+  // `--ease-soft`, so it arrives with the rail rather than after it
+  const chromeRide = 'bottom ' + WALK_DOCK_METRICS.fold + 'ms var(--ease-soft)'
 
   // ── OB-173: A WALK STOP IS A HIGHLIGHT, NOT A SELECTION ────────────────────
   // Every seek and every tick of the clock writes the focus (playback.ts, via 'walk'), and a
@@ -1771,12 +1780,19 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
           bottom info bar (OB-094): levels move here, zoom % and the wheel/
           double-click hint aren't worth the space once real zoom buttons
           exist, and the selection summary folds into MapTooltip above. ── */}
-      {/* #246: the floating chrome climbs over the closed dock while one is docked,
-          so the level picker and the zoom buttons never sit under its rail */}
+      {/* #246: the floating chrome climbs over the dock while one is docked, so the level
+          picker and the zoom buttons never sit under its rail — and BY THE DOCK'S LIVE HEIGHT
+          (OB-156, ruled 2026-09-05): it used to climb by `closed` only, on the reading that the
+          open row covering it was the same "open covers 50px of map" trade the auto-fit accepts.
+          It is not the same trade. Rule 2 is about the MAP, where being covered costs a view of
+          territory the user can pan back; a covered CONTROL costs the control — a level picker or
+          a zoom button under the open row cannot be clicked, and zoom is this map's primary
+          gesture. The owner met it live: the + cut in half by the dock's top edge, the eye gone.
+          So the chrome climbs with the open state even though the map does not re-fit for it. */}
       {/* the wall (#267) has no chrome of its own: the room is looking at a picture */}
       {wall ? null : (<>
-      <LevelPicker style={{ position: 'absolute', left: 12, bottom: 12 + (dockShown ? WALK_DOCK_METRICS.closed : 0), zIndex: 10 }} levels={LEVEL_LABELS} level={`L${level}`} onSelect={(l) => flyToLevel(Number(l.slice(1)))} />
-      <div style={{ position: 'absolute', right: 12, bottom: 12 + (dockShown ? WALK_DOCK_METRICS.closed : 0), zIndex: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <LevelPicker style={{ position: 'absolute', left: 12, bottom: chromeBottom, transition: chromeRide, zIndex: 10 }} levels={LEVEL_LABELS} level={`L${level}`} onSelect={(l) => flyToLevel(Number(l.slice(1)))} />
+      <div style={{ position: 'absolute', right: 12, bottom: chromeBottom, transition: chromeRide, zIndex: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {/* names the DRAWING, not its nodes: the button moves pins and arrows together */}
         <MapFloatingButton size={36} title={walkVisible ? 'hide the walk' : 'show the walk'} onClick={() => setHiddenWalks((h) => toggleWalkHidden(h, walkKey))}>
           <VisibilityMark open={walkVisible} style={walkVisible ? undefined : { color: 'var(--bark-400)' }} />
@@ -1796,6 +1812,8 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
           playing={play.playing}
           onPlayToggle={play.toggle}
           onSeek={play.seek}
+          open={dockOpen}
+          onOpenChange={setDockOpen}
           renderPreview={renderStopPreview}
           style={{ zIndex: 11 }}
         />
