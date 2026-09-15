@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { portalInto } from '../chrome/portal'
 
 /** THE PREVIEW POPUP'S ONE GEOMETRY, published so three surfaces share it: how far above its
  *  anchor the card floats. A number in prose gets retyped; `WalkStrip` carried `top - 12` inline
@@ -21,14 +22,14 @@ export interface WalkPreviewProps {
   /** px between the anchor's top edge and the card's bottom. Default `PREVIEW_GAP` (12) — CHOSEN,
    *  a look, not derived; pass a different one only when the anchor is taller than a dot. */
   gap?: number
-  /** the host's preview content — what `renderPreview(step, index)` returned */
+  /** the host's preview content — what `renderPreview(step, index, mark?)` returned */
   children?: ReactNode
 }
 
 /** THE ONE POPUP EVERY WALK SURFACE SHOWS ON HOVER — the strip's seek bar and dots, the dock's
  *  closed rail and open row, and a walk pin on the map all hang the SAME card off the same
  *  geometry, so a stop previews identically wherever the pointer finds it. The host supplies the
- *  content (`renderPreview(step, index)` on every one of those components); this only places it.
+ *  content (`renderPreview(step, index, mark?)` on every one of those components); this only places it.
  *
  *  POSITIONED AGAINST THE VIEWPORT (fixed), never the surface — a preview is meant to float free
  *  of the pane's own clipping, the same reason a video scrubber's thumbnail is never cropped by
@@ -36,9 +37,13 @@ export interface WalkPreviewProps {
  *  and aria-hidden: it is a look-ahead, not a control, and it must never steal the hover that
  *  raised it.
  *
- *  WHAT THE CALLER MUST DO (WalkPreview.d.ts): render it only while a hover is live, never during
- *  a drag or a seek; pass VIEWPORT coordinates and re-read `top` on every hover move; CURSOR HOVER
- *  ONLY — a hover published by another pane has no pointer over this surface to anchor to; and
+ *  WHAT THE CALLER MUST DO (WalkPreview.d.ts): render it while a hover is live AND WHILE A DRAG IS
+ *  CHOOSING A STOP — that rule was the other way round until 2026-09-14 and the reversal is the
+ *  owner's (OB-185): a hover asks *what is over there*, a drag COMMITS, so the card belongs to the
+ *  gesture that commits; what a scrub needs is a better ANCHOR (the stop being landed on, not the
+ *  pointer), which `WalkDock` does. Still no card when nothing is pointed at or dragged. Pass
+ *  VIEWPORT coordinates and re-read `top` on every hover move; CURSOR HOVER ONLY — a hover
+ *  published by another pane has no pointer over this surface to anchor to; and
  *  NAME THE STOP BY ITS FULL STEP PATH when the stop sits inside a `VersionedGroup` on the walk
  *  ("3.1", "1.1.1.2" — the group's own `numberScope`/`localIndex` numbering). A map pin shows
  *  only the top-level step and several pins may share it (OB-114 / #228, owner 2026-09-03); this
@@ -47,11 +52,26 @@ export interface WalkPreviewProps {
  *  from `PlayStep.path`.
  *
  *  Typed port of the DS WalkPreview.jsx (contract: WalkPreview.d.ts), OB-131. */
+/** IT RENDERS THROUGH A PORTAL, AND THAT IS NOT A DETAIL — it is what makes `position: fixed` mean
+ *  what the docblock above says. A `filter`, `backdrop-filter`, `transform`, `perspective` or
+ *  `will-change` on ANY ancestor makes that ancestor the containing block for a fixed descendant,
+ *  so the card's viewport coordinates are silently re-read as offsets inside it and the card draws
+ *  somewhere else — usually under the pane's own `overflow: hidden`, where it is invisible. Not
+ *  hypothetical: `WalkDock` wears `backdrop-filter: blur(6px)` for its paper wash, so from the day
+ *  the dock was written its hover preview was mounted, populated and drawn ~137px below the rail,
+ *  outside the pane, clipped (owner-reported 2026-09-14; OB-185 clause 6, measured both ways in
+ *  the DS's `guidelines/preview-containing-block-probe.html`). Every DOM-count probe passed. A host
+ *  rule would not have saved it — the ancestor is a LOOK three levels up and the failure draws
+ *  nothing — so the mechanism ships here: `portalInto(document.body, …)`, the same helper
+ *  `VersionedGroup` and `NodePicker` use. Rendering in place is the no-`document` fallback and the
+ *  only state in which the fault can return. `data-walk-preview` is a test hook only. */
 export function WalkPreview({ x, top, gap = PREVIEW_GAP, children }: WalkPreviewProps) {
-  return (
-    <div aria-hidden="true" style={{
+  const card = (
+    <div aria-hidden="true" data-walk-preview="" style={{
       position: 'fixed', left: x, top: top - gap,
       transform: 'translate(-50%, -100%)', zIndex: 20, pointerEvents: 'none',
     }}>{children}</div>
   )
+  const host = typeof document !== 'undefined' ? document.body : null
+  return host ? portalInto(host, card) : card
 }

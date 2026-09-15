@@ -32,6 +32,38 @@ export function stopInk(state: StopState): string {
   return state === 'current' ? 'var(--text-walk)' : state === 'done' ? 'var(--text-2)' : 'var(--text-3)'
 }
 
+/** A MARK ON THE WALK, as `walkProgress` reads it — `from`/`to` are STEP indices (feed them to
+ *  `walkBandSpan` too). On the dock and the strip a mark IS a step, so `from === to`.
+ *
+ *  A MARK SPANNING SEVERAL STOPS IS THE HOST'S, and only the map has one: its pins merge a
+ *  contiguous run of stops that resolve to one CELL at the level being drawn, labelled `"2-3"`.
+ *  Ruled 2026-09-14 (owner): THE DOCK AND THE STRIP DRAW NO RANGES — a stop is a stop on a control
+ *  that lists the walk. The by-NODE grouping the DS shipped on 2026-09-09 (`walkRanges` /
+ *  `walkMarkAt`, marks numbered `2.1–2.3`) is REMOVED with that ruling: it made a mark mean "one
+ *  node, several visits" there and "several nodes, one cell" on the map, so the two pills were two
+ *  different claims wearing one shape. This port never took that grouping (OB-185 clause 1);
+ *  nothing here derives a mark. */
+export interface WalkMark {
+  from: number
+  to: number
+  /** what the HOST prints on a merged pin, e.g. `"2-3"`. Never minted here. */
+  label?: string
+  /** the steps the mark covers, for a host card that lists them */
+  steps?: unknown[]
+}
+
+/** HOW MUCH OF A MARK THE WALK HAS PASSED, 0…1 — what `StepDot`'s `progress` wants for the wash.
+ *  A one-step mark is 0 until the cursor reaches it and 1 after; the fractional case is a HOST's
+ *  merged mark (a map pin covering a run of stops), which washes a step at a time as the class
+ *  works through it. Published rather than left to callers because it is an off-by-one waiting to
+ *  happen: a mark is complete when the cursor has PASSED its last step, not when it arrives at it. */
+export function walkProgress(mark: WalkMark, position: number): number {
+  if (position < mark.from) return 0
+  if (position > mark.to) return 1
+  const span = mark.to - mark.from + 1
+  return Math.max(0, Math.min(1, (Math.floor(position + 1e-4) - mark.from + 1) / span))
+}
+
 /** THE ONE WORD FOR A STEP THE WALK MAY SKIP — fixed at " (optional)", italic at regular weight,
  *  `--text-3`, inline after the name with a single space (owner, 2026-08-23) — the same word and
  *  the same styling `NodeChip`'s own optional label uses. Never its own line, never a colour. */
@@ -149,4 +181,4 @@ export function walkHoverStyle(scale: number, prefix?: string): { transform: str
 /** THE SAME PARTS AS ONE OBJECT, named for the file (the DS's bundler wants an export named
  *  `WalkParts`; a consumer that prefers one import gets it). The named exports above are the
  *  primary API. */
-export const WalkParts = { StopTitle, PlayToggle, OptionalSuffix, stopState, stopInk, PLAY_PATH, PAUSE_PATH, WALK_HOVER_GROW, WALK_ROW_HOVER_GROW, hoverStyle: walkHoverStyle }
+export const WalkParts = { StopTitle, PlayToggle, OptionalSuffix, stopState, stopInk, progress: walkProgress, PLAY_PATH, PAUSE_PATH, WALK_HOVER_GROW, WALK_ROW_HOVER_GROW, hoverStyle: walkHoverStyle }

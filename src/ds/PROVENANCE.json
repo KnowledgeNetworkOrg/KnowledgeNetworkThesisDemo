@@ -234,16 +234,18 @@
       "src/ds/nav/WalkParts.tsx": {
         "from": "components/nav/WalkParts.jsx",
         "contract": "components/nav/WalkParts.d.ts",
-        "syncedAt": "2026-09-05",
+        "syncedAt": "2026-09-14",
         "deviations": [
+          "2026-09-14 OB-185 — `WalkMark` and `walkProgress(mark, position)` ported as written (the DS's `WalkParts.progress` too), with the no-ranges ruling in the docblock; this port never carried `walkRanges`/`walkMarkAt`, so nothing was removed.",
           "2026-09-05 NEW FILE (OB-133 + OB-140, #246). The parts WalkStrip and WalkDock draw the same way — StopTitle (with the optional step's extra clamped line), OptionalSuffix, PlayToggle, stopState/stopInk, the two hover-grow factors and walkHoverStyle's translateZ(0) recipe — ported whole and read by both hosts. ONE DIVERGENCE, the house rule: PlayToggle's native `title` goes through `wrapTip` (src/ds/adherence.test.ts refuses a raw title= on a DOM element); the string is the DS's, the fold is ours."
         ]
       },
       "src/ds/nav/WalkPreview.tsx": {
         "from": "components/nav/WalkPreview.jsx",
         "contract": "components/nav/WalkPreview.d.ts",
-        "syncedAt": "2026-09-05",
+        "syncedAt": "2026-09-14",
         "deviations": [
+          "2026-09-14 OB-185 clause 6 — THE PORTAL: the card renders through `portalInto(document.body, …)` (src/ds/chrome/portal.ts) exactly as the DS's 2026-09-14 source does, because `WalkDock`'s `backdrop-filter` made the dock the containing block for the `position: fixed` card, which had been drawn ~137px below the rail and clipped since the dock was written. Caller rule 1 REVERSED in the docblock (render during a drag too). Test hook only: `data-walk-preview`.",
           "2026-09-05 OB-114 (#228) — CONTRACT ONLY, no code change: caller rule 4 (name a grouped stop by its full step path) ported into the docblock. Applied by the app's `walkdesk/stoppreview.tsx`, which prints `PlayStep.path` as \"3.1 · <name>\" above the note for a stop inside a group and nothing extra for a top-level stop.",
           "2026-09-05 NEW FILE (OB-131, #246). The one hover card every walk surface hangs above a stop — fixed against the viewport, PREVIEW_GAP (12) above the anchor, pointer-transparent. Mechanical port. Three hosts pass it the same content function, src/instruments/walkdesk/stoppreview.tsx: the viewer's strip, the map's dock and the map's pins. THE APP'S OWN `walkdesk/WalkPreview.tsx` (the walk read as chapters) WAS RENAMED `WalkChapters.tsx` in the same commit so the name is the DS's alone."
         ]
@@ -285,6 +287,7 @@
         "contract": "components/map/WalkDock.d.ts",
         "syncedAt": "2026-09-14",
         "deviations": [
+          "2026-09-14 OB-185 — re-ported against the DS's 2026-09-14 source: a DRAG keeps the preview up and anchors it on the stop being landed on (`previewAt`/`clearPreview`/`outside`, the rail and row handlers), `onStepHover` reports ONCE per change of stop through a ref (`lastRef`), `renderPreview` takes a third `mark` argument the dock never sends, `WalkPinHover` accepts and forwards `mark`, the open row's `StepDot` takes `progress={walkProgress(...)}`, and the four newly published clocks are ported as written: `walkBandSpan`, `walkArrival`, `walkArrivalLag`, `walkLook` + `WALK_LOOK_DEFAULTS` (+ `WalkLook`). Never took `walkRanges`/`walkMarkAt` (clause 1 held by construction). ★ LOCAL kept: the OB-157 track width (`last * stopW`, see the 2026-09-14 OB-156/157 note) and the wrapTip'd titles. Test hooks only: `data-walk-dock-rail`, `data-walk-dock-knob`.",
           "2026-09-14 OB-175 — DOCUMENTATION ONLY: `walkArrow`'s docblock states from its end that `headAcorn` is the host's entry test for passing `walked` to `NodeArrow` (0 means the walk standing at the tail, not 'not entered'). No behaviour change.",
           "2026-09-14 OB-157 + OB-156 (one pass) — OB-157: the open row's track and walked fill re-ported from the DS's 2026-09-05 fix: track from the first dot's centre to the last's — ★ LOCAL as `left: stopW / 2; width: last * stopW` rather than the DS's `right: stopW / 2`, which ends on the last dot only when the row is at least as wide as its scroller (the container is a block child with `minWidth: max-content`, so a 7-stop walk in a wider pane stretched it and the track overhung the last dot by 171px — measured, reported), fill `left: stopW / 2, width: max(0, pos * stopW)`; `rowIndexAt`/`rowXOf` untouched. `WALK_DOCK_METRICS.fold` (280, CHOSEN) is now published, and `FOLD_MS` moved above the metrics so the object can read it. Test hooks only: `data-walk-dock-track`, `data-walk-dock-fill`, `data-walk-dock-stop`. OB-156 is the HOST's: MapView holds the dock's `open` (controlled) and lifts its floating chrome by the dock's LIVE height on `fold` ms with `--ease-soft` — the DS's rule 2b, ruled 2026-09-05 over receipts/f947da4.md's climb-by-closed.",
           "2026-09-05 NEW FILE (OB-130, #246). The walk docked on the map pane's bottom edge, two heights, plus the published band/arrow/clock recipes (walkBand, segmentWalked, walkArrow, walkAdvance, walkEase, the three DEFAULTS objects) for OB-132 to read later. Adopted by src/instruments/MapView.tsx, which mounts it only while bus.route IS the played walk (playback.ts routeIsWalk — a bus.teach curriculum draws pins and gets no dock). NOT PORTED: `WalkMath`, the capital-initial bundle the DS exports for its own window-namespace cards; its .d.ts says nothing in src/ds needs it and OB-130 clause 8 says keep it off the barrel.",

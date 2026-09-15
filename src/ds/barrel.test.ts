@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { Bullet, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, FindMark, FlagButton, FlagMark, IconButton, InlineText, LeafMark, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, chipSpec, segmentWalked, usedStroke, walkEase, walkHoverStyle } from '@/ds'
+import { Bullet, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, FindMark, FlagButton, FlagMark, IconButton, InlineText, LeafMark, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, segmentWalked, usedStroke, walkEase, walkHoverStyle } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -186,6 +186,19 @@ describe('ported but not adopted DS components', () => {
 
   it('WalkPinHover — for HTML pins; the map binds the recipe on its SVG pins itself', () => {
     expect(typeof WalkPinHover).toBe('function')
+  })
+
+  // Published by the DS on 2026-09-14 and ported with OB-185; each has an item waiting to adopt
+  // it: `walkLook` / `WALK_LOOK_DEFAULTS` are OB-179's camera gate, `walkArrival` /
+  // `walkArrivalLag` are OB-181's arrival cursor, `walkBandSpan` and `walkProgress` serve the
+  // map's merged pins (OB-184). Listed so adopting one is a deliberate edit here.
+  it('walkLook / walkArrival / walkArrivalLag / walkBandSpan / walkProgress — published for OB-179, OB-181 and OB-184; no app reader yet', () => {
+    expect(typeof walkLook).toBe('function')
+    expect(typeof walkArrival).toBe('function')
+    expect(typeof walkArrivalLag).toBe('function')
+    expect(typeof walkBandSpan).toBe('function')
+    expect(typeof walkProgress).toBe('function')
+    expect(WALK_LOOK_DEFAULTS.edgeInset).toBe(0.12)
   })
 
   // TreeRow JOINED THIS LIST ON 2026-09-07 rather than being deleted (#265). Its only

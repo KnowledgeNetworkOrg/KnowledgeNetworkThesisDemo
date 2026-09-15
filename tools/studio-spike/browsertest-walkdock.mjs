@@ -185,6 +185,42 @@ await map.getByLabel('hide the stops').click()
 await page.waitForTimeout(450)
 ok('closed again: the chrome comes back down to 12 + closed', Math.abs((await bottomOf('levels')) - 75) <= 2, `${await bottomOf('levels')}`)
 
+// ── A4. OB-185: the preview is where it says it is, and a drag keeps it up ─────────
+// The dock wears `backdrop-filter: blur(6px)`, which makes it the containing block for a
+// `position: fixed` descendant — so a preview rendered in place is mounted, populated and drawn
+// ~137px BELOW the rail, outside the pane, clipped by its overflow. Nothing errors and a DOM-count
+// check passes; the owner found it by hovering. The card now mounts through a portal on
+// `document.body`, and the checkable form is geometry: its bottom sits PREVIEW_GAP (12) above the
+// rail's top and its box lies INSIDE the pane. And a drag on the rail keeps the card up, anchored
+// on the stop being landed on (the knob), not on the pointer.
+const preview = () => page.locator('[data-walk-preview]')
+const railBox = await dock().locator('[data-walk-dock-rail]').boundingBox()
+await page.mouse.move(railBox.x + railBox.width * 0.5, railBox.y + railBox.height / 2)
+await page.waitForTimeout(250)
+const mapBox0 = await map.boundingBox()
+const cardBox0 = await preview().boundingBox()
+ok('OB-185: hovering the closed rail raises the preview card', !!cardBox0, cardBox0 ? '' : 'no [data-walk-preview]')
+ok('and the card sits PREVIEW_GAP (12) above the rail\'s top — not 137px below it', !!cardBox0 && Math.abs(railBox.y - (cardBox0.y + cardBox0.height) - 12) <= 1, cardBox0 ? `card bottom ${(cardBox0.y + cardBox0.height).toFixed(1)}, rail top ${railBox.y.toFixed(1)}` : '')
+ok('inside the pane\'s own rect', !!cardBox0 && cardBox0.y >= mapBox0.y - 1 && cardBox0.y + cardBox0.height <= mapBox0.y + mapBox0.height + 1, cardBox0 ? `card y ${cardBox0.y.toFixed(1)}..${(cardBox0.y + cardBox0.height).toFixed(1)}, pane ${mapBox0.y.toFixed(1)}..${(mapBox0.y + mapBox0.height).toFixed(1)}` : '')
+// the drag: down at 20%, move to 70% — the card stays up and tracks the sought stop's knob
+await page.mouse.move(railBox.x + railBox.width * 0.2, railBox.y + railBox.height / 2)
+await page.mouse.down()
+await page.waitForTimeout(150)
+ok('pressing down on the rail keeps the card mounted', (await preview().count()) === 1)
+await page.mouse.move(railBox.x + railBox.width * 0.7, railBox.y + railBox.height / 2, { steps: 6 })
+await page.waitForTimeout(200)
+const cardMid = await preview().boundingBox()
+const knob = await dock().locator('[data-walk-dock-knob]').boundingBox()
+const rDrag = await readout()
+ok('and moving keeps it up, anchored on the STOP being landed on (the knob), not on the pointer', (await preview().count()) === 1 && !!cardMid && !!knob && Math.abs((cardMid.x + cardMid.width / 2) - (knob.x + knob.width / 2)) <= 2, `card centre ${cardMid ? (cardMid.x + cardMid.width / 2).toFixed(1) : '-'} vs knob ${knob ? (knob.x + knob.width / 2).toFixed(1) : '-'}, readout ${JSON.stringify(rDrag)}`)
+await page.mouse.move(railBox.x + railBox.width * 0.7, railBox.y - 60)
+await page.mouse.up()
+await page.waitForTimeout(200)
+ok('releasing OUTSIDE the rail clears the card', (await preview().count()) === 0)
+await dock().focus()
+await page.keyboard.press('Home')
+await page.waitForTimeout(300)
+
 // ── C. a seek in the dock moves the pins ────────────────────────────────────
 const facesBefore = await pinFaces()
 await dock().focus()
