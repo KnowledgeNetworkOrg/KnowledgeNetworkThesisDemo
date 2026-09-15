@@ -240,6 +240,38 @@ await page.keyboard.press('Home')
 await page.waitForTimeout(250)
 ok('Home seeks back to the first', (await readout())?.cur === 1)
 
+// ── D0a. OB-184: a MERGED pin's card names every stop under it, one card per pointer ──
+// At a coarse level `walkPins` merges a contiguous run of stops resolving to one cell into ONE
+// pin labelled "2-3". A card built from the first stop alone names one document where the pin
+// stands for two, so the range card lists every stop, headed by the pin's own label. And while
+// that card is up the cell's MapTooltip stays down — one card per pointer — and nothing about
+// the focus or the cursor moves: a pin hover is the weakest channel on the pane.
+{
+  const pins = await map.locator('[data-routestop]').evaluateAll((els) => els.map((el) => ({ step: Number(el.getAttribute('data-step')), stepEnd: Number(el.getAttribute('data-step-end')), label: (el.textContent || '').trim(), cell: el.getAttribute('data-routestop') })))
+  const merged = pins.find((p) => /^\d+-\d+$/.test(p.label))
+  ok('OB-184 (3): at this level the walk has a MERGED pin to test against (a test that only runs at a fine level cannot see this clause)', !!merged, `pins: ${pins.map((p) => p.label).join(', ')}`)
+  if (merged) {
+    // the run's length is in STOPS (a grouped walk's "1-2" can cover 1, 2.1 and 2.2), not in the label's numbers
+    const under = merged.stepEnd - merged.step + 1
+    const rBefore = await readout()
+    const spotBefore = await map.locator('[data-spot]').getAttribute('data-spot').catch(() => null)
+    const pin = map.locator(`[data-routestop][data-step="${merged.step}"]`)
+    const pb = await pin.boundingBox()
+    await page.mouse.move(pb.x + pb.width / 2, pb.y + pb.height / 2)
+    await page.waitForTimeout(300)
+    const card = page.locator('[data-stoppreview]')
+    ok('hovering the merged pin raises the preview card', (await card.count()) === 1)
+    ok('headed by the pin\'s own label', (await card.locator('[data-stoplabel]').textContent().catch(() => '')).trim() === merged.label, `"${(await card.locator('[data-stoplabel]').textContent().catch(() => ''))}" vs "${merged.label}"`)
+    const rows = await card.locator('[data-stoprow]').allTextContents().catch(() => [])
+    ok('and naming EVERY stop under it, one line per stop', under > 1 && rows.length === under && rows.every((r) => r.trim().length > 3), `${rows.length} rows for "${merged.label}" (${under} stops): ${rows.map((r) => r.trim()).join(' | ')}`)
+    ok('OB-184 (4): ONE CARD PER POINTER — the cell\'s MapTooltip stays down while the pin\'s card is up', (await page.locator('[data-maptip]').count()) === 0)
+    ok('OB-184 (2): the hover changed nothing — cursor and spot are what they were', JSON.stringify(await readout()) === JSON.stringify(rBefore) && (await map.locator('[data-spot]').getAttribute('data-spot').catch(() => null)) === spotBefore)
+    await page.mouse.move(pb.x + pb.width / 2, pb.y - 120)
+    await page.waitForTimeout(300)
+    ok('leaving the pin clears the card', (await card.count()) === 0)
+  }
+}
+
 // ── D0. OB-181: THE NODE HIGHLIGHT LANDS WITH THE PIN'S POP, NOT ONE DWELL AFTER ──
 // `walkAdvance` returns two cursors: the fractional `position` (which the pop, the fill and
 // the band ride, completing ON the arrival at phase `travel`) and the integer `step` (the loop's

@@ -55,6 +55,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
+import type { WalkMark } from '@/ds'
 import { ARROW_METRICS, headForSet, walkArrival, walkLook, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, PaneCanvas, PIN_RING_WIDTH, previewAnchor, shaftTailOffset, StepDot, VisibilityMark, WALK_ARROW_DEFAULTS, WALK_DOCK_METRICS, walkBand, WalkDock, WalkPreview, ZoomControl } from '@/ds'
 import { byId, domainIds, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT_ID } from '../corpus/graph'
 import { DT } from './walkdesk/authordnd'
@@ -302,7 +303,9 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
    *  the outline and the relations overlay both stand down. `sel` itself is untouched: the
    *  click behaviour, the dashed preselect and the deselect-on-second-click all still read it. */
   const selDrawn = walkDroveFocus ? null : sel
-  const [pinHover, setPinHover] = useState<{ i: number; x: number; top: number } | null>(null)
+  /** a pin's own hover: the stop index, the card's anchor, and — for a MERGED pin — the mark it
+   *  stands for (OB-184 clause 3), which `renderStopPreview` turns into a card naming every stop */
+  const [pinHover, setPinHover] = useState<{ i: number; x: number; top: number; mark?: WalkMark } | null>(null)
   // THE LOOK FLIGHT'S INSET (DS OB-130: "the host insets its auto-fit by
   // WALK_DOCK_METRICS.closed"). This map has no auto-fit — its camera is level-
   // driven, and the only move that centres a point is the LOOK flight below — so
@@ -912,6 +915,7 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
     lookedAtCell: lookId,
     walkStopCell: walkDroveFocus ? sel : null,
     onRelation: hoverEdge !== null,
+    walkPinHovered: pinHover !== null,
   })
   const spotId = marks.spotlightId
   const spotOutline = spotId ? outlineOf(spotId) : undefined
@@ -1540,12 +1544,19 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                   key={s.key}
                   data-routestop={s.visId}
                   data-step={s.step}
+                  data-step-end={s.stepEnd}
                   data-pin={k}
                   opacity={b.pinOpacity}
                   transform={`translate(${s.c.x} ${s.c.y}) scale(${(f / view.s) * b.pinScale})`}
                   pointerEvents={dockShown ? 'all' : 'none'}
                   style={dockShown ? { cursor: 'pointer' } : undefined}
-                  onPointerEnter={(e) => { if (!dragging && dockShown) setPinHover({ i: s.step - 1, ...previewAnchor(e.currentTarget.getBoundingClientRect()) }) }}
+                  onPointerEnter={(e) => {
+                    if (dragging || !dockShown) return
+                    /* THE MARK IS THE HOST'S TO BUILD (OB-184): a merged pin stands for stops
+                       `step`..`stepEnd`, 1-based, and the card names every one of them */
+                    const mark: WalkMark | undefined = s.stepEnd > s.step ? { from: s.step - 1, to: s.stepEnd - 1, label: String(s.label), steps: play.steps.slice(s.step - 1, s.stepEnd) } : undefined
+                    setPinHover({ i: s.step - 1, mark, ...previewAnchor(e.currentTarget.getBoundingClientRect()) })
+                  }}
                   onPointerLeave={() => setPinHover(null)}
                   onClick={() => regionClick(s.visId)}
                 >
@@ -1875,7 +1886,7 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
         />
       )}
       {pinHover && play.steps[pinHover.i] && (
-        <WalkPreview x={pinHover.x} top={pinHover.top}>{renderStopPreview(play.steps[pinHover.i])}</WalkPreview>
+        <WalkPreview x={pinHover.x} top={pinHover.top}>{renderStopPreview(play.steps[pinHover.i], pinHover.i, pinHover.mark)}</WalkPreview>
       )}
     </PaneCanvas>
   )
