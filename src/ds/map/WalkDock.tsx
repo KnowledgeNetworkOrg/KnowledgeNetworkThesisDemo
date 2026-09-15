@@ -5,6 +5,7 @@ import { StepDot } from '../nav/StepDot'
 import { WalkerMark } from '../chrome/WalkerMark'
 import { WalkPreview, previewAnchor } from '../nav/WalkPreview'
 import { StopTitle, PlayToggle, OptionalSuffix, stopState } from '../nav/WalkParts'
+import type { WalkMark } from '../nav/WalkParts'
 import { wrapTip } from '../chrome/IconButton'
 import type { WalkStep } from '../nav/WalkStrip'
 
@@ -234,6 +235,96 @@ export function walkAdvance({ step = 0, phase = 0, dt = 0, count = 0, playback }
 
 /** THE DOCK'S GEOMETRY. `closed` and `open` are DERIVED from the parts beneath them — change a
  *  part and both move; the host's auto-fit reads `closed` (rule 2 in the `.d.ts`). */
+/** THE BAND FOR A RANGE PIN — one node holding several contiguous walk stops, drawn as a single
+ *  pin labelled "2.1–2.5". Hand it the span and it answers as `walkBand` would for whichever stop
+ *  in that span the cursor is nearest — which is zero distance anywhere INSIDE it, so the node
+ *  stays current until the walk actually leaves it.
+ *
+ *  WHY THIS IS A CALL AND NOT A SENTENCE: banding a range against its FIRST stop is the natural
+ *  mistake and it is silent — the pin begins fading and shrinking the moment the walk reaches the
+ *  span's second stop, so a node recedes into the past while the class is still inside it. Nothing
+ *  errors; it just looks like the walk has moved on. (Owner-reported 2026-09-09, on the DS's own
+ *  rig.) A port handed the rule in prose has a fair chance of making it too, so the clamp ships. */
+export function walkBandSpan(from: number, to: number, position: number, band?: Partial<WalkBand>): WalkBandReading {
+  const lo = Math.min(from, to)
+  const hi = Math.max(from, to)
+  return walkBand(Math.max(lo, Math.min(hi, position)), position, band)
+}
+
+/** THE STOP THE WALK HAS ARRIVED AT, off the same clock every drawing of the walk reads — and
+ *  the one thing an ARRIVAL-TIMED reaction must be written from. Published 2026-09-14, after the
+ *  owner reported the map's node highlight landing AFTER the pin pop and the arrow fill on play.
+ *
+ *  `walkAdvance` returns TWO cursors and they are not the same instant:
+ *   - `position` is fractional and reaches the next stop at phase `travel` — 0.7 of the step. The
+ *     pin's pop, the arrow's fill and the band all ride it, so they finish ON the arrival.
+ *   - `step` is the integer stop and increments only when the phase WRAPS, at the end of the
+ *     dwell that follows. It is the loop's own bookkeeping, not a statement about what is drawn.
+ *
+ *  So anything written from `step` — a highlight, a focus, a pane that follows the walk — lands
+ *  `walkArrivalLag()` milliseconds late: `step * (1 - travel)`, 270ms at the defaults. Late enough
+ *  to read as two separate events rather than one arrival. Both cursors are legitimate; the fault
+ *  is reading the bookkeeping one as the arrival.
+ *
+ *  DERIVED, not chosen: this is `Math.floor(position)`, and the reason it is a call rather than a
+ *  sentence is that the sentence has already been got wrong once. `position` lands exactly on the
+ *  integer at phase `travel` (`walkEase(1)` is exactly 1), so the epsilon only guards a caller's
+ *  own float arithmetic, never ours. */
+export function walkArrival(position: number, count?: number): number {
+  const i = Math.floor((Number(position) || 0) + 1e-9)
+  const last = count ? Math.max(0, count - 1) : Infinity
+  return Math.max(0, Math.min(last, i))
+}
+/** HOW LATE AN ARRIVAL-TIMED REACTION IS IF IT RIDES `step` INSTEAD OF `walkArrival(position)`,
+ *  in ms — the dwell, `step * (1 - travel)`. DERIVED from the playback numbers, so it tracks a
+ *  re-tune; published so the figure in a test is not a retyped 270. Compare it with a tolerance:
+ *  `900 * (1 - 0.7)` is 270.00000000000006. */
+export function walkArrivalLag(playback?: Partial<WalkPlayback>): number {
+  const p = playback ? { ...WALK_PLAYBACK_DEFAULTS, ...playback } : WALK_PLAYBACK_DEFAULTS
+  return p.step * (1 - p.travel)
+}
+
+export interface WalkLook {
+  /** how close to the frame edge still counts as off-screen, as a FRACTION of the view's smaller
+   *  side. Default 0.12, CHOSEN. A fraction rather than a pixel count so it survives zoom: a px
+   *  margin means something different at every scale, and this question is asked at whatever scale
+   *  the room is looking at. A pin flush against the frame edge is visible and still unreadable. */
+  edgeInset: number
+}
+/** edgeInset 0.12, CHOSEN. Pass a partial to `walkLook` to re-tune it. */
+export const WALK_LOOK_DEFAULTS: WalkLook = { edgeInset: 0.12 }
+/** WHETHER THE CAMERA SHOULD MOVE FOR THE STOP THE WALK JUST REACHED — and if so, where to.
+ *  Owner's call, 2026-09-14: the camera moves ONLY when the stop is off-screen, never on every
+ *  advance. Motion that happens every time becomes scenery; motion that happens rarely reads as
+ *  "we have gone somewhere new", which is the whole information it carries (the same reasoning as
+ *  `ProjectedMap` rule 1 — travel on every advance gets old).
+ *
+ *  `point` and `view` are in ONE coordinate space, the host's own map space — this never converts
+ *  between spaces and cannot tell you if you have mixed them. `to` is the view's new CENTRE in
+ *  that space; `move: false` returns the CURRENT centre rather than null, so a host may apply
+ *  `to` unconditionally if that is simpler than branching.
+ *
+ *  THE HOST OWNS THE CAMERA, AS IT OWNS THE CLOCK. This returns arithmetic, not an animation.
+ *  THREE CALLER RULES it cannot enforce: ask ON ADVANCE ONLY (not a pause, a hover or a seek the
+ *  user is dragging — a paused walk is standing still and the camera stands with it); A USER'S
+ *  OWN PAN WINS (once the room has panned during playback, stop asking until the walk moves
+ *  again); and THIS IS THE `look` CHANNEL, NEVER THE FOCUS — playback writes the focus already,
+ *  and moving the camera must not change which node the other panes are showing. */
+export function walkLook({ point, view, look }: {
+  point?: { x: number; y: number }
+  view?: { x: number; y: number; width: number; height: number }
+  look?: Partial<WalkLook>
+} = {}): { move: boolean; to: { x: number; y: number } | null } {
+  const L = look ? { ...WALK_LOOK_DEFAULTS, ...look } : WALK_LOOK_DEFAULTS
+  const to = view ? { x: view.x + view.width / 2, y: view.y + view.height / 2 } : null
+  if (!point || !view || !view.width || !view.height) return { move: false, to }
+  const inset = Math.min(view.width, view.height) * L.edgeInset
+  const inside =
+    point.x >= view.x + inset && point.x <= view.x + view.width - inset &&
+    point.y >= view.y + inset && point.y <= view.y + view.height - inset
+  return inside ? { move: false, to } : { move: true, to: { x: point.x, y: point.y } }
+}
+
 const P = {
   padTop: 6, padBottom: 10, border: 1, padX: 12,
   row: 20,        /* the transport row: play, name, readout, chevron — all 20 tall */
@@ -311,15 +402,34 @@ export interface WalkDockProps {
    *  PASS THE SAME OBJECT TO EVERY DRAWING OF THE WALK — the dock and the map's pins read
    *  `walkBand()` with it, and one control then moves both. */
   band?: Partial<WalkBand>
-  /** the hover preview, shown above the nearest stop while the pointer rests on the closed rail
-   *  or the open row (never while dragging) — the strip's own convention, through `WalkPreview`.
-   *  Pass the SAME function you pass `WalkStrip` and the map's pins. Omit it: no popup.
+  /** the hover preview, shown above the stop the pointer is on — on the closed rail or the open
+   *  row, AND while a drag is choosing a stop on either of them (never blanked by the pointer
+   *  going down). Through `WalkPreview`, the strip's own convention. Pass the SAME function you
+   *  pass `WalkStrip` and the map's pins. Omit it: no popup.
+   *
+   *  ONE CARD PER STOP, because the dock draws ONE MARK PER STOP (owner, 2026-09-14): the dock has
+   *  no ranges. A mark that means two things cannot be read, and the map's own `"2-3"` pin means
+   *  something else entirely (several nodes in one cell at this zoom).
+   *
+   *  A DRAG SHOWS THE CARD TOO, and that is the newer rule (owner, 2026-09-14; OB-185): the dock
+   *  used to clear the preview on `pointerdown`, which is backwards — a hover asks *what is over
+   *  there*, a drag is CHOOSING, so the gesture that commits is the one the card is worth more to.
+   *  While a drag is down the card anchors on the stop being landed on, not on the pointer, and it
+   *  survives the pointer crossing the surface's own edge (an edge-zone drag scrolls the row on).
+   *
+   *  THE THIRD ARGUMENT EXISTS FOR THE MAP AND THE DOCK NEVER SENDS ONE. A host whose marks merge
+   *  stops — the map's pins do — hands its own mark to `WalkPinHover`, and that mark arrives here
+   *  as `mark`, so ONE `renderPreview` serves both surfaces: on the dock it is always `undefined`
+   *  and the card is the stop's; on a merged pin it carries `label` and `steps` and the card names
+   *  everything under the pin. Write the function to read `mark` and fall back to the step.
+   *
    *  THIS IS THE DOCK'S ONLY TOOLTIP, AND IT IS NOT THE MAP'S: never a `MapTooltip` on a rail, a
    *  tick, a stop or the transport row — and while `renderPreview` is given the open row's stops
    *  carry NO native `title`, so the browser's own tip cannot fade in over the card. */
-  renderPreview?: (step: WalkStep, index: number) => ReactNode
-  /** the pointer is over stop `index` on either rail, or over none (`null`). Report-only, for a
-   *  pane that wants to react to attention — the same contract as `WalkStrip.onStepHover`. */
+  renderPreview?: (step: WalkStep, index: number, mark?: WalkMark) => ReactNode
+  /** the pointer is over stop `index` on either rail, or over none (`null`). Fires while a DRAG
+   *  moves through the stops as well as on a hover, ONCE PER CHANGE OF STOP — report-only, for a
+   *  pane that wants to react to attention. The same contract as `WalkStrip.onStepHover`. */
   onStepHover?: (index: number | null) => void
   /** position/size overrides for the mount only. Do not restyle the face. */
   style?: CSSProperties
@@ -383,12 +493,13 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
   const [railHover, setRailHover] = useState(false)
   const [rowHover, setRowHover] = useState(false)
   const [pillHover, setPillHover] = useState(false)
-  /* THE HOVERED STOP for the preview — `null` when none; never set while a drag is down. */
+  /* THE HOVERED OR DRAGGED STOP for the preview — `null` when the pointer is off both rails. */
   const [hover, setHover] = useState<Hover | null>(null)
   const railRef = useRef<HTMLDivElement | null>(null)
   const rowRef = useRef<HTMLDivElement | null>(null)
   const nameRef = useRef<HTMLSpanElement | null>(null)
   const dragRef = useRef(false)
+  const lastRef = useRef<number | null>(null)
 
   /* ONE MAPPING FOR EVERY MARK ON THE CLOSED RAIL: the usable span is inset by half the HOVER
      knob at both ends, and ticks, fill, knob and the seek hit-test all read the same two numbers
@@ -418,7 +529,29 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
     return r.left + i * M.stopW + M.stopW / 2 - el.scrollLeft
   }
   const seek = (i: number) => { if (onSeek && N) onSeek(clampI(i)) }
-  const report = (i: number | null) => { if (onStepHover) onStepHover(i) }
+  /* ONE REPORT PER CHANGE OF STOP, kept in a REF and not compared against `hover`: a drag's
+     `pointermove` listener lives on `window` for the whole gesture and closes over the render that
+     created it, so a check against the state value goes stale on the first move and reports the
+     same stop on every frame after it. */
+  const report = (i: number | null) => { if (i !== lastRef.current) { lastRef.current = i; if (onStepHover) onStepHover(i) } }
+  /* THE PREVIEW FOR BOTH RAILS AND FOR A DRAG, in one place — the ANCHOR is the only thing that
+     differs between the four ways in, and it is the thing that keeps being got wrong.
+
+     A DRAG SHOWS THE SAME CARD A HOVER DOES (owner, 2026-09-14; OB-185). The dock used to blank the
+     preview the instant the pointer went down, which is backwards: a hover is asking *what is
+     over there*, a drag is CHOOSING, and the card is worth more to the gesture that commits. It
+     anchors on the stop's own mark rather than the pointer, so the card sits over the stop being
+     landed on and not beside the finger. `mark` stays in `renderPreview`'s signature and the dock
+     never sends one: it has no ranges, so there is nothing to send. */
+  const previewAt = (i: number, x: number, top: number) => { report(i); setHover({ i, x, top }) }
+  const clearPreview = () => { setHover(null); report(null) }
+  const outside = (el: HTMLElement | null, ev: { clientX: number; clientY: number } | null) => {
+    if (!el || !ev) return false
+    const r = el.getBoundingClientRect()
+    return ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom
+  }
+  const railPreview = (clientX: number) => { const i = railIndexAt(clientX); previewAt(i, railXOf(i), railRef.current!.getBoundingClientRect().top) }
+  const rowPreview = (clientX: number) => { const i = rowIndexAt(clientX); previewAt(i, rowXOf(i), rowRef.current!.getBoundingClientRect().top) }
 
   /* THE OPEN ROW TRAVELS TOO: scrollLeft follows the FRACTIONAL position, so the row slides
      between stops at the knob's own pace rather than jumping a column at each step. */
@@ -432,10 +565,9 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
   const onRailDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 || !N) return
     dragRef.current = true
-    setHover(null)
-    seek(railIndexAt(e.clientX))
-    const mv = (ev: PointerEvent) => seek(railIndexAt(ev.clientX))
-    const up = () => { dragRef.current = false; window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up) }
+    seek(railIndexAt(e.clientX)); railPreview(e.clientX)
+    const mv = (ev: PointerEvent) => { seek(railIndexAt(ev.clientX)); railPreview(ev.clientX) }
+    const up = (ev: PointerEvent) => { dragRef.current = false; if (outside(railRef.current, ev)) clearPreview(); window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up) }
     window.addEventListener('pointermove', mv)
     window.addEventListener('pointerup', up)
   }
@@ -446,7 +578,6 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
   const onRowDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 || !N) return
     dragRef.current = true
-    setHover(null)
     let lastX = e.clientX
     let raf = 0
     const el = rowRef.current!
@@ -457,31 +588,24 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
       let v = 0
       if (lastX < r.left + M.edge) v = -(6 + 14 * Math.min(1, (r.left + M.edge - lastX) / M.edge))
       else if (lastX > r.right - M.edge) v = 6 + 14 * Math.min(1, (lastX - (r.right - M.edge)) / M.edge)
-      if (v) { el.scrollLeft += v; seekAt(lastX) }
+      if (v) { el.scrollLeft += v; seekAt(lastX); rowPreview(lastX) }
       raf = requestAnimationFrame(edge)
     }
-    seek(rowIndexAt(e.clientX))
+    seek(rowIndexAt(e.clientX)); rowPreview(e.clientX)
     raf = requestAnimationFrame(edge)
-    const mv = (ev: PointerEvent) => { lastX = ev.clientX; seekAt(ev.clientX) }
-    const up = () => { dragRef.current = false; cancelAnimationFrame(raf); window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); follow() }
+    const mv = (ev: PointerEvent) => { lastX = ev.clientX; seekAt(ev.clientX); rowPreview(ev.clientX) }
+    const up = (ev: PointerEvent) => { dragRef.current = false; cancelAnimationFrame(raf); if (outside(rowRef.current, ev)) clearPreview(); window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); follow() }
     window.addEventListener('pointermove', mv)
     window.addEventListener('pointerup', up)
   }
-  /* HOVER PREVIEW ON BOTH SIZES, never while dragging: the closed rail anchors on the nearest
-     tick's own x; the open row on the stop's column centre. */
-  const onRailMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (dragRef.current || !N) return
-    const i = railIndexAt(e.clientX)
-    if (!hover || hover.i !== i) report(i)
-    setHover({ i, x: railXOf(i), top: railRef.current!.getBoundingClientRect().top })
-  }
-  const onRowMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (dragRef.current || !N) return
-    const i = rowIndexAt(e.clientX)
-    if (!hover || hover.i !== i) report(i)
-    setHover({ i, x: rowXOf(i), top: rowRef.current!.getBoundingClientRect().top })
-  }
-  const onLeave = () => { setHover(null); report(null) }
+  /* HOVER PREVIEW ON BOTH SIZES: the closed rail anchors on the nearest tick's own x, the open row
+     on the stop's column centre. A DRAG KEEPS THE CARD UP, so these two only handle the pointer-up
+     case; the drag handlers call the same two functions. `onLeave` stands aside while a drag is
+     down, or the card would blink out every time the gesture crosses the surface's own edge on its
+     way to an edge scroll. */
+  const onRailMove = (e: ReactPointerEvent<HTMLDivElement>) => { if (dragRef.current || !N) return; railPreview(e.clientX) }
+  const onRowMove = (e: ReactPointerEvent<HTMLDivElement>) => { if (dragRef.current || !N) return; rowPreview(e.clientX) }
+  const onLeave = () => { if (!dragRef.current) clearPreview() }
 
   /* THE NAME ARRIVES, it does not swap — the one thing on the closed rail that says which stop
      you are ON. Web Animations rather than a keyframe: inline styles cannot declare one. */
@@ -556,7 +680,7 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
       </div>
       {/* THE CLOSED RAIL — folds to nothing when open (the clip applies only while folding, so
           the hover knob is never cut at rest). */}
-      <div ref={railRef} onPointerDown={onRailDown} onPointerMove={onRailMove} onPointerLeave={onLeave}
+      <div ref={railRef} data-walk-dock-rail="" onPointerDown={onRailDown} onPointerMove={onRailMove} onPointerLeave={onLeave}
         onMouseEnter={() => setRailHover(true)} onMouseLeave={() => setRailHover(false)} style={{
           position: 'relative', cursor: 'pointer',
           height: isOpen ? 0 : M.rail, marginTop: isOpen ? 0 : P.railGap, opacity: isOpen ? 0 : 1,
@@ -574,7 +698,7 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
             background: b.behind ? 'var(--accent-walk)' : 'var(--bark-400)',
           }} />
         })}
-        {N ? <div aria-hidden="true" style={{
+        {N ? <div aria-hidden="true" data-walk-dock-knob="" style={{
           position: 'absolute', top: M.rail / 2, left: at(frac), width: knob, height: knob, borderRadius: 'var(--radius-pill)',
           background: 'var(--accent-walk)', boxShadow: 'var(--lift-1)', transform: 'translate(-50%, -50%)', pointerEvents: 'none',
           transition: 'width .15s ' + SOFT + ', height .15s ' + SOFT,
@@ -625,6 +749,10 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
                   </div>
                   {/* THE DOT GROWS ALONE ON HOVER so the titles do not jump. */}
                   <div style={{ display: 'flex', transition: 'transform .15s ' + SOFT, transform: rowHover ? 'scale(1.18)' : 'none' }}>
+                    {/* the DS's dock passes `progress={walkProgress({ from: i, to: i }, pos)}` here — the wash
+                        `StepDot` grew on 2026-09-09. This port's StepDot has no `progress` prop yet (a lag on
+                        that component, reported with OB-185), so the dock passes none: the dot draws as it
+                        did. Add it back the day StepDot is re-ported. */}
                     <StepDot n={i + 1} state={st} size={M.stopDot} optional={!!s.optional} />
                   </div>
                   {/* `StopTitle` (WalkParts, 2026-09-01) — the strip's title rule at this row's density:
@@ -650,8 +778,16 @@ export interface WalkPinHoverProps {
   step: WalkStep
   /** its index in the walk */
   index: number
+  /** THE MARK THIS PIN STANDS FOR, when it stands for more than one stop — forwarded to
+   *  `renderPreview` as its third argument, the same one the dock never sends, so one pin reading
+   *  `"2-3"` previews BOTH stops instead of the first one silently. THE HOST BUILDS IT, and since
+   *  2026-09-14 it is the ONLY mark in this system that spans more than one stop: the dock draws
+   *  none, and a map pin's run is a fact about the LEVEL being drawn — a contiguous set of stops
+   *  resolving to one cell, which may cross node boundaries and re-merges as the user zooms.
+   *  Pass `{ from, to, label, steps }` in your own numbering; omit it for a one-stop pin. */
+  mark?: WalkMark | null
   /** the same preview the dock and the strip show; omit it and the wrapper adds nothing */
-  renderPreview?: (step: WalkStep, index: number) => ReactNode
+  renderPreview?: (step: WalkStep, index: number, mark?: WalkMark) => ReactNode
   /** report-only, the same contract as `WalkDock.onStepHover` */
   onStepHover?: (index: number | null) => void
   /** whatever the host draws for one stop */
@@ -666,14 +802,14 @@ export interface WalkPinHoverProps {
  *  A pin that is a bare SVG `<g>` cannot take a `<span>` parent: there the host binds enter/leave
  *  on the `<g>` and renders `WalkPreview` itself with `previewAnchor(g.getBoundingClientRect())`
  *  — the same two lines this component is. Cursor-hover only (see `WalkPreview`). */
-export function WalkPinHover({ step, index, renderPreview, onStepHover, children, style }: WalkPinHoverProps) {
+export function WalkPinHover({ step, index, mark, renderPreview, onStepHover, children, style }: WalkPinHoverProps) {
   const [anchor, setAnchor] = useState<{ x: number; top: number } | null>(null)
   return (
     <span style={{ display: 'inline-flex', ...style }}
       onMouseEnter={(e) => { setAnchor(previewAnchor(e.currentTarget.getBoundingClientRect())); if (onStepHover) onStepHover(index) }}
       onMouseLeave={() => { setAnchor(null); if (onStepHover) onStepHover(null) }}>
       {children}
-      {anchor && renderPreview ? <WalkPreview x={anchor.x} top={anchor.top}>{renderPreview(step, index)}</WalkPreview> : null}
+      {anchor && renderPreview ? <WalkPreview x={anchor.x} top={anchor.top}>{renderPreview(step, index, mark ?? undefined)}</WalkPreview> : null}
     </span>
   )
 }
