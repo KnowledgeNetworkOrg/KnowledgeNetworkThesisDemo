@@ -3,8 +3,9 @@
 // future view paint the same node the same way.
 //
 // The scheme is recursive hue-range partitioning ("tree colors") in OKLCH:
-// each domain anchors an arc of the hue wheel at its authored DOMAIN_COLOR
-// hue; children subdivide their parent's arc (weighted by subtree size), so
+// each domain anchors an arc of the hue wheel at its STORED ring hue (the
+// name written on the domain node when it was created — `GNode.hue`, OB-153);
+// children subdivide their parent's arc (weighted by subtree size), so
 // any node's hue provably sits inside its ancestor's neighborhood — color
 // does double duty: sibling discrimination locally, lineage globally.
 //
@@ -27,44 +28,16 @@
 //               darker AND far less chromatic than inkOf so it reads as clean
 //               type, not a muddy colored gray, on a hue-tinted/glowing cell
 
-import { childrenOf, domainIds, DOMAIN_COLOR } from '../corpus/graph'
-import { familySlots, nestedFamilyPaint, topicPaint, topicSlots } from '@/ds'
+import { childrenOf, domainIds, topicHueOf } from '../corpus/graph'
+import { familySlots, nestedFamilyPaint, topicPaintValues, topicSlots } from '@/ds'
 import { countryRings, provinceRings, territories } from './nested'
+import { hexToOklch, lin, oklchToHex } from './oklab'
 import type { XY } from './derive'
 
-// ── OKLab/OKLCH ↔ sRGB (Björn Ottosson's matrices, D65) ─────────────────────
-const lin = (u: number) => (u <= 0.04045 ? u / 12.92 : Math.pow((u + 0.055) / 1.055, 2.4))
-const gam = (u: number) => (u <= 0.0031308 ? 12.92 * u : 1.055 * Math.pow(u, 1 / 2.4) - 0.055)
+// the OKLab/OKLCH ↔ sRGB arithmetic lives in ./oklab (shared with the flat model)
+export { hexToOklch } from './oklab'
 
-export function hexToOklch(hex: string): { l: number; c: number; h: number } {
-  const n = parseInt(hex.slice(1), 16)
-  const r = lin(((n >> 16) & 255) / 255)
-  const g = lin(((n >> 8) & 255) / 255)
-  const b = lin((n & 255) / 255)
-  const l_ = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
-  const m_ = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
-  const s_ = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
-  const L = 0.2104542553 * l_ + 0.793617785 * m_ - 0.0040720468 * s_
-  const a = 1.9779984951 * l_ - 2.428592205 * m_ + 0.4505937099 * s_
-  const bb = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.808675766 * s_
-  const c = Math.hypot(a, bb)
-  return { l: L, c, h: c < 1e-6 ? 0 : (((Math.atan2(bb, a) * 180) / Math.PI) + 360) % 360 }
-}
-
-function oklchToHex(l: number, c: number, h: number): string {
-  const hr = (h * Math.PI) / 180
-  const a = c * Math.cos(hr)
-  const b = c * Math.sin(hr)
-  const l_ = (l + 0.3963377774 * a + 0.2158037573 * b) ** 3
-  const m_ = (l - 0.1055613458 * a - 0.0638541728 * b) ** 3
-  const s_ = (l - 0.0894841775 * a - 1.291485548 * b) ** 3
-  const r = 4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_
-  const g = -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_
-  const bl = -0.0041960863 * l_ - 0.7034186147 * m_ + 1.707614701 * s_
-  // out-of-gamut chroma just clamps — at these L/C pairs the error is subtle
-  const ch = (u: number) => Math.round(255 * Math.min(1, Math.max(0, gam(u)))).toString(16).padStart(2, '0')
-  return `#${ch(r)}${ch(g)}${ch(bl)}`
-}
+const FALLBACK = { anchor: '#64748b', fill: '#e2e8f0', ink: '#334155', inkStrong: '#1e2530' }
 
 // ── Recursive arc assignment ─────────────────────────────────────────────────
 const DOMAIN_SPAN = 46 // deg of hue wheel a domain's subtree spreads over
@@ -105,12 +78,18 @@ function assign(id: string, hue: number, span: number, gen: number, nudge: numbe
   })
 }
 
-for (const d of domainIds) assign(d, hexToOklch(DOMAIN_COLOR[d]).h, DOMAIN_SPAN, 0, 0)
+/* the domain's arc is anchored at its stored hue's ring degree — read through the same
+   resolver every drawing uses, so the arc and the mark can never disagree. A domain with no
+   stored hue takes the fallback anchor's own hue, which is where every other reader lands. */
+for (const d of domainIds) assign(d, topicPaintValues(topicHueOf(d)).deg ?? hexToOklch(FALLBACK.anchor).h, DOMAIN_SPAN, 0, 0)
 
 // ── Derived swatches ─────────────────────────────────────────────────────────
-// Domains keep their EXACT authored hex (continuity with the rest of the
-// Studio); descendants converge from the domain's own L/C toward a standard
-// anchor over three generations, so each family keeps its character.
+// A domain's anchor is its stored hue's MARK role, resolved in JS (the ring's
+// L 0.55 / C 0.15 — `topicPaintValues`, pinned to tokens/colors.css by a test);
+// descendants converge from that L/C toward a standard anchor over three
+// generations, so each family keeps its character. Until OB-153 the anchor was
+// an authored hex per domain, and the L/C descendants converged from varied
+// with it (0.43 … 0.76) — now every family starts from the same register.
 const anchorMap = new Map<string, string>()
 const fillMap = new Map<string, string>()
 /** id → the domain it descends from: the lineage FAMILY the territory fill pins its hue to */
@@ -121,13 +100,15 @@ const inkStrongMap = new Map<string, string>()
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 
 for (const d of domainIds) {
-  const base = hexToOklch(DOMAIN_COLOR[d])
+  const mark = topicPaintValues(topicHueOf(d)).mark
+  const base = { l: mark.l, c: mark.c }
+  const domainAnchor = topicHueOf(d) ? oklchToHex(mark.l, mark.c, mark.h) : FALLBACK.anchor
   const walk = (id: string) => {
     const s = slot.get(id)!
     familyMap.set(id, d)
     const t = Math.min(1, s.gen / 3)
     const push = s.gen >= 3 ? s.nudge : 0
-    anchorMap.set(id, s.gen === 0 ? DOMAIN_COLOR[d] : oklchToHex(lerp(base.l, 0.6, t) + push * 0.03, lerp(base.c, 0.125, t), s.hue))
+    anchorMap.set(id, s.gen === 0 ? domainAnchor : oklchToHex(lerp(base.l, 0.6, t) + push * 0.03, lerp(base.c, 0.125, t), s.hue))
     fillMap.set(id, oklchToHex(0.905 + push * 0.02, 0.058, s.hue))
     inkMap.set(id, oklchToHex(0.42, 0.1, s.hue))
     // near-black, hue barely present: on the selected cell (tinted by the glow)
@@ -139,8 +120,6 @@ for (const d of domainIds) {
   }
   walk(d)
 }
-
-const FALLBACK = { anchor: '#64748b', fill: '#e2e8f0', ink: '#334155', inkStrong: '#1e2530' }
 
 // ── Territory fill: the family's hue, five slots by real adjacency (OB-119) ──
 // Three versions of this have shipped, and the two rejected ones are recorded
@@ -278,7 +257,8 @@ function paintGroup(regions: { id: string; rings: XY[][] }[], { constrainEveryEd
   ids.forEach((id, i) => {
     territorySlotMap.set(id, slots[i])
     territoryNeighbourMap.set(id, [...adj.get(id)!])
-    territoryFillMap.set(id, oklchStringToHex(nestedFamilyPaint(family[i], { slot: slots[i] }).fill) ?? FALLBACK.fill)
+    /* the ladder wants the family's HUE NAME (stored on the domain node), not the domain id */
+    territoryFillMap.set(id, oklchStringToHex(nestedFamilyPaint(topicHueOf(id), { slot: slots[i] }).fill) ?? FALLBACK.fill)
   })
 }
 
@@ -295,7 +275,7 @@ function paintGroup(regions: { id: string; rings: XY[][] }[], { constrainEveryEd
 // map whose twins do not touch, is pixel-identical to before. Adjacency comes
 // from the GEOMETRY (`regionAdjacency` over the domains' country rings, the
 // same test the provinces get), never from the tree; the hue array is the
-// STORED assignment (`topicPaint(domain).hue`, off `DOMAIN_TOKEN`), never
+// STORED assignment (`topicHueOf`, the hue name on the domain node), never
 // recomputed; and the slot is derived here at render time and persisted
 // nowhere — it is a fact about who a region touches, not identity.
 // The nearest rung that clears `TOPIC_SEPARATION_MIN`, not the furthest: the
@@ -324,7 +304,7 @@ export function topicTerritoryFills(
   }]))
 }
 
-for (const [d, { fill }] of topicTerritoryFills(domainIds.map((d) => ({ id: d, rings: countryRings[d] })), (d) => topicPaint(d).hue, (d) => fillMap.get(d)!)) territoryFillMap.set(d, fill)
+for (const [d, { fill }] of topicTerritoryFills(domainIds.map((d) => ({ id: d, rings: countryRings[d] })), (d) => topicHueOf(d) ?? null, (d) => fillMap.get(d)!)) territoryFillMap.set(d, fill)
 paintGroup(Object.keys(provinceRings).map((m) => ({ id: m, rings: provinceRings[m] })), { constrainEveryEdge: true })
 
 const territoriesByTier = new Map<number, typeof territories>()

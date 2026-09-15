@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { familySlots, topicPaint } from '../ds/graph/DomainDot'
-import { domainIds } from '../corpus/graph'
+import { familySlots } from '../ds/graph/DomainDot'
+import { domainIds, topicHueOf } from '../corpus/graph'
 import { provinceRings, territories } from './nested'
 import { familyOf, hexToOklch, inkOf, labelInkOf, territoryFillOf, territoryNeighboursOf, territorySlotOf } from './color'
 
@@ -43,7 +43,7 @@ describe('OB-119 — the territory fill is pinned to its family', () => {
     const wrong: string[] = []
     for (const id of regions) {
       const family = familyOf(id)!
-      const own = topicPaint(family).hue!
+      const own = topicHueOf(family)!
       const stop = nearestStop(hexToOklch(territoryFillOf(id)).h)
       if (stop !== own) wrong.push(`${id}: ${stop} not ${own}`)
       expect(circ(hexToOklch(territoryFillOf(id)).h, RING_DEGREES[own])).toBeLessThanOrEqual(6.5)

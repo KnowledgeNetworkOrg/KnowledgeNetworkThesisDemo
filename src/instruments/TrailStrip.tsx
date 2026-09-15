@@ -8,9 +8,8 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 
 import { IconButton, LEGEND_INSET, PaneScroller, TrailChip, wrapTip } from '@/ds'
-import type { DomainCode } from '@/ds'
 
-import { byId, domainOf } from '../corpus/graph'
+import { byId, topicHueOf } from '../corpus/graph'
 import { listWalks, subscribeWalks } from '../model/walkstore'
 import type { TrailVia } from '../model/nav'
 import type { Bus } from '../studio/bus'
@@ -58,7 +57,7 @@ export default function TrailStrip({ bus }: { bus: Bus }) {
               <TrailChip
                 key={`${i}-${t.id}`}
                 title={byId.get(t.id)!.title}
-                domain={domainOf(t.id) as DomainCode}
+                domain={topicHueOf(t.id) ?? ''}
                 via={VIA_TAG[t.via]}
                 jump={t.jump}
                 onClick={() => onSelectTrailEntry(t.id)}

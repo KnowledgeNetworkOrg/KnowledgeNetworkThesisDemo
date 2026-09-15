@@ -38,5 +38,5 @@
      check the relation palette still matches them. Both build under
      tsconfig.node.json instead, which keeps "node" out of the types above —
      where it would let app code reach for node APIs the browser does not have. */
-  "exclude": ["src/ds/adherence.test.ts", "src/corpus/edgecolor.test.ts", "src/studio/browsertestguard.test.ts", "src/unreachedmodule.test.ts"]
+  "exclude": ["src/ds/adherence.test.ts", "src/corpus/edgecolor.test.ts", "src/ds/graph/topicpaint.test.ts", "src/studio/browsertestguard.test.ts", "src/unreachedmodule.test.ts"]
 }

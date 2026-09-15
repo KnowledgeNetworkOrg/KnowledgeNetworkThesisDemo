@@ -61,7 +61,7 @@ import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, 
 import { CONNECTIONS_BODY_STYLE, ConnectionsSplitPane, IconButton, PaneCanvas } from '@/ds'
 import type { ConnectionsGraphApi, ContainNode, OpenMap, Relation } from '@/ds'
 
-import { byId, childrenOf, domainOf, EDGE_COLOR, EDGE_LABEL, edges, pathTo, ROOT_ID } from '../corpus/graph'
+import { byId, childrenOf, domainOf, EDGE_COLOR, EDGE_LABEL, edges, pathTo, ROOT_ID, topicHueOf } from '../corpus/graph'
 import { DOC_BODY } from '../corpus/docs'
 import { colorOf, fillOf } from '../model/color'
 import { regionStarFor, starFor } from '../model/star'
@@ -91,7 +91,7 @@ function buildContainTree(id: string): ContainNode {
   // without a domain and let it inherit the PANE's — would paint "everything" in whichever
   // topic you happen to be standing in, so the top of the column would change colour as you
   // navigate. A root that means "all of it" has no one topic, and says so.
-  const node: ContainNode = { id, title: byId.get(id)!.title, domain: domainOf(id) }
+  const node: ContainNode = { id, title: byId.get(id)!.title, domain: topicHueOf(id) }
   if (kids.length) node.children = kids.map((k) => buildContainTree(k.id))
   return node
 }
@@ -109,7 +109,7 @@ const RELATIONS: Map<string, Relation[]> = (() => {
     const other = byId.get(to)!
     const list = m.get(from) ?? []
     list.push({
-      id: e.id, targetId: to, targetTitle: other.title, targetDomain: domainOf(to),
+      id: e.id, targetId: to, targetTitle: other.title, targetDomain: topicHueOf(to),
       kind: e.type, kindLabel: EDGE_LABEL[e.type], direction,
     })
     m.set(from, list)
@@ -412,7 +412,7 @@ function RelationStar({ api, bus }: { api: ConnectionsGraphApi; bus: Bus }) {
         data-starcenter={centre} cx={0} cy={0} r={15} fill="#ffffff"
         stroke={colorOf(centre)} strokeWidth={centreLit ? 4 : 3} style={{ cursor: 'pointer' }}
         onClick={() => api.onNodeSelect({ id: 'focus' })}
-        onMouseEnter={(e) => api.onPreviewEnter(e, { id: centre, title: byId.get(centre)!.title, domain: domainOf(centre) })}
+        onMouseEnter={(e) => api.onPreviewEnter(e, { id: centre, title: byId.get(centre)!.title, domain: topicHueOf(centre) })}
         onMouseLeave={api.onPreviewLeave}
       >
         <title>{byId.get(centre)!.title} — click to release the card filter</title>
@@ -437,8 +437,8 @@ function RelationStar({ api, bus }: { api: ConnectionsGraphApi; bus: Bus }) {
               data-starnode={sn.id} data-pinned={pinned ? 1 : 0} cx={sn.x} cy={sn.y} r={9}
               fill={fillOf(sn.id)} stroke={colorOf(sn.id)} strokeWidth={lit ? 3.4 : 2}
               style={{ cursor: 'pointer' }}
-              onClick={() => api.onNodeSelect({ id: sn.id, title: byId.get(sn.id)!.title, domain: domainOf(sn.id) })}
-              onMouseEnter={(e) => api.onPreviewEnter(e, { id: sn.id, title: byId.get(sn.id)!.title, domain: domainOf(sn.id) })}
+              onClick={() => api.onNodeSelect({ id: sn.id, title: byId.get(sn.id)!.title, domain: topicHueOf(sn.id) })}
+              onMouseEnter={(e) => api.onPreviewEnter(e, { id: sn.id, title: byId.get(sn.id)!.title, domain: topicHueOf(sn.id) })}
               onMouseLeave={api.onPreviewLeave}
             >
               <title>

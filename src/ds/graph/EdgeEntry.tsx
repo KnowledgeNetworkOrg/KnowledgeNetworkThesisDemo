@@ -1,4 +1,3 @@
-import type { DomainCode } from './vocab'
 import { NodeChip } from './NodeChip'
 import { shaftFor } from './NodeArrow'
 import { relationPaint } from './EdgeLegend'
@@ -31,7 +30,7 @@ export const EDGE_SHAFT_STROKE = shaftFor('border-2')
 
 interface EntryNodeProps {
   title: string
-  domain: DomainCode
+  domain: string
   anchor?: boolean
   within?: string
   onClick?: () => void
@@ -93,7 +92,7 @@ function EntryNode({ title, domain, anchor, within, onClick }: EntryNodeProps) {
  *  Typed port of the DS EdgeEntry.jsx (contract: EdgeEntry.d.ts). */
 export interface EdgeEntryProps {
   from: string
-  fromDomain: DomainCode
+  fromDomain: string
   /** this end is the view's focus node, so it carries the entry's emphasis. Never
    *  mark both ends: an entry with two anchors has no subject */
   fromAnchor?: boolean
@@ -102,7 +101,7 @@ export interface EdgeEntryProps {
    *  weight goes to the PREFIX, not to the node beside it */
   fromWithin?: string
   to: string
-  toDomain: DomainCode
+  toDomain: string
   toAnchor?: boolean
   toWithin?: string
   /** the relation kind — supplies both the colour and the label, resolved through

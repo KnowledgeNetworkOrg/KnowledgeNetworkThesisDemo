@@ -10,7 +10,8 @@
 // names. Neither replaces the other, matching what a flat Jira-style link
 // list couldn't do on its own.
 
-import { byId, childrenOf, domainOf, DOMAIN_COLOR, EDGE_COLOR, ROOT_ID } from '../corpus/graph'
+import { byId, childrenOf, domainOf, EDGE_COLOR, ROOT_ID } from '../corpus/graph'
+import { colorOf } from '../model/color'
 import { edgesTouching } from '../model/flat'
 import { EDGE_TYPES } from '../model/nav'
 import type { Bus } from '../studio/bus'
@@ -156,7 +157,7 @@ export default function NeighborhoodPanel({ bus }: { bus: Bus }) {
                     cx={p.x}
                     cy={p.y}
                     r={R_NEIGHBOR}
-                    fill={DOMAIN_COLOR[domainOf(id)]}
+                    fill={colorOf(domainOf(id))}
                     stroke="#fff"
                     strokeWidth={1.2}
                     style={{ cursor: 'pointer' }}
@@ -175,7 +176,7 @@ export default function NeighborhoodPanel({ bus }: { bus: Bus }) {
                     cx={p.x}
                     cy={p.y}
                     r={R_NEIGHBOR}
-                    fill={DOMAIN_COLOR[domainOf(id)]}
+                    fill={colorOf(domainOf(id))}
                     stroke="#fff"
                     strokeWidth={1.2}
                     style={{ cursor: 'pointer' }}
@@ -193,7 +194,7 @@ export default function NeighborhoodPanel({ bus }: { bus: Bus }) {
             label directly rather than relying on a title-only hover */}
         {parentId && (
           <g style={{ cursor: 'pointer' }} onClick={() => onSelect(parentId)}>
-            <circle cx={CX} cy={CY - AXIS_DIST} r={R_PARENT} fill={DOMAIN_COLOR[domainOf(parentId)] ?? '#475569'} stroke="#fff" strokeWidth={1.4} />
+            <circle cx={CX} cy={CY - AXIS_DIST} r={R_PARENT} fill={colorOf(domainOf(parentId))} stroke="#fff" strokeWidth={1.4} />
             <text x={CX} y={CY - AXIS_DIST - R_PARENT - 6} textAnchor="middle" fontSize={10} fontWeight={700} fill="#475569">
               {byId.get(parentId)!.title}
             </text>
@@ -204,7 +205,7 @@ export default function NeighborhoodPanel({ bus }: { bus: Bus }) {
           const y = CY + AXIS_DIST
           return (
             <g key={k.id} style={{ cursor: 'pointer' }} onClick={() => onSelect(k.id)}>
-              <circle cx={x} cy={y} r={R_CHILD} fill={DOMAIN_COLOR[domainOf(k.id)]} stroke="#fff" strokeWidth={1.4} />
+              <circle cx={x} cy={y} r={R_CHILD} fill={colorOf(domainOf(k.id))} stroke="#fff" strokeWidth={1.4} />
               <text x={x} y={y + R_CHILD + 12} textAnchor="middle" fontSize={9.5} fontWeight={600} fill="#475569">
                 {truncate(k.title, 14)}
               </text>
@@ -217,7 +218,7 @@ export default function NeighborhoodPanel({ bus }: { bus: Bus }) {
             circle would overflow onto the page in white-on-white, invisible
             past the fill's edge — caught by looking at the render, not just
             the types. */}
-        <circle cx={CX} cy={CY} r={R_CENTER} fill={DOMAIN_COLOR[domainOf(currentId)] ?? '#475569'} stroke="#fff" strokeWidth={2} />
+        <circle cx={CX} cy={CY} r={R_CENTER} fill={colorOf(domainOf(currentId))} stroke="#fff" strokeWidth={2} />
         <text x={CX} y={CY + R_CENTER + 14} textAnchor="middle" fontSize={11} fontWeight={800} fill="#1e293b">
           {truncate(n.title, 16)}
         </text>

@@ -11,7 +11,8 @@
 // SVG arrows and edges need no DOM measurement.
 
 import { OptionalMark, PaneScroller } from '@/ds'
-import { byId, domainOf, DOMAIN_COLOR } from '../../corpus/graph'
+import { byId, domainOf } from '../../corpus/graph'
+import { colorOf } from '../../model/color'
 import { columnsFor } from './columns'
 import { isBox, isLeaf, visitCount } from './mockwalk'
 import type { Stop } from './mockwalk'
@@ -124,7 +125,7 @@ export default function WalkColumns({
                 )
               }
               if (!isLeaf(s)) return null
-              const color = DOMAIN_COLOR[domainOf(s.node)]
+              const color = colorOf(domainOf(s.node))
               return (
                 <button
                   key={`${i}-${s.node}`}

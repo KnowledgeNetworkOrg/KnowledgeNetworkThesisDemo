@@ -58,7 +58,7 @@ const DOT_FIRST_LINE_INSET = 4.83
  *  that is a fact about the LIST, and the list omits the prop.
  *
  *  Deviations from DS source:
- *  - Uses DOMAIN_TOKEN from ./vocab instead of an inline DOMAIN map (single source) */
+ *  - `domain` resolves through `domainToken()` — ring hue names only since OB-153 (2026-09-14) */
 
 export interface NodeChipProps {
   /** the node's NAME. A `ReactNode` rather than a string since 2026-08-19, so a caller can
@@ -70,8 +70,8 @@ export interface NodeChipProps {
   /** the node's step number in its container ("2.1") — derived, mono, tabular,
    *  --fs-micro at --text-3: a figure glanced at beside the name, never level with it */
   index?: string
-  /** A RING HUE NAME (`'teal'`) OR ONE OF THE SHIPPED EXAMPLE PALETTE'S CODES (`'net'`), resolved
-   *  by `domainToken()` with ring names winning. **Widened from the six-code `DomainCode` union
+  /** A RING HUE NAME (`'teal'`) — what the corpus stores on a topic (`topicHueOf`) — resolved
+   *  by `domainToken()`; anything else draws the fallback swatch. **Widened from the six-code `DomainCode` union
    *  to `string` here on 2026-09-06**, catching up with the DS's own 2026-08-21j change: the
    *  union was compiled into their adherence lint, and a general corpus passing a ring hue was
    *  reported as an invalid prop. The NAME is still wrong — this is a topic, not a domain — and
@@ -664,9 +664,8 @@ export function NodeChip({
 }: NodeChipProps) {
   /* the SAME table chipSize() above predicts from — read, never copied */
   const M = CHIP_METRICS
-  /* through the RESOLVER, not the table: `domainToken` accepts a ring name as well as an example
-     code and answers the fallback swatch for anything it does not know — which a bare
-     `DOMAIN_TOKEN[…]` lookup cannot do now that `domain` is a string. */
+  /* through the RESOLVER, not a table: `domainToken` answers the fallback swatch for anything
+     that is not a ring name, which a bare map lookup could not do now that `domain` is a string. */
   const hue = domainToken(domain)
   const quiet = mark === 'border-2'
   const bordered = mark === 'border' || quiet

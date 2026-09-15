@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 
-import type { DomainCode } from '../graph/vocab'
 import { DomainDot } from '../graph/DomainDot'
 import { useClipped } from '../chrome/IconButton'
 
@@ -110,7 +109,12 @@ export const NESTING = 16
  *  DS TreeRow.jsx. */
 export interface TreeRowProps {
   title: string
-  domain: DomainCode
+  /** a ring hue name (`'teal'`) — what the corpus stores on a topic (`topicHueOf`); resolved by
+   *  `domainToken()`. **Typed `string`**, as the DS's own contract has been since 2026-08-21j: a
+   *  closed six-code union was compiled into the adherence lint, and a general corpus passing a
+   *  ring hue was reported as an invalid prop (OB-153 retired the union here). The NAME is still
+   *  wrong — this is a topic, not a domain — and OB-061 decides the rename on both sides at once. */
+  domain: string
   /** indentation level; NESTING px per step — see NESTING's own docblock */
   depth?: number
   /** has children — draws the disclosure caret (`Caret`, rotated when open)

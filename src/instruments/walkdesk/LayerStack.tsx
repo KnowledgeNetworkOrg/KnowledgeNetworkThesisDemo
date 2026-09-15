@@ -8,7 +8,7 @@
 
 import { byId } from '../../corpus/graph'
 import { DomainDot, wrapTip } from '@/ds'
-import { domainCodeOf } from '../../model/domaincode'
+import { topicHueOf } from '../../corpus/graph'
 import { columnsFor } from './columns'
 import { isBox, isLeaf } from './mockwalk'
 import type { Stop } from './mockwalk'
@@ -111,7 +111,7 @@ export default function LayerStack({
                         draws that halo OUTSIDE as a box-shadow ring, so an 8px
                         dot + 2px ring comes to the same 12px — same footprint on
                         the plane, one less place that knows how a domain looks. */}
-                    <DomainDot domain={domainCodeOf(s.node)} size={8} ring />
+                    <DomainDot topic={topicHueOf(s.node)} size={8} ring />
                   </button>
                 )
               })}

@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import type { DomainCode } from './vocab'
 import { NodeChip } from './NodeChip'
 import { CaretStack } from '../nav/TreeRow'
 import { IconButton, wrapTip } from '../chrome/IconButton'
@@ -43,7 +42,7 @@ export interface RailStopProps {
   title: string
   /** optional on this contract, matching the DS's own — `NodeChip`'s own fallback swatch
    *  covers an absent domain the same way the DS's untyped JS does */
-  domain?: DomainCode
+  domain?: string
   /** how many relationships run between this neighbour and the focus. The one number the
    *  closed row offers, so it sits in a fixed 16px column with --tnum: a 1 and a 12 must
    *  not move the caret beside them */
@@ -118,7 +117,7 @@ export function RailStop({
               the row is what the pointer is actually on. `disclosable` is unconditional:
               every stop on a rail heads a disclosure, and the open/closed position is the
               row's own state. */}
-          <NodeChip title={title} domain={domain as DomainCode} mark={mark} wrap disclosable open={open} hovered={hov} lit={lit} dim={dim} note={note} />
+          <NodeChip title={title} domain={domain} mark={mark} wrap disclosable open={open} hovered={hov} lit={lit} dim={dim} note={note} />
           <span style={{ marginLeft: 'auto', flex: 'none', display: 'flex', alignItems: 'center', gap: M.pairGap }}>
             <span style={{ flex: 'none', minWidth: M.countMin, textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-body)', fontWeight: open ? 'var(--fw-medium)' : 'var(--fw-regular)', color: 'var(--text-2)', fontVariantNumeric: 'var(--tnum)', transition: 'font-weight var(--dur-move) var(--ease-soft)' }}>{count}</span>
           </span>
@@ -139,7 +138,7 @@ export function RailStop({
 export interface RailStopSpec {
   id: string
   title: string
-  domain?: DomainCode
+  domain?: string
   count: number
   note?: string
   lit?: boolean
@@ -159,7 +158,7 @@ export interface NodeRailProps {
    *  the button owns the click and the keyboard */
   title: string
   /** the focus node's domain */
-  domain?: DomainCode
+  domain?: string
   /** the neighbours, in the order they should read. A FLAT LIST, laid out in flow:
    *  unlike a board of cards there is nothing here to place */
   stops?: RailStopSpec[]
@@ -247,7 +246,7 @@ export function NodeRail({
           aria-expanded={!!railOpen}
           title={wrapTip(railOpen ? 'click to collapse the rail' : 'click to expand the rail')}
           style={{ alignSelf: 'flex-start', maxWidth: '100%', minWidth: 0, display: 'flex', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
-          <NodeChip title={title} domain={domain as DomainCode} mark="border" wrap focus disclosable open={railOpen} hovered={headHot} />
+          <NodeChip title={title} domain={domain} mark="border" wrap focus disclosable open={railOpen} hovered={headHot} />
         </button>
         {/* the rail LEAVES the head: without this stub the focus is just another chip in
             the stack. Structure says "everything below hangs off this" more quietly than

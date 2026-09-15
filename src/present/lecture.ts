@@ -14,10 +14,8 @@
 // provisional, null when not roaming; `covered` is what was actually presented —
 // a stop is covered when the record LEAVES it, so a skip is a gap in the fill.
 
-import { topicPaint } from '@/ds'
-
 import { DOC_BODY } from '../corpus/docs'
-import { byId, domainOf } from '../corpus/graph'
+import { byId, domainOf, topicHueOf } from '../corpus/graph'
 import type { PlayStep } from '../instruments/walkdesk/playback'
 
 /** one stop of the lecture, as every presenter part reads it */
@@ -49,7 +47,7 @@ export function lectureSteps(steps: readonly PlayStep[], walkTitle: string): Lec
       id: s.id,
       title: s.title,
       territory: byId.get(domain)?.title ?? '',
-      hue: topicPaint(domain).hue ?? undefined,
+      hue: topicHueOf(s.id),
       /* a stop is always a topic id (walks.ts), and every topic is authored a body — pinned
          by lecture.test.ts rather than papered over with invented prose, because a wall that
          quietly shows nothing is worse than a test that fails. */

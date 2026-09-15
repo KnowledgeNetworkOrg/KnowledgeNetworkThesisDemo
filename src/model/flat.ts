@@ -9,7 +9,9 @@
 // filtration. CNM community detection stays exported for Contours, which
 // draws detected-vs-authored disagreement over the same positions.
 
-import { byId, childrenOf, domainIds, domainOf, DOMAIN_COLOR, edges, pathTo, topicIds, topicsUnder } from '../corpus/graph'
+import { byId, childrenOf, domainIds, domainOf, edges, pathTo, topicHueOf, topicIds, topicsUnder } from '../corpus/graph'
+import { topicPaintValues } from '@/ds'
+import { oklchToHex } from './oklab'
 import type { GEdge } from '../corpus/graph'
 import type { XY } from './derive'
 
@@ -142,7 +144,10 @@ export const communityLabel: string[] = []
     const dom = [...count].sort((x, y) => y[1] - x[1])[0][0]
     const nth = timesSeen.get(dom) ?? 0
     timesSeen.set(dom, nth + 1)
-    communityColor.push(nth === 0 ? DOMAIN_COLOR[dom] : mixWhite(DOMAIN_COLOR[dom], 0.42 * nth))
+    /* the domain's mark, resolved to a hex in JS — this feeds an SVG fill (OB-153) */
+    const m = topicPaintValues(topicHueOf(dom)).mark
+    const domainHex = oklchToHex(m.l, m.c, m.h)
+    communityColor.push(nth === 0 ? domainHex : mixWhite(domainHex, 0.42 * nth))
     communityLabel.push(nth === 0 ? byId.get(dom)!.title : `${byId.get(dom)!.title} ${['II', 'III', 'IV'][nth - 1]}`)
   }
 }

@@ -20,7 +20,8 @@ import type { ReactNode } from 'react'
 
 import { LEGEND_INSET } from '@/ds'
 
-import { byId, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL } from '../corpus/graph'
+import { byId, domainOf, EDGE_COLOR, EDGE_LABEL } from '../corpus/graph'
+import { colorOf } from '../model/color'
 import type { EdgeType } from '../corpus/graph'
 import { lensModel } from '../model/lens'
 import type { ConeSide, LensModel } from '../model/lens'
@@ -237,7 +238,7 @@ export default function LensPane({ bus, type }: LensPaneProps) {
 
   const renderChip = (id: string, p: Pt, side: Side | 'focus') => {
     const isFocus = side === 'focus'
-    const color = DOMAIN_COLOR[domainOf(id)] ?? '#475569'
+    const color = colorOf(domainOf(id))
     const sp = toSvg(p)
     return (
       <g key={`${side}-${id}`} data-lens-node={id} onClick={() => !isFocus && onFocus(id)} style={{ cursor: isFocus ? 'default' : 'pointer' }}>

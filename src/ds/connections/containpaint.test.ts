@@ -20,9 +20,10 @@ import { FAMILY_SLOTS, topicPaint } from '../graph/DomainDot'
 import { ContainPaint } from './ContainTree'
 import type { ContainNode } from './ContainTree'
 
-/** real palette codes — `sys` is leaf, `math` is violet, `net` is teal (DomainDot's EXAMPLE_HUE) */
-const SYS = 'sys'
-const MATH = 'math'
+/** ring hue names — what a corpus stores on a topic and hands the tree (OB-153; the six demo
+ *  codes no longer resolve anywhere in this app) */
+const SYS = 'leaf'
+const MATH = 'violet'
 
 const leaf = (id: string, domain?: string): ContainNode => ({ id, title: id, domain })
 
