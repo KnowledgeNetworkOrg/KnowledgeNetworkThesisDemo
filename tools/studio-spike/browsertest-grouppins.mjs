@@ -111,7 +111,12 @@ try {
   if ((await topPin.count()) === 1) {
     await topPin.hover()
     await page.waitForTimeout(300)
-    ok('a top-level stop\'s card carries no path line', (await page.locator('[data-stoppath]').count()) === 0)
+    // OB-184 (2026-09-14): the card NAMES the stop now, by the number THE PIN PRINTS (the walk
+    // slot, "4" on this fifth stop), never a group path. Until then a top-level stop with no note
+    // drew no card at all.
+    const top = page.locator('[data-stoppath]')
+    const pinLabel = ((await topPin.textContent()) || '').trim()
+    ok(`a top-level stop's card names it by the number its pin prints, "${pinLabel} · <name>", not a group path`, (await top.count()) === 1 && (await top.innerText()).startsWith(pinLabel + ' ·'), (await top.count()) ? await top.innerText() : 'no card')
     await page.mouse.move(4, 4)
   }
   ok('no page errors', errors.filter((e) => e.startsWith('pageerror')).length === 0)

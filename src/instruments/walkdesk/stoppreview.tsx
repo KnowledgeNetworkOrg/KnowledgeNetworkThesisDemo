@@ -19,7 +19,13 @@
 // labelled "2-3"; the host builds the mark and passes it as the third argument, and
 // this card is the only place that can explain one. Two stops under one pin are two
 // different documents, so a card naming the first is wrong rather than incomplete.
-// The dock never sends a mark — it draws one dot per stop.
+//
+// THE NUMBER IS THE SURFACE'S OWN. The dock numbers its dots by position (`i + 1`) and
+// sends no mark, so its card counts the same way; a map pin prints a walk SLOT number
+// (`routeNumbers`: a group's stops share their group's number, so the stop after two
+// groups is "4" on a pin that is the fifth stop), and the map sends a mark for EVERY
+// pin hover, single or merged, so the card's number is the pin's label — never a count
+// the pin does not show.
 
 import type { ReactNode } from 'react'
 
@@ -29,13 +35,14 @@ import type { PlayStep } from './playback'
 
 type StopLike = WalkStep & Partial<Pick<PlayStep, 'path'>>
 
-const nameOf = (s: StopLike, n?: number) => (s.path ? `${s.path} · ${s.title}` : n !== undefined ? `${n} · ${s.title}` : s.title)
+const nameOf = (s: StopLike, n?: number | string) => (s.path ? `${s.path} · ${s.title}` : n !== undefined ? `${n} · ${s.title}` : s.title)
 
 export function renderStopPreview(step: StopLike | undefined, index?: number, mark?: WalkMark): ReactNode {
   // WalkStrip never clamps hoverIndex against a shrinking steps array, so a step
   // can arrive here undefined mid-edit — guard, don't assume the prop's own type.
   if (!step) return null
   const stops = mark && mark.steps && mark.steps.length > 1 ? (mark.steps as StopLike[]) : null
+  const own = mark ? mark.label : index !== undefined ? index + 1 : undefined
   return (
     <div data-stoppreview className="px-2 py-1 rounded border border-slate-200 bg-white shadow-lg text-[11px] max-w-[220px] text-slate-600">
       {stops ? (
@@ -45,7 +52,7 @@ export function renderStopPreview(step: StopLike | undefined, index?: number, ma
         </>
       ) : (
         <>
-          <div data-stoppath className="font-medium text-slate-800">{nameOf(step, index !== undefined ? index + 1 : undefined)}</div>
+          <div data-stoppath className="font-medium text-slate-800">{nameOf(step, own)}</div>
           {step.note ? <div>{step.note}</div> : null}
         </>
       )}

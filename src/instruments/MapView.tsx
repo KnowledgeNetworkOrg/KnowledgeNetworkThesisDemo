@@ -1552,9 +1552,10 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                   style={dockShown ? { cursor: 'pointer' } : undefined}
                   onPointerEnter={(e) => {
                     if (dragging || !dockShown) return
-                    /* THE MARK IS THE HOST'S TO BUILD (OB-184): a merged pin stands for stops
-                       `step`..`stepEnd`, 1-based, and the card names every one of them */
-                    const mark: WalkMark | undefined = s.stepEnd > s.step ? { from: s.step - 1, to: s.stepEnd - 1, label: String(s.label), steps: play.steps.slice(s.step - 1, s.stepEnd) } : undefined
+                    /* THE MARK IS THE HOST'S TO BUILD (OB-184): a pin stands for stops
+                       `step`..`stepEnd`, 1-based, under the SLOT label it prints; the card
+                       names every one of them, by that label */
+                    const mark: WalkMark = { from: s.step - 1, to: s.stepEnd - 1, label: String(s.label), steps: play.steps.slice(s.step - 1, s.stepEnd) }
                     setPinHover({ i: s.step - 1, mark, ...previewAnchor(e.currentTarget.getBoundingClientRect()) })
                   }}
                   onPointerLeave={() => setPinHover(null)}
