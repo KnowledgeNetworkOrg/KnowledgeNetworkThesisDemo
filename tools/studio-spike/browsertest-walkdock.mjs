@@ -11,7 +11,12 @@
 //     strip stops the dock — one clock, every surface;
 //   - hovering a pin shows the same preview card the strip shows, PREVIEW_GAP above
 //     the pin, with no MapTooltip beside it, and it goes when the pointer leaves;
-//   - with no walk being played there is no dock.
+//   - with no walk being played there is no dock;
+//   - OB-156: the map's floating chrome (levels, visibility, zoom) climbs with the dock's LIVE
+//     height — 63 closed, 113 open — on the dock's own 280ms fold, so with the row open the
+//     level picker and the zoom buttons are still clickable and still act;
+//   - OB-157: the open row's line begins on the first dot's centre and ends on the last dot's,
+//     and the walked fill draws nothing at stop 1 — two 1:1 screenshots, scrolled to each end.
 //
 // THE FIXTURE is the opening composition: the desk's seed draft is already published
 // on bus.route, so the map starts with a real walk (drive-mappins.mjs relies on the
@@ -107,6 +112,78 @@ await map.getByLabel('hide the stops').click()
 await page.waitForTimeout(450)
 ok('and closes again', (await dock().getAttribute('data-walk-dock')) === 'closed')
 ok('still without moving the map', sameBox(before, await svgBox()))
+
+// ── A2. OB-156: the floating chrome climbs with the dock's LIVE height ─────────
+// The level picker and the zoom column sit `bottom: 12 + dock height` inside the pane. They
+// used to climb by `closed` only, so the open row grew up over them (owner's screenshot,
+// 2026-09-05: the + cut in half, the control under it gone). Now the offset reads the
+// controlled `open` the host holds, and moves on the dock's own fold.
+const mapBottom = async () => { const m = await map.boundingBox(); return m.y + m.height }
+const bottomOf = async (label) => { const b = await map.getByLabel(label, { exact: true }).boundingBox(); return Math.round((await mapBottom()) - (b.y + b.height)) }
+ok('closed: the level picker sits 12 + closed (75) above the pane bottom', Math.abs((await bottomOf('levels')) - 75) <= 2, `${await bottomOf('levels')}`)
+ok('closed: so does the zoom column (zoom out is its lowest button)', Math.abs((await bottomOf('zoom out')) - 75) <= 2, `${await bottomOf('zoom out')}`)
+const chromeTransition = await map.getByLabel('levels', { exact: true }).evaluate((el) => {
+  let n = el
+  while (n && n.style.position !== 'absolute') n = n.parentElement
+  const cs = n ? getComputedStyle(n) : null
+  return cs ? cs.transitionProperty + ' ' + cs.transitionDuration + ' ' + cs.transitionTimingFunction : 'no positioned ancestor'
+})
+ok('the chrome transitions its `bottom` over WALK_DOCK_METRICS.fold (280ms), not by a retyped number', /bottom/.test(chromeTransition) && /0\.28s/.test(chromeTransition), chromeTransition)
+await map.getByLabel('show every stop').click()
+await page.waitForTimeout(450)
+ok('OPEN: the level picker climbs to 12 + open (125)', Math.abs((await bottomOf('levels')) - 125) <= 2, `${await bottomOf('levels')}`)
+ok('OPEN: and the zoom column with it', Math.abs((await bottomOf('zoom out')) - 125) <= 2, `${await bottomOf('zoom out')}`)
+// the acceptance test: with the open row on screen, both controls are clickable AND ACT
+const levelBefore = await page.$eval('[data-nested]', (el) => el.getAttribute('data-level'))
+await map.getByLabel('zoom in', { exact: true }).click()
+await page.waitForTimeout(700)
+const levelAfter = await page.$eval('[data-nested]', (el) => el.getAttribute('data-level'))
+ok('with the dock OPEN, zoom in is clickable and ACTS: the level changed', levelAfter !== levelBefore && Number(levelAfter) === Number(levelBefore) + 1, `L${levelBefore} -> L${levelAfter}`)
+await map.getByLabel('zoom out', { exact: true }).click()
+await page.waitForTimeout(700)
+ok('and zoom out brings it back', (await page.$eval('[data-nested]', (el) => el.getAttribute('data-level'))) === levelBefore)
+const optionsClosed = await map.getByText(/^L\d$/).count()
+await map.getByLabel('levels', { exact: true }).click()
+await page.waitForTimeout(300)
+const optionsOpen = await map.getByText(/^L\d$/).count()
+ok('with the dock OPEN, the level picker is clickable and ACTS: its levels appear', optionsOpen > optionsClosed, `${optionsClosed} -> ${optionsOpen} level labels`)
+await map.getByLabel('levels', { exact: true }).click()
+await page.waitForTimeout(300)
+
+// ── A3. OB-157: the open row's line ends ON the last stop ──────────────────────
+// Each stop is a `stopW` column with its dot centred, so a `left: 0; right: 0` track hung half a
+// column past both ends — and on a WALK a line leaving the last stop says "there is another
+// stop after this". The track now runs dot centre to dot centre; the walked fill starts on the
+// first centre and ends on the current one, so at stop 1 it draws nothing.
+const OUT = REPO + '/tools/studio-spike/shots'
+const centreX = async (i) => { const b = await dock().locator(`[data-walk-dock-stop="${i}"]`).boundingBox(); return b.x + b.width / 2 }
+const rect = (sel) => dock().locator(sel).evaluate((el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, width: r.width } })
+await dock().focus()
+await page.keyboard.press('Home')
+await page.waitForTimeout(500)
+const rHome = await readout()
+const trackHome = await rect('[data-walk-dock-track]')
+const fillHome = await rect('[data-walk-dock-fill]')
+ok('at 1 / N the track BEGINS on the first dot\'s centre', Math.abs(trackHome.left - (await centreX(0))) <= 1, `track.left ${trackHome.left.toFixed(1)} vs dot ${(await centreX(0)).toFixed(1)}`)
+ok('and nothing is drawn to the LEFT of the first dot: the walked fill has zero width at stop 1', fillHome.width === 0 && fillHome.left >= (await centreX(0)) - 1, `fill width ${fillHome.width}, left ${fillHome.left.toFixed(1)}`)
+const dockBoxHome = await dock().boundingBox()
+await page.screenshot({ path: OUT + '/walkdock-open-1-of-N.png', clip: dockBoxHome })
+await page.keyboard.press('End')
+await page.waitForTimeout(600)
+const rEnd = await readout()
+ok('End scrolled the open row to N / N', !!rEnd && !!rHome && rEnd.cur === rHome.n, JSON.stringify(rEnd))
+const lastI = rEnd.n - 1
+const trackEnd = await rect('[data-walk-dock-track]')
+const fillEnd = await rect('[data-walk-dock-fill]')
+ok('at N / N the track ENDS on the last dot\'s centre — no line past it', Math.abs(trackEnd.right - (await centreX(lastI))) <= 1, `track.right ${trackEnd.right.toFixed(1)} vs dot ${(await centreX(lastI)).toFixed(1)}`)
+ok('and the walked fill ends exactly there too', Math.abs(fillEnd.right - (await centreX(lastI))) <= 1 && Math.abs(fillEnd.left - trackEnd.left) <= 1, `fill.right ${fillEnd.right.toFixed(1)}`)
+const dockBoxEnd = await dock().boundingBox()
+await page.screenshot({ path: OUT + '/walkdock-open-N-of-N.png', clip: dockBoxEnd })
+await page.keyboard.press('Home')
+await page.waitForTimeout(400)
+await map.getByLabel('hide the stops').click()
+await page.waitForTimeout(450)
+ok('closed again: the chrome comes back down to 12 + closed', Math.abs((await bottomOf('levels')) - 75) <= 2, `${await bottomOf('levels')}`)
 
 // ── C. a seek in the dock moves the pins ────────────────────────────────────
 const facesBefore = await pinFaces()
