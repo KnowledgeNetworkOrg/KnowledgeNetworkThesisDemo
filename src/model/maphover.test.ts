@@ -18,6 +18,7 @@ import type { HoverSources } from './maphover'
 
 /** nothing hovered, nothing selected — every case below is this plus one thing. */
 const NOTHING: HoverSources = {
+  walkPinHovered: false,
   cursorCell: null,
   selectedCell: null,
   publishedCell: null,
@@ -138,5 +139,27 @@ describe('the walk’s own stop is a light, not a selection (DS OB-173)', () => 
 
   test('no walk on the map is no light — nothing is left stuck on', () => {
     expect(hoverMarks({ ...NOTHING, walkStopCell: null }).spotlightId).toBeNull()
+  })
+})
+
+describe('a walk pin\'s preview wins the pointer (DS OB-184 clause 4)', () => {
+  // Entering a pin leaves the cell under it, so the cell's card went as the pin's came — by
+  // accident. This is the stated rule: ONE CARD PER POINTER, and the pin's is the one the
+  // pointer is on. The spotlight is untouched: a pin hover is the weakest channel on the pane.
+  test('while a pin is hovered the cell\'s card stays down, even with a cursor cell', () => {
+    expect(hoverMarks({ ...NOTHING, cursorCell: 'topic-a', walkPinHovered: true }).card).toBeNull()
+  })
+
+  test('and a relation under the pointer does not get a card either', () => {
+    expect(hoverMarks({ ...NOTHING, onRelation: true, walkPinHovered: true }).card).toBeNull()
+  })
+
+  test('the spotlight is untouched by it', () => {
+    const marks = hoverMarks({ ...NOTHING, walkStopCell: 'stop-3', walkPinHovered: true })
+    expect(marks.spotlightId).toBe('stop-3')
+  })
+
+  test('the card comes back the moment the pointer leaves the pin', () => {
+    expect(hoverMarks({ ...NOTHING, cursorCell: 'topic-a', walkPinHovered: false }).card).toEqual({ kind: 'node', id: 'topic-a' })
   })
 })

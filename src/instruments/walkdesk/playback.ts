@@ -28,10 +28,22 @@
 // The map's pins and arrows and the dock's knob read `position`, because on
 // those drawings the animation is not drawn on top of the position, it IS the
 // position — an integer cursor lands and nothing moves.
+//
+// THE BUS WRITE IS TIMED OFF THE ARRIVAL, NOT OFF THE LOOP'S BOOKKEEPING (DS
+// OB-181, owner-seen 2026-09-14: "the highlight is after the pin and arrow
+// animation"). `walkAdvance` returns TWO cursors and they are not the same
+// instant: `position` reaches the next stop at phase `travel` (0.7 of the step),
+// and the pop, the fill and the band all complete there; `step` increments
+// only when the phase WRAPS, at the end of the dwell that follows. The ticker
+// wrote the cursor and the focus when `step` changed — so the node highlight
+// (which follows the focus) landed `walkArrivalLag()` = 270ms after the
+// animation had finished, and read as a second event. Candidate A of the item.
+// It now writes when `walkArrival(position)` changes: the same frame the pop
+// peaks. `step` stays the loop's own; nothing drawn reads it.
 
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 
-import { walkAdvance } from '@/ds'
+import { walkAdvance, walkArrival } from '@/ds'
 import type { WalkStep } from '@/ds'
 
 import { byId } from '../../corpus/graph'
@@ -262,9 +274,10 @@ export function useWalkPlayback(bus: Bus): Playback {
       clock.step = r.step
       clock.phase = r.phase
       clock.position = r.position
-      if (r.step !== clock.written) {
-        clock.written = r.step
-        now.writeCursor(r.step)
+      const arrived = walkArrival(r.position, now.len)
+      if (arrived !== clock.written) {
+        clock.written = arrived
+        now.writeCursor(arrived)
       }
       if (r.done) setPlaying(false)
       else notify()

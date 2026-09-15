@@ -56,6 +56,13 @@ export type HoverSources = {
   walkStopCell: string | null
   /** The pointer is on one of the selection's relation lines rather than on territory. */
   onRelation: boolean
+  /** THE POINTER IS ON A WALK PIN, whose own preview card is up (DS OB-184 clause 4). ONE CARD
+   *  PER POINTER: while the pin's `WalkPreview` is up, the cell's `MapTooltip` stays down. The
+   *  code did this by accident before — entering a pin leaves the cell under it, so the cell's
+   *  card went as the pin's came — and it is now the stated precedence rule rather than a
+   *  consequence. The spotlight is untouched: a pin hover is the weakest channel on the pane,
+   *  transient, undone on leave, and never what the app reads as the current node. */
+  walkPinHovered?: boolean
 }
 
 /**
@@ -63,7 +70,7 @@ export type HoverSources = {
  * a card. They take different inputs on purpose — see the note at the top.
  */
 export function hoverMarks(from: HoverSources): HoverMarks {
-  const { cursorCell, selectedCell, publishedCell, lookedAtCell, walkStopCell, onRelation } = from
+  const { cursorCell, selectedCell, publishedCell, lookedAtCell, walkStopCell, onRelation, walkPinHovered } = from
 
   // A published hover that is only our own cell echoing back is dropped: that cell
   // already carries the dashed preselect, and two outlines on one cell read as a
@@ -89,11 +96,15 @@ export function hoverMarks(from: HoverSources): HoverMarks {
   // expression: they light the map, and they stop there. A relation hover wins over
   // territory beneath it, since the two can only coexist when the pointer sits
   // exactly on the boundary between a relation's stroke and the cell under it.
-  const card: HoverCard | null = onRelation
-    ? { kind: 'relation' }
-    : cursorCell
-      ? { kind: 'node', id: cursorCell }
-      : null
+  // A WALK PIN'S PREVIEW WINS THE POINTER (OB-184): one card per pointer, and the pin's is
+  // the one the pointer is on. The cell's card comes back the moment the pointer leaves the pin.
+  const card: HoverCard | null = walkPinHovered
+    ? null
+    : onRelation
+      ? { kind: 'relation' }
+      : cursorCell
+        ? { kind: 'node', id: cursorCell }
+        : null
 
   return { spotlightId, card }
 }

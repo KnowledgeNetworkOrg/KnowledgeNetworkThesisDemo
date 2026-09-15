@@ -240,6 +240,88 @@ await page.keyboard.press('Home')
 await page.waitForTimeout(250)
 ok('Home seeks back to the first', (await readout())?.cur === 1)
 
+// ── D0a. OB-184: a MERGED pin's card names every stop under it, one card per pointer ──
+// At a coarse level `walkPins` merges a contiguous run of stops resolving to one cell into ONE
+// pin labelled "2-3". A card built from the first stop alone names one document where the pin
+// stands for two, so the range card lists every stop, headed by the pin's own label. And while
+// that card is up the cell's MapTooltip stays down — one card per pointer — and nothing about
+// the focus or the cursor moves: a pin hover is the weakest channel on the pane.
+{
+  const pins = await map.locator('[data-routestop]').evaluateAll((els) => els.map((el) => ({ step: Number(el.getAttribute('data-step')), stepEnd: Number(el.getAttribute('data-step-end')), label: (el.textContent || '').trim(), cell: el.getAttribute('data-routestop') })))
+  const merged = pins.find((p) => /^\d+-\d+$/.test(p.label))
+  ok('OB-184 (3): at this level the walk has a MERGED pin to test against (a test that only runs at a fine level cannot see this clause)', !!merged, `pins: ${pins.map((p) => p.label).join(', ')}`)
+  if (merged) {
+    // the run's length is in STOPS (a grouped walk's "1-2" can cover 1, 2.1 and 2.2), not in the label's numbers
+    const under = merged.stepEnd - merged.step + 1
+    const rBefore = await readout()
+    const spotBefore = await map.locator('[data-spot]').getAttribute('data-spot').catch(() => null)
+    const pin = map.locator(`[data-routestop][data-step="${merged.step}"]`)
+    const pb = await pin.boundingBox()
+    await page.mouse.move(pb.x + pb.width / 2, pb.y + pb.height / 2)
+    await page.waitForTimeout(300)
+    const card = page.locator('[data-stoppreview]')
+    ok('hovering the merged pin raises the preview card', (await card.count()) === 1)
+    ok('headed by the pin\'s own label', (await card.locator('[data-stoplabel]').textContent().catch(() => '')).trim() === merged.label, `"${(await card.locator('[data-stoplabel]').textContent().catch(() => ''))}" vs "${merged.label}"`)
+    const rows = await card.locator('[data-stoprow]').allTextContents().catch(() => [])
+    ok('and naming EVERY stop under it, one line per stop', under > 1 && rows.length === under && rows.every((r) => r.trim().length > 3), `${rows.length} rows for "${merged.label}" (${under} stops): ${rows.map((r) => r.trim()).join(' | ')}`)
+    ok('OB-184 (4): ONE CARD PER POINTER — the cell\'s MapTooltip stays down while the pin\'s card is up', (await page.locator('[data-maptip]').count()) === 0)
+    ok('OB-184 (2): the hover changed nothing — cursor and spot are what they were', JSON.stringify(await readout()) === JSON.stringify(rBefore) && (await map.locator('[data-spot]').getAttribute('data-spot').catch(() => null)) === spotBefore)
+    await page.mouse.move(pb.x + pb.width / 2, pb.y - 120)
+    await page.waitForTimeout(300)
+    ok('leaving the pin clears the card', (await card.count()) === 0)
+  }
+}
+
+// ── D0. OB-181: THE NODE HIGHLIGHT LANDS WITH THE PIN'S POP, NOT ONE DWELL AFTER ──
+// `walkAdvance` returns two cursors: the fractional `position` (which the pop, the fill and
+// the band ride, completing ON the arrival at phase `travel`) and the integer `step` (the loop's
+// bookkeeping, incremented only when the phase wraps, at the end of the dwell). The bus write
+// that lights the stop used to ride `step`, so the highlight landed `walkArrivalLag()` — 270ms —
+// after the animation had finished, and read as a second event. Sampled IN THE PAGE, one
+// reading per animation frame, on a MOVING walk: the first spot change nearest the moment the
+// next pin reaches its full pop must be within two frames of it. The walk starts on stop 3: at
+// this level stops 1-3 share one merged pin (which does not re-pop between its own stops), so
+// the arrival watched lands on a pin of its own — the one whose scale moved most in the window.
+await dock().focus()
+await page.keyboard.press('Home')
+await page.keyboard.press('ArrowRight')
+await page.keyboard.press('ArrowRight')
+await page.waitForTimeout(400)
+const timing = await page.evaluate(() => new Promise((res) => {
+  const mapEl = document.querySelector('[aria-label="map-view"]')
+  const frames = []
+  const t0 = performance.now()
+  mapEl.querySelector('[aria-label="play the walk"]').click()
+  const f = () => {
+    const t = performance.now() - t0
+    const pins = [...mapEl.querySelectorAll('[data-routestop]')].map((el) => ({ step: Number(el.getAttribute('data-step')), scale: Number((/scale\(([-\d.e]+)\)/.exec(el.getAttribute('transform') || '') || [])[1]) }))
+    const spot = mapEl.querySelector('[data-spot]')
+    frames.push({ t, pins, spot: spot ? spot.getAttribute('data-spot') : null })
+    if (t < 1500) requestAnimationFrame(f); else res(frames)
+  }
+  requestAnimationFrame(f)
+}))
+await map.getByLabel('pause the walk').click()
+await page.waitForTimeout(150)
+// THE PIN THAT POPS: at a coarse level the first stops may share one merged pin, so the pin
+// to watch is whichever one's scale moved the most over the window — its peak is the arrival
+const stepsSeen = [...new Set(timing.flatMap((fr) => fr.pins.map((p) => p.step)))]
+const scaleOf = (fr, step) => fr.pins.find((p) => p.step === step)?.scale ?? 0
+const ranges = stepsSeen.map((step) => { const s = timing.map((fr) => scaleOf(fr, step)); return { step, range: Math.max(...s) - Math.min(...s), peak: Math.max(...s) } })
+const popped = ranges.sort((a, b) => b.range - a.range)[0]
+ok('OB-181: the sampled window saw a pin pop at all', popped.range > 0.2, `largest scale range ${popped.range.toFixed(3)} on stop ${popped.step}`)
+const nextStep = popped.step
+const scaleAt = (fr) => scaleOf(fr, nextStep)
+const peak = popped.peak
+const tPop = timing.find((fr) => scaleAt(fr) >= peak - 1e-6).t
+console.log(`   [OB-181 sampling] pins ${ranges.map((r) => r.step + ':' + r.range.toFixed(3)).join(' ')}; spot changes at ${timing.filter((fr, i) => i > 0 && fr.spot !== timing[i - 1].spot).map((fr) => fr.t.toFixed(0)).join(',')}ms`)
+const spotChanges = timing.filter((fr, i) => i > 0 && fr.spot !== timing[i - 1].spot).map((fr) => fr.t)
+const gap = spotChanges.length ? Math.min(...spotChanges.map((t) => Math.abs(t - tPop))) : Infinity
+ok('OB-181: the stop\'s highlight lands WITH the pin\'s pop — within two frames of it on a moving walk', gap <= 40, `pop of stop ${nextStep} at ${tPop.toFixed(0)}ms, nearest spot change ${gap === Infinity ? 'none' : gap.toFixed(0) + 'ms away'} (${timing.length} frames sampled)`)
+await dock().focus()
+await page.keyboard.press('Home')
+await page.waitForTimeout(300)
+
 // ── D. one clock for every surface ──────────────────────────────────────────
 await map.getByLabel('play the walk').click()
 await page.waitForTimeout(2400)
@@ -421,6 +503,104 @@ await page.getByTitle('stop this walk').click()
 await page.waitForTimeout(400)
 const rBack = await readout()
 ok('stopping the saved walk hands the dock the draft back', !!rSaved && !!rBack && rSaved.n !== rBack.n && rBack.n === r0.n, `${JSON.stringify(rSaved)} -> ${JSON.stringify(rBack)}`)
+
+// ── G. OB-179: PLAYBACK MOVES THE CAMERA ONLY WHEN THE STOP IS OFF-SCREEN ──────
+// (last, on purpose: its pans leave the map where the hand put it)
+// The owner's call: motion on every advance becomes scenery; motion that is rare reads as "we
+// have gone somewhere new". So an arrival INSIDE the view moves the camera by nothing at all —
+// the scene transform is byte-identical — and an arrival OUTSIDE it brings the stop into view,
+// clear of the 12% edge band. A pause moves nothing. A user's own pan wins: after a pan during
+// playback the next arrival leaves the view alone. And the focus is untouched by any of it:
+// the spot (which follows the focus) is the same cell before and after a camera move.
+// the scene group is the svg's first `<g>` after `<defs>`; the camera is its transform attribute
+const cameraNow = () => page.evaluate(() => document.querySelector('[aria-label="map-view"] svg > defs + g').getAttribute('transform'))
+const svgRect = () => map.locator('svg').first().boundingBox()
+/** is the pin COVERING `step` (a merged pin covers a run; its data-step is the run's first)
+ *  inside the VISIBLE view — the svg above the dock's top — clear of the 12% band of the
+ *  smaller side? Measured in the page: an off-screen SVG pin has a rect Playwright's
+ *  boundingBox may refuse. */
+const pinInside = (step) => page.evaluate((step) => {
+  const mapEl = document.querySelector('[aria-label="map-view"]')
+  const svg = mapEl.querySelector('svg').getBoundingClientRect()
+  const dockTop = mapEl.querySelector('[data-walk-dock]').getBoundingClientRect().top
+  const r = { x: svg.x, y: svg.y, width: svg.width, height: dockTop - svg.y }
+  const pins = [...mapEl.querySelectorAll('[data-routestop]')].map((el) => ({ el, step: Number(el.getAttribute('data-step')) })).filter((p) => p.step <= step).sort((a, b) => b.step - a.step)
+  if (!pins.length) return null
+  const p = pins[0].el.getBoundingClientRect()
+  const inset = Math.min(r.width, r.height) * 0.12
+  const cx = p.x + p.width / 2, cy = p.y + p.height / 2
+  return cx >= r.x + inset && cx <= r.x + r.width - inset && cy >= r.y + inset && cy <= r.y + r.height - inset
+}, step)
+/** drag the map so the pin covering `step` sits at the visible view's centre — a pan while
+ *  PAUSED, which is plain navigation and raises no flag */
+const centreOn = async (step) => {
+  const d = await page.evaluate((step) => {
+    const mapEl = document.querySelector('[aria-label="map-view"]')
+    const svg = mapEl.querySelector('svg').getBoundingClientRect()
+    const dockTop = mapEl.querySelector('[data-walk-dock]').getBoundingClientRect().top
+    const pins = [...mapEl.querySelectorAll('[data-routestop]')].map((el) => ({ el, step: Number(el.getAttribute('data-step')) })).filter((p) => p.step <= step).sort((a, b) => b.step - a.step)
+    const p = pins[0].el.getBoundingClientRect()
+    return { dx: svg.x + svg.width / 2 - (p.x + p.width / 2), dy: svg.y + (dockTop - svg.y) / 2 - (p.y + p.height / 2), x0: svg.x + 30, y0: svg.y + 30 }
+  }, step)
+  await page.mouse.move(d.x0, d.y0)
+  await page.mouse.down()
+  await page.mouse.move(d.x0 + d.dx, d.y0 + d.dy, { steps: 8 })
+  await page.mouse.up()
+  await page.waitForTimeout(300)
+}
+const spotNow = () => map.locator('[data-spot]').getAttribute('data-spot').catch(() => null)
+// (1) an arrival INSIDE the view: from Home, with stop 2 dragged to the view's centre while paused
+await dock().focus()
+await page.keyboard.press('Home')
+await page.waitForTimeout(300)
+await centreOn(2)
+const inside2 = await pinInside(2)
+const cam0 = await cameraNow()
+await map.getByLabel('play the walk').click()
+await page.waitForTimeout(1000)
+await map.getByLabel('pause the walk').click()
+await page.waitForTimeout(400)
+const cam1 = await cameraNow()
+ok('OB-179 (1): arriving at a stop INSIDE the view moves the camera by nothing — the scene transform is byte-identical', inside2 === true ? cam1 === cam0 : inside2 === null ? false : true, `stop 2 inside before: ${inside2}; ${cam0 === cam1 ? 'identical' : cam0 + ' -> ' + cam1}`)
+// (4) a PAUSED walk moves the camera for nothing
+const camPaused = await cameraNow()
+await page.waitForTimeout(700)
+ok('OB-179 (4): a paused walk stands still and the camera with it', (await cameraNow()) === camPaused)
+// (2) an arrival OUTSIDE the view brings the stop into view, clear of the band. Push the map so
+// the NEXT stop is off-screen, then play into it.
+const sr = await svgRect()
+await page.mouse.move(sr.x + sr.width * 0.5, sr.y + 40)
+await page.mouse.down()
+await page.mouse.move(sr.x + sr.width * 0.5 - sr.width * 0.6, sr.y + 40, { steps: 8 })
+await page.mouse.up()
+await page.waitForTimeout(300)
+const rNow = await readout()
+const nextStop = rNow.cur + 1
+const outsideBefore = await pinInside(nextStop)
+const camBeforeFly = await cameraNow()
+const spotBefore = await spotNow()
+await map.getByLabel('play the walk').click()
+await page.waitForTimeout(1000)
+await map.getByLabel('pause the walk').click()
+await page.waitForTimeout(900)
+const camAfterFly = await cameraNow()
+const insideAfter = await pinInside(nextStop)
+ok('OB-179 (2): arriving at a stop OUTSIDE the view brings it into view, clear of the edge band', outsideBefore === false && camAfterFly !== camBeforeFly && insideAfter === true, `stop ${nextStop} inside before: ${outsideBefore}, after: ${insideAfter}; camera ${camAfterFly === camBeforeFly ? 'unchanged' : 'moved'}`)
+ok('OB-179 (6): the camera move left the FOCUS alone — the spot is the cell the walk stands on, before and after', (await spotNow()) !== spotBefore && (await readout())?.cur === nextStop, `spot ${spotBefore} -> ${await spotNow()}, readout ${JSON.stringify(await readout())}`)
+// (5) A USER'S OWN PAN WINS: pan during playback, and the next arrival does not yank the view back
+const sr2 = await svgRect()
+await map.getByLabel('play the walk').click()
+await page.waitForTimeout(150)
+await page.mouse.move(sr2.x + sr2.width * 0.5, sr2.y + 40)
+await page.mouse.down()
+await page.mouse.move(sr2.x + sr2.width * 0.5 - sr2.width * 0.6, sr2.y + 40, { steps: 8 })
+await page.mouse.up()
+await page.waitForTimeout(100)
+const camAfterPan = await cameraNow()
+await page.waitForTimeout(500) // past the next arrival (630ms into the step), before the one after
+await map.getByLabel('pause the walk').click()
+await page.waitForTimeout(500)
+ok('OB-179 (5): after the room pans during playback, the next arrival leaves the view where the hand put it', (await cameraNow()) === camAfterPan, `${(await cameraNow()) === camAfterPan ? 'held' : 'yanked'}`)
 
 await browser.close()
 vite.kill()
