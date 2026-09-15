@@ -305,6 +305,43 @@ if (aimedAt) {
   })
   ok('the cards carry a collapsible "direct" group', groupHeaders.includes('direct'), JSON.stringify(groupHeaders))
 
+  // ── 6b. OB-182: the group header's count sits on the LABEL'S BASELINE, not its box centre ──
+  // The label is the UI face in caps, the count the mono face; centring two line boxes set in
+  // different faces leaves their baselines apart by half the difference in metrics (0.67px on
+  // the DS's probe), and against all-caps there are no descenders to hide it. Read out of the DOM
+  // with the marker trick — a zero-size inline-block at `vertical-align: baseline` sits ON the
+  // baseline — and only after `document.fonts.ready`: before the faces load this measures the
+  // fallback's metrics, a real number about the wrong state (the DS wrote 1.33px the wrong way
+  // round into five files that way).
+  await page.evaluate(() => document.fonts.ready)
+  await page.waitForTimeout(100)
+  const headerBaselines = await page.evaluate(() => {
+    const baseOf = (el) => {
+      const m = document.createElement('span')
+      m.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline;padding:0;margin:0'
+      el.appendChild(m)
+      const y = m.getBoundingClientRect().top
+      m.remove()
+      return y
+    }
+    return [...document.querySelectorAll('[data-rel-group-header]')].map((h) => {
+      const spans = [...h.children].filter((c) => c.tagName === 'SPAN' && !c.querySelector('svg'))
+      const label = spans[spans.length - 2]
+      const count = spans[spans.length - 1]
+      const box = h.getBoundingClientRect()
+      // the caret is a border-drawn mark inside the header's FIRST span (its 14px slot, drawn only
+      // when the header is clickable); measure that slot, whatever the mark inside it is
+      const caret = h.children.length === 3 ? h.children[0] : null
+      const cb = caret ? caret.getBoundingClientRect() : null
+      // the caret is centred on the LINE (the label's own box), not on the header's padding box —
+      // the header pads 12px above and 4px below, so its box centre sits 4px off the line by design
+      const lb = label.getBoundingClientRect()
+      return { header: h.getAttribute('data-rel-group-header'), label: +baseOf(label).toFixed(2), count: +baseOf(count).toFixed(2), height: +box.height.toFixed(2), caretOffCentre: cb ? +((cb.top + cb.height / 2) - (lb.top + lb.height / 2)).toFixed(2) : null }
+    })
+  })
+  ok('OB-182: on every group header the count\'s baseline IS the label\'s (read after fonts.ready)', headerBaselines.length >= 1 && headerBaselines.every((b) => Math.abs(b.label - b.count) <= 0.1), JSON.stringify(headerBaselines))
+  ok('and the caret is still box-centred (its 1px lift is its own optical centring)', headerBaselines.every((b) => b.caretOffCentre === null || Math.abs(b.caretOffCentre) <= 2), JSON.stringify(headerBaselines.map((b) => b.caretOffCentre)))
+
   // ── 7. cardMax 620 on the MEASURED container ──────────────────────────────
   // In a pane this wide, every extra pixel used to become SHAFT — two capped pills
   // either side of hundreds of px of hairline. The surplus now stays outside the card.

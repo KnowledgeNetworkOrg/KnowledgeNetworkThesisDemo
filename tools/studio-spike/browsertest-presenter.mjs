@@ -294,10 +294,13 @@ try {
      structural selector is exactly the kind that rots in silence, so this one CHECKS WHAT IT
      FOUND: a band under 60px tall (the 32px slot, scaled) carrying a top border. If the map's
      layout changes shape, this fails saying so rather than measuring some other box. */
-  const mapFoot = await liveCard().locator('[data-projected-map] > div:last-child').boundingBox()
+  // OB-177: the foot carries `data-projected-map-foot` now (the DS named it beside the equal-band
+  // guarantee, on this driver's offer), so it is selected rather than located by structure. The
+  // validate-what-you-found check stays: it is what caught the hook's absence.
+  const mapFoot = await liveCard().locator('[data-projected-map-foot]').boundingBox()
   const mapFootIsABand = await page.evaluate(() => {
-    const el = document.querySelector('[data-filmroll-card="live"] [data-projected-map] > div:last-child')
-    if (!el) return 'no last child'
+    const el = document.querySelector('[data-filmroll-card="live"] [data-projected-map-foot]')
+    if (!el) return 'no [data-projected-map-foot]'
     const cs = getComputedStyle(el)
     if (parseFloat(cs.borderTopWidth) < 0.5) return 'no top border: ' + cs.borderTopWidth
     if (el.getBoundingClientRect().height > 60) return 'too tall: ' + el.getBoundingClientRect().height

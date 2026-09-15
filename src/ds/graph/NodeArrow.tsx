@@ -152,6 +152,18 @@ export interface NodeArrowProps {
    *  animation's first frame. Our own map was passing 0 at rest until 2026-09-11; see
    *  `src/model/walkarrow.ts`.
    *
+   *  THE GATE FOR WHETHER TO PASS IT AT ALL IS `walkArrow(...).headAcorn` (`map/WalkDock`), and
+   *  that is the HOST'S ENTRY TEST rather than a drawing instruction (DS OB-175, 2026-09-14). So
+   *  the two files read as if they disagreed at 0 and do not: this component's rule is total and
+   *  continuous over every value it can RECEIVE, while the recipe decides which arrows receive
+   *  one at all. Read either file alone and the disagreement looks real — which is how this port
+   *  once put an acorn head on the TAIL of every arrow the walk had not reached, caught by the
+   *  browser suite rather than by reading (OB-159; `receipts/bd56bb0.md`).
+   *
+   *  COULD THIS COMPONENT JUST DO IT? No, and that is settled rather than left open: an arrow
+   *  cannot know whether the walk has entered it — that is the host's fact about the walk, not a
+   *  fact about the arrow — so it stays a caller rule. One of the three kinds that resist.
+   *
    *  WAS ★ LOCAL, and is not any more (DS OB-159, adopted 2026-09-11). The design system
    *  published the recipe with no arrow that took it — `walkArrow` returns `walked`,
    *  `headTravels`, `headAcorn` and `aheadOpacity` for a host to draw, and their reference rig

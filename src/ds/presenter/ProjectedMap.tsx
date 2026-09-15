@@ -93,6 +93,10 @@ export interface ProjectedMapProps {
   map: ReactNode
   /** the foot's content, laid out at 1120×32 and scaled — the same SLOT the host's slide foot
    *  occupies, so the flip does not move anything at the bottom; the words may differ, and should.
+   *  The band is selectable as `[data-projected-map-foot]` (rule 6b, DS 2026-09-14, on this app's
+   *  offer): the equal-band guarantee is only worth having if a test can find the band it is
+   *  about — locating it by structure (`> div:last-child`) rots the first time the tree changes,
+   *  silently and in the test's favour. Part of the promise, not an implementation detail.
    *  Omit for no foot (the map takes the whole frame). */
   footer?: ReactNode
   /** the eyebrow's lead-in before " · stop N of M". Default "where we are" */
@@ -131,7 +135,7 @@ export function ProjectedMap({ stop, count, territory, title, map, footer, eyebr
         {onClose ? <CloseButton onClick={onClose} revealed={revealed} /> : null}
       </div>
       {foot ? (
-        <div style={{ flex: 'none', position: 'relative', height: M.footHeight * s, borderTop: '1px solid var(--border-hair)', background: 'var(--bark-100)', overflow: 'hidden' }}>
+        <div data-projected-map-foot="" style={{ flex: 'none', position: 'relative', height: M.footHeight * s, borderTop: '1px solid var(--border-hair)', background: 'var(--bark-100)', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', left: 0, top: 0, width: M.refWidth, height: M.footHeight, transform: 'scale(' + s + ')', transformOrigin: '0 0', display: 'flex', alignItems: 'center', padding: '0 26px', boxSizing: 'border-box' }}>{footer}</div>
         </div>
       ) : null}

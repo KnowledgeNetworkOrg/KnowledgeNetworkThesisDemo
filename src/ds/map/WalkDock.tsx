@@ -146,7 +146,17 @@ export const WALK_ARROW_DEFAULTS: WalkArrowGeom = {
 /** THE ARROW BETWEEN TWO STOPS, as a recipe rather than a description — same reason as the band:
  *  the map draws fifteen of these per frame from a machine, and a rule applied per frame per arrow
  *  gets retyped and drifts. Read fields; do not re-derive them from the two pins. Pass the SAME
- *  `band` object the pins and the dock are given. */
+ *  `band` object the pins and the dock are given.
+ *
+ *  `headAcorn` (the head takes the walk's colour the moment any of the segment is walked) IS ALSO
+ *  THE HOST'S ENTRY TEST, which is its more load-bearing job (DS OB-175, 2026-09-14): pass
+ *  `walked` to `NodeArrow` only for an arrow this is true of. That component reads 0 as "the walk
+ *  is standing at this arrow's TAIL" — head at the tail, nothing walked yet — so handing it 0 for
+ *  an arrow the walk has NOT entered draws an acorn head on that arrow's tail; exactly what this
+ *  map's OB-159 port did, and the browser suite caught it. The two files are not in conflict:
+ *  this one decides WHICH arrows get a `walked` at all, that one decides what a given value DRAWS.
+ *  A component cannot know whether the walk has entered it — that is the host's fact — so the
+ *  gate stays here, as a field to read. */
 export function walkArrow(i: number, position: number, band?: Partial<WalkBand>, geom?: Partial<WalkArrowGeom>): {
   hidden: boolean; opacity: number; walked: number; aheadOpacity: number
   tailClear: number; headClear: number; headTravels: boolean; headAcorn: boolean

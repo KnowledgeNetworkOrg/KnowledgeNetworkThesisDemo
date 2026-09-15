@@ -162,5 +162,5 @@ export { ConnectionsSplitPane, NodePreviewCard, CONNECTIONS_PANE_METRICS, CONNEC
 export type { ConnectionsSplitPaneProps, ConnectionsGraphApi, NodePreviewCardProps } from './connections/ConnectionsSplitPane'
 export { ContainTree, ContainPaint, ContainPill, CONTAIN_METRICS, CaretHit, containsSummary, findTreePath, subtreeCount, treeKeyNav } from './connections/ContainTree'
 export type { ContainTreeProps, ContainPaintEntry, ContainPillProps, ContainNode, OpenMap } from './connections/ContainTree'
-export { RelationCards, RelSourceGroup, REL_CARD_METRICS, groupItemsByTarget, groupRelationsByTarget, relationLook } from './connections/RelationCards'
+export { RelationCards, RelSourceGroup, REL_CARD_METRICS, REL_CARD_PARTS, groupItemsByTarget, groupRelationsByTarget, relationLook } from './connections/RelationCards'
 export type { RelationCardsProps, RelSourceGroupProps, Relation, RelationGroup, RelItem, TargetBlock, ViaRelation } from './connections/RelationCards'

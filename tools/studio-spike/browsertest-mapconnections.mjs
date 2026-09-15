@@ -311,6 +311,45 @@ await page.screenshot({ path: OUT + '/4c-generated-lens.png' })
 const lensPane = page.locator('[aria-label="studio-pane-lens-implemented_with"][data-slot="on"]')
 if ((await lensPane.count()) !== 1) errors.push('generated lens: the lens-implemented_with pane did not mount')
 else if (!(await lensPane.innerText()).trim()) errors.push('generated lens: the pane mounted but rendered nothing')
+else {
+  // ── OB-180: the lens takes the system's own surface — no slate class, every text run 4.5:1 ──
+  // Contrast is read off the LIVE elements against whatever is actually behind each run (the
+  // nearest ancestor painting an opaque background, semi-transparent ones composited over it),
+  // never computed against an assumed ground.
+  const lensContrast = await lensPane.evaluate((pane) => {
+    const parse = (c) => { const m = /rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)/.exec(c || ''); return m ? [+m[1], +m[2], +m[3], m[4] === undefined ? 1 : +m[4]] : null }
+    const lin = (u) => { u /= 255; return u <= 0.04045 ? u / 12.92 : Math.pow((u + 0.055) / 1.055, 2.4) }
+    const lum = ([r, g, b]) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+    const ratio = (a, b) => { const x = lum(a); const y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05) }
+    const behind = (el) => {
+      // composite every ancestor's background from the first opaque one down to `el`
+      const layers = []
+      for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
+        const c = parse(getComputedStyle(n).backgroundColor)
+        if (c && c[3] > 0) { layers.unshift(c); if (c[3] >= 1) break }
+      }
+      let out = [255, 255, 255]
+      for (const [r, g, b, a] of layers) out = [out[0] * (1 - a) + r * a, out[1] * (1 - a) + g * a, out[2] * (1 - a) + b * a]
+      return out
+    }
+    const runs = []
+    for (const el of pane.querySelectorAll('*')) {
+      const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())
+      if (!own) continue
+      const cs = getComputedStyle(el)
+      if (cs.visibility === 'hidden' || cs.display === 'none' || el.getBoundingClientRect().width === 0) continue
+      const ink = parse(el instanceof SVGElement ? cs.fill : cs.color)
+      if (!ink || ink[3] === 0) continue
+      const bg = behind(el)
+      runs.push({ text: el.textContent.trim().slice(0, 24), ratio: +ratio(ink, bg).toFixed(2), tag: el.tagName.toLowerCase() })
+    }
+    runs.sort((a, b) => a.ratio - b.ratio)
+    return { slate: pane.querySelectorAll('[class*="slate-"]').length, runs: runs.length, lowest: runs.slice(0, 3) }
+  })
+  console.log(`OB-180 lens: ${lensContrast.runs} text runs, ${lensContrast.slate} slate- element(s), lowest contrast ${JSON.stringify(lensContrast.lowest)}`)
+  if (lensContrast.slate !== 0) errors.push(`OB-180: ${lensContrast.slate} element(s) in the lens pane still wear a slate- class`)
+  if (!(lensContrast.runs > 0 && lensContrast.lowest[0].ratio >= 4.5)) errors.push(`OB-180: a text run in the lens is under 4.5:1 against what is behind it — ${JSON.stringify(lensContrast.lowest)}`)
+}
 await withPalette(async () => {
   await page.getByLabel('studio-inst-lens-implemented_with').click()
   await page.waitForTimeout(300)
