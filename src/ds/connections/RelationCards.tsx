@@ -155,19 +155,48 @@ function groupViaBySource(rows: readonly ViaRelation[] | null | undefined) {
   return [...map.values()]
 }
 
+/* THE COUNT SHARES THE LABEL'S BASELINE, NOT ITS BOX CENTRE — `alignItems: 'baseline'`, which is
+   what every other label-plus-number row in this system already does (`CountBadge`, `PillButton`,
+   `SectionLabel`, `PaneHeader`, `AppHeader`, `PresenterHeaderBar`; the rule is written out in the
+   DS's `PillButton.prompt.md`). This header was the one place still on `center`, and centring two
+   line boxes is not alignment when the two runs are set in DIFFERENT FACES: the mono count's
+   ascent and descent are not the UI label's, so centring their boxes puts their baselines apart
+   by half the difference in metrics, and the digits ride low against all-caps words that have no
+   descenders to fill the gap. Owner-reported on this app's `VIA CHILDREN 42`, 2026-09-14 (DS
+   OB-182); measured on the DS's probe: the count's baseline sat 0.67px BELOW the label's and now
+   sits on it, at a cost of +0.51px of row height (baseline alignment takes the union of the two
+   runs' baseline offsets) and nothing else moving. Both figures are read AFTER
+   `document.fonts.ready` — before the faces load the fallback's metrics answer instead.
+
+   THE CARET KEEPS ITS BOX CENTRING (`alignSelf: 'center'`) and its 1px optical lift. It holds an
+   SVG and no in-flow line box, so a baseline-aligned flex item aligns by its bottom MARGIN EDGE
+   instead — which would drop the mark by most of its own height. The lift is the mark's own
+   optical centring and is not re-tuned here.
+
+   The label is wrapped in a bare `<span>` for one reason: a raw text node in a flex container
+   becomes an anonymous flex item, which is layout-identical but cannot be measured or read back.
+   Both runs are elements now, so a driver reads its own baselines out of the DOM instead of
+   asserting them from the source. `data-rel-group-header` is a test hook only. */
 function RelGroupHeader({ label, count, open, onClick }: { label: string; count: number; open?: boolean; onClick?: () => void }) {
   return (
-    <div onClick={onClick} style={{
+    <div onClick={onClick} data-rel-group-header={label} style={{
       fontSize: 11, fontWeight: 'var(--fw-bold)', color: 'var(--text-3)', textTransform: 'uppercase',
-      letterSpacing: '.04em', padding: '12px 2px 4px', display: 'flex', alignItems: 'center', gap: 5,
+      letterSpacing: '.04em', padding: '12px 2px 4px', display: 'flex', alignItems: 'baseline', gap: 5,
       cursor: onClick ? 'pointer' : 'default', userSelect: 'none',
     }}>
-      {onClick ? <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 14, height: 14, flexShrink: 0, marginTop: 1 }}><Caret open={open} /></span> : null}
-      {label}
+      {onClick ? <span style={{ display: 'inline-flex', alignSelf: 'center', alignItems: 'center', justifyContent: 'center', width: 14, height: 14, flexShrink: 0, marginTop: 1 }}><Caret open={open} /></span> : null}
+      <span>{label}</span>
       <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-3)', fontWeight: 'var(--fw-medium)' }}>{count}</span>
     </div>
   )
 }
+
+/** THE GROUP HEADER, READABLE RATHER THAN RE-DRAWN. Published by the DS 2026-09-14 in the turn its
+ *  baseline rule was written, because the rule lives in a module-level helper that
+ *  `String(RelationCards)` cannot see — a specimen guarding the change had nothing to match. Same
+ *  reason `LECTURE_NOTES_PARTS` and `PRESENTER_STRIP_PARTS` exist. `REL_CARD_PARTS.GroupHeader`
+ *  IS `RelGroupHeader`: read it, do not mount it — `RelationCards` renders these itself. */
+export const REL_CARD_PARTS = { GroupHeader: RelGroupHeader }
 
 /* below `pillMin` the chip shape stops helping — a name character-wrapped in a fixed-width box is
    less readable than the same words as plain wrapping text — so under 2×pillMin of row width the

@@ -171,7 +171,7 @@ function buildScene(model: LensModel, orientation: Orientation): Scene {
 }
 
 function EmptyState({ text }: { text: string }) {
-  return <div className="h-full flex items-center justify-center text-[11px] text-slate-400 text-center px-6">{text}</div>
+  return <div className="h-full flex items-center justify-center text-[11px] text-[var(--text-2)] text-center px-6">{text}</div>
 }
 
 export default function LensPane({ bus, type }: LensPaneProps) {
@@ -344,21 +344,36 @@ export default function LensPane({ bus, type }: LensPaneProps) {
       {/* OB-143, judged: this row starts with a SWATCH, not a letter, so the swatch's edge
           takes the legend's inset and the first letter lands one gap further in. Named on
           the receipt as the clause asks. Left only, by the constant. */}
-      <header className="shrink-0 flex items-center gap-2 pr-2 py-1 border-b border-slate-200 bg-white text-[11px]" style={{ paddingLeft: LEGEND_INSET }}>
+      {/* THE LENS IS A PANE, SO IT TAKES A PANE'S SURFACE (DS OB-180, owner-ruled 2026-09-14):
+          `--surface-paper` for the ground and the system's text tokens by rank, in place of the
+          five Tailwind cool greys this file carried (slate-50 ground, slate-700/600/500/400/300
+          inks, a white face, and the depth toggle's slate-700-on-white selected face). NOT
+          `--surface-sunken`: a well is for something that CONTAINS other things, and the lens is
+          a surface in its own right. The selected depth button wears the system's own selected
+          face (`--accent-primary-wash` + `--accent-primary-ink`, what `MapFloatingButton` draws)
+          rather than a flipped white-on-dark, because that is what a selected control looks like
+          everywhere else on this desk. SCOPE HELD ON PURPOSE: the lens still paints its own
+          background and does not mount inside a design-system `Pane` body, so `Pane`'s body audit
+          cannot see it — accepted by the owner for now, not overlooked. Every text run's contrast
+          against what is actually behind it is read off the live pane by the browser suite. */}
+      <header className="shrink-0 flex items-center gap-2 pr-2 py-1 border-b border-[var(--border-hair)] bg-[var(--surface-paper)] text-[11px]" style={{ paddingLeft: LEGEND_INSET }}>
         <span className="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style={{ background: EDGE_COLOR[type] }} />
-        <span className="font-bold text-slate-700">{EDGE_LABEL[type]}</span>
-        <span className="text-slate-300">·</span>
-        <span className="font-medium text-slate-600 truncate max-w-[150px]">{focus ? (byId.get(focus)?.title ?? '—') : '—'}</span>
+        <span className="font-bold text-[var(--text-1)]">{EDGE_LABEL[type]}</span>
+        {/* the separator in `--text-2`, not `--text-3`: at 11px the third-rank ink measures 3.79:1 on
+            paper, under the 4.5:1 every run in this pane must clear (the map readout's middot is the
+            same rank for the same reason) */}
+        <span className="text-[var(--text-2)]">·</span>
+        <span className="font-medium text-[var(--text-2)] truncate max-w-[150px]">{focus ? (byId.get(focus)?.title ?? '—') : '—'}</span>
         <span className="flex-1" />
-        <span className="text-slate-400 truncate">
+        <span className="text-[var(--text-2)] truncate">
           {config.outLabel} / {config.inLabel}
         </span>
-        <div className="flex rounded border border-slate-300 overflow-hidden shrink-0">
+        <div className="flex rounded border border-[var(--border-rule)] overflow-hidden shrink-0">
           {([1, 2] as const).map((d) => (
             <button
               key={d}
               onClick={() => setDepth(d)}
-              className={['px-1.5 py-0.5', depth === d ? 'bg-slate-700 text-white font-semibold' : 'bg-white text-slate-500 hover:bg-slate-100'].join(' ')}
+              className={['px-1.5 py-0.5', depth === d ? 'bg-[var(--accent-primary-wash)] text-[var(--accent-primary-ink)] font-semibold' : 'bg-[var(--surface-paper)] text-[var(--text-2)] hover:bg-[var(--surface-hover-raised)]'].join(' ')}
             >
               {d}
             </button>
@@ -366,7 +381,7 @@ export default function LensPane({ bus, type }: LensPaneProps) {
         </div>
       </header>
 
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto bg-slate-50">{body}</div>
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto bg-[var(--surface-paper)]">{body}</div>
     </div>
   )
 }
