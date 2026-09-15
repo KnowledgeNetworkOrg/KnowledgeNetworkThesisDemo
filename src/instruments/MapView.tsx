@@ -55,7 +55,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
-import { ARROW_METRICS, headForSet, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, PaneCanvas, PIN_RING_WIDTH, previewAnchor, shaftTailOffset, StepDot, VisibilityMark, WALK_ARROW_DEFAULTS, WALK_DOCK_METRICS, walkBand, WalkDock, WalkPreview, ZoomControl } from '@/ds'
+import { ARROW_METRICS, headForSet, walkArrival, walkLook, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, PaneCanvas, PIN_RING_WIDTH, previewAnchor, shaftTailOffset, StepDot, VisibilityMark, WALK_ARROW_DEFAULTS, WALK_DOCK_METRICS, walkBand, WalkDock, WalkPreview, ZoomControl } from '@/ds'
 import { byId, domainIds, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT_ID } from '../corpus/graph'
 import { DT } from './walkdesk/authordnd'
 import { routeIsWalk, useWalkPlayback } from './walkdesk/playback'
@@ -122,6 +122,19 @@ const PAN_COMMIT = 30
 /** the LevelPicker's labels, "L0".."L{maxTier}" — OB-096 */
 const LEVEL_LABELS = Array.from({ length: L_MAX + 1 }, (_, i) => `L${i}`)
 const FLY_MS = 260
+
+/** the viewport in WORLD coords for a camera and a measured client box — what culls the deep
+ *  tiers, and what the walk's look asks its off-screen question of (OB-179). A function, not an
+ *  inline object, so an effect can ask it off refs without re-deriving it. */
+function worldRectOf(v: View, clientBox: { w: number; h: number } | null): { x: number; y: number; w: number; h: number } {
+  const f = clientBox ? Math.max(VB_W / clientBox.w, VB_H / clientBox.h) : 1
+  return {
+    x: (VB_X - (clientBox ? (clientBox.w * f - VB_W) / 2 : 0) - v.tx) / v.s,
+    y: (VB_Y - (clientBox ? (clientBox.h * f - VB_H) / 2 : 0) - v.ty) / v.s,
+    w: (clientBox ? clientBox.w * f : VB_W) / v.s,
+    h: (clientBox ? clientBox.h * f : VB_H) / v.s,
+  }
+}
 // a LOOK's flight (a Connections click) can cross the whole map AND change
 // level in one move — at the wheel-step 260ms it read as a cut, not a flight.
 // Slow enough for the eye to keep the territory; wheel steps stay snappy.
@@ -427,6 +440,7 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
    * `about` (user coords) fixed under the cursor. Always a USER gesture (wheel
    * step, double-click, level button). */
   const flyToLevel = (l: number, about?: XY) => {
+    if (play.playing) pannedRef.current = true // a user's own gesture — the walk's look stands aside once (OB-179)
     setLevel(l)
     levelRef.current = l
     const s = LEVEL_S[l]
@@ -588,14 +602,9 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   // survive pointing at a bundle object from the previous selection
   useEffect(() => setHoverEdge(null), [sel])
 
-  // viewport in world coords, for culling the deep tiers
+  // viewport in world coords, for culling the deep tiers (and the look's question, below)
   const f = clientBox ? Math.max(VB_W / clientBox.w, VB_H / clientBox.h) : 1
-  const worldRect = {
-    x: (VB_X - (clientBox ? (clientBox.w * f - VB_W) / 2 : 0) - view.tx) / view.s,
-    y: (VB_Y - (clientBox ? (clientBox.h * f - VB_H) / 2 : 0) - view.ty) / view.s,
-    w: (clientBox ? clientBox.w * f : VB_W) / view.s,
-    h: (clientBox ? clientBox.h * f : VB_H) / view.s,
-  }
+  const worldRect = worldRectOf(view, clientBox)
   const onScreen = (p: XY, margin: number) =>
     p.x > worldRect.x - margin && p.x < worldRect.x + worldRect.w + margin && p.y > worldRect.y - margin && p.y < worldRect.y + worldRect.h + margin
 
@@ -736,6 +745,53 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   // not the walk being played (a `bus.teach` curriculum) has no position and no
   // band: `null`, and every pin and arrow draws at rest.
   const pinPos = dockShown ? pinPosition(routeStops, play.position) : null
+
+  // ── OB-179: PLAYBACK MOVES THE CAMERA ONLY WHEN THE STOP IS OFF-SCREEN ─────
+  // The owner's call (2026-09-14), answering the gap OB-173's receipt reported: nothing
+  // brought an off-screen stop into view, because the camera moves on the LOOK channel
+  // and playback never published one. Four options were put; CHOSEN: fly only when the
+  // stop is off-screen. Motion on every advance becomes scenery; motion that is rare
+  // reads as "we have gone somewhere new", and that rarity IS the information (the same
+  // reasoning as ProjectedMap rule 1). A smooth camera that keeps the stop centred is
+  // NOT this and would be worse than nothing.
+  //
+  // THE GATE IS THE DS'S `walkLook`, never a comparison retyped here: it answers off the
+  // stop's world point and the view's world rect, with `WALK_LOOK_DEFAULTS.edgeInset`
+  // (0.12 of the smaller side, a FRACTION so it survives zoom). The three caller rules,
+  // enforced here because the function cannot: ASK ON ADVANCE ONLY — an arrival the walk
+  // TRAVELLED to while playing; pressing play asks nothing for the stop it is standing
+  // on, a seek sets a position with no travel, a pause stands still; A USER'S OWN PAN
+  // WINS — a pan or a level step DURING PLAYBACK raises `pannedRef`, and the next
+  // arrival lowers it without looking (the pan is the more recent statement of where
+  // the room wants to look; the arrival after that may look again — a pan while paused
+  // is plain navigation and raises nothing); and THIS IS THE LOOK, NEVER THE FOCUS —
+  // `playback.ts` writes the focus, this only moves the camera, at the CURRENT scale,
+  // so the document, the connections pane and the crumb show the same node after the
+  // move as before. The dock covers the pane's bottom at its LIVE height, so the rect
+  // the question is asked of stops above it.
+  const arrival = dockShown && !wall && play.playing ? walkArrival(play.position, play.steps.length) : null
+  const pannedRef = useRef(false)
+  const lastArrivalRef = useRef<number | null>(null)
+  const lookRef = useRef({ routeStops, clientBox, dockOpen })
+  useEffect(() => { lookRef.current = { routeStops, clientBox, dockOpen } })
+  useEffect(() => {
+    const prev = lastArrivalRef.current
+    lastArrivalRef.current = arrival
+    if (arrival === null || prev === null) return // paused, or play just pressed: standing, not advancing
+    if (pannedRef.current) { pannedRef.current = false; return }
+    const { routeStops: pins, clientBox: cb, dockOpen: open } = lookRef.current
+    const pin = pins.find((p) => p.step - 1 <= arrival && arrival <= p.stepEnd - 1)
+    if (!pin) return
+    const v = viewRef.current
+    const rect = worldRectOf(v, cb)
+    const ff = cb ? Math.max(VB_W / cb.w, VB_H / cb.h) : 1
+    const dockWorld = ((open ? WALK_DOCK_METRICS.open : WALK_DOCK_METRICS.closed) * ff) / v.s
+    const look = walkLook({ point: pin.c, view: { x: rect.x, y: rect.y, width: rect.w, height: Math.max(1, rect.h - dockWorld) } })
+    if (!look.move || !look.to) return
+    flyTween({ s: v.s, tx: U_CX - look.to.x * v.s, ty: U_CY - look.to.y * v.s }, LOOK_FLY_MS)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arrival])
+
 
   // ── OB-126: ONE HEAD FOR THE WHOLE WALK, NOT ONE PER ARROW ──────────────
   // `headFor`'s length cap is written for a LONE line — it stops one long shaft
@@ -1011,7 +1067,7 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
           const next = { ...viewRef.current, tx: viewRef.current.tx + dx, ty: viewRef.current.ty + dy }
           viewRef.current = next
           paintCamera(next)
-          if (Math.hypot(next.tx - view.tx, next.ty - view.ty) / next.s >= PAN_COMMIT) setView(next)
+          if (Math.hypot(next.tx - view.tx, next.ty - view.ty) / next.s >= PAN_COMMIT) { if (play.playing) pannedRef.current = true; setView(next) }
         }}
         onPointerUp={(ev) => {
           if (nodeDown.current) {
@@ -1073,7 +1129,7 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
         {/* no `transform` prop — see paintCamera. The camera is written here
             imperatively so a pan costs one attribute write instead of a render
             of everything below this node. */}
-        <g ref={sceneRef}>
+        <g ref={sceneRef} data-scene="">
           {/* ── FILLS, painted shallow → deep. Only the active level carries
               paint (pale tree colors) and pointer events; everything else is
               mounted transparent so level changes FADE. ─────────────────── */}
