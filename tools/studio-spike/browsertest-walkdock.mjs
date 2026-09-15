@@ -240,6 +240,56 @@ await page.keyboard.press('Home')
 await page.waitForTimeout(250)
 ok('Home seeks back to the first', (await readout())?.cur === 1)
 
+// ── D0. OB-181: THE NODE HIGHLIGHT LANDS WITH THE PIN'S POP, NOT ONE DWELL AFTER ──
+// `walkAdvance` returns two cursors: the fractional `position` (which the pop, the fill and
+// the band ride, completing ON the arrival at phase `travel`) and the integer `step` (the loop's
+// bookkeeping, incremented only when the phase wraps, at the end of the dwell). The bus write
+// that lights the stop used to ride `step`, so the highlight landed `walkArrivalLag()` — 270ms —
+// after the animation had finished, and read as a second event. Sampled IN THE PAGE, one
+// reading per animation frame, on a MOVING walk: the first spot change nearest the moment the
+// next pin reaches its full pop must be within two frames of it. The walk starts on stop 3: at
+// this level stops 1-3 share one merged pin (which does not re-pop between its own stops), so
+// the arrival watched lands on a pin of its own — the one whose scale moved most in the window.
+await dock().focus()
+await page.keyboard.press('Home')
+await page.keyboard.press('ArrowRight')
+await page.keyboard.press('ArrowRight')
+await page.waitForTimeout(400)
+const timing = await page.evaluate(() => new Promise((res) => {
+  const mapEl = document.querySelector('[aria-label="map-view"]')
+  const frames = []
+  const t0 = performance.now()
+  mapEl.querySelector('[aria-label="play the walk"]').click()
+  const f = () => {
+    const t = performance.now() - t0
+    const pins = [...mapEl.querySelectorAll('[data-routestop]')].map((el) => ({ step: Number(el.getAttribute('data-step')), scale: Number((/scale\(([-\d.e]+)\)/.exec(el.getAttribute('transform') || '') || [])[1]) }))
+    const spot = mapEl.querySelector('[data-spot]')
+    frames.push({ t, pins, spot: spot ? spot.getAttribute('data-spot') : null })
+    if (t < 1500) requestAnimationFrame(f); else res(frames)
+  }
+  requestAnimationFrame(f)
+}))
+await map.getByLabel('pause the walk').click()
+await page.waitForTimeout(150)
+// THE PIN THAT POPS: at a coarse level the first stops may share one merged pin, so the pin
+// to watch is whichever one's scale moved the most over the window — its peak is the arrival
+const stepsSeen = [...new Set(timing.flatMap((fr) => fr.pins.map((p) => p.step)))]
+const scaleOf = (fr, step) => fr.pins.find((p) => p.step === step)?.scale ?? 0
+const ranges = stepsSeen.map((step) => { const s = timing.map((fr) => scaleOf(fr, step)); return { step, range: Math.max(...s) - Math.min(...s), peak: Math.max(...s) } })
+const popped = ranges.sort((a, b) => b.range - a.range)[0]
+ok('OB-181: the sampled window saw a pin pop at all', popped.range > 0.2, `largest scale range ${popped.range.toFixed(3)} on stop ${popped.step}`)
+const nextStep = popped.step
+const scaleAt = (fr) => scaleOf(fr, nextStep)
+const peak = popped.peak
+const tPop = timing.find((fr) => scaleAt(fr) >= peak - 1e-6).t
+console.log(`   [OB-181 sampling] pins ${ranges.map((r) => r.step + ':' + r.range.toFixed(3)).join(' ')}; spot changes at ${timing.filter((fr, i) => i > 0 && fr.spot !== timing[i - 1].spot).map((fr) => fr.t.toFixed(0)).join(',')}ms`)
+const spotChanges = timing.filter((fr, i) => i > 0 && fr.spot !== timing[i - 1].spot).map((fr) => fr.t)
+const gap = spotChanges.length ? Math.min(...spotChanges.map((t) => Math.abs(t - tPop))) : Infinity
+ok('OB-181: the stop\'s highlight lands WITH the pin\'s pop — within two frames of it on a moving walk', gap <= 40, `pop of stop ${nextStep} at ${tPop.toFixed(0)}ms, nearest spot change ${gap === Infinity ? 'none' : gap.toFixed(0) + 'ms away'} (${timing.length} frames sampled)`)
+await dock().focus()
+await page.keyboard.press('Home')
+await page.waitForTimeout(300)
+
 // ── D. one clock for every surface ──────────────────────────────────────────
 await map.getByLabel('play the walk').click()
 await page.waitForTimeout(2400)
