@@ -172,6 +172,37 @@ try {
   ok('clause 2: an empty commit CLEARED the title', !rest.includes('Alpha stage'), rest.replace(/\n/g, ' | '))
   ok('and at rest an empty title draws nothing — not the invitation either', !rest.includes('name this stage'))
 
+  // ── OB-192: AN EMPTY IN-PLACE FIELD — the invitation is its width floor, an empty line at rest
+  // carries a baseline strut, and the stage number does not step between the two states. The
+  // owner's report on an unnamed stage: the editing outline drawn as a 12px ring around the first
+  // two letters of "name this stage", and the stage number and node tally stepping 1.33px down on
+  // the click into edit mode and back up on the click out. Measured here on the card just emptied:
+  // the head row's index `y` at rest (empty title), open (blank field with its invitation), after
+  // one keystroke, and at rest again — all equal; the field never narrower than the invitation.
+  const indexY = () => card().locator('[data-grab] > span').first().evaluate((el) => el.getBoundingClientRect().y)
+  const titleSpan = () => card().locator('span[data-grab] > span > span').first() // the title box > InlineText's wrapper > the line
+  const yRestEmpty = await indexY()
+  ok('OB-192: at rest an empty title holds a zero-width strut (U+200B), so the row has a baseline', (await titleSpan().evaluate((el) => el.textContent)) === '\u200b', JSON.stringify(await titleSpan().evaluate((el) => el.textContent)))
+  ok('and the strut never reached the store: nothing persisted carries U+200B', await page.evaluate(() => !Object.keys(localStorage).some((k) => (localStorage.getItem(k) || '').includes('\u200b'))))
+  await pencil()
+  const yOpenBlank = await indexY()
+  const floor = await open().first().evaluate((el) => {
+    const w = el.getBoundingClientRect().width
+    const inv = [...el.parentElement.querySelectorAll('span[aria-hidden]')].map((s) => s.getBoundingClientRect().width).filter((x) => x > 0)
+    return { field: w, invitation: Math.max(0, ...inv) }
+  })
+  ok('open and blank, the field is at least as wide as its invitation — a textbox, not a ring round two letters', floor.invitation > 40 && floor.field >= floor.invitation - 1, `field ${floor.field.toFixed(1)}px, invitation ${floor.invitation.toFixed(1)}px`)
+  ok('the stage number did not move on the click INTO edit mode', Math.abs(yOpenBlank - yRestEmpty) < 0.5, `${yRestEmpty.toFixed(2)} -> ${yOpenBlank.toFixed(2)}`)
+  await page.keyboard.type('B')
+  await page.waitForTimeout(150)
+  const fieldAfterKey = await open().first().evaluate((el) => el.getBoundingClientRect().width)
+  ok('and the floor holds through the first keystroke — no width jump', Math.abs(fieldAfterKey - floor.field) < 1, `${floor.field.toFixed(1)} -> ${fieldAfterKey.toFixed(1)}`)
+  await page.keyboard.press('Backspace')
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
+  ok('Escape reverted to the empty title', (await openCount()) === 0 && !(await text()).includes('B'))
+  ok('and the stage number is back where it was — the row stepped nowhere in either direction', Math.abs((await indexY()) - yRestEmpty) < 0.5, `${yRestEmpty.toFixed(2)} -> ${(await indexY()).toFixed(2)}`)
+
   // (5b) adding a version re-enters edit mode
   await wakeHead()
   await card().locator('[role="button"]').first().click()
