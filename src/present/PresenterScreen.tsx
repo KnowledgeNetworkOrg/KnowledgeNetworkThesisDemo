@@ -41,6 +41,7 @@ import {
 import type { NoteCategory, PresenterState, QuickAction } from '@/ds'
 
 import MapView from '../instruments/MapView'
+import type { WallFrame } from '../model/walkwall'
 import { useWalkPlayback } from '../instruments/walkdesk/playback'
 import { renderStopPreview } from '../instruments/walkdesk/stoppreview'
 import type { Bus } from '../studio/bus'
@@ -298,6 +299,13 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
 
   const state: PresenterState = !projecting ? 'preview' : ended ? 'ended' : roaming ? 'roaming' : 'presenting'
   const slideFor = (i: number) => <LectureSlide step={steps[i]} index={i} count={N} />
+  /* THE WALL'S FRAME IS THE HOST'S (DS OB-163): the map fits the whole walk the first time it
+     goes up and reports the frame here; every later mount — M down, M up — gets it back and
+     draws the same picture. Kept WITH the walk it was fitted for, so a change to the walk is
+     the one thing that re-fits: a frame for other steps is simply not handed over. */
+  const [wallFit, setWallFit] = useState<{ steps: typeof steps; frame: WallFrame } | null>(null)
+  const wallFrame = wallFit && wallFit.steps === steps ? wallFit.frame : null
+  const keepWallFrame = useCallback((frame: WallFrame) => setWallFit({ steps, frame }), [steps])
   /* THE WALL'S CONTENT: the map while it is up, the slide otherwise — the ONE place that decides,
      so every wall surface flips together. The foot keeps the slide's own slot with different
      words (OB-139 rule 6b). `WallTransition` owns the up/down motion. The ✕ is full screen's
@@ -305,7 +313,7 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
   const wall = (i: number, onClose?: () => void) => (
     <WallTransition up={mapUp} slide={slideFor(i)}
       map={<ProjectedMap stop={i + 1} count={N} territory={steps[i].territory} title={steps[i].title}
-        map={<MapView bus={bus} wall={{ lit: i, covered }} />}
+        map={<MapView bus={bus} wall={{ lit: i, covered, frame: wallFrame, onFrame: keepWallFrame }} />}
         footer={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-3)' }}>{steps[i].walk} · the whole walk</span>}
         onClose={onClose} />} />
   )
