@@ -113,6 +113,51 @@ await page.waitForTimeout(450)
 ok('and closes again', (await dock().getAttribute('data-walk-dock')) === 'closed')
 ok('still without moving the map', sameBox(before, await svgBox()))
 
+// ── B2. OB-188 / OB-190 / OB-187 ON THE OPEN ROW ────────────────────────────────────
+// The seed draft is a NESTED walk — its step 2 is a group holding two stops — which is the one
+// shape every clause here needs: on a flat walk the address IS the count and a test cannot tell.
+{
+  await map.getByLabel('show every stop').click()
+  await page.waitForTimeout(450)
+  const dotText = () => dock().locator('[data-walk-dock-stop] button').evaluateAll((els) => els.map((e) => e.textContent.trim()))
+  const labels = await dotText()
+  // the seed's step 2 is a group of two stops: they read 2.1 and 2.2; every label is at most two
+  // numbers; and the FIRST number walks the top-level steps in order (a top-level stop after a
+  // group reads its step number, never its flat index)
+  const firsts = labels.map((l) => Number(l.split('.')[0]))
+  ok('OB-188 (2): the open row labels each dot with its two-number ADDRESS — the group\'s stops read 2.1, 2.2, not 2, 3 and not a full path', labels[0] === '1' && labels[1] === '2.1' && labels[2] === '2.2' && labels.every((l) => /^\d+(\.\d+)?$/.test(l)) && firsts.every((f, i) => i === 0 ? f === 1 : f === firsts[i - 1] || f === firsts[i - 1] + 1), labels.join(' '))
+  // OB-190: the swell — pointer resting on one stop of the row: the ladder outward from it
+  // evaluateAll, so a build without the hook reads NaN and FAILS instead of hanging the run
+  const scaleOf = (i) => dock().locator(`[data-walk-dock-mark="${i}"]`).evaluateAll((els) => { if (!els.length) return NaN; const m = /matrix\(([^,]+),/.exec(getComputedStyle(els[0]).transform); return m ? Number(m[1]) : 1 })
+  const stop2 = await dock().locator('[data-walk-dock-stop="2"] button').boundingBox()
+  await page.mouse.move(stop2.x + stop2.width / 2, stop2.y + stop2.height / 2)
+  await page.waitForTimeout(400)
+  const ladder = await Promise.all([0, 1, 2, 3, 4, 5].map(scaleOf))
+  const near = (a, b) => Math.abs(a - b) < 0.006
+  ok('OB-190 (3): with the pointer on stop 3 the marks scale as the ladder — peak 1.18 on it, 1.13 beside, 1.098 next, the row\'s base 1.08 beyond', near(ladder[2], 1.18) && near(ladder[1], 1.13) && near(ladder[3], 1.13) && near(ladder[0], 1.098) && near(ladder[4], 1.098) && near(ladder[5], 1.08), ladder.map((v) => v.toFixed(3)).join(' '))
+  const trackH = await dock().locator('[data-walk-dock-track]').evaluate((el) => el.getBoundingClientRect().height)
+  ok('OB-190 (4): and the row\'s line is lineHover (4) tall while the pointer is on the row', Math.abs(trackH - 4) < 0.6, `${trackH}`)
+  await page.mouse.move(4, 4)
+  await page.waitForTimeout(400)
+  const rest = await Promise.all([0, 1, 2, 3, 4, 5].map(scaleOf))
+  ok('and every mark returns to 1 on pointer leave', rest.every((v) => near(v, 1)), rest.map((v) => v.toFixed(3)).join(' '))
+  // OB-187: the wash — behind the cursor the dots are washed, the CURRENT dot is not (its face is
+  // the one dark face in the system), ahead none
+  await dock().focus()
+  await page.keyboard.press('Home')
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('ArrowRight')
+  await page.waitForTimeout(400)
+  const washed = await dock().locator('[data-walk-dock-stop]').evaluateAll((els) => els.map((e) => !!e.querySelector('[data-stepdot-wash]')))
+  ok('OB-187 (2)+(4): at stop 3, the two dots behind the cursor carry the wash, the CURRENT dot does NOT (white on --accent-walk stays readable), and none ahead does', washed[0] && washed[1] && !washed[2] && !washed[3] && !washed[4], washed.map((w) => (w ? 'washed' : 'bare')).join(' '))
+  const curInk = await dock().locator('[data-walk-dock-stop="2"] button > span').evaluate((el) => getComputedStyle(el).color)
+  ok('the current dot\'s number is still the inverse ink', /25[0-5], 25[0-5], 25[0-5]|253, 252, 250/.test(curInk), curInk)
+  await page.keyboard.press('Home')
+  await page.waitForTimeout(300)
+  await map.getByLabel('hide the stops').click()
+  await page.waitForTimeout(450)
+}
+
 // ── A2. OB-156: the floating chrome climbs with the dock's LIVE height ─────────
 // The level picker and the zoom column sit `bottom: 12 + dock height` inside the pane. They
 // used to climb by `closed` only, so the open row grew up over them (owner's screenshot,
@@ -248,27 +293,50 @@ ok('Home seeks back to the first', (await readout())?.cur === 1)
 // the focus or the cursor moves: a pin hover is the weakest channel on the pane.
 {
   const pins = await map.locator('[data-routestop]').evaluateAll((els) => els.map((el) => ({ step: Number(el.getAttribute('data-step')), stepEnd: Number(el.getAttribute('data-step-end')), label: (el.textContent || '').trim(), cell: el.getAttribute('data-routestop') })))
-  const merged = pins.find((p) => /^\d+-\d+$/.test(p.label))
+  const merged = pins.find((p) => p.stepEnd > p.step)
   ok('OB-184 (3): at this level the walk has a MERGED pin to test against (a test that only runs at a fine level cannot see this clause)', !!merged, `pins: ${pins.map((p) => p.label).join(', ')}`)
   if (merged) {
-    // the run's length is in STOPS (a grouped walk's "1-2" can cover 1, 2.1 and 2.2), not in the label's numbers
-    const under = merged.stepEnd - merged.step + 1
+    // OB-188 (3): a merged pin prints the run's two ends as ADDRESSES, en-dashed — on this nested
+    // walk the pin covering stops 1, 2.1 and 2.2 reads "1–2.2", not the flat "1-2"
+    ok('OB-188 (3): the merged pin prints the run\'s two end ADDRESSES joined by an EN DASH — "1–2.2", not the flat "1-2"', /^\d+(\.\d+)?\u2013\d+(\.\d+)?$/.test(merged.label) && merged.label.endsWith('2.2'), merged.label)
+    ok('and a single-stop pin prints that stop\'s address', pins.filter((p) => p.stepEnd === p.step).every((p) => /^\d+(\.\d+)?$/.test(p.label)), pins.map((p) => p.label).join(' '))
+    // the run's length is in STOPS (a grouped walk's "1–2.2" covers 1, 2.1 and 2.2)
+    const under = merged.stepEnd - merged.step
     const rBefore = await readout()
     const spotBefore = await map.locator('[data-spot]').getAttribute('data-spot').catch(() => null)
-    const pin = map.locator(`[data-routestop][data-step="${merged.step}"]`)
-    const pb = await pin.boundingBox()
-    await page.mouse.move(pb.x + pb.width / 2, pb.y + pb.height / 2)
-    await page.waitForTimeout(300)
+    const pin = () => map.locator(`[data-routestop][data-step="${merged.step}"]`)
+    const hoverPin = async () => { const pb = await pin().boundingBox(); await page.mouse.move(pb.x + pb.width / 2, pb.y + pb.height / 2); await page.waitForTimeout(300); return pb }
     const card = page.locator('[data-stoppreview]')
-    ok('hovering the merged pin raises the preview card', (await card.count()) === 1)
-    ok('headed by the pin\'s own label', (await card.locator('[data-stoplabel]').textContent().catch(() => '')).trim() === merged.label, `"${(await card.locator('[data-stoplabel]').textContent().catch(() => ''))}" vs "${merged.label}"`)
-    const rows = await card.locator('[data-stoprow]').allTextContents().catch(() => [])
-    ok('and naming EVERY stop under it, one line per stop', under > 1 && rows.length === under && rows.every((r) => r.trim().length > 3), `${rows.length} rows for "${merged.label}" (${under} stops): ${rows.map((r) => r.trim()).join(' | ')}`)
+    // OB-186, BOTH ENDS OF THE CLAMP: cursor BEFORE the run → the run's first stop; cursor PAST it → its last
+    const pb = await hoverPin()
+    // "no per-stop list": one name line, and the run's other stops (2.1 …) are not written out on the card
+    ok('OB-186 (1): hovering the merged pin raises ONE one-stop card — no per-stop list', (await card.count()) === 1 && (await card.locator('[data-stoppath]').count()) === 1 && !(await card.innerText()).includes('2.1 ·'), (await card.innerText().catch(() => '')).replace(/\n/g, ' | '))
+    const nameBefore = (await card.locator('[data-stoppath]').textContent().catch(() => '')).trim()
+    ok('OB-186 (3a): with the cursor BEFORE the run (stop 1) the card names the run\'s FIRST stop', /^1 · /.test(nameBefore), nameBefore)
+    const more = (await card.locator('[data-stopmore]').textContent().catch(() => '')).trim()
+    ok(`OB-186 (2): and carries the load-bearing footer — the pin's label, then "+${under} more stops under this pin"`, more === `${merged.label} · +${under} more stop${under === 1 ? '' : 's'} under this pin`, more)
     ok('OB-184 (4): ONE CARD PER POINTER — the cell\'s MapTooltip stays down while the pin\'s card is up', (await page.locator('[data-maptip]').count()) === 0)
     ok('OB-184 (2): the hover changed nothing — cursor and spot are what they were', JSON.stringify(await readout()) === JSON.stringify(rBefore) && (await map.locator('[data-spot]').getAttribute('data-spot').catch(() => null)) === spotBefore)
     await page.mouse.move(pb.x + pb.width / 2, pb.y - 120)
     await page.waitForTimeout(300)
     ok('leaving the pin clears the card', (await card.count()) === 0)
+    // OB-187 (3): the pin takes the wash — inside its run (cursor on 2.1) the pill is 2/3 washed
+    await dock().focus()
+    await page.keyboard.press('ArrowRight')
+    await page.waitForTimeout(400)
+    const wash = await pin().evaluate((el) => { const w = el.querySelector('[data-stepdot-wash]'); const pill = el.querySelector('button'); return w && pill ? w.getBoundingClientRect().width / pill.getBoundingClientRect().width : null })
+    ok('OB-187 (3): the map\'s merged pin takes the same wash — with the cursor on the run\'s 2nd of 3 stops the pill is 2/3 washed, left to right', wash !== null && Math.abs(wash - 2 / 3) < 0.05, wash === null ? 'no wash' : wash.toFixed(3))
+    await page.keyboard.press('End')
+    await page.waitForTimeout(400)
+    await hoverPin()
+    const nameAfter = (await card.locator('[data-stoppath]').textContent().catch(() => '')).trim()
+    ok('OB-186 (3b): with the cursor PAST the run (the last stop) the same pin\'s card names the run\'s LAST stop, by its address — "2.2 · …"', /^2\.2 · /.test(nameAfter), nameAfter)
+    ok('the footer is the same at both ends', (await card.locator('[data-stopmore]').textContent().catch(() => '')).trim() === more)
+    await page.mouse.move(4, 4)
+    await page.waitForTimeout(300)
+    await dock().focus()
+    await page.keyboard.press('Home')
+    await page.waitForTimeout(300)
   }
 }
 
@@ -601,6 +669,60 @@ await page.waitForTimeout(500) // past the next arrival (630ms into the step), b
 await map.getByLabel('pause the walk').click()
 await page.waitForTimeout(500)
 ok('OB-179 (5): after the room pans during playback, the next arrival leaves the view where the hand put it', (await cameraNow()) === camAfterPan, `${(await cameraNow()) === camAfterPan ? 'held' : 'yanked'}`)
+
+// ── H. OB-189: THE WALK EDITOR'S HOVER REACHES THE DOCK — a halo, an off-screen pan, no selection ─
+// The editor is added to this desk and the window narrowed so the dock's open row shows fewer
+// stops than the walk has: a test on a walk that fits the row cannot see the pan at all. Both
+// halves: a pill whose stop is ON the row lights it and MOVES NOTHING; one whose stop is off the
+// row's edge lights it and pans. Leaving clears and the row returns to the cursor. A click still
+// selects on the map and changes NOTHING in the dock. And OB-131 clause 3, open since 2026-09-05:
+// a hover published by another pane lights the stop and draws NO preview card.
+{
+  await page.getByLabel('studio-inst-walkeditor').click()
+  await page.waitForTimeout(500)
+  await page.setViewportSize({ width: 880, height: 950 })
+  await page.waitForTimeout(600)
+  const road = page.locator('[data-road-root]')
+  ok('the walk editor is on the desk beside the map', (await road.count()) === 1)
+  if ((await dock().getAttribute('data-walk-dock')) !== 'open') { await map.getByLabel('show every stop').click(); await page.waitForTimeout(450) }
+  await dock().focus()
+  await page.keyboard.press('Home')
+  await page.waitForTimeout(400)
+  const row = () => dock().locator('[data-sb-off]')
+  const rowW = await row().evaluate((el) => el.clientWidth)
+  const stopCount = await dock().locator('[data-walk-dock-stop]').count()
+  ok('the open row is NARROWER than the walk, so a stop can be off-screen (the condition the pan needs)', rowW < stopCount * 68, `row ${rowW}px for ${stopCount} stops`)
+  const halo = (i) => dock().locator(`[data-walk-dock-mark="${i}"]`).evaluateAll((els) => (els.length ? getComputedStyle(els[0]).boxShadow : 'no mark hook'))
+  const chips = road.locator('[data-rnode][data-node]')
+  const nChips = await chips.count()
+  const scroll0 = await row().evaluate((el) => el.scrollLeft)
+  await chips.first().hover()
+  await page.waitForTimeout(400)
+  ok('OB-189 (2a): hovering the editor\'s FIRST pill lights dock stop 1 with a halo OUTSIDE its mark', (await halo(0)) !== 'none', await halo(0))
+  ok('and MOVES NOTHING: the stop is on the row, so the row did not pan', Math.abs((await row().evaluate((el) => el.scrollLeft)) - scroll0) < 1)
+  // the DS card is `aria-hidden`; the walk editor's own preview PANE shares the hook name and is not a card
+  const dsCard = () => page.locator('[data-walk-preview][aria-hidden="true"]')
+  ok('OB-189 (5) = OB-131 clause 3: no preview card for a hover published by another pane', (await dsCard().count()) === 0, (await dsCard().count()) ? 'card: ' + (await dsCard().first().innerText()).replace(/\n/g, ' | ') + ' at ' + JSON.stringify(await page.locator('[data-walk-preview]').first().boundingBox()) : '')
+  ok('OB-189 (1): nothing was seeked — the readout is still stop 1', (await readout())?.cur === 1)
+  await chips.nth(nChips - 1).hover()
+  await page.waitForTimeout(500)
+  const scroll1 = await row().evaluate((el) => el.scrollLeft)
+  ok('OB-189 (2b): hovering the LAST pill lights the last stop and PANS the row to it (it was off the edge)', (await halo(stopCount - 1)) !== 'none' && scroll1 > scroll0 + 20, `scrollLeft ${scroll0} -> ${scroll1}`)
+  ok('the first stop\'s halo went with the pointer', (await halo(0)) === 'none')
+  await page.mouse.move(4, 4)
+  await page.waitForTimeout(500)
+  ok('OB-189 (3): leaving the pill clears the halo and the row returns to the cursor', (await halo(stopCount - 1)) === 'none' && Math.abs((await row().evaluate((el) => el.scrollLeft)) - scroll0) < 1, `scrollLeft back to ${await row().evaluate((el) => el.scrollLeft)} (was ${scroll0})`)
+  // (4) a click in the editor selects on the MAP and changes NOTHING in the dock
+  const rBefore = await readout()
+  await chips.nth(1).click()
+  await page.waitForTimeout(400)
+  const sel = await map.locator('svg[data-sel]').getAttribute('data-sel').catch(() => null)
+  ok('OB-189 (4): a click on a pill selects that node on the map', !!sel, `data-sel ${sel}`)
+  await page.mouse.move(4, 4)
+  await page.waitForTimeout(300)
+  const halos = await Promise.all([...Array(stopCount).keys()].map(halo))
+  ok('and changes NOTHING in the dock — no mark, no seek, no scroll', halos.every((h) => h === 'none') && JSON.stringify(await readout()) === JSON.stringify(rBefore) && Math.abs((await row().evaluate((el) => el.scrollLeft)) - scroll0) < 1, `${halos.filter((h) => h !== 'none').length} halos, readout ${JSON.stringify(await readout())}`)
+}
 
 await browser.close()
 vite.kill()

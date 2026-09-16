@@ -80,7 +80,9 @@ const dots = (root) =>
     const scope = document.querySelector(sel)
     if (!scope) return []
     return [...scope.querySelectorAll('button')]
-      .filter((b) => /^\d+(-\d+)?$/.test(b.textContent.trim()))
+      // a stop label: a number, a two-number ADDRESS ("2.1", OB-188), or a range of either — the
+      // older hyphenated "1-3" and the en-dashed "1–2.2" a merged pin prints since OB-188
+      .filter((b) => /^\d+(\.\d+)?([-\u2013]\d+(\.\d+)?)?$/.test(b.textContent.trim()))
       .map((b) => {
         const r = b.getBoundingClientRect()
         return {
@@ -171,9 +173,12 @@ const pins = await dots('[aria-label="map-view"]')
 if (pins.length === 0) {
   checks.push('SKIP  the map is showing no walk pins in this composition — rail measured only')
 } else {
-  const pinNums = pins.filter((d) => !d.label.includes('-'))
-  const pinRanges = pins.filter((d) => d.label.includes('-'))
-  ok('every numeric map pin takes the circle branch too', pinNums.every((d) => d.svg), `${pinNums.length} pins`)
+  // OB-188 (2026-09-15): a pin prints its two-number ADDRESS. A plain top-level number ("4") is a
+  // NUMBER-shaped label and a circle; an address with a dot ("2.1") and a merged pin's en-dashed
+  // range ("1–2.2", the older hyphenated "1-3") are strings over one character and take the PILL.
+  const pinNums = pins.filter((d) => /^\d+$/.test(d.label))
+  const pinRanges = pins.filter((d) => /[-\u2013]/.test(d.label))
+  ok('every plain-number map pin takes the circle branch too', pinNums.every((d) => d.svg), `${pinNums.length} pins: ${pinNums.map((d) => d.label).join(', ')}`)
   ok('and measures square', pinNums.every((d) => Math.abs(d.w - d.h) < 0.5), pinNums.map((d) => `${d.label} ${d.w}x${d.h}`).join(', '))
   // pins are sized per crowding, so they are NOT all the same size as each other
   // — squareness is the whole claim here, not a shared width.
@@ -187,7 +192,7 @@ if (pins.length === 0) {
   ok('some cell is crowded enough to draw a range label at this level', pinRanges.length > 0,
     `${pins.length} pins: ${pins.map((d) => d.label).join(', ')}`)
   ok(
-    'and a RANGE label ("1-3") still takes the pill branch — no SVG face',
+    'and a RANGE label ("1–2.2") still takes the pill branch — no SVG face',
     pinRanges.length > 0 && pinRanges.every((d) => !d.svg),
     pinRanges.map((d) => `${d.label} ${d.w}x${d.h}`).join(', '),
   )

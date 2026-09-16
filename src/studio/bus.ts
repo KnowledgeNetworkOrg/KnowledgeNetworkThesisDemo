@@ -42,6 +42,12 @@ export interface BusState {
    * published lights up exactly the thing under its own cursor, which is what it
    * wanted anyway. There is no echo to suppress, so one id is the whole bus. */
   hover: string | null
+  /** THE WALK STOP ANOTHER PANE IS POINTING AT, by index into `route` (DS OB-189). The walk
+   *  editor publishes it from a pill's hover; the map's dock draws a halo on that stop and pans
+   *  its row to it if it is off-screen. TRANSIENT and display-only like `hover`, and it is a
+   *  STOP, not a node: a node can be on the walk twice, and the editor knows which visit its
+   *  pill is. Never read as the current stop — a hover here seeks nothing. */
+  hoverStep: number | null
   /** A LOOK — the one channel that MAY move a camera. Hover answers "recolour
    * what I'm pointing at"; a look asks "take me to WHERE this lives" — the map
    * flies to the node's territory at its tier and keeps it highlighted, with
@@ -111,6 +117,9 @@ export interface BusActions {
    * leave(X) then enter(X), and an unguarded leave would blank the id the enter
    * just set. Every hover participant needs this, so the bus owns it. */
   endHover(id: string): void
+  setHoverStep(index: number | null): void
+  /** the cursor LEFT this stop — guarded like `endHover`, for the same reason */
+  endHoverStep(index: number): void
   /** publish a look at `id` — see BusState.peek. A click gesture, not a hover:
    * there is no end/leave counterpart. */
   peekAt(id: string): void
@@ -146,6 +155,7 @@ export type Bus = BusState & BusActions
 export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
   const [focus, setFocusState] = useState<string | null>(null)
   const [hover, setHoverState] = useState<string | null>(null)
+  const [hoverStep, setHoverStepState] = useState<number | null>(null)
   const [peek, setPeekState] = useState<{ id: string; seq: number } | null>(null)
   const [matches, setMatchesState] = useState<ReadonlySet<string>>(NO_MATCHES)
   const [routeSteps, setRouteStepsState] = useState<RouteStep[]>([])
@@ -224,6 +234,8 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
   // map's Esc listener (deps-bound) never re-subscribes.
   const setHover = useCallback((id: string | null) => setHoverState(id), [])
   const endHover = useCallback((id: string) => setHoverState((h) => (h === id ? null : h)), [])
+  const setHoverStep = useCallback((i: number | null) => setHoverStepState(i), [])
+  const endHoverStep = useCallback((i: number) => setHoverStepState((h) => (h === i ? null : h)), [])
   const peekAt = useCallback((id: string) => setPeekState((p) => ({ id, seq: (p?.seq ?? 0) + 1 })), [])
   // stable like the hover writers: the palette re-publishes on every keystroke,
   // and an unstable setter would rebuild that effect's binding each render
@@ -236,6 +248,7 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
   return {
     focus,
     hover,
+    hoverStep,
     peek,
     matches,
     routeSteps,
@@ -254,6 +267,8 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
     forward,
     setHover,
     endHover,
+    setHoverStep,
+    endHoverStep,
     peekAt,
     setMatches,
     setRoute,

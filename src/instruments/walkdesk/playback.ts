@@ -71,11 +71,10 @@ import type { Bus } from '../../studio/bus'
  *  `steps`, `cursor` and `seek` keep their shapes; `WalkViewer` needs no edit. */
 export interface PlayStep extends WalkStep {
   stop?: Stop
-  /** THE STEP'S FULL PATH when it sits inside a group on the desk's road — "3.1",
-   *  "1.1.1.2", the group's own local numbering (#228, DS OB-114). Undefined for a
-   *  top-level step and for every step of a saved walk (saved walks are flat). The
-   *  hover card is where it is printed; a map pin prints the top-level step only. */
-  path?: string
+  /* `path` is `WalkStep.path` (DS OB-188): the step's position in the group structure,
+     outermost first, 1-based — `[2, 1]` for "2.1". Undefined for a top-level step and for
+     every step of a saved walk (saved walks are flat). The hover card prints it whole; a map
+     pin and a dock dot print the two-number address `walkAddresses` derives from it. */
 }
 
 /** which of the two sources is playing. Exposed so a caller can preserve a
@@ -134,7 +133,10 @@ export function playSteps(saved: Walk | null, road: Stop[]): PlayStep[] {
   const numbers = routeNumbers(routeStepsOf(road))
   return leafStops(road).map((s, i) => ({
     id: s.node, title: byId.get(s.node)!.title, note: s.note, optional: s.optional, stop: s,
-    path: numbers[i]?.grouped ? numbers[i].path : undefined,
+    /* EVERY step carries its path, top-level ones included (`[3]`): `walkAddresses` numbers a
+       step WITHOUT a path by its flat index, which is right only when no step has one — on a walk
+       whose step 2 is a group, the top-level stop after it is the 4th stop and step 3 (DS OB-188). */
+    path: numbers[i] ? numbers[i].path.split('.').map(Number) : undefined,
   }))
 }
 

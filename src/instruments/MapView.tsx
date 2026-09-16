@@ -56,7 +56,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import type { WalkMark } from '@/ds'
-import { ARROW_METRICS, headForSet, walkArrival, walkLook, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, PaneCanvas, PIN_RING_WIDTH, previewAnchor, shaftTailOffset, StepDot, VisibilityMark, WALK_ARROW_DEFAULTS, WALK_DOCK_METRICS, walkBand, WalkDock, WalkPreview, ZoomControl } from '@/ds'
+import { ARROW_METRICS, headForSet, walkAddresses, walkArrival, walkLeadStop, walkLook, walkMarkLabel, walkProgress, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, PaneCanvas, PIN_RING_WIDTH, previewAnchor, shaftTailOffset, StepDot, VisibilityMark, WALK_ARROW_DEFAULTS, WALK_DOCK_METRICS, walkBand, WalkDock, WalkPreview, ZoomControl } from '@/ds'
 import { byId, domainIds, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT_ID } from '../corpus/graph'
 import { DT } from './walkdesk/authordnd'
 import { routeIsWalk, useWalkPlayback } from './walkdesk/playback'
@@ -742,6 +742,12 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   // route's groups — a group's nodes all print the group's number. The stop index
   // (what the band and the clock count in) stays what it was.
   const stepNumbers = useMemo(() => routeNumbers(bus.routeSteps).map((n) => n.step), [bus.routeSteps])
+  /* THE ADDRESS EVERY PIN PRINTS (DS OB-188): `walkAddresses` over the walk's steps, capped at two
+     numbers; a merged pin reads the run's two ends en-dashed (`walkMarkLabel`). `walkPins` still
+     mints its own flat `label` for crowding and keys; what a pin PRINTS is composed here from the
+     same steps the dock reads, so the two surfaces cannot disagree. */
+  const addresses = useMemo(() => walkAddresses(play.steps), [play.steps])
+  const pinLabel = (s: { step: number; stepEnd: number }) => walkMarkLabel(play.steps, { from: s.step - 1, to: s.stepEnd - 1 })
   const routeStops = useMemo(
     () => walkPins({ route: bus.route, level, px, labelBoxes, stepNumbers }),
     // px closes over f/view.s, both already deps; a fresh px reference every
@@ -1625,16 +1631,19 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                   onPointerEnter={(e) => {
                     if (dragging || !dockShown) return
                     /* THE MARK IS THE HOST'S TO BUILD (OB-184): a pin stands for stops
-                       `step`..`stepEnd`, 1-based, under the SLOT label it prints; the card
-                       names every one of them, by that label */
-                    const mark: WalkMark = { from: s.step - 1, to: s.stepEnd - 1, label: String(s.label), steps: play.steps.slice(s.step - 1, s.stepEnd) }
+                       `step`..`stepEnd`, 1-based, under the ADDRESS label it prints (OB-188); the
+                       card names ONE of them plus a count (OB-186), by that numbering */
+                    const mark: WalkMark = { from: s.step - 1, to: s.stepEnd - 1, label: pinLabel(s), steps: play.steps.slice(s.step - 1, s.stepEnd), addresses: addresses.slice(s.step - 1, s.stepEnd) }
                     setPinHover({ i: s.step - 1, mark, ...previewAnchor(e.currentTarget.getBoundingClientRect()) })
                   }}
                   onPointerLeave={() => setPinHover(null)}
                   onClick={() => regionClick(s.visId)}
                 >
                   <foreignObject x={-s.size / 2} y={-s.size / 2} width={s.size} height={s.size} style={{ overflow: 'visible' }}>
-                    <StepDot n={s.label} state={wall ? wallPinState(s, wall) : b.behind ? 'done' : 'ahead'} arrival={wall ? undefined : b.active} variant="pin" size={s.size} />
+                    {/* the wash (OB-187 clause 3): how much of this pin's run is behind the walk,
+                        `walkProgress` on the same mark the card reads — a merged pin washes a stop
+                        at a time as the class works through it. The wall is a still picture. */}
+                    <StepDot n={pinLabel(s)} state={wall ? wallPinState(s, wall) : b.behind ? 'done' : 'ahead'} arrival={wall ? undefined : b.active} progress={wall ? undefined : walkProgress({ from: s.step - 1, to: s.stepEnd - 1 }, play.position)} variant="pin" size={s.size} />
                   </foreignObject>
                 </g>
                 )
@@ -1955,11 +1964,21 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
           open={dockOpen}
           onOpenChange={setDockOpen}
           renderPreview={renderStopPreview}
+          /* the walk editor's pointer, on the bus (OB-189): a halo on that stop, a pan if it is
+             off the row, never a seek and never a card — the dock owns those rules */
+          hoveredStep={bus.hoverStep}
           style={{ zIndex: 11 }}
         />
       )}
       {pinHover && play.steps[pinHover.i] && (
-        <WalkPreview x={pinHover.x} top={pinHover.top}>{renderStopPreview(play.steps[pinHover.i], pinHover.i, pinHover.mark)}</WalkPreview>
+        /* WHICH STOP A MERGED PIN'S CARD NAMES is `walkLeadStop`'s (OB-186): the ARRIVAL cursor
+           clamped into the run — never `mark.from`, which previews the stop the walk finished
+           with long ago and looks correct; never the fractional position, which rounds to a
+           stop not yet reached. */
+        (() => {
+          const lead = pinHover.mark ? walkLeadStop(pinHover.mark, walkArrival(play.position, play.steps.length)) : pinHover.i
+          return <WalkPreview x={pinHover.x} top={pinHover.top}>{renderStopPreview(play.steps[lead], lead, pinHover.mark)}</WalkPreview>
+        })()
       )}
     </PaneCanvas>
   )
