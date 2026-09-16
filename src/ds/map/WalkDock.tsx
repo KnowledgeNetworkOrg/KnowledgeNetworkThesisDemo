@@ -526,8 +526,9 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
   const [rowHover, setRowHover] = useState(false)
   /* THE ADDRESS, NOT THE INDEX (owner, 2026-09-15, DS OB-188). A stop carrying `path` addresses as
      "1.4" — the same label the map pin prints, capped at two numbers so nesting cannot lengthen
-     it. A step with no `path` falls back to `i + 1`, which IS the drawing this row made before
-     the ruling. Memoised on `steps` because the ordinals are counted across the whole list. */
+     it. A step with no `path` addresses as `i + 1` inside `walkAddresses` itself, which IS the
+     drawing this row made before the ruling. Memoised on `steps` because the ordinals are counted
+     across the whole list. */
   const addr = useMemo(() => walkAddresses(steps), [steps])
   const [pillHover, setPillHover] = useState(false)
   /* THE HOVERED OR DRAGGED STOP for the preview — `null` when the pointer is off both rails. */
@@ -838,7 +839,7 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
                   <div data-walk-dock-mark={i} style={{ display: 'flex', borderRadius: 'var(--radius-pill)', ...walkHoverStyle(walkRowSwell(i, rowHover ? (hover ? hover.i : cur) : null)), transition: 'transform var(--dur-hover) ' + SOFT + ', box-shadow .15s ' + SOFT, boxShadow: i === extHover ? '0 0 0 ' + HALO_W + 'px ' + HALO : 'none' }}>
                     {/* the wash: `progress` is 1 from the instant the cursor arrives (a one-step mark);
                         `StepDot` itself declines to paint it on the rail's `current` face (OB-187). */}
-                    <StepDot n={addr[i] || i + 1} state={st} size={M.stopDot} optional={!!s.optional} progress={walkProgress({ from: i, to: i }, pos)} />
+                    <StepDot n={addr[i]} state={st} size={M.stopDot} optional={!!s.optional} progress={walkProgress({ from: i, to: i }, pos)} />
                   </div>
                   {/* `StopTitle` (WalkParts, 2026-09-01) — the strip's title rule at this row's density:
                       same clamp, same ink ladder, same " (optional)" suffix (which this row used to

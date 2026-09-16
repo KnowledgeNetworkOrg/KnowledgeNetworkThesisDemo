@@ -111,7 +111,7 @@ export default function WalkEditorView({ bus }: { bus: Bus }) {
         {previewOpen && <div className="absolute inset-0 z-10" onClick={() => setPreviewOpen(false)} />}
 
         <div
-          data-walk-preview
+          data-walk-preview-pane
           className="absolute inset-y-0 right-0 z-20 flex flex-col border-l transition-transform ease-out"
           style={{
             background: 'var(--surface-paper)',
