@@ -101,6 +101,9 @@ export default function WalkEditorView({ bus }: { bus: Bus }) {
             pickBranch={pickBranch}
             withOptionals={withOptionals}
             onLeafFocus={(id) => bus.setFocus(id, 'desk')}
+            /* the pill's hover reaches the dock as a STOP index (DS OB-189): a halo there, never a
+               selection — the click below still selects on the map only */
+            stepHover={{ enter: bus.setHoverStep, leave: bus.endHoverStep }}
           />
         </div>
 

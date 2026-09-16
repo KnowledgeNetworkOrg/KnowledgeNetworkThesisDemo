@@ -1,10 +1,10 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 
 import { StepDot } from '../nav/StepDot'
 import { WalkerMark } from '../chrome/WalkerMark'
 import { WalkPreview, previewAnchor } from '../nav/WalkPreview'
-import { StopTitle, PlayToggle, OptionalSuffix, stopState } from '../nav/WalkParts'
+import { StopTitle, PlayToggle, OptionalSuffix, stopState, walkProgress, walkAddresses, walkRowSwell, walkHoverStyle } from '../nav/WalkParts'
 import type { WalkMark } from '../nav/WalkParts'
 import { wrapTip } from '../chrome/IconButton'
 import type { WalkStep } from '../nav/WalkStrip'
@@ -340,8 +340,22 @@ const FOLD_MS = 280 /* the fold: the two rails' height transition and the chevro
                        PUBLISHED as `WALK_DOCK_METRICS.fold` — the host's floating chrome rides the
                        dock's live height (rule 2b in the DS `.d.ts`; MapView) and must move on the
                        same clock. */
+/* THE EXTERNAL-HOVER HALO AND ITS PAN, published on `WALK_DOCK_METRICS` (`halo`, `panMs`) rather
+   than left as literals, because a host drawing its own pin for the SAME hover has to match this
+   mark and a number in prose gets retyped. CHOSEN, both of them: 3px at 30% is the weight that
+   reads on an 18px dot without becoming a second ring, and `--accent-walk` mixed toward
+   transparent never competes with the cursor's solid fill. 260ms is one fold (280) less a frame,
+   so a pan and a fold that run together do not finish at visibly different times. (DS OB-189.) */
+const HALO = 'color-mix(in oklab, var(--accent-walk) 30%, transparent)'
+const HALO_W = 3
+const PAN_MS = 260
 export const WALK_DOCK_METRICS = {
   ...P,
+  /** the ring an externally hovered stop wears — OUTSIDE the face (OB-189) */
+  halo: HALO,
+  haloWidth: HALO_W,
+  /** ms the open row takes to pan to an off-screen hovered stop. CHOSEN. */
+  panMs: PAN_MS,
   /** CHOSEN: ms of the open/close fold. What the host's floating chrome transitions over (rule 2b
    *  of the DS contract): whatever the host moves with the dock's height animates for exactly this
    *  long, with `--ease-soft`, so it reads as the dock pushing it rather than a second animation. */
@@ -431,6 +445,24 @@ export interface WalkDockProps {
    *  moves through the stops as well as on a hover, ONCE PER CHANGE OF STOP — report-only, for a
    *  pane that wants to react to attention. The same contract as `WalkStrip.onStepHover`. */
   onStepHover?: (index: number | null) => void
+  /** A STOP ANOTHER PANE IS POINTING AT — the walk editor's pointer, reported IN (DS OB-189,
+   *  owner 2026-09-15: "when we hover over a node pill in the editor, the map highlights, i also
+   *  want the relevant walk stop in the walk dock to highlight too … it shouldnt select it tho
+   *  on hover"). Draws a halo OUTSIDE that stop's mark, and pans the open row to it if it is
+   *  off-screen. `null` clears. WHAT THE HOST MUST DO: 1. REPORT, DO NOT SEEK — this never
+   *  moves `position`; a hover is transient and undone on leave (OB-142/151 clause 5). 2. PASS
+   *  `null` ON LEAVE — the row then hands itself back to the cursor (`follow()` owns this
+   *  scroller; a stale index parks the row where the walk is not). 3. DRAW NO PREVIEW CARD for
+   *  it — `WalkPreview` rule 3: a hover published by another pane has no pointer over this
+   *  surface to anchor a card to. THE PAN IS OFF-SCREEN-ONLY (OB-179's rule for the map camera,
+   *  same reason), a hand-written tween on `WALK_DOCK_METRICS.panMs`, never `scrollTo({
+   *  behavior: 'smooth' })` (traced 2026-09-15: the native smooth scroll asked for 598.5px and
+   *  the row never moved); `prefers-reduced-motion` jumps; a DRAG in progress beats it.
+   *  THERE IS NO `selected` PROP, AND THAT IS A RULING: a click in the editor selects the node
+   *  on the MAP; the dock's only persistent mark is the cursor, and the dock is the one surface
+   *  that may move it. The halo was the open row's last free channel (a keyboard focus ring on
+   *  these dots cannot have it). */
+  hoveredStep?: number | null
   /** position/size overrides for the mount only. Do not restyle the face. */
   style?: CSSProperties
 }
@@ -458,7 +490,7 @@ interface Hover { i: number; x: number; top: number }
  *  reports an integer stop, `onPlayToggle` asks the host to run its clock; the dock holds no
  *  timer. `position` accepts the host's integer cursor unchanged — the knob then steps; a
  *  fractional clock is what buys travel. */
-export function WalkDock({ steps = [], position = 0, playing = false, onPlayToggle, onSeek, open, defaultOpen = false, onOpenChange, metric, defaultMetric = 'position', onMetricChange, band, renderPreview, onStepHover, style }: WalkDockProps) {
+export function WalkDock({ steps = [], position = 0, playing = false, onPlayToggle, onSeek, open, defaultOpen = false, onOpenChange, metric, defaultMetric = 'position', onMetricChange, band, renderPreview, onStepHover, hoveredStep, style }: WalkDockProps) {
   const M = WALK_DOCK_METRICS
   const N = steps.length
   const last = Math.max(0, N - 1)
@@ -492,6 +524,11 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
   const setFace = (v: WalkDockMetric) => { setMetricU(v); if (onMetricChange) onMetricChange(v) }
   const [railHover, setRailHover] = useState(false)
   const [rowHover, setRowHover] = useState(false)
+  /* THE ADDRESS, NOT THE INDEX (owner, 2026-09-15, DS OB-188). A stop carrying `path` addresses as
+     "1.4" — the same label the map pin prints, capped at two numbers so nesting cannot lengthen
+     it. A step with no `path` falls back to `i + 1`, which IS the drawing this row made before
+     the ruling. Memoised on `steps` because the ordinals are counted across the whole list. */
+  const addr = useMemo(() => walkAddresses(steps), [steps])
   const [pillHover, setPillHover] = useState(false)
   /* THE HOVERED OR DRAGGED STOP for the preview — `null` when the pointer is off both rails. */
   const [hover, setHover] = useState<Hover | null>(null)
@@ -561,6 +598,47 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
     el.scrollLeft = pos * M.stopW + M.stopW / 2 - el.clientWidth / 2
   }, [pos, M.stopW])
   useEffect(() => { if (isOpen) follow() }, [follow, isOpen])
+
+  /* AN EXTERNALLY HOVERED STOP — another pane (the walk editor) reporting where ITS pointer is
+     (DS OB-189). Two jobs, and both are rules this system already settled somewhere else. THE
+     HALO IS THE MARK (owner, 2026-09-15, chosen over the title's ink and a column wash). It sits
+     OUTSIDE the face because every channel on the face is spoken for: the fill and ring carry
+     `state`, the face carries `progress`, and SCALE is spent on the row's swell. NO PREVIEW
+     CARD, ever, on this channel — `WalkPreview` rule 3. AND IT NEVER SELECTS OR SEEKS —
+     `position` is untouched here; see the `hoveredStep` docblock for why the dock has no
+     selected channel at all. */
+  const extHover = hoveredStep == null || !N ? null : clampI(hoveredStep)
+  const panRef = useRef(0)
+  useEffect(() => {
+    const el = rowRef.current
+    if (!isOpen || !el) return
+    /* A DRAG OWNS THE ROW. The user's own gesture beats another pane's pointer, always. */
+    if (dragRef.current) return
+    const target = extHover == null ? Math.round(pos) : extHover
+    const x = target * M.stopW, w = el.clientWidth
+    /* ONLY WHEN IT IS OFF-SCREEN — the rule OB-179 settled for the map camera, for the same
+       reason: a surface that moves when it did not need to costs the reader their place. */
+    if (x >= el.scrollLeft && x + M.stopW <= el.scrollLeft + w) return
+    const to = Math.max(0, Math.min(el.scrollWidth - w, x + M.stopW / 2 - w / 2))
+    cancelAnimationFrame(panRef.current)
+    /* TWEENED BY HAND, NOT `scrollTo({ behavior: 'smooth' })`. Traced on the DS's rig 2026-09-15:
+       the native smooth scroll asked for 598.5px and the row never moved — a platform is free to
+       ignore it, and then the pan is silently a no-op. This also puts the curve on the system's
+       own easing rather than the browser's opaque one. */
+    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) { el.scrollLeft = to; return }
+    const from = el.scrollLeft, t0 = performance.now()
+    const step = (t: number) => {
+      if (dragRef.current) return
+      const k = Math.min(1, (t - t0) / PAN_MS)
+      el.scrollLeft = from + (to - from) * (1 - Math.pow(1 - k, 3))
+      if (k < 1) panRef.current = requestAnimationFrame(step)
+    }
+    panRef.current = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(panRef.current)
+    // `pos` is read on purpose only when the hover CLEARS (the row hands itself back to the cursor);
+    // `follow()` already tracks it frame by frame while nothing is hovered
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [extHover, isOpen])
 
   const onRailDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 || !N) return
@@ -747,13 +825,20 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
                   <div style={{ height: M.walker, display: 'flex', alignItems: 'flex-end', color: 'var(--accent-walk)' }}>
                     {i === cur ? <WalkerMark size={M.walker} animated={playing} /> : null}
                   </div>
-                  {/* THE DOT GROWS ALONE ON HOVER so the titles do not jump. */}
-                  <div style={{ display: 'flex', transition: 'transform .15s ' + SOFT, transform: rowHover ? 'scale(1.18)' : 'none' }}>
-                    {/* the DS's dock passes `progress={walkProgress({ from: i, to: i }, pos)}` here — the wash
-                        `StepDot` grew on 2026-09-09. This port's StepDot has no `progress` prop yet (a lag on
-                        that component, reported with OB-185), so the dock passes none: the dot draws as it
-                        did. Add it back the day StepDot is re-ported. */}
-                    <StepDot n={i + 1} state={st} size={M.stopDot} optional={!!s.optional} />
+                  {/* THE DOTS GROW, NOT THE ROW'S BOX, so the titles do not jump — and by
+                      `walkRowSwell` (DS OB-190): every mark to the row's base grow while the pointer
+                      is on the row, rising to the full grow on the stop under it and easing off over
+                      two neighbours (owner, 2026-09-15). This used to be a flat `scale(1.18)` on all
+                      of them, which was BOTH a drift off the published 1.08 base and the thing that
+                      made the row unable to say where the pointer was. The scale and its transition
+                      come from `walkHoverStyle` — the `translateZ(0)` in it is the whole fix for the
+                      numeral's jiggle. The halo for an externally hovered stop rides this same
+                      wrapper, OUTSIDE the face — see the `extHover` block above. `data-walk-dock-mark`
+                      is a test hook. */}
+                  <div data-walk-dock-mark={i} style={{ display: 'flex', borderRadius: 'var(--radius-pill)', ...walkHoverStyle(walkRowSwell(i, rowHover ? (hover ? hover.i : cur) : null)), transition: 'transform var(--dur-hover) ' + SOFT + ', box-shadow .15s ' + SOFT, boxShadow: i === extHover ? '0 0 0 ' + HALO_W + 'px ' + HALO : 'none' }}>
+                    {/* the wash: `progress` is 1 from the instant the cursor arrives (a one-step mark);
+                        `StepDot` itself declines to paint it on the rail's `current` face (OB-187). */}
+                    <StepDot n={addr[i] || i + 1} state={st} size={M.stopDot} optional={!!s.optional} progress={walkProgress({ from: i, to: i }, pos)} />
                   </div>
                   {/* `StopTitle` (WalkParts, 2026-09-01) — the strip's title rule at this row's density:
                       same clamp, same ink ladder, same " (optional)" suffix (which this row used to

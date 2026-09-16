@@ -430,6 +430,7 @@ function layoutRoad(
 export default function AuthorRoad({
   state,
   sync,
+  stepHover,
   choices,
   pickBranch,
   withOptionals,
@@ -437,6 +438,9 @@ export default function AuthorRoad({
 }: {
   state: AuthorState
   sync: HoverBinding
+  /** the pointer entered / left the pill of walk stop `index` (0-based, in the PRESENTED
+   *  route's order) — what the map's dock lights (DS OB-189). Report-only. */
+  stepHover?: { enter(index: number): void; leave(index: number): void }
   choices: Record<string, string>
   pickBranch(key: string, id: string): void
   withOptionals: boolean
@@ -489,6 +493,16 @@ export default function AuthorRoad({
   }, [])
 
   const { items, arrows, slots, W, H } = layoutRoad(state.stops, collapsed, choices, withOptionals)
+  /* WHICH WALK STOP EACH ON-ROAD LEAF IS (DS OB-189): the placement walks the road in the same
+     order `resolveRoad` presents it — every container down to its chosen version, unset slots and
+     skipped optionals left out — so the on-road leaves in `items` order ARE `bus.route`'s order,
+     and a leaf's stop index is its ordinal among them. Counted here rather than looked up by
+     node id, because a node can be on the walk twice and the pill knows which visit it is. */
+  const stopIndexByKey = new Map<string, number>()
+  {
+    let n = 0
+    for (const it of items) if (isLeaf(it.stop) && !it.stop.unset && it.onRoad && !it.skipped) stopIndexByKey.set(pathKey(it.path), n++)
+  }
 
   /* ONE WEIGHT FOR THE WHOLE ROAD — the lightest member's edge, which is the same rule and
      the same reasoning `NodeChain` applies to a chain, because the road IS a chain that
@@ -777,11 +791,17 @@ export default function AuthorRoad({
               // handing it a click gesture, which would fight the marquee and the drag.
               // `dim` is the DS's off-the-resolved-path treatment (no lift, no fill,
               // --opacity-off-path), a step past the plain opacity the road used.
+              const nodeHover = sync.bind(s.node)
+              const stopIndex = stopIndexByKey.get(key)
               return (
                 <div
                   key={key}
                   {...gestures(pl)}
-                  {...sync.bind(s.node)}
+                  {...nodeHover}
+                  /* the node's hover (the map's spotlight) AND the stop's (the dock's halo) from one
+                     pointer — two channels, because the map reads a node and the dock a stop */
+                  onPointerEnter={() => { nodeHover.onPointerEnter(); if (stepHover && stopIndex !== undefined) stepHover.enter(stopIndex) }}
+                  onPointerLeave={() => { nodeHover.onPointerLeave(); if (stepHover && stopIndex !== undefined) stepHover.leave(stopIndex) }}
                   data-rnode
                   data-node={s.node}
                   data-ropt={s.optional ? 1 : undefined}

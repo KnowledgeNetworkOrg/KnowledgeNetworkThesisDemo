@@ -46,10 +46,15 @@ export function stopInk(state: StopState): string {
 export interface WalkMark {
   from: number
   to: number
-  /** what the HOST prints on a merged pin, e.g. `"2-3"`. Never minted here. */
+  /** what the HOST prints on a merged pin, e.g. `"1.1–1.3"` (`walkMarkLabel`). Never minted here. */
   label?: string
-  /** the steps the mark covers, for a host card that lists them */
+  /** the steps the mark covers, for a host card that reads them */
   steps?: unknown[]
+  /** ★ LOCAL: the ADDRESSES of the steps the mark covers (`walkAddresses(steps)` sliced to the
+   *  run), aligned to `steps` — what the merged pin's card prints for the one stop it names
+   *  (DS OB-186: "the stop this card names carries the PIN's numbering"). The card sees only
+   *  the run, and an address is counted across the whole walk, so the host hands it over. */
+  addresses?: string[]
 }
 
 /** HOW MUCH OF A MARK THE WALK HAS PASSED, 0…1 — what `StepDot`'s `progress` wants for the wash.
@@ -62,6 +67,30 @@ export function walkProgress(mark: WalkMark, position: number): number {
   if (position > mark.to) return 1
   const span = mark.to - mark.from + 1
   return Math.max(0, Math.min(1, (Math.floor(position + 1e-4) - mark.from + 1) / span))
+}
+
+/** WHICH ONE STOP A MERGED PIN'S HOVER CARD PREVIEWS — the cursor CLAMPED into the mark's span
+ *  (owner's ruling 2026-09-15, DS OB-186, choosing this over listing every stop under the pin).
+ *
+ *  A merged map pin covers a contiguous run of stops that resolve to one cell at the level being
+ *  drawn, so it usually covers several DIFFERENT documents and the card can only be one of them.
+ *  A walk is ordered, and that is what settles which: ahead of the cursor the honest lead is the
+ *  run's FIRST stop (what you are about to reach), behind it the run's LAST (where you left it),
+ *  and inside it the stop you are standing on. Those three cases are one clamp. The host then
+ *  says how many others the pin covers — the count is `mark.to - mark.from`, and admitting it is
+ *  not optional: the card names one of several documents and nothing else on screen says so.
+ *
+ *  PASS THE ARRIVAL CURSOR, NOT THE FRACTIONAL POSITION — `walkArrival(position)`. At position
+ *  4.6 the walk has ARRIVED at 4 and is travelling; rounding it to 5 names a stop it has not
+ *  reached, and on a two-stop pin that is the whole answer wrong. This rounds a fractional input
+ *  rather than trusting it, which makes a careless caller merely late instead of wrong.
+ *
+ *  PUBLISHED BECAUSE THE WRONG END IS SILENT. Leading a run with `mark.from` unconditionally —
+ *  the natural way to write it, and what `WalkPinHover`'s own `step` argument invites — previews
+ *  the stop the walk finished with hours ago and looks perfectly correct. */
+export function walkLeadStop(mark: WalkMark, cursor: number): number {
+  const c = Math.round(Number.isFinite(cursor) ? cursor : mark.from)
+  return Math.min(mark.to, Math.max(mark.from, c))
 }
 
 /** THE ONE WORD FOR A STEP THE WALK MAY SKIP — fixed at " (optional)", italic at regular weight,
@@ -156,6 +185,39 @@ export const WALK_HOVER_GROW = 1.18
  *  them, which is what makes it read as the row growing rather than as a dozen dots twitching. */
 export const WALK_ROW_HOVER_GROW = 1.08
 
+/** THE FALLOFF, as fractions of the distance from the row's base grow to the pointed stop's peak:
+ *  the stop under the pointer takes the whole of it, its neighbours half, the next pair a sixth.
+ *  CHOSEN, not derived — three rungs because a fourth is under a quarter of a pixel on an 18px
+ *  dot, and 0.5/0.18 rather than a smooth curve because the row is 68px per stop and the eye is
+ *  reading rank ("this one, then those"), not a gradient. (DS OB-190, 2026-09-15.) */
+export const WALK_SWELL_FALLOFF: readonly number[] = [1, 0.5, 0.18]
+
+/** HOW MUCH THE STOP AT `i` GROWS WHILE THE POINTER IS ON THE ROW AT `hovered` — the whole swell
+ *  rule as one function, because it is the answer to a question two surfaces ask (owner,
+ *  2026-09-15, DS OB-190, choosing it on `ideas/row-swell.html` over the flat all-row swell that
+ *  shipped).
+ *
+ *  IT STILL DOES BOTH JOBS THE TWO CONSTANTS WERE WRITTEN FOR, and that is why it is a falloff and
+ *  not a single hovered stop: the row answers "you are on me" by putting EVERY mark at
+ *  `WALK_ROW_HOVER_GROW`, and the pointer answers "and this one" by rising from that floor to
+ *  `WALK_HOVER_GROW` over two stops either side. The flat version could only do the first — with
+ *  every dot at one factor, nothing said where the pointer was.
+ *
+ *  `hovered == null` (the pointer off the row) is 1, NOT the base: the base is a hover state, and
+ *  a row at rest is a row at rest.
+ *
+ *  A FUNCTION RATHER THAN THREE MORE CONSTANTS — the ladder is a recipe, and a recipe retyped by
+ *  eye is where the dock's own row drifted to a flat 1.18 against the 1.08 published here (found
+ *  2026-09-15, shipped wrong since 2026-09-04: `WALK_ROW_HOVER_GROW` was never declared in the
+ *  DS's `.d.ts`, so nothing reading the contract could know the row had a base distinct from the
+ *  peak). Spread the result through `walkHoverStyle(walkRowSwell(i, hovered))`; never restate
+ *  either factor. */
+export function walkRowSwell(i: number, hovered: number | null | undefined, base = WALK_ROW_HOVER_GROW, peak = WALK_HOVER_GROW): number {
+  if (hovered == null) return 1
+  const f = WALK_SWELL_FALLOFF[Math.abs(i - hovered)]
+  return f === undefined ? base : base + (peak - base) * f
+}
+
 /** THE WHOLE STYLE FRAGMENT FOR A HOVER SCALE — spread it, never restate it (owner, 2026-09-04:
  *  "the effect on the numbers in the node a bit jiggly").
  *
@@ -178,7 +240,78 @@ export function walkHoverStyle(scale: number, prefix?: string): { transform: str
   }
 }
 
+/** THE STOP'S ADDRESS ON EVERY SURFACE THAT IS NOT THE EDITOR — exactly TWO numbers, at any
+ *  nesting depth: the top-level walk step, then the stop's ordinal among that step's stops with
+ *  the nesting flattened away. `"1.4"`. Returns one string per step, aligned to `steps`.
+ *
+ *  THE OWNER'S RULING, 2026-09-15 (DS OB-188), and both halves of it matter. The walk editor, the
+ *  map and the dock are to print ONE numbering (their screenshot: the map drew "1" twice while the
+ *  dock said 2 and the editor said 1.2 — three answers for one stop). The numbering is the
+ *  editor's own path, because it already exists: `VersionedGroup` composes a group ordinal plus a
+ *  child ordinal, and `WalkPreview` has been printing it in a hover card all along. But a path
+ *  GROWS with nesting, and `StepDot`'s `n` will not carry four numbers on a 26px pin — so on the
+ *  two surfaces that cannot show structure the address is capped at two numbers. Three length
+ *  rules were drawn three levels deep and measured at 1:1: the full path put the widest map mark
+ *  at 111px and an elide-to-the-last-two at 71px, against 58px here — the same width the un-nested
+ *  walk already drew. The full path stays where nesting is visible: the editor keeps
+ *  `numberScope: 'local'` and is untouched.
+ *
+ *  WHAT IT COSTS, SO NOBODY "FIXES" IT: at depth 2 or deeper only the FIRST number matches the
+ *  editor's chip — the editor says `1.` inside a subgroup where the dock says `1.4`. Accepted, on
+ *  the same reasoning `numberScope` already carries: a path repeats what the nesting shows on
+ *  screen, and these two surfaces draw no nesting to repeat.
+ *
+ *  PASS THE PATH, GET THE ADDRESS. A step's `path` is its position in the group structure,
+ *  outermost first (`[1, 2, 3, 2]`); the host has it, this side cannot know it. A step WITHOUT a
+ *  path is a top-level stop and addresses as its own step number alone, which is what every
+ *  existing caller already draws.
+ *
+ *  PUBLISHED AS CODE BECAUSE THE FLATTENING IS SILENT. Counting a stop's ordinal within its
+ *  top-level step means counting across subgroup boundaries in WALK ORDER — and the natural
+ *  mistakes (the path's last element, which restarts at every group; the flat walk index, which
+ *  ignores the step; same-depth siblings only) all produce a plausible two-number label that is
+ *  wrong for exactly the stops a nested walk has. */
+export function walkAddresses(steps: readonly { path?: readonly number[] }[]): string[] {
+  const list = Array.isArray(steps) ? steps : []
+  const seen = new Map<number, number>()
+  return list.map((s, i) => {
+    const path = s && Array.isArray(s.path) && s.path.length ? s.path : null
+    const top = path ? path[0] : i + 1
+    /* the ordinal is counted in walk order within the top-level step, so nesting collapses. A
+       top-level stop with no path is its own step and takes no second number. */
+    if (!path || path.length === 1) { seen.set(top, (seen.get(top) || 0) + 1); return String(top) }
+    const n = (seen.get(top) || 0) + 1
+    seen.set(top, n)
+    return top + '.' + n
+  })
+}
+
+/** THE LABEL FOR A MERGED MAP PIN — the addresses of the run's two ends, joined by an en dash
+ *  (`"1.1–1.3"`), or the single address when the mark covers one stop. Feed it the same `steps`
+ *  and the mark the host built.
+ *
+ *  PUBLISHED FOR THE SAME REASON `walkLeadStop` is: a caller composing this by hand reaches for the
+ *  mark's own `from`/`to` (flat walk indices — a different numbering entirely, which is the option
+ *  the owner rejected on 2026-09-15) or for the full path of each end, which is the label that
+ *  measured 111px. Both look right on a one-stop pin and only diverge where a walk merges.
+ *
+ *  THE DASH IS AN EN DASH, not a hyphen: a hyphen is what the flat-index range `"2-3"` used, and
+ *  the two notations have to be distinguishable while any of the app still draws the old one.
+ *
+ *  ★ LOCAL: `mark.from`/`mark.to` ARE 0-BASED STEP INDICES HERE, as `walkProgress` and
+ *  `walkLeadStop` read them and as `WalkMark`'s own docblock says. The DS's `.jsx` indexes
+ *  `all[mark.from - 1]`, which is right only for a 1-based mark — on a 0-based one the first
+ *  pin's run would print "0". Reported on the receipt; this port reads the mark the way the
+ *  other two functions in this file do. */
+export function walkMarkLabel(steps: readonly { path?: readonly number[] }[], mark: WalkMark | null | undefined): string {
+  if (!mark) return ''
+  const all = walkAddresses(steps)
+  const from = all[mark.from] || String(mark.from + 1)
+  const to = all[mark.to] || String(mark.to + 1)
+  return from === to ? from : from + '\u2013' + to
+}
+
 /** THE SAME PARTS AS ONE OBJECT, named for the file (the DS's bundler wants an export named
  *  `WalkParts`; a consumer that prefers one import gets it). The named exports above are the
  *  primary API. */
-export const WalkParts = { StopTitle, PlayToggle, OptionalSuffix, stopState, stopInk, progress: walkProgress, PLAY_PATH, PAUSE_PATH, WALK_HOVER_GROW, WALK_ROW_HOVER_GROW, hoverStyle: walkHoverStyle }
+export const WalkParts = { StopTitle, PlayToggle, OptionalSuffix, stopState, stopInk, rowSwell: walkRowSwell, SWELL_FALLOFF: WALK_SWELL_FALLOFF, progress: walkProgress, leadStop: walkLeadStop, addresses: walkAddresses, markLabel: walkMarkLabel, PLAY_PATH, PAUSE_PATH, WALK_HOVER_GROW, WALK_ROW_HOVER_GROW, hoverStyle: walkHoverStyle }

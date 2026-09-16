@@ -51,8 +51,12 @@ const browser = await chromium.launch({ channel: 'msedge', headless: true })
 const page = await browser.newPage({ viewport: { width: 1750, height: 950 } })
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message))
 
-// the seed's seven stops, and the top-level step each one belongs to
-const EXPECTED = { 1: '1', 2: '2', 3: '2', 4: '3', 5: '4', 6: '5', 7: '6' }
+// the seed's seven stops and the ADDRESS each one prints (DS OB-188, 2026-09-15, reversing
+// OB-114's "the top-level step number, never a dotted path"): the top-level step, then the stop's
+// ordinal within it — the group at step 2 holds 2.1 and 2.2, the one-stop group at step 3 holds
+// 3.1, and a top-level stop is its step number alone. A merged pin prints two addresses en-dashed.
+const EXPECTED = { 1: '1', 2: '2.1', 3: '2.2', 4: '3.1', 5: '4', 6: '5', 7: '6' }
+const isRange = (label) => /\u2013/.test(label)
 
 try {
   await page.goto(`http://localhost:${PORT}/`)
@@ -85,14 +89,14 @@ try {
 
   const drawn = await readPins()
   ok('pins are drawn around the position', drawn.length >= 4, `${drawn.length} drawn: ${JSON.stringify(drawn)}`)
-  ok('no pin prints a dotted path', drawn.every((p) => !p.label.includes('.')))
-  const wrong = drawn.filter((p) => !(p.label === EXPECTED[p.step] || p.label.includes('-')))
-  ok('THE CLAUSE: every drawn pin prints its TOP-LEVEL step — a group\'s nodes share the group\'s number', wrong.length === 0, JSON.stringify(wrong))
+  ok('no pin prints a FULL path — at most two numbers, never "1.2.3" (OB-188: a path grows with nesting and does not fit a mark)', drawn.every((p) => p.label.split('\u2013').every((half) => /^\d+(\.\d+)?$/.test(half))), JSON.stringify(drawn))
+  const wrong = drawn.filter((p) => !(p.label === EXPECTED[p.step] || isRange(p.label)))
+  ok('THE CLAUSE (OB-188): every drawn pin prints its two-number ADDRESS — the top-level step, then the stop\'s ordinal within it', wrong.length === 0, JSON.stringify(wrong))
   const grouped = drawn.filter((p) => p.step === 2 || p.step === 3)
   ok('the grouped stops are among the drawn pins', grouped.length >= 1, JSON.stringify(grouped))
-  ok('and both nodes of the group read "2"', grouped.every((p) => p.label === '2' || p.label.startsWith('2-')), JSON.stringify(grouped))
+  ok('and the group\'s two nodes read 2.1 and 2.2 — the group\'s number FIRST, so the editor\'s "2" and the pin agree on the first number', grouped.every((p) => p.label === EXPECTED[p.step] || (isRange(p.label) && p.label.startsWith('2.'))), JSON.stringify(grouped))
   const after = drawn.find((p) => p.step === 5)
-  ok('the step after the groups picks up where the groups\' slots left off — "4", not "5"', !after || after.label === '4', JSON.stringify(after))
+  ok('the step after the groups reads its own top-level step — "4", not its flat index "5"', !after || after.label === '4' || isRange(after.label), JSON.stringify(after))
 
   // the hover card names the full path — the only place on the map it is readable
   const groupedPin = map.locator('[data-routestop][data-step="3"]').first()

@@ -77,6 +77,13 @@ export interface WalkStep {
    *  Its title carries " (optional)" — `WalkParts`' `StopTitle`, the same span the dock's
    *  open row draws, so the word and its styling cannot differ between the two. */
   optional?: boolean
+  /** THE STOP'S POSITION IN THE WALK'S GROUP STRUCTURE, outermost first, 1-based — `[1, 2, 3, 2]`
+   *  is the 2nd stop of the 3rd child of the 2nd child of step 1 (DS OB-188, 2026-09-15). The
+   *  HOST has it (the walk editor composes it); this side cannot know it. `walkAddresses` caps it
+   *  to the two-number address a map pin and a dock dot print, and the hover card prints it
+   *  whole. A step WITHOUT a path is a top-level stop and addresses as its own step number —
+   *  today's drawing — so a host that has not adopted the field sees no change. */
+  path?: number[]
 }
 
 export interface WalkStripProps {

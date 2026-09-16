@@ -84,9 +84,9 @@ describe('the road on the bus keeps its groups (#228, DS OB-114)', () => {
     expect(routeStepsOf(road)[1]).toEqual({ title: 'which way', steps: [{ node: B }, { node: C }] })
   })
 
-  it('a step inside a group carries its full path; a top-level step carries none', () => {
+  it('every step carries its path — a group\'s stop its group ordinal then its own, a top-level stop its step number alone', () => {
     const road = resolveRoad([leaf(A), fork('f', [{ id: 'v0', label: 'one', steps: [leaf(B), leaf(C)] }]), leaf(A)], {}, true)
-    expect(playSteps(null, road).map((s) => s.path)).toEqual([undefined, '2.1', '2.2', undefined])
+    expect(playSteps(null, road).map((s) => s.path)).toEqual([[1], [2, 1], [2, 2], [3]])
     expect(routeNumbers(routeStepsOf(road)).map((n) => n.step)).toEqual([1, 2, 2, 3])
   })
 
