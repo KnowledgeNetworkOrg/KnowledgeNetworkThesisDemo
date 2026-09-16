@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { wrapTip } from './IconButton'
 
 /* Typed port of the DS components/chrome/InlineText.jsx (contract: InlineText.d.ts), the file
@@ -105,9 +105,31 @@ export const INLINE_EDIT_STYLE: React.CSSProperties = {
   cursor: 'text', userSelect: 'text', WebkitUserSelect: 'text',
   /* pre-wrap so a trailing space under the caret does not collapse as it is typed */
   whiteSpace: 'pre-wrap',
+  /* `minWidth: 8` IS THE LAST RESORT, NOT THE FLOOR A READER SEES (DS OB-192, 2026-09-15). A
+     field with a `placeholder` takes its floor from the invitation instead (the sizer in
+     `InlineText`), because 8px of box behind a 96px invitation reads as a ring drawn around
+     the first two letters rather than as a textbox — owner-reported on an unnamed stage. A
+     field with no placeholder has nothing to measure and keeps the 8. */
   minHeight: '1lh', minWidth: 8,
   maxHeight: 'none', overflow: 'visible',
 }
+
+/** ZERO-WIDTH, LOAD-BEARING (DS OB-192, 2026-09-15). A line at rest with nothing in it has no
+ *  text baseline, and its flex row (`VersionedGroup`'s head is `alignItems: 'baseline'`) then
+ *  aligns its siblings to the empty box's bottom edge instead — 1.33px above where the same row
+ *  sits once there is a character, so the stage number and the node tally BOTH stepped down on
+ *  the click into edit mode and back up on the click out (owner-reported 2026-09-15: "why does
+ *  the strings move"). The strut gives an empty line the baseline a full one has, so the row is
+ *  in the same place whether the field is empty, full, open or shut. It is not a space: it
+ *  cannot be seen, cannot be selected into a commit, and never reaches `readBack` (the editable
+ *  DOM is seeded from `value` the moment editing starts). */
+const STRUT = '\u200b'
+
+/** the widest a placeholder may floor a field — a caller's invitation is copy, and copy can be
+ *  any length; past this the field is wide enough to type in and the host's row keeps the rest.
+ *  Exported because it is a NUMBER crossing the boundary: a retyped 320 stops tracking a
+ *  re-tuned one. */
+export const INLINE_FLOOR_CEILING = 320
 
 export interface InlineTextProps {
   /** the committed string — what an OPEN line always shows, and what commit compares against.
@@ -119,7 +141,24 @@ export interface InlineTextProps {
   /** the invitation drawn while the line is blank — an overlay BEHIND the caret, never text
    *  in the editable element (as text it would be selectable, committable, and "enter a
    *  value" is the last thing anyone means to save). It survives the click that opens the
-   *  field and leaves on the first keystroke. */
+   *  field and leaves on the first keystroke.
+   *
+   *  IT IS ALSO THE FIELD'S WIDTH FLOOR (DS OB-192). While `editing`, a field with a
+   *  `placeholder` is never narrower than the invitation it is showing: `INLINE_EDIT_STYLE`'s
+   *  `minWidth: 8` is a last resort for a field with no invitation to measure, and on a
+   *  shrink-to-fit host (a `width: fit-content` title) it drew an 8px box behind a 96px
+   *  invitation — a ring around the first two letters, not a textbox (owner-reported
+   *  2026-09-15 on an unnamed stage). The floor holds for the whole editing session, not
+   *  only while the line is blank, so the box does not snap down to one character's width
+   *  on the first keystroke. A field already wider than its invitation is unaffected.
+   *
+   *  THE FLOOR IS IN PIXELS, SO THE HOST MUST LEAVE ROOM FOR IT — at least the invitation's
+   *  own width, or the field overflows the row it is in. It cannot be a percentage clamp: a
+   *  percentage resolves against this component's wrapper, the wrapper is shrink-to-fit
+   *  around the line, and with the line empty that is genuinely 0 — `min(100%, 96px)`
+   *  measured as a 4px box. `VersionedGroup`'s head already floors its title column at 96 for
+   *  its own reasons; a host with less room than its own invitation should shorten the
+   *  invitation. `INLINE_FLOOR_CEILING` caps it either way. */
   placeholder?: string
   /** what to render at rest when `value` is empty AND the field is not editing — e.g. a
    *  caller drawing nothing rather than a placeholder word at rest. Omit to fall back to
@@ -234,6 +273,36 @@ export function InlineText({
      a re-render from it leaves the DOM alone — the element's children are `undefined`
      while editing, so there is nothing for React to patch. */
   const [blank, setBlank] = useState(!value)
+  /* THE WIDTH FLOOR IS MEASURED, NOT OCCUPIED (DS OB-192). The DS's first attempt lent the
+     wrapper its width with a zero-height span in normal flow, and that span's own empty line
+     box became the wrapper's FIRST one — so the flex item's baseline came from it, the row's
+     other children rose 1.33px and the field dropped 12px below them: exactly the movement
+     this change removes, in the other direction. So the invitation is measured from an
+     absolutely positioned copy (out of flow: no line box, no baseline, no contribution to
+     anyone's height) and the number is handed to the line as a `minWidth` in PIXELS.
+     Pixels, not `min(100%, Npx)`: the percentage resolves against the wrapper, the wrapper is
+     shrink-to-fit around this very line, and with the line empty that is genuinely 0 — a
+     clamp that read 0px and drew a 4px box (measured). A host therefore has to leave the
+     field at least its invitation's width; `INLINE_FLOOR_CEILING` keeps a caller's very long
+     placeholder from being able to push a card's furniture off the row.
+     A TYPE MEASUREMENT IS NOT ONE UNTIL THE FACE HAS LOADED, so the read repeats on
+     `document.fonts.ready` — a first-frame reload otherwise floors the field at the fallback
+     face's width, which is a real number about the wrong font. */
+  const sizer = useRef<HTMLSpanElement | null>(null)
+  const [floor, setFloor] = useState(0)
+  // (the floor is a measurement of a rendered box, which a render cannot know; the layout
+  // effect lands it before paint)
+  useLayoutEffect(() => {
+    if (!editing || !placeholder) { setFloor(0); return }
+    let live = true
+    const read = () => {
+      const el = sizer.current
+      if (live && el) setFloor(Math.min(INLINE_FLOOR_CEILING, Math.ceil(el.getBoundingClientRect().width)))
+    }
+    read()
+    if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(read)
+    return () => { live = false }
+  }, [editing, placeholder])
   useEffect(() => {
     if (!editing) return
     const el = ref.current
@@ -364,9 +433,12 @@ export function InlineText({
          `undefined` (seeded once, above); at rest the resting form, the value, or the
          rest placeholder — which a caller may set to '' to draw nothing. */
       style={editing
-        ? { ...style, ...INLINE_EDIT_STYLE, ...(fill ? { minHeight: '100%', boxSizing: 'border-box' } : null), ...editStyle }
+        /* PIXELS, and no percentage clamp — see the measurement comment above `sizer` */
+        ? { ...style, ...INLINE_EDIT_STYLE, ...(floor ? { minWidth: floor } : null), ...(fill ? { minHeight: '100%', boxSizing: 'border-box' } : null), ...editStyle }
         : { ...style, ...(fill ? { display: 'block', minHeight: '100%', boxSizing: 'border-box' } : null) }}>
-      {editing ? undefined : (display || value || (restPlaceholder !== undefined ? restPlaceholder : placeholder))}
+      {/* AT REST AN EMPTY LINE CARRIES THE STRUT — see `STRUT` above: a caller drawing nothing
+          (`restPlaceholder=''`) still gets a baseline, so its row does not step on open/close */}
+      {editing ? undefined : ((display || value || (restPlaceholder !== undefined ? restPlaceholder : placeholder)) || STRUT)}
     </span>
   )
   /* NO PLACEHOLDER, NO WRAPPER. A line with no invitation gets the bare span and its
@@ -390,6 +462,20 @@ export function InlineText({
      and the line where a caller cannot reach it. */
   return (
     <span style={{ position: 'relative', display: 'block', maxWidth: '100%', ...(fill ? { height: '100%' } : null) }}>
+      {/* THE INVITATION IS THE FIELD'S WIDTH FLOOR, and the floor is mounted for the whole
+          editing session, not just while the line is blank: a floor that left on the first
+          keystroke would snap a 96px box down to one character's width as you started typing.
+          This copy is only ever measured — absolute, hidden, no pointer events — because a
+          sizer in normal flow takes over the wrapper's first line box and moves the baseline
+          every host aligns its row on. A field whose own box is already wider (a long title,
+          or the description's `width: '100%'`) is unaffected. */}
+      {editing ? (
+        <span ref={sizer} aria-hidden="true" style={{
+          position: 'absolute', left: 0, top: 0, visibility: 'hidden', pointerEvents: 'none',
+          whiteSpace: 'nowrap',
+          fontFamily: style.fontFamily, fontSize: style.fontSize, fontStyle: 'italic',
+        }}>{placeholder}</span>
+      ) : null}
       {line}
       {editing && blank ? (
         <span aria-hidden="true" style={{
