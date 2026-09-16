@@ -11,7 +11,7 @@ type Tone = 'quiet' | 'primary' | 'walk' | 'danger' | 'ghost' | 'neutral'
 const TONES: Record<Tone, { bg: string; bd: string; ink: string; hoverBg: string }> = {
   quiet: { bg: 'transparent', bd: 'var(--border-rule)', ink: 'var(--text-2)', hoverBg: 'var(--surface-hover)' },
   primary: { bg: 'var(--accent-primary-wash)', bd: 'var(--moss-300)', ink: 'var(--accent-primary-ink)', hoverBg: 'var(--moss-100)' },
-  walk: { bg: 'var(--accent-walk-wash)', bd: 'var(--acorn-300)', ink: 'var(--text-walk)', hoverBg: 'var(--acorn-100)' },
+  walk: { bg: 'var(--accent-walk-wash)', bd: 'var(--border-walk)', ink: 'var(--text-walk)', hoverBg: 'var(--acorn-100)' },
   danger: { bg: 'var(--state-danger-wash)', bd: 'var(--berry-100)', ink: 'var(--state-danger)', hoverBg: 'var(--berry-100)' },
   ghost: { bg: 'transparent', bd: 'transparent', ink: 'var(--text-2)', hoverBg: 'var(--surface-hover)' },
   /* NEUTRAL IS QUIET WITH A FLOOR UNDER IT. `quiet` is transparent, which is right in a toolbar
@@ -22,7 +22,20 @@ const TONES: Record<Tone, { bg: string; bd: string; ink: string; hoverBg: string
 }
 
 /** A small round-cornered action. Labels name a STATE or an action in lower
- *  case. Typed port of the DS PillButton.jsx (contract: PillButton.d.ts). */
+ *  case. Typed port of the DS PillButton.jsx (contract: PillButton.d.ts).
+ *
+ *  THE ROW ALIGNS ON `baseline`, NOT `center` (DS OB-164, owner-ruled 2026-09-06, adopted
+ *  wholesale): a glyph that is a drawn mark (`OptionalMark`, `AddNodeMark`, `NewWalkMark`)
+ *  needs its own text baseline to land on, not its box centred against the label's line
+ *  height. The glyph span inherits the button's own font-size (no fixed `--fs-body` — that
+ *  used to make a `size="sm"` pill's glyph a size larger than its own label), sits at
+ *  `lineHeight: 1` so its box adds no spurious height that shifts the baseline, and is
+ *  lifted `position: relative; top: -1px`: even with the baseline correctly computed every
+ *  glyph, drawn and Unicode alike, read a hair low against the label, so all get one small
+ *  optical nudge rather than a tuning per mark. The gap is `--space-1`. Baseline is the
+ *  rule for a glyph beside a word everywhere in the system; a per-case exception inside a
+ *  shared component is the shape that never comes back out, which is why there is no prop
+ *  to undo any of this — a toolbar that reads wrong after it has its own spacing at fault. */
 export interface PillButtonProps {
   /** quiet = the default bordered pill; primary = moss; walk = acorn
    *  (movement — a walk, a stop, a jump); danger = berry; ghost = no resting
@@ -66,8 +79,8 @@ export function PillButton({ tone = 'quiet', size = 'md', glyph, disabled, selec
         display: block ? 'flex' : 'inline-flex',
         width: block ? '100%' : undefined,
         justifyContent: block ? 'center' : undefined,
-        alignItems: 'center',
-        gap: 'var(--space-15)',
+        alignItems: 'baseline',
+        gap: 'var(--space-1)',
         minHeight: size === 'sm' ? 24 : 'var(--hit-min)',
         padding: pad,
         borderRadius: 'var(--radius-pill)',
@@ -84,7 +97,7 @@ export function PillButton({ tone = 'quiet', size = 'md', glyph, disabled, selec
         whiteSpace: 'nowrap',
       }}
     >
-      {glyph ? <span style={{ fontSize: 'var(--fs-body)', opacity: 0.85 }}>{glyph}</span> : null}
+      {glyph ? <span style={{ lineHeight: 1, opacity: 0.85, position: 'relative', top: '-1px' }}>{glyph}</span> : null}
       {children}
     </button>
   )

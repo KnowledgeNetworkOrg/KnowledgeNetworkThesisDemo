@@ -66,6 +66,37 @@ try {
   await page.getByLabel('studio-preset-plan').click()
   await page.waitForTimeout(600)
 
+  // ── OB-164: THE PILL'S THREE CHANGES, ON THE WALK DESK'S ACTION BAR ──────────────────
+  // The one pill surface in this app that draws GLYPHS beside labels (New walk, Add node, Group,
+  // Optional, Extract, Reset data), so the one where all three read: the row aligns on the
+  // BASELINE (a drawn mark needs a text baseline to land on, not its box centred against the
+  // label's line height), the glyph gap is --space-1, and every glyph gets the same 1px optical
+  // lift. Asserted off the computed style of the Group pill; the bar is photographed for the
+  // pull's before/after (shots/ is gitignored; the pull carries copies).
+  /** OB-164: the pill's computed manners — the three properties the DS's PillButton.jsx carries
+   *  and every pill surface must draw: baseline alignment, a --space-1 gap, the glyph's 1px lift */
+  const pillManners = (btn) => btn.evaluate((b) => {
+    const cs = getComputedStyle(b)
+    const g = b.querySelector('span')
+    const gs = g ? getComputedStyle(g) : null
+    return { alignItems: cs.alignItems, gap: cs.gap, glyph: !!g, glyphPos: gs && gs.position, glyphTop: gs && gs.top, glyphFs: gs && gs.fontSize, labelFs: cs.fontSize }
+  })
+  const groupPill = page.getByTitle('group the selected steps')
+  const gm = await pillManners(groupPill)
+  ok('OB-164 (1): the action bar\'s pill aligns glyph and label on the BASELINE, not the centre', gm.alignItems === 'baseline', JSON.stringify(gm))
+  ok('its glyph gap is --space-1 (4px), not --space-15 (6px)', gm.gap === '4px', gm.gap)
+  ok('and the glyph carries the 1px upward nudge', gm.glyph && gm.glyphPos === 'relative' && gm.glyphTop === '-1px', `${gm.glyphPos} ${gm.glyphTop}`)
+  ok('the glyph inherits the pill\'s own font size — a sm pill\'s glyph is no longer a size larger than its label', gm.glyphFs === gm.labelFs, `${gm.glyphFs} vs ${gm.labelFs}`)
+  {
+    const bar = groupPill.locator('xpath=..')
+    const bb = await bar.boundingBox()
+    await page.mouse.move(bb.x + bb.width - 8, bb.y + bb.height / 2) // wake the bar's presence without hovering a pill
+    await page.waitForTimeout(400)
+    await bar.screenshot({ path: 'tools/studio-spike/shots/ob164-actionbar.png' })
+    await page.mouse.move(4, 4)
+    await page.waitForTimeout(200)
+  }
+
   const road = () => page.locator('[data-road-root]')
   const chip = (node) => road().locator(`[data-rnode][data-node="${node}"]`)
   const newCards = () => road().locator('[data-rstage^="draft-"]')

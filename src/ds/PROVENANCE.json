@@ -477,11 +477,12 @@
       "src/ds/chrome/PillButton.tsx": {
         "from": "components/chrome/PillButton.jsx",
         "contract": "components/chrome/PillButton.d.ts",
-        "syncedAt": "2026-09-06",
+        "syncedAt": "2026-09-15",
         "deviations": [
           "2026-08-11: restored `onMouseDown` — dropped earlier as undocumented; the DS corrected the .d.ts (2026-08-09 sync), so the drop is no longer a deviation",
           "2026-08-22 OB-047 (#140) — dropped the local `|| undefined` on the title tooltip; wrapTip itself now answers an absent or empty string with undefined",
-          "2026-09-06 OB-147 (#267) — two additions the recap's closing action needs, both taken from the DS's own PillButton.jsx: the `neutral` tone (bark-50 face, the quiet pill's border and ink, bark-100 on hover — quiet reads as a caption when a pill stands alone at the foot of a pane) and the `block` prop (fills the row, centres the label). NOT taken in the same pull, and asked about instead: the DS's version has also moved to `alignItems: 'baseline'`, a `--space-1` gap and a 1px upward nudge on the glyph, which would move every pill in this app — that is a question on the receipt, not a silent adoption."
+          "2026-09-06 OB-147 (#267) — two additions the recap's closing action needs, both taken from the DS's own PillButton.jsx: the `neutral` tone (bark-50 face, the quiet pill's border and ink, bark-100 on hover — quiet reads as a caption when a pill stands alone at the foot of a pane) and the `block` prop (fills the row, centres the label). NOT taken in the same pull, and asked about instead: the DS's version has also moved to `alignItems: 'baseline'`, a `--space-1` gap and a 1px upward nudge on the glyph, which would move every pill in this app — that is a question on the receipt, not a silent adoption.",
+          "2026-09-15 OB-164 — the three changes asked about on receipts/33dfa03.md, adopted wholesale as the owner ruled: `alignItems: 'baseline'` (was center), the glyph gap `--space-1` (was --space-15), and the glyph span as authored — `lineHeight: 1`, `position: relative; top: -1px`, and NO fixed font-size (it inherits the pill's, so a sm pill's glyph is no longer a size larger than its label). Also re-read: the walk tone's border is `--border-walk` (was the raw `--acorn-300` it aliases — same colour, the token's name). No caller can undo any of it: the component takes no style prop, and none is added. Every pill surface photographed before/after on PR #317."
         ]
       },
       "src/ds/chrome/LeafMark.tsx": {
