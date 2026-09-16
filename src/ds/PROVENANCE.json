@@ -243,11 +243,12 @@
       "src/ds/nav/WalkPreview.tsx": {
         "from": "components/nav/WalkPreview.jsx",
         "contract": "components/nav/WalkPreview.d.ts",
-        "syncedAt": "2026-09-14",
+        "syncedAt": "2026-09-15",
         "deviations": [
           "2026-09-14 OB-185 clause 6 — THE PORTAL: the card renders through `portalInto(document.body, …)` (src/ds/chrome/portal.ts) exactly as the DS's 2026-09-14 source does, because `WalkDock`'s `backdrop-filter` made the dock the containing block for the `position: fixed` card, which had been drawn ~137px below the rail and clipped since the dock was written. Caller rule 1 REVERSED in the docblock (render during a drag too). Test hook only: `data-walk-preview`.",
           "2026-09-05 OB-114 (#228) — CONTRACT ONLY, no code change: caller rule 4 (name a grouped stop by its full step path) ported into the docblock. Applied by the app's `walkdesk/stoppreview.tsx`, which prints `PlayStep.path` as \"3.1 · <name>\" above the note for a stop inside a group and nothing extra for a top-level stop.",
-          "2026-09-05 NEW FILE (OB-131, #246). The one hover card every walk surface hangs above a stop — fixed against the viewport, PREVIEW_GAP (12) above the anchor, pointer-transparent. Mechanical port. Three hosts pass it the same content function, src/instruments/walkdesk/stoppreview.tsx: the viewer's strip, the map's dock and the map's pins. THE APP'S OWN `walkdesk/WalkPreview.tsx` (the walk read as chapters) WAS RENAMED `WalkChapters.tsx` in the same commit so the name is the DS's alone."
+          "2026-09-05 NEW FILE (OB-131, #246). The one hover card every walk surface hangs above a stop — fixed against the viewport, PREVIEW_GAP (12) above the anchor, pointer-transparent. Mechanical port. Three hosts pass it the same content function, src/instruments/walkdesk/stoppreview.tsx: the viewer's strip, the map's dock and the map's pins. THE APP'S OWN `walkdesk/WalkPreview.tsx` (the walk read as chapters) WAS RENAMED `WalkChapters.tsx` in the same commit so the name is the DS's alone.",
+          "2026-09-15 OB-191 — the window-edge clamp, re-ported from the DS's 2026-09-15 source: `PREVIEW_EDGE` (8) published, and the card measures its own rendered width in a layout effect and shifts `left` so its box stays >= 8px from the window's left and right edges; a window narrower than the card plus both insets keeps it centred. What the owner reported as the dock's first-stop card cut off at the window's left edge; the unclamped placement on our desk is negative (measured in browsertest-walkdock.mjs). No caller pre-shifts `x`."
         ]
       },
       "src/ds/map/MapFloatingButton.tsx": {

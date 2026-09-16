@@ -335,7 +335,11 @@ try {
   ok('OB-163 (2): → moved the lit pin and the caption and left the camera IDENTICAL — the scene transform is byte-for-byte the same', (await camera()) === cam0, `${cam0} -> ${await camera()}`)
   const shot1 = (await wallMap().screenshot()).toString('base64')
   const d1 = await maskedDiff(shot0, shot1, [...masks0, ...(await moving())])
-  ok('and pixel-wise, outside the pins, the walk line, the spotlight and the caption, the two screenshots are ONE picture', d1.compared > 100000 && d1.diff === 0, `${d1.diff} of ${d1.compared} compared pixels differ ${d1.where}`)
+  // STILL means still: 0 differing pixels is the reading on every run in isolation; under a parallel
+  // load a single anti-aliased pixel at a mask's edge has flaked once (1 of 209,851), so the gate
+  // tolerates a handful and the readout prints the number — a camera move differs by thousands.
+  const STILL = 4
+  ok('and pixel-wise, outside the pins, the walk line, the spotlight and the caption, the two screenshots are ONE picture', d1.compared > 100000 && d1.diff <= STILL, `${d1.diff} of ${d1.compared} compared pixels differ ${d1.where}`)
   await page.keyboard.press('j')
   await page.waitForTimeout(300)
   await page.keyboard.type('6')
@@ -345,7 +349,7 @@ try {
   ok('OB-163 (2): the roam moved the lit pin and the caption, and the camera is STILL identical', (await camera()) === cam0)
   const shot2 = (await wallMap().screenshot()).toString('base64')
   const d2 = await maskedDiff(shot0, shot2, [...masks0, ...(await moving())])
-  ok('pixel-wise too', d2.compared > 100000 && d2.diff === 0, `${d2.diff} of ${d2.compared} compared pixels differ ${d2.where}`)
+  ok('pixel-wise too', d2.compared > 100000 && d2.diff <= STILL, `${d2.diff} of ${d2.compared} compared pixels differ ${d2.where}`)
   await wallMap().screenshot({ path: 'tools/studio-spike/shots/ob163-wall-after.png' }) // for the receipt; shots/ is gitignored
   await page.keyboard.press('Backspace')
   await page.waitForTimeout(300)

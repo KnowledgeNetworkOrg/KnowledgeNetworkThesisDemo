@@ -42,7 +42,7 @@ export { WalkStrip, WALK_METRICS } from './nav/WalkStrip'
 export type { WalkStripProps, WalkStep } from './nav/WalkStrip'
 export { StopTitle, PlayToggle, OptionalSuffix, stopState, stopInk, walkProgress, PLAY_PATH, PAUSE_PATH, WalkParts, WALK_HOVER_GROW, WALK_ROW_HOVER_GROW, walkHoverStyle } from './nav/WalkParts'
 export type { StopState, StopTitleProps, PlayToggleProps, WalkMark } from './nav/WalkParts'
-export { WalkPreview, previewAnchor, PREVIEW_GAP } from './nav/WalkPreview'
+export { WalkPreview, previewAnchor, PREVIEW_GAP, PREVIEW_EDGE } from './nav/WalkPreview'
 export type { WalkPreviewProps } from './nav/WalkPreview'
 
 export { DocHeader } from './doc/DocHeader'
