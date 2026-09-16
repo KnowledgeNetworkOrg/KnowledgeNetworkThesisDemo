@@ -251,14 +251,89 @@ try {
     await projector.waitForTimeout(600)
     ok('the projector shows the map too', (await projector.locator('[data-projected-map]').count()) === 1)
   }
+  // ── OB-163: THE WALL FITS THE WHOLE WALK ONCE, THEN NEVER MOVES ──────────────────
+  // The owner's ruling (2026-09-06): the map on the wall fits, at the moment it first goes up, to
+  // the extent of EVERY stop — not the covered ones, which would re-frame on each arrival — and
+  // holds that frame for the rest of the lecture. Advancing, roaming, and taking the map down
+  // and putting it back up all leave the camera exactly where it is. Measured: (1) every pin is
+  // inside the frame, clear of the caption and the foot, and the walk FILLS the wall rather than
+  // sitting in a corner of a province; (2) → and a roam leave the scene transform byte-identical
+  // AND two screenshots of the map slot pixel-identical outside the pins, the walk line and the
+  // caption; (3) M down then M up returns the same transform. Also: the map is drawn at the
+  // box's TRUE size — it used to measure itself through `WallTransition`'s scale(0.3) mount and
+  // drew every label and pin 3.3× too large for the whole lecture (a pin box of 73px for a 22px pin).
+  const wallMap = () => liveCard().locator('[data-projected-map]')
+  const camera = () => wallMap().locator('svg').first().evaluate((svg) => svg.querySelector('defs + g').getAttribute('transform'))
+  const boxesOf = (sel) => liveCard().locator(sel).evaluateAll((els) => els.map((e) => { const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height } }))
+  const inside = (b, r) => b.x >= r.x && b.y >= r.y && b.x + b.w <= r.x + r.w && b.y + b.h <= r.y + r.h
+  const overlaps = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+  const svgBox = (await boxesOf('[data-projected-map] svg'))[0]
+  const pinsUp = await boxesOf('[data-routestop]')
+  const capBox = (await boxesOf('[data-projected-caption]'))[0]
+  const wallFoot = (await boxesOf('[data-projected-map-foot]'))[0]
+  ok('OB-163 (1): with the map up, the frame already contains EVERY stop\'s pin', pinsUp.length >= 3 && pinsUp.every((b) => inside(b, svgBox)), `${pinsUp.filter((b) => !inside(b, svgBox)).length} of ${pinsUp.length} pins outside the ${Math.round(svgBox.w)}×${Math.round(svgBox.h)} frame`)
+  ok('clear of the caption and the foot', !!capBox && !!wallFoot && pinsUp.every((b) => !overlaps(b, capBox) && !overlaps(b, wallFoot)))
+  const cx = pinsUp.map((b) => b.x + b.w / 2), cy = pinsUp.map((b) => b.y + b.h / 2)
+  const extW = Math.max(...cx) - Math.min(...cx), extH = Math.max(...cy) - Math.min(...cy)
+  ok('and the walk FILLS the wall rather than sitting in a corner: the pins\' extent spans at least 60% of the frame on one axis', extW / svgBox.w >= 0.6 || extH / svgBox.h >= 0.6, `extent ${Math.round(extW)}×${Math.round(extH)} in ${Math.round(svgBox.w)}×${Math.round(svgBox.h)}`)
+  ok('the map is drawn at the box\'s TRUE size, not the size it measured through the mount transform: a pin is at most its 22px, never 73', pinsUp.every((b) => b.w <= 26), `pin widths ${pinsUp.map((b) => b.w.toFixed(0)).join(', ')}`)
+  /** two screenshots of the map slot compared pixel by pixel IN THE PAGE (a canvas, no PNG
+   *  library), skipping the masks — rects in CSS px relative to the slot */
+  const maskedDiff = async (a, b, masks) => {
+    const slot = (await boxesOf('[data-projected-map]'))[0]
+    const rel = masks.map((m) => ({ x: m.x - slot.x - 6, y: m.y - slot.y - 6, w: m.w + 12, h: m.h + 12 })) // padded: a stroke and a shadow draw outside a <g>'s geometric box
+    return page.evaluate(async ({ a, b, masks, sw }) => {
+      const load = (src) => new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.src = 'data:image/png;base64,' + src })
+      const [ia, ib] = await Promise.all([load(a), load(b)])
+      const w = ia.width, h = ia.height, k = w / sw
+      const data = (im) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); g.drawImage(im, 0, 0); return g.getImageData(0, 0, w, h).data }
+      const da = data(ia), db = data(ib)
+      let diff = 0, compared = 0, bx0 = w, by0 = h, bx1 = 0, by1 = 0
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        if (masks.some((m) => x >= m.x * k && x < (m.x + m.w) * k && y >= m.y * k && y < (m.y + m.h) * k)) continue
+        compared++
+        const i = (y * w + x) * 4
+        if (da[i] !== db[i] || da[i + 1] !== db[i + 1] || da[i + 2] !== db[i + 2]) { diff++; bx0 = Math.min(bx0, x); by0 = Math.min(by0, y); bx1 = Math.max(bx1, x); by1 = Math.max(by1, y) }
+      }
+      return { diff, compared, where: diff ? `x ${Math.round(bx0 / k)}..${Math.round(bx1 / k)} y ${Math.round(by0 / k)}..${Math.round(by1 / k)} (slot px)` : '' }
+    }, { a, b, masks: rel, sw: slot.w })
+  }
+  // what a step or a roam is ALLOWED to change: the pins, the walk line, the lit cell (its spotlight and its bold name), the caption, and the roll's clock
+  const litLabel = async () => { const id = await liveCard().locator('svg[data-sel]').first().getAttribute('data-sel').catch(() => null); return id ? boxesOf(`[data-label="${id}"]`) : [] }
+  const moving = async () => [...(await boxesOf('[data-routestop]')), ...(await boxesOf('[data-routearrow]')), ...(await boxesOf('[data-spot]')), ...(await litLabel()), ...(await boxesOf('[data-projected-caption]')), ...(await page.locator('[data-filmroll-label]').evaluateAll((els) => els.map((e) => { const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height } })))]
+  const cam0 = await camera()
+  const masks0 = await moving()
+  const shot0 = (await wallMap().screenshot()).toString('base64')
   await page.keyboard.press('ArrowRight')
   await page.waitForTimeout(600)
   const arrows1 = await liveCard().locator('[data-routearrow]').count()
   ok('→ with the map up: the caption advances and the map stays up', /stop 4 of 7/i.test(await caption()) && (await liveCard().locator('[data-projected-map]').count()) === 1, await caption())
   ok('the walk line grew by the stop just covered', arrows1 > arrows0, `${arrows0} → ${arrows1}`)
+  ok('OB-163 (2): → moved the lit pin and the caption and left the camera IDENTICAL — the scene transform is byte-for-byte the same', (await camera()) === cam0, `${cam0} -> ${await camera()}`)
+  const shot1 = (await wallMap().screenshot()).toString('base64')
+  const d1 = await maskedDiff(shot0, shot1, [...masks0, ...(await moving())])
+  ok('and pixel-wise, outside the pins, the walk line, the spotlight and the caption, the two screenshots are ONE picture', d1.compared > 100000 && d1.diff === 0, `${d1.diff} of ${d1.compared} compared pixels differ ${d1.where}`)
+  await page.keyboard.press('j')
+  await page.waitForTimeout(300)
+  await page.keyboard.type('6')
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(600)
+  ok('a roam with the map up (J, 6, ↵): the chip reads "Roaming stop 6" and the caption follows', (await chipText()) === 'Roaming stop 6' && /stop 6 of 7/i.test(await caption()), `${await chipText()} / ${await caption()}`)
+  ok('OB-163 (2): the roam moved the lit pin and the caption, and the camera is STILL identical', (await camera()) === cam0)
+  const shot2 = (await wallMap().screenshot()).toString('base64')
+  const d2 = await maskedDiff(shot0, shot2, [...masks0, ...(await moving())])
+  ok('pixel-wise too', d2.compared > 100000 && d2.diff === 0, `${d2.diff} of ${d2.compared} compared pixels differ ${d2.where}`)
+  await wallMap().screenshot({ path: 'tools/studio-spike/shots/ob163-wall-after.png' }) // for the receipt; shots/ is gitignored
+  await page.keyboard.press('Backspace')
+  await page.waitForTimeout(300)
   await page.keyboard.press('m')
   await page.waitForTimeout(1500)
   ok('a second M brings the slide back', (await liveCard().locator('[data-projected-map]').count()) === 0 && (await liveCard().locator('[data-slide-title]').count()) === 1)
+  await page.keyboard.press('m')
+  await page.waitForTimeout(1200)
+  ok('OB-163 (3): M down then M up returns the SAME frame, not a fresh fit', (await liveCard().locator('[data-projected-map]').count()) === 1 && (await camera()) === cam0, `${cam0} -> ${await camera()}`)
+  await page.keyboard.press('m')
+  await page.waitForTimeout(1500)
 
   // ── what the room actually SEES on a slide (DS OB-172, closing #217) ─────────
   // The owner's ruling: "the room (projector) should see just the thing being projected
