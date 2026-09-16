@@ -49,7 +49,7 @@ function worstOverlap(pins: WalkPin[], px: (v: number) => number): { a: WalkPin;
 }
 
 const describeOverlap = (o: { a: WalkPin; b: WalkPin; by: number }) =>
-  `${o.a.label} (${o.a.visId}, ${o.a.size}px) and ${o.b.label} (${o.b.visId}, ${o.b.size}px) overlap by ${o.by.toFixed(2)} world units`
+  `stop ${o.a.step} (${o.a.visId}, ${o.a.size}px) and stop ${o.b.step} (${o.b.visId}, ${o.b.size}px) overlap by ${o.by.toFixed(2)} world units`
 
 describe('THE GUARANTEE — no two walk pins are ever drawn inside each other', () => {
   test('every authored walk, every level, every pane width', () => {
@@ -123,9 +123,9 @@ describe('several stops on ONE cell — OB-087 sizing, and none of them touching
       const homeCell = walkAnchorAt(home, level)!.visId
       const onHome = pins.filter((p) => p.visId === homeCell)
       expect(onHome).toHaveLength(n)
-      // every one of them is its own pin with its own number — a non-adjacent
-      // return is never merged into a range (OB-069)
-      expect(onHome.map((p) => p.label)).toEqual(onHome.map((p) => p.step))
+      // every one of them is its own pin standing for ONE stop — a non-adjacent
+      // return is never merged into a run (OB-069)
+      expect(onHome.every((p) => p.stepEnd === p.step)).toBe(true)
 
       const worst = worstOverlap(pins, px)
       expect(worst && describeOverlap(worst)).toBeNull()
@@ -204,7 +204,6 @@ const pin = (step: number, x: number, y: number, size = PIN_SIZE): WalkPin => ({
   step,
   c: { x, y },
   stepEnd: step,
-  label: step,
   size,
 })
 /** the identity scale — 1 world unit is 1 screen px, so the numbers below are
@@ -302,18 +301,17 @@ describe('what the pins say, which the layout must not change', () => {
   const level = 1
   const px = pxAt(level, 1.2)
 
-  test('a CONTIGUOUS run on one cell is one pin with a range label (OB-069)', () => {
+  test('a CONTIGUOUS run on one cell is one pin spanning the run (OB-069)', () => {
     const [home] = twoApartAt(level)!
     const pins = walkPins({ route: [home, home, home], level, px, labelBoxes: [] })
     expect(pins).toHaveLength(1)
-    expect(pins[0].label).toBe('1-3')
+    expect([pins[0].step, pins[0].stepEnd]).toEqual([1, 3])
   })
 
-  test('a single stop keeps a NUMBER, never a one-element range', () => {
+  test('a single stop is a one-stop pin', () => {
     const [home] = twoApartAt(level)!
     const pins = walkPins({ route: [home], level, px, labelBoxes: [] })
-    expect(pins[0].label).toBe(1)
-    expect(typeof pins[0].label).toBe('number')
+    expect([pins[0].step, pins[0].stepEnd]).toEqual([1, 1])
   })
 
   test('a merged run knows its LAST stop too, which is what puts the walk on the pin (OB-132)', () => {
@@ -369,27 +367,5 @@ describe('pinPosition — the walk\'s position counted in PINS (OB-132)', () => 
 
   test('a route with no position draws every pin at rest, ahead of nobody', () => {
     expect(PIN_NO_POSITION).toEqual({ behind: false, active: 0, pinOpacity: 1, pinScale: 1 })
-  })
-})
-
-describe('the printed number is the TOP-LEVEL step (#228, DS OB-114)', () => {
-  const route = WALKS[0].stops.map((s) => s.id)
-  const px = pxAt(0, 1.2)
-  test('without stepNumbers every stop is its own step — the labels are the stop indices', () => {
-    const pins = walkPins({ route, level: 0, px, labelBoxes: [] })
-    for (const p of pins) expect(p.label).toBe(p.step === p.stepEnd ? p.step : `${p.step}-${p.stepEnd}`)
-  })
-  test('a group\'s nodes all print the group\'s number, and a run merged inside one group reads as ONE number', () => {
-    // stops 2..4 belong to group 2; the rest are their own steps
-    const stepNumbers = route.map((_, i) => (i >= 1 && i <= 3 ? 2 : i < 1 ? i + 1 : i - 1))
-    const pins = walkPins({ route, level: 0, px, labelBoxes: [], stepNumbers })
-    for (const p of pins) {
-      const first = stepNumbers[p.step - 1]
-      const last = stepNumbers[p.stepEnd - 1]
-      expect(p.label).toBe(first === last ? first : `${first}-${last}`)
-      expect(String(p.label)).not.toContain('.')
-    }
-    // the stop indices behind the label are untouched — the band still counts in stops
-    expect(pins.map((p) => p.step)).toEqual(walkPins({ route, level: 0, px, labelBoxes: [] }).map((p) => p.step))
   })
 })

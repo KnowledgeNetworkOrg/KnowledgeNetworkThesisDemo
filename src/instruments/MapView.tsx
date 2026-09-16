@@ -68,7 +68,6 @@ import { countryPath, countryRings, maxTier, provincePath, provinceRings, territ
 import { countryLabels, endpointAtTier, flightTargetOf, outlineOf, provinceLabels, ringsCrossT, roadsFor } from '../model/atlas'
 import { bowFor, bowSignAt, walkArrowBetween } from '../model/walkarrow'
 import { hoverMarks } from '../model/maphover'
-import { routeNumbers } from '../model/route'
 import { WALL_FRAME_INSET, wallArrowShown, wallExtent, wallFit, wallPinState } from '../model/walkwall'
 import type { WallFrame, WallView } from '../model/walkwall'
 import { PIN_NO_POSITION, pinPosition, walkPins } from '../model/walkpins'
@@ -738,23 +737,29 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   // pins themselves are rebuilt only when the walk, the level or the zoom
   // changes — never per frame, which is what lets a played walk redraw at the
   // frame rate without re-laying-out its pins every time.
-  // #228 (DS OB-114): the number a pin PRINTS is the top-level step, read off the
-  // route's groups — a group's nodes all print the group's number. The stop index
-  // (what the band and the clock count in) stays what it was.
-  const stepNumbers = useMemo(() => routeNumbers(bus.routeSteps).map((n) => n.step), [bus.routeSteps])
-  /* THE ADDRESS EVERY PIN PRINTS (DS OB-188): `walkAddresses` over the walk's steps, capped at two
-     numbers; a merged pin reads the run's two ends en-dashed (`walkMarkLabel`). `walkPins` still
-     mints its own flat `label` for crowding and keys; what a pin PRINTS is composed here from the
-     same steps the dock reads, so the two surfaces cannot disagree. */
-  const addresses = useMemo(() => walkAddresses(play.steps), [play.steps])
-  const pinLabel = (s: { step: number; stepEnd: number }) => walkMarkLabel(play.steps, { from: s.step - 1, to: s.stepEnd - 1 })
   const routeStops = useMemo(
-    () => walkPins({ route: bus.route, level, px, labelBoxes, stepNumbers }),
+    () => walkPins({ route: bus.route, level, px, labelBoxes }),
     // px closes over f/view.s, both already deps; a fresh px reference every
     // render would otherwise recompute this memo every render regardless
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bus.route, stepNumbers, level, f, view.s, labelBoxes],
+    [bus.route, level, f, view.s, labelBoxes],
   )
+  /* ONE MARK PER PIN, built ONCE. A pin stands for stops `step`..`stepEnd` — 1-BASED, the pin
+     model's convention (and the drivers' `data-step`) — while the DS's `WalkMark`, `walkProgress`
+     and `walkLeadStop` read a mark 0-BASED. That conversion is the seam the DS's own
+     `walkMarkLabel` got wrong (receipt 0ac3465), so it happens HERE and nowhere else: the dot's
+     printed address, its wash and the hover card all take this one object. THE ADDRESS EVERY PIN
+     PRINTS (DS OB-188) is `walkAddresses` over the same steps the dock reads, capped at two
+     numbers, en-dashed across a merged run — so the two surfaces cannot disagree. */
+  const pinMarks = useMemo(() => {
+    const addresses = walkAddresses(play.steps)
+    return new Map(routeStops.map((s) => {
+      const from = s.step - 1, to = s.stepEnd - 1
+      /* `label` is optional on the DS's mark; a map pin always prints one */
+      const mark: WalkMark & { label: string } = { from, to, label: walkMarkLabel(play.steps, { from, to }), steps: play.steps.slice(from, to + 1), addresses: addresses.slice(from, to + 1) }
+      return [s.key, mark] as const
+    }))
+  }, [routeStops, play.steps])
   // ── OB-132: WHERE THE WALK IS, IN PINS. The DS's band (`walkBand`) fades every
   // mark by its distance from the played position — full on the stop, five
   // stops of trail behind, two of lead ahead, nothing beyond — and pops the mark
@@ -1596,6 +1601,7 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                   ours to give. */}
               <g data-routepins data-receded={walkReceded ? 1 : 0} opacity={walkReceded ? 0.6 : 1} style={{ transition: 'opacity 120ms' }}>
               {routeStops.map((s, k) => {
+                const mark = pinMarks.get(s.key)!
                 /* OB-132 — EVERY PIN IS A READING OF THE BAND: its opacity is
                    `pinOpacity`, its scale `pinScale` (the pop, 1.36× as the walk
                    arrives), and its FACE is direction plus arrival — `state` says
@@ -1630,11 +1636,9 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                   style={dockShown ? { cursor: 'pointer' } : undefined}
                   onPointerEnter={(e) => {
                     if (dragging || !dockShown) return
-                    /* THE MARK IS THE HOST'S TO BUILD (OB-184): a pin stands for stops
-                       `step`..`stepEnd`, 1-based, under the ADDRESS label it prints (OB-188); the
-                       card names ONE of them plus a count (OB-186), by that numbering */
-                    const mark: WalkMark = { from: s.step - 1, to: s.stepEnd - 1, label: pinLabel(s), steps: play.steps.slice(s.step - 1, s.stepEnd), addresses: addresses.slice(s.step - 1, s.stepEnd) }
-                    setPinHover({ i: s.step - 1, mark, ...previewAnchor(e.currentTarget.getBoundingClientRect()) })
+                    /* THE MARK IS THE HOST'S TO BUILD (OB-184) — `pinMarks`, the one built above;
+                       the card names ONE of its stops plus a count (OB-186), by its numbering */
+                    setPinHover({ i: mark.from, mark, ...previewAnchor(e.currentTarget.getBoundingClientRect()) })
                   }}
                   onPointerLeave={() => setPinHover(null)}
                   onClick={() => regionClick(s.visId)}
@@ -1643,7 +1647,7 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                     {/* the wash (OB-187 clause 3): how much of this pin's run is behind the walk,
                         `walkProgress` on the same mark the card reads — a merged pin washes a stop
                         at a time as the class works through it. The wall is a still picture. */}
-                    <StepDot n={pinLabel(s)} state={wall ? wallPinState(s, wall) : b.behind ? 'done' : 'ahead'} arrival={wall ? undefined : b.active} progress={wall ? undefined : walkProgress({ from: s.step - 1, to: s.stepEnd - 1 }, play.position)} variant="pin" size={s.size} />
+                    <StepDot n={mark.label} state={wall ? wallPinState(s, wall) : b.behind ? 'done' : 'ahead'} arrival={wall ? undefined : b.active} progress={wall ? undefined : walkProgress(mark, play.position)} variant="pin" size={s.size} />
                   </foreignObject>
                 </g>
                 )
