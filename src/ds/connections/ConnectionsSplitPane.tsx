@@ -448,7 +448,7 @@ export function ConnectionsSplitPane({ tree, domain, selected, onSelect, relatio
   )
 
   return (
-    <div ref={outerRef} style={{
+    <div ref={outerRef} data-connections-split={narrow ? 'narrow' : 'split'} style={{
       display: 'flex', flexDirection: 'column', height: 'calc(100% - 2px)', minWidth: 0,
       /* OB-113 — the pane's own drags are gestures, not text selections */
       userSelect: 'none', WebkitUserSelect: 'none',
