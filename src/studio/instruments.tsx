@@ -350,7 +350,17 @@ export const PRESETS: Preset[] = [
     label: 'Explore',
     hint: 'map + connections + document — territory, subtree wheel, and prose on one focus',
     active: ['map', 'connections', 'document'],
-    flex: { map: 1.8, connections: 1, document: 1 },
+    /* THE MAP GIVES UP A LITTLE WIDTH (#295, DS OB-169, owner-ruled 2026-09-09). Was
+       1.8 / 1 / 1, which handed the connections pane a box of 325px at 1280 and 386 at
+       1512 — a measured content width (the pane's own padding off) of 315 and 376, both
+       under the 380 `ConnectionsSplitPane` publishes as the width below which it degrades:
+       the split reading the pane exists for could not be reached on a 13" laptop, and the
+       15" was under too. The map is the pane that can afford it — a picture reads at any
+       size — and the document stays a tall column and is not made smaller: the sum is
+       still 3.8, so its share is the same number it was. Measured after: 395 / 472 for the
+       connections content, 503 / 598 for the map (`browsertest-deskwidths.mjs`). A ratio,
+       so a number that can move again — OB-170's draggable dividers are the real answer. */
+    flex: { map: 1.55, connections: 1.25, document: 1 },
   },
   {
     // #20/#21 — the google-maps composition, read left to right as the work
