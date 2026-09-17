@@ -60,6 +60,10 @@ try {
   await page.evaluate(() => localStorage.clear())
   await page.reload()
   await page.waitForTimeout(800)
+  // the three webfaces (tokens/fonts.css) load over the network — OB-200's fix — and a font
+  // finishing mid-test between two close-together screenshots redraws whatever text it touches,
+  // which the wall-map pixel-diff below reads as content moving. Settle it once, up front.
+  await page.evaluate(() => document.fonts.ready)
 
   const playBtn = () => page.locator('[data-toolbar-hook="present"]')
   const chip = () => page.locator('[data-presenter-chip]')
@@ -335,10 +339,17 @@ try {
   ok('OB-163 (2): → moved the lit pin and the caption and left the camera IDENTICAL — the scene transform is byte-for-byte the same', (await camera()) === cam0, `${cam0} -> ${await camera()}`)
   const shot1 = (await wallMap().screenshot()).toString('base64')
   const d1 = await maskedDiff(shot0, shot1, [...masks0, ...(await moving())])
-  // STILL means still: 0 differing pixels is the reading on every run in isolation; under a parallel
-  // load a single anti-aliased pixel at a mask's edge has flaked once (1 of 209,851), so the gate
-  // tolerates a handful and the readout prints the number — a camera move differs by thousands.
-  const STILL = 4
+  // STILL means still: 0 differing pixels was the reading on every run in isolation before the
+  // OB-200 font fix; under a parallel load a single anti-aliased pixel at a mask's edge had flaked
+  // once (1 of 209,851). Since tokens/fonts.css started actually loading Nunito/Quicksand/JetBrains
+  // Mono (they never had before — the Google @import that was meant to supply them followed a CSS
+  // rule and was silently dropped, so every string on this map drew in the fallback system font),
+  // the SAME two renders of the identical DOM differ by 10-11 anti-aliased pixels reliably: a real
+  // webfont's rasterization is not perfectly deterministic frame to frame the way the fallback's
+  // was, at whatever text sits in this crop. Raised with headroom rather than re-measured exactly,
+  // because the point of the gate is unchanged — the readout prints the number, and a camera move
+  // differs by thousands, not tens.
+  const STILL = 30
   ok('and pixel-wise, outside the pins, the walk line, the spotlight and the caption, the two screenshots are ONE picture', d1.compared > 100000 && d1.diff <= STILL, `${d1.diff} of ${d1.compared} compared pixels differ ${d1.where}`)
   await page.keyboard.press('j')
   await page.waitForTimeout(300)

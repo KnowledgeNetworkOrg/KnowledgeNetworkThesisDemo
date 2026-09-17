@@ -198,6 +198,15 @@ function RelGroupHeader({ label, count, open, onClick }: { label: string; count:
  *  IS `RelGroupHeader`: read it, do not mount it — `RelationCards` renders these itself. */
 export const REL_CARD_PARTS = { GroupHeader: RelGroupHeader }
 
+/* ONE RULE PER BOUNDARY, and it governs both row forms below (DS OB-195, owner 2026-09-16: "is it
+   necessary to have the two dividers between each card… it looks a bit distracting"). Every card
+   used to carry a hairline on BOTH edges, so two adjacent cards drew two lines 6px apart — a
+   boundary stated twice, which reads as a gap between two framed objects rather than as one list
+   being divided. `borderTop` alone: the rule belongs to the card BELOW it, the way a table's row
+   rules do, so the last card in a group ends on space and the next group's heading is the next
+   thing a reader meets. The 6px `marginBottom` stays — it is what keeps the single line off the
+   previous card's last line of text. */
+
 /* below `pillMin` the chip shape stops helping — a name character-wrapped in a fixed-width box is
    less readable than the same words as plain wrapping text — so under 2×pillMin of row width the
    card drops the pill chrome entirely rather than keep shrinking it. */
@@ -216,7 +225,7 @@ function RelRowPlain({ leftLabel, leftDomain, rightLabel, rightDomain, kindLabel
     <div style={{
       fontSize: 11, lineHeight: 1.5, width: '100%', boxSizing: 'border-box',
       overflowWrap: 'break-word', wordBreak: 'break-word', padding: '7px 4px', marginBottom: 6,
-      borderTop: '1px solid var(--border-hair)', borderBottom: '1px solid var(--border-hair)',
+      borderTop: '1px solid var(--border-hair)',
       background: 'var(--surface-raised)',
     }}>
       <span onClick={onSelectLeft} style={{ fontWeight: 'var(--fw-bold)', color: topicPaint(leftDomain).stroke, cursor: onSelectLeft ? 'pointer' : 'default' }}>{leftLabel}</span>
@@ -288,7 +297,7 @@ export function RelSourceGroup({ sourceLabel, sourcePathParts, sourceDomain, ite
       style={{
         boxSizing: 'border-box', display: 'flex', alignItems: 'stretch', gap: M.rowGap,
         padding: '8px ' + M.rowPad + 'px', marginBottom: 6,
-        borderTop: '1px solid var(--border-hair)', borderBottom: '1px solid var(--border-hair)',
+        borderTop: '1px solid var(--border-hair)',
         background: wholeRow ? 'var(--accent-primary-wash)' : 'var(--surface-raised)',
       }}
     >

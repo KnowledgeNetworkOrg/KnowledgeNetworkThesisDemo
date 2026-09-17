@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { wrapTip, useRecede } from '../chrome/IconButton'
+import { CloseMark } from '../chrome/CloseMark'
 import { settleRead } from '../chrome/MeasureBox'
 
 /* Typed port of the DS components/presenter/ProjectedMap.jsx (contract: ProjectedMap.d.ts),
@@ -28,7 +29,8 @@ function CloseButton({ onClick, revealed }: { onClick?: () => void; revealed: bo
         cursor: 'pointer', fontSize: 13, lineHeight: 1,
         opacity: revealed ? 1 : 0, pointerEvents: revealed ? 'auto' : 'none',
         transition: 'var(--transition-wash), opacity var(--dur-fade) var(--ease-soft)',
-      }}>{'✕'}</button>
+        /* drawn, never typed (OB-201): 13 was the typed glyph's point size here */
+      }}><CloseMark size={13} /></button>
   )
 }
 

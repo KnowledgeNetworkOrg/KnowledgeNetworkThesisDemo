@@ -30,8 +30,21 @@
   --transition-wash: background-color var(--dur-hover) var(--ease-soft),
                      border-color var(--dur-hover) var(--ease-soft),
                      box-shadow var(--dur-hover) var(--ease-soft); /* @kind other */
+  /* A HIGHLIGHT THAT TRACKS THE POINTER DOES NOT ANIMATE. A row in an OPEN LIST — a version
+     option, a category row in a popover, a stop in the finder — is lit the way a cursor is, not
+     the way a state changes: the wash belongs exactly where the pointer is, and nowhere else.
+     On --transition-wash it arrives 140ms late and then LINGERS 140ms after the pointer has
+     gone, which is what the owner reported on the version picker (2026-09-16): "a delay when
+     we're not hovering over it".
+     Instant BOTH ways, not just on the way out. Fading in while the row behind you clears
+     instantly leaves a 140ms interval with no row lit at all, so running down a list would
+     flicker rather than track — a different fault, not a fix. CHOSEN, not derived.
+     PERSISTENT controls keep --transition-wash: a button, chip, pill, preset, tree row or pane
+     header is hovered one at a time and deliberately, and its soft wash is the whole point. The
+     test is whether the pointer SWEEPS ACROSS several of them to reach the one it wants. */
+  --transition-wash-tracking: none; /* @kind other */
   /* LINE-WORK AT A FIXED SCALE ONLY. The bundled form is right for the road, the chain and the
-     relation cards, whose strokes change width in discrete steps a person chose — and it is a
+     relation cards, whose strokes change width in discrete steps a person chose \u2014 and it is a
      TRAP on anything inside a live zoom, where a stroke is counter-scaled against the camera
      (`k * f / view.s`) and therefore recomputed every frame.
      The general rule, and the reason this caveat is worth its lines: TRANSITION A VALUE THE CODE

@@ -9,4 +9,64 @@
                     LOADED AT 400 AND 500 ONLY — a mono numeral asked for 600 or
                     700 renders at 500, so weight steps on counts must be
                     regular → medium, never medium → semibold. */
-@import url("https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500&display=swap");
+/* ── THE INK SITS LOW IN EVERY BOX, AND THE FONT IS WHY (2026-09-16, owner, on the
+   connections pane's filter). Measured, not theorised: in a 27.5px `TextInput` there was
+   9.10px of room above the text's ink and 6.10px below it, while the ✕ beside it — centred
+   by geometry — was out by 0.01px. Padding was symmetric (5/5) and the line box filled the
+   content box exactly, so nothing in the component was wrong. All three families declare an
+   ASCENT of a full em (Nunito 1.010, Quicksand 1.000, JetBrains Mono 1.020) against a
+   descent of roughly a third (0.3525 / 0.250 / 0.300) — room reserved for stacked accents
+   nobody types — while the ink they actually draw spans about 0.72em up and 0.19em down.
+   The baseline therefore sits lower in the line than the ink needs, and EVERY box in the
+   system leans the same way: buttons, chips, rows, pane titles, counts. The owner asked for
+   it fixed everywhere (2026-09-16), and this is the only place "everywhere" can be said
+   once.
+
+   WHAT THESE BLOCKS DO. They declare the latin and latin-ext faces the UI actually draws
+   from — the same gstatic files Google's own stylesheet resolves to, as VARIABLE faces, so
+   one file per family covers every weight we use — and correct the metrics the browser
+   centres by. The rule is one line of arithmetic per family: keep
+   ASCENT + DESCENT exactly as the font declares it, and set their DIFFERENCE equal to the
+   ink band's (top − bottom). Sum unchanged means `line-height: normal` is unchanged (it is
+   ascent + descent for all three — line gap is 0, which is why `line-gap-override` here is
+   safety, not a change) and every ratio line-height keeps its height, so NOTHING reflows:
+   only the baseline moves, up by (declared asymmetry − ink asymmetry) / 2 — 0.063em for
+   Nunito, 0.102em for Quicksand, 0.066em for the mono.
+
+       A' = (A + D + (top − bottom)) / 2      D' = (A + D − (top − bottom)) / 2
+
+   AND THE GOOGLE `@import` IS GONE, WHICH IS NOT TIDYING — IT IS THE FIX (measured, the
+   rendered baseline, not canvas metrics: canvas silently answers from whichever face is
+   already loaded and reported 1.010 for a family that had been corrected). With the import
+   ALSO declaring Nunito latin at an exact 400, two faces matched every 400 request equally
+   well; Chrome served the import's for Nunito and the mono and OURS for Quicksand — one
+   family corrected, two not, from identical CSS. A tie-break we do not control is not a
+   mechanism, so the family is declared exactly once, here. The subsets that goes without:
+   cyrillic, greek and vietnamese, which no string in this product uses and which now fall
+   through to the platform stack exactly as the symbol glyphs always have.
+
+   DERIVED, not chosen — the numbers below are that arithmetic on ink extents measured off
+   the loaded fonts at 400px (quantisation at 12px is ±0.04em, which is bigger than the
+   correction, so a reading taken at text size would have been the wrong number). `top` is
+   max(cap height, lowercase ascender): Quicksand's `d` overshoots its `H`, and a word with
+   an ascender in it is the common case.
+
+   THE TOP OF THE BAND IS CAP/ASCENDER AND THE BOTTOM IS THE DESCENDER — that is the choice
+   in here, and it is a choice: centring cap-to-baseline instead would ride about 0.1em
+   higher and is the convention for all-caps furniture, which this system has none of.
+
+   THE URLS ARE VERSIONED (v32 / v37 / v24) AND THAT IS THE ONE FRAGILITY. Google keeps old
+   versions served, but if one ever 404s the family falls through to `ui-rounded` rather than
+   to the import above — a visible failure, not a silent one. The durable fix is to self-host
+   the four woff2 files in `assets/` and point these `src`s at them; nothing else in these
+   blocks would change. Symbol glyphs (✕ ▽ ⊞ ▶ ✦) are NOT in these ranges and never were —
+   they come from the platform fallback, per machine, which is why a drawn mark is the only
+   way to centre one (see `CloseMark`). */
+@font-face{font-family:'Nunito';font-style:normal;font-weight:400 800;font-display:swap;ascent-override:94.69%;descent-override:41.56%;line-gap-override:0%;src:url(https://fonts.gstatic.com/s/nunito/v32/XRXV3I6Li01BKofINeaB.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Nunito';font-style:normal;font-weight:400 800;font-display:swap;ascent-override:94.69%;descent-override:41.56%;line-gap-override:0%;src:url(https://fonts.gstatic.com/s/nunito/v32/XRXV3I6Li01BKofIO-aBXso.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'Nunito';font-style:italic;font-weight:400;font-display:swap;ascent-override:94.69%;descent-override:41.56%;line-gap-override:0%;src:url(https://fonts.gstatic.com/s/nunito/v32/XRXK3I6Li01BKofIMPyPbj8d7IEAGXNirXAHjaba.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Nunito';font-style:italic;font-weight:400;font-display:swap;ascent-override:94.69%;descent-override:41.56%;line-gap-override:0%;src:url(https://fonts.gstatic.com/s/nunito/v32/XRXK3I6Li01BKofIMPyPbj8d7IEAGXNirXAHg6babWk.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'Quicksand';font-style:normal;font-weight:400 700;font-display:swap;ascent-override:89.85%;descent-override:35.15%;line-gap-override:0%;src:url(https://fonts.gstatic.com/s/quicksand/v37/6xKtdSZaM9iE8KbpRA_hK1QN.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Quicksand';font-style:normal;font-weight:400 700;font-display:swap;ascent-override:89.85%;descent-override:35.15%;line-gap-override:0%;src:url(https://fonts.gstatic.com/s/quicksand/v37/6xKtdSZaM9iE8KbpRA_hJVQNcOM.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:400 500;font-display:swap;ascent-override:93.35%;descent-override:38.65%;line-gap-override:0%;src:url(https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxDcwg.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:400 500;font-display:swap;ascent-override:93.35%;descent-override:38.65%;line-gap-override:0%;src:url(https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPx7cwhsk.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}

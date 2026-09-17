@@ -88,7 +88,9 @@ export default function WalkUtilityBar() {
 
   return (
     <>
-      <Toolbar groups={[{ items: roadItems }]} />
+      {/* `seam`: this bar sits ABOVE WalkActionBar in one actionBar slot, so the bar below owns the
+          rule and the first items of both rows share one left edge (DS OB-205) */}
+      <Toolbar seam groups={[{ items: roadItems }]} />
 
       {naming && (
         <div data-name-walk className="px-2 py-1 flex items-center gap-1">

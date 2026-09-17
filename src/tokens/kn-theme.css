@@ -371,6 +371,14 @@
    reasoning and the measurements are on the token itself. General form: transition a value
    the code sets in discrete steps, never one it recomputes continuously.
 
+   `--transition-wash-tracking` (none, added 2026-09-16) is the wash of a highlight that
+   FOLLOWS THE POINTER down an open list — a dropdown option, a popover row, a finder row.
+   It does not animate in either direction: on `--transition-wash` the highlight arrived
+   140ms late and lingered 140ms after the pointer left the row. Persistent controls
+   (buttons, chips, pills, presets, tree rows) keep `--transition-wash`. Not a `@theme`
+   entry: transitions generate no utility here, so reference the token directly
+   (`transition-[var(--transition-wash-tracking)]`, or just leave it off the element).
+
    Layout constants are likewise token references, not utilities — they are
    measurements, not a scale:
        w-[var(--sidebar-w)]  h-[var(--pane-header-h)]

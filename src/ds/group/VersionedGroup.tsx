@@ -6,6 +6,7 @@ import { NodeChain } from '../graph/NodeChain'
 import { IconButton, RESIZE_TIP, useClipped, usePresence, useRecede, wrapTip } from '../chrome/IconButton'
 import { InlineText, INLINE_EDIT_STYLE, tidyMultiline } from '../chrome/InlineText'
 import { EditMark } from '../chrome/EditMark'
+import { CloseMark } from '../chrome/CloseMark'
 import { portalInto } from '../chrome/portal'
 import { usedStroke } from '../graph/NodeChip'
 import { measure, linesOfBlock as linesOf, clampToLines, canMeasure } from '../graph/textMeasure'
@@ -541,7 +542,8 @@ function AddRow({ label, onClick }: { label: string; onClick: () => void }) {
         background: hot ? 'var(--surface-hover-raised)' : 'transparent',
         color: hot ? 'var(--text-1)' : 'var(--text-2)',
         fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-medium)',
-        fontStyle: 'italic', cursor: 'pointer', transition: 'var(--transition-wash)',
+        /* same list, same rule: --transition-wash-tracking, never --transition-wash (OB-204) */
+        fontStyle: 'italic', cursor: 'pointer', transition: 'var(--transition-wash-tracking)',
       }}>
       <span aria-hidden="true" style={{ width: 12, flexShrink: 0, display: 'grid', placeItems: 'center', fontSize: 13, lineHeight: 1, fontStyle: 'normal' }}>+</span>
       {label}
@@ -557,14 +559,20 @@ function VersionRow({ version, on, onPick, onDelete, confirming, onCancel, nameP
   namePlaceholder?: string
 }) {
   const [hot, show, hide] = useRecede()
+  /* TWO CLOCKS, AND ONLY ONE OF THEM IS THE WASH (OB-204, found measuring it). `hot` is the recede
+     clock: it keeps the row's delete ✕ reachable for 500ms after the pointer leaves, which is its
+     job. It used to light the row's wash too, so a removed transition still left the wash 500ms
+     behind the pointer, and running down the list lit two rows at once — the owner's "delay",
+     almost all of it. `lit` is where the pointer IS, and nothing else reads it. */
+  const [lit, setLit] = useState(false)
   const shownName = version.name || namePlaceholder
   /* the worst clip in the system: the listbox is 220px and a version name can be a
      whole sentence */
   const nameClip = useClipped<HTMLSpanElement>(shownName)
   return (
     <div style={{ position: 'relative', display: 'flex' }}
-      onMouseEnter={show} onMouseLeave={hide}
-      onFocus={show} onBlur={hide}>
+      onMouseEnter={() => { setLit(true); show() }} onMouseLeave={() => { setLit(false); hide() }}
+      onFocus={() => { setLit(true); show() }} onBlur={() => { setLit(false); hide() }}>
       {confirming ? (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 'var(--space-15)', width: '100%',
@@ -582,12 +590,17 @@ function VersionRow({ version, on, onPick, onDelete, confirming, onCancel, nameP
             style={{
               display: 'flex', alignItems: 'center', gap: 'var(--space-15)', width: '100%',
               minHeight: 'var(--hit-min)', padding: '4px 8px', textAlign: 'left', boxSizing: 'border-box',
-              borderRadius: 'var(--radius-sm)', border: '1px solid ' + (hot ? 'var(--border-rule)' : 'transparent'),
-              background: hot ? 'var(--surface-hover-raised)' : 'transparent',
+              borderRadius: 'var(--radius-sm)', border: '1px solid ' + (lit ? 'var(--border-rule)' : 'transparent'),
+              background: lit ? 'var(--surface-hover-raised)' : 'transparent',
               fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-body)',
               fontWeight: on ? 'var(--fw-semibold)' : 'var(--fw-medium)',
               color: on ? 'var(--accent-primary-ink)' : 'var(--text-1)',
-              cursor: 'pointer', transition: 'var(--transition-wash)',
+              /* A MENU ROW'S WASH DOES NOT ANIMATE (DS OB-204, owner 2026-09-16, on this list). The
+                 highlight in an open list is a cursor, not a state change: on --transition-wash it
+                 lingered 140ms behind the pointer. See --transition-wash-tracking in
+                 tokens/motion.css for why it is instant in BOTH directions. The picker TRIGGER
+                 keeps --transition-wash. */
+              cursor: 'pointer', transition: 'var(--transition-wash-tracking)',
             }}>
             <span style={{ width: 12, display: 'grid', placeItems: 'center', flexShrink: 0, color: 'var(--accent-primary-ink)' }}>
               {on ? <Check /> : <Bullet />}
@@ -610,7 +623,7 @@ function VersionRow({ version, on, onPick, onDelete, confirming, onCancel, nameP
                 color: 'var(--state-danger)', fontFamily: 'var(--font-ui)', fontSize: 10, lineHeight: 1,
                 cursor: 'pointer', opacity: hot ? 1 : 0, pointerEvents: hot ? 'auto' : 'none',
                 transition: 'opacity var(--dur-fade) var(--ease-soft), var(--transition-wash)',
-              }}>{'✕'}</button>
+              }}><CloseMark size={10} /></button>
           ) : null}
         </>
       )}

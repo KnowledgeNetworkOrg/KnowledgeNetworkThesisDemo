@@ -216,7 +216,9 @@ function Trigger({ onClick, disabled, title, active, children }: { onClick?: () 
 }
 
 /** ONE ROW OF THE CATEGORY POPOVER. Selected is a bark-50 wash; hovered is `--surface-hover`,
- *  the same face every menu row in the system takes under the pointer. */
+ *  the same face every menu row in the system takes under the pointer — and, since 2026-09-16,
+ *  on the same clock: `--transition-wash-tracking` (none, OB-204). A highlight that follows the
+ *  pointer down an open list must be where the pointer is; `--transition-wash` left it 140ms behind. */
 function PopRow({ selected, onClick, disabled, title, style, children }: { selected?: boolean; onClick?: () => void; disabled?: boolean; title?: string; style?: CSSProperties; children?: ReactNode }) {
   const [hot, setHot] = useState(false)
   return (
@@ -226,7 +228,7 @@ function PopRow({ selected, onClick, disabled, title, style, children }: { selec
         border: 'none', borderRadius: 'var(--radius-xs)', cursor: disabled ? 'not-allowed' : 'pointer', textAlign: 'left',
         background: selected ? 'var(--bark-50)' : hot && !disabled ? 'var(--surface-hover)' : 'transparent',
         fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-medium)', color: 'var(--text-1)',
-        transition: 'var(--transition-wash)', ...style }}>
+        transition: 'var(--transition-wash-tracking)', ...style }}>
       {children}
     </button>
   )
