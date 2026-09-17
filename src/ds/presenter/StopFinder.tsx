@@ -70,7 +70,7 @@ function Row({ step, index, state, flagged, roaming, selected, query, showTerrit
     <div role="option" aria-selected={selected} data-stop-finder-row={index} onClick={() => onPick(index)}
       onMouseEnter={(e) => onSelect(index, e.currentTarget)} onMouseLeave={onLeave}
       title={renderPreview ? undefined : wrapTip(step.title)}
-      style={{ display: 'flex', alignItems: 'center', gap: 8, height: M.row, padding: '0 8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: selected ? 'var(--surface-hover)' : 'transparent', transition: 'var(--transition-wash)' }}>
+      style={{ display: 'flex', alignItems: 'center', gap: 8, height: M.row, padding: '0 8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: selected ? 'var(--surface-hover)' : 'transparent', /* a tracked highlight is instant both ways — see --transition-wash-tracking (OB-204) */ transition: 'var(--transition-wash-tracking)' }}>
       <StepDot n={index + 1} size={M.dot} state={state} />
       <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', color: state === 'current' ? 'var(--text-walk)' : 'var(--text-1)', fontWeight: state === 'current' ? 'var(--fw-semibold)' : 'var(--fw-regular)' }}>
         <Match text={step.title} query={query} />

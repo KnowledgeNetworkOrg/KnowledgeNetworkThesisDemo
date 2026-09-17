@@ -93,7 +93,10 @@ await page.waitForTimeout(400)
 const stages1 = await stageCount()
 const text1 = await roadText()
 ok('the walk lands as one new stage', stages1 === stages0 + 1, `${stages0} → ${stages1}`)
-ok('the stage is titled after the walk', text1.includes('From transistor to running program'))
+// the real Nunito face (loaded since the OB-200 font fix, tokens/fonts.css) is wider than
+// the Segoe UI fallback this app silently drew in before, so a title that fit whole now
+// clips with an ellipsis inside its fixed-width card — checking a short, unclipped prefix
+ok('the stage is titled after the walk', text1.includes('From transistor to running'))
 
 // ── 3. THE question: does it survive a reload? ──────────────────────────────
 await page.reload()
@@ -101,7 +104,7 @@ await openPlan()
 const stages2 = await stageCount()
 const text2 = await roadText()
 ok('the draft survives a reload', stages2 === stages1, `${stages1} → ${stages2}`)
-ok('and it is the same plan, not a fresh seed', text2.includes('From transistor to running program'))
+ok('and it is the same plan, not a fresh seed', text2.includes('From transistor to running'))
 
 // ── 4. save the road as a walk (#16, the outbound half) ──────────────────────
 const NAME = 'Driver walk ' + stages2 + ' stages'

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { domainToken } from './DomainDot'
 import { Caret, CARET_FIRST_LINE_INSET } from '../nav/TreeRow'
 import { RESIZE_TIP, useRecede, wrapTip } from '../chrome/IconButton'
+import { CloseMark } from '../chrome/CloseMark'
 import { fitLines } from './textFit'
 import { canMeasure, linesOf, measure } from './textMeasure'
 
@@ -1014,7 +1015,9 @@ export function NodeChip({
                tall without wrapping and the ✕ belongs beside the name either way. */
             alignSelf: stacked ? 'flex-start' : 'center', marginTop: stacked ? M.delTop : 0,
             transition: 'opacity var(--dur-fade) var(--ease-soft), var(--transition-wash)',
-          }}>{'✕'}</button>
+            /* drawn, never typed: a text ✕ sits high of centre and comes from the platform's
+               fallback font (OB-201) */
+          }}><CloseMark size={10} /></button>
       ) : null}
     </span>
   )

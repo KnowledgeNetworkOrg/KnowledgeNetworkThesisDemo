@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent, ReactNode } from 'react'
 
+import { CloseMark } from './CloseMark'
+
 /** The system's round icon control: a ✕, a chevron, a small glyph act. One shape
  *  and one set of manners everywhere, in two TONES — chrome for a neutral act
  *  (close a pane, dismiss a menu), danger for a destructive one (delete a node,
@@ -20,6 +22,13 @@ import type { CSSProperties, MouseEvent, ReactNode } from 'react'
  *  `reveal={false}` is the recede: the control keeps its space (so nothing
  *  reflows when it arrives) but is invisible, untabbable and inert. Every
  *  hover-revealed control in the system uses this rather than unmounting.
+ *
+ *  THE DEFAULT MARK IS DRAWN, NOT TYPED (DS OB-201, 2026-09-16, owner: the ✕ read off-centre in
+ *  its circle). It was: `placeItems: center` centres the LINE BOX, and a text ✕ has no descender,
+ *  so its ink sat ~1.5px high of the button's centre — and U+2715 is outside the latin subsets we
+ *  load, so the character came from the platform fallback and the error differed per machine.
+ *  `CloseMark` is centred by construction. A text `glyph` still renders (`+`, `▽`, `⊞` and the
+ *  rest are still typed) and still leans; each becomes a drawn mark as it comes up.
  *
  *  Typed port of the DS IconButton.jsx (contract: IconButton.d.ts). Replaces the
  *  private copy that lived inside VersionedGroup.tsx — the fifth of five
@@ -48,8 +57,12 @@ export interface IconButtonProps {
    *  FADE the parent owns. A receded button that is merely transparent is still
    *  tabbable and still answers Enter; this is what withdraws it */
   reachable?: boolean
-  /** the glyph; defaults to ✕. `children` wins over it for anything that is not
-   *  a single character */
+  /** the glyph, when it is not the default ✕. Pass a single character (`+`, `▽`, `⊞`) or omit
+   *  it and the button draws `CloseMark` — the DRAWN ✕, since 2026-09-16 (OB-201). A typed ✕ is
+   *  no longer the default because nothing could centre it: the character is outside the latin
+   *  subsets this system loads, so it came from the platform fallback, and having no descender
+   *  its ink sat ~1.5px above the button's centre wherever the line box was centred. `children`
+   *  wins over this for anything that is not a single character. */
   glyph?: string
   /** a drawn mark — `<Check />`, `<RestoreMark />` — for anything a character
    *  cannot carry at this size */
@@ -80,10 +93,11 @@ export interface IconButtonProps {
 }
 
 export function IconButton({
-  tone = 'chrome', size = 18, glyphSize, reveal = true, reachable = true, glyph = '✕',
+  tone = 'chrome', size = 18, glyphSize, reveal = true, reachable = true, glyph,
   title, label, onClick, stopPropagation = true, style, children, disabled = false,
 }: IconButtonProps) {
   const [hot, setHot] = useState(false)
+  const markSize = glyphSize || (size >= 22 ? 13 : 10)
   const danger = tone === 'danger'
   const shown = reveal !== false
   /* the two ramps. Rest ink differs by tone; the hover step is one wash of that
@@ -130,8 +144,10 @@ export function IconButton({
         color: hot && !disabled ? hotInk : restInk,
         /* the glyph is point-sized SEPARATELY where it has to be: a cross puts
            far more ink on the page than a single stroke at the same size, so ✕
-           sits at 10 beside – and + at 12. Optical sizing, not a weight change. */
-        fontFamily: 'var(--font-ui)', fontSize: glyphSize || (size >= 22 ? 13 : 10), lineHeight: 1,
+           sits at 10 beside – and + at 12. Optical sizing, not a weight change. The same
+           number sizes the drawn `CloseMark`, so the default mark matches the ink the text glyph
+           used to draw. */
+        fontFamily: 'var(--font-ui)', fontSize: markSize, lineHeight: 1,
         cursor: disabled ? 'default' : 'pointer',
         /* the fade step, one number (OB-072): 0.35 is dim enough to read as
            "nothing to do here" beside a full-ink sibling without dropping under
@@ -141,7 +157,7 @@ export function IconButton({
         opacity: !shown ? 0 : disabled ? 0.35 : 1, pointerEvents: !shown ? 'none' : disabled ? 'none' : 'auto',
         transition: 'opacity var(--dur-fade) var(--ease-soft), var(--transition-wash)',
         ...style,
-      }}>{children || glyph}</button>
+      }}>{children || (glyph === undefined || glyph === null ? <CloseMark size={markSize} /> : glyph)}</button>
   )
 }
 
