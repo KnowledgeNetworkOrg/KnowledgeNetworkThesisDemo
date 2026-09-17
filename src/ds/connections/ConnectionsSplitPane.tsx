@@ -22,6 +22,10 @@ import type { Relation, RelationGroup, ViaRelation } from './RelationCards'
 export const CONNECTIONS_PANE_METRICS = {
   narrowBelow: 380, tipW: 262, tipH: 112,
   treeMin: 85, treeMinNarrow: 70, treeMax: 360, treeMaxNarrow: 170, divider: 14,
+  /* `graphClickSlop` belongs to the empty-graph release (OB-202), not to layout, and it is CHOSEN:
+     the travel, in px between pointerdown and pointerup, below which a gesture on the graph's
+     background is a click rather than a pan */
+  graphClickSlop: 4,
 } as const
 const PM = CONNECTIONS_PANE_METRICS
 
@@ -104,7 +108,7 @@ function FilterHint({ activeTitle, pinned }: { activeTitle: string | null; pinne
   return (
     <div style={{ padding: '3px 2px 0', marginTop: -2, fontSize: 10, lineHeight: 1.2, color: on ? 'var(--text-1)' : 'var(--text-2)' }}>
       {on
-        ? <span>{pinned ? 'Pinned to ' : 'Filtered to '}<b style={{ fontWeight: 'var(--fw-bold)' }}>{activeTitle}</b>{pinned ? ' — click it again to release' : ''}</span>
+        ? <span>{pinned ? 'Pinned to ' : 'Filtered to '}<b style={{ fontWeight: 'var(--fw-bold)' }}>{activeTitle}</b>{pinned ? ' — click it again, or the empty graph, to release' : ''}</span>
         : 'Hover the graph to filter relations below · click a node to pin'}
     </div>
   )
@@ -154,7 +158,11 @@ export interface ConnectionsGraphApi {
   /** the node whose cards are pinned, if any — draw it as held, not merely hovered */
   pinnedId: string | null
   /** a graph node was clicked. It PINS the card filter and does not navigate; `{ id: 'focus' }`
-   *  or the selected node's own id releases the pin */
+   *  or the selected node's own id releases the pin, and so does a click on empty graph.
+   *  CALL IT SYNCHRONOUSLY, INSIDE THE GESTURE (DS OB-202): every gesture on the graph takes a
+   *  number, and this call is how a node claims the current one, so `pointerdown` and `click` are
+   *  equally fine but a deferred call claims nothing and its pin is released by the click that
+   *  set it */
   onNodeSelect: (node: { id: string; title?: string; domain?: string } | null) => void
   /** the pointer entered a graph node — raises the hover preview card at the pointer. Hand it the
    *  REAL pointer event: the pane places the card against the tip layer it finds from the event's
@@ -162,6 +170,13 @@ export interface ConnectionsGraphApi {
   onPreviewEnter: (e: PreviewPointerEvent, node: { id: string; title: string; domain?: string }) => void
   /** the pointer left a graph node */
   onPreviewLeave: () => void
+  /** THE ESCAPE HATCH FOR A GRAPH THE PANE CANNOT READ THROUGH — call it when a click lands on
+   *  empty graph. Most graphs need it for NOTHING: the pane wraps the slot and releases the pin
+   *  itself on any click no node claimed, ignoring a drag (over `graphClickSlop` px between
+   *  pointerdown and pointerup) and the gesture `onNodeSelect` claimed. Call this instead when the
+   *  graph swallows the click — a `<canvas>` graph doing its own hit-testing, or one calling
+   *  `stopPropagation()` on its background. Releasing twice releases once */
+  onBackgroundClick: () => void
 }
 
 /** THE CONNECTIONS PANE: a breadcrumb over a resizable, collapsible split — the CONTAINS column
@@ -189,8 +204,16 @@ export interface ConnectionsSplitPaneProps {
   tree?: ContainNode | null
   /** the topic hue for the whole pane — the tree's pills, the breadcrumb, the preview's dot */
   domain?: string
-  /** the node the pane is aimed at: the relations column's subject and the tree's highlighted row */
+  /** CONTROLLED AIM — what the pane READS: the breadcrumb path, the relations column, the graph
+   *  slot. Never null: a pane aimed at nothing has nothing to draw. It is NOT necessarily what is
+   *  selected — see `selectedId` */
   selected: { id: string; title: string; domain?: string }
+  /** WHICH PILL IS LIT, when that is not the same question as where the pane is aimed (DS OB-198).
+   *  Omit it and the contains tree lights `selected.id`. Pass `null` for NOTHING SELECTED: no pill
+   *  draws lit, while the pane goes on reading `selected`. Pass it the moment the host keeps aiming
+   *  after a deselect, or the column lights a pill nobody chose. The breadcrumb's last crumb stays
+   *  filled either way — that row reports the AIM, not the selection */
+  selectedId?: string | null
   /** navigate. Every click that MOVES the pane comes through here — a crumb, a tree row, a card's
    *  pill — and a graph click deliberately does not */
   onSelect?: (node: { id: string; title: string; domain?: string }) => void
@@ -244,7 +267,36 @@ export interface ConnectionsSplitPaneProps {
   alwaysSplit?: boolean
 }
 
-export function ConnectionsSplitPane({ tree, domain, selected, onSelect, relationsOf, summaryOf, renderGraph, persistKey, treeOpen, onTreeOpenChange, treeCounts, emptyLabel, alwaysSplit }: ConnectionsSplitPaneProps) {
+/* ★ LOCAL — THE EMPTY-GRAPH RELEASE'S BOOKKEEPING LIVES ON ONE OBJECT held for the pane's lifetime,
+   where the DS keeps four refs (the gesture number, the gesture a node last claimed, where it went
+   down, where it came up). `onNodeSelect` writes the claim and travels to the host inside
+   `renderGraph`'s api, and `react-hooks/refs` refuses a ref reachable from a function handed out
+   during render — the same reason `showPreviewAt` finds its layer from the event. The methods are the
+   same mutable cells with the same meaning. None of them draws anything, so none of them is state. */
+class GraphGestures {
+  private n = 0
+  private claimed = -1
+  private downAt: { x: number; y: number } | null = null
+  private upAt = { x: 0, y: 0 }
+  /** capture-phase pointerdown in the slot: a new gesture, and where it began */
+  begin(x: number, y: number) { this.n += 1; this.downAt = { x, y } }
+  /** capture-phase pointerup in the slot: where it ended */
+  end(x: number, y: number) { this.upAt = { x, y } }
+  /** a node took the current gesture */
+  claim() { this.claimed = this.n }
+  /** forget the gesture in progress (a host released the pin itself) */
+  forget() { this.downAt = null }
+  /** the click that closes the gesture: true when NO node claimed it, it had a recorded down, and
+   *  it travelled no further than `slop` — i.e. a click on empty graph, not a node's and not a pan */
+  releases(slop: number) {
+    const down = this.downAt
+    this.downAt = null
+    if (this.claimed === this.n || !down) return false
+    return Math.abs(this.upAt.x - down.x) <= slop && Math.abs(this.upAt.y - down.y) <= slop
+  }
+}
+
+export function ConnectionsSplitPane({ tree, domain, selected, selectedId, onSelect, relationsOf, summaryOf, renderGraph, persistKey, treeOpen, onTreeOpenChange, treeCounts, emptyLabel, alwaysSplit }: ConnectionsSplitPaneProps) {
   const outerRef = useRef<HTMLDivElement | null>(null)
   const [paneWidth, setPaneWidth] = useState(380)
   useEffect(() => {
@@ -267,6 +319,12 @@ export function ConnectionsSplitPane({ tree, domain, selected, onSelect, relatio
   const [pinnedId, setPinnedId] = useState<string | null>(null)
   const [hoveredCardTarget, setHoveredCardTarget] = useState<string | null>(null)
   const [centerFromCard, setCenterFromCard] = useState(false)
+  const [gestures] = useState(() => new GraphGestures())
+  /* WHICH PILL IS LIT — the selection, which is not the same question as what the pane is aimed at.
+     `undefined` means the host does not distinguish the two; an explicit `null` means nothing is
+     selected. Written as an `=== undefined` test on purpose: `selectedId={null}` has to survive, and
+     `||`/`??` would both quietly fall back to the aim. */
+  const litId = selectedId === undefined ? selected.id : selectedId
   const tight = paneWidth < PM.narrowBelow
   const minL = tight ? PM.treeMinNarrow : PM.treeMin
   const maxL = tight ? Math.min(PM.treeMaxNarrow, paneWidth - 130) : Math.min(PM.treeMax, paneWidth - PM.divider - 150)
@@ -409,9 +467,25 @@ export function ConnectionsSplitPane({ tree, domain, selected, onSelect, relatio
      light the source too, and the highlight then said only "something is hovered". */
   const centerHighlight = hoveredGraphId === 'focus' || hoveredGraphId === selected.id || hoveredTreeId === selected.id || centerFromCard
   const onNodeSelect = (node: { id: string; title?: string; domain?: string } | null) => {
+    /* THE CLAIM IS THE GESTURE'S NUMBER, NOT A TIMESTAMP. The DS tried 350ms of "a node just took
+       one" for a turn; clicking a node and then the background a third of a second later is an
+       ordinary speed to click at, and the release was swallowed. A gesture id has no window to be
+       wrong about, and a graph pinning on `pointerdown` or on `click` is the same gesture. */
+    gestures.claim()
     if (!node || node.id === 'focus' || node.id === selected.id) { setPinnedId(null); return }
     setPinnedId((p) => (p === node.id ? null : node.id))
   }
+  /* RELEASING ON EMPTY GRAPH (DS OB-202, owner 2026-09-16: "i also want to add unfocus if we click on
+     empty parts of the graph"). The pin is the pane's state and the hit-testing is the host's, so it
+     is settled without asking the host for anything: the pane wraps the graph slot and reads a click
+     no node claimed. Three rules, each a way this pattern usually fails —
+     1. A NODE CLICK MUST NOT PIN AND RELEASE IN ONE GESTURE: the gesture number is taken in the
+        capture phase and `onNodeSelect` claims it.
+     2. A PAN IS NOT A CLICK: the browser still fires `click` after a drag that begins and ends on the
+        background, so a gesture that travelled further than `graphClickSlop` is a drag.
+     3. NO DOWN, NO DECISION: a click with no recorded pointerdown is ignored rather than guessed at. */
+  const releasePinFromBackground = () => { gestures.forget(); setPinnedId(null) }
+  const onGraphClick = () => { if (gestures.releases(PM.graphClickSlop)) setPinnedId(null) }
   const activeTitle = filterTargetId
     ? (groups.find((g) => g.targetId === filterTargetId)?.targetTitle
       || via.find((vc) => vc.rel.targetId === filterTargetId)?.rel.targetTitle
@@ -431,13 +505,20 @@ export function ConnectionsSplitPane({ tree, domain, selected, onSelect, relatio
       {/* keyed on the selection, so a re-aim remounts the graph rather than animating one node's
           picture into another's */}
       <div key={selected.id}>
-        {renderGraph
-          ? renderGraph({
+        {renderGraph ? (
+          <div
+            onPointerDownCapture={(e) => gestures.begin(e.clientX, e.clientY)}
+            onPointerUpCapture={(e) => gestures.end(e.clientX, e.clientY)}
+            onClick={onGraphClick}
+          >
+            {renderGraph({
               selected, groups, highlightId, centerHighlight, pinnedId, onNodeSelect,
               onPreviewEnter: (e, node) => showPreviewAt(e, node, 'graph'),
               onPreviewLeave: hidePreview,
-            })
-          : null}
+              onBackgroundClick: releasePinFromBackground,
+            })}
+          </div>
+        ) : null}
         {renderGraph && (direct.length || via.length) ? <FilterHint activeTitle={activeTitle} pinned={!hoveredExternal && !!pinnedId} /> : null}
         <RelationCards
           source={selected} direct={direct} via={via} filterTargetId={filterTargetId} onSelect={onSelect}
@@ -462,6 +543,8 @@ export function ConnectionsSplitPane({ tree, domain, selected, onSelect, relatio
         ) : null}
         <div style={{ flex: '0 0 auto', width: collapsed ? 0 : leftBoxW, overflow: 'hidden', transition: dragging ? 'none' : 'width 220ms ease', height: '100%' }}>
           <div
+            /* `data-selected-id` is the roving keyboard CURSOR, not the light: it stays on the aim
+               even with nothing selected, so an arrow key resumes from where the pane is pointed */
             ref={leftRef} tabIndex={0} onKeyDown={(e) => treeKeyNav(e, leftRef.current)} data-selected-id={selected.id}
             style={{ width: leftBoxW, minWidth: 0, paddingRight: 4, height: '100%', overflowY: 'auto', outline: 'none', boxShadow: 'none', position: 'relative' }}
           >
@@ -472,7 +555,7 @@ export function ConnectionsSplitPane({ tree, domain, selected, onSelect, relatio
             <FilterInput value={query} onChange={setQuery} />
             <ContainTree
               key={tree ? tree.id : 'none'} root={tree || { id: selected.id, title: selected.title }} domain={domain}
-              compact scale={scale} selectedId={selected.id} hoveredId={hoveredTreeId} onSelect={onSelect} counts={treeCounts}
+              compact scale={scale} selectedId={litId} hoveredId={hoveredTreeId} onSelect={onSelect} counts={treeCounts}
               /* `onOpenUpdate`, NOT the deprecated `onOpenChange`: the updater is handed
                  out unresolved so two caret toggles inside one React batch both survive */
               query={query} open={treeOpen} onOpenUpdate={onTreeOpenChange}

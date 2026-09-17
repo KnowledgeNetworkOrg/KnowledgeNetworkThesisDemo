@@ -162,7 +162,7 @@ export type { LectureRecapProps, RecapStat, RecapCounts, RecapAction, FlaggedSli
 // ── connections (#253) — the Combined-B3 rehaul of the pane (OB-101, OB-113) ──
 export { ConnectionsSplitPane, NodePreviewCard, CONNECTIONS_PANE_METRICS, CONNECTIONS_BODY_STYLE } from './connections/ConnectionsSplitPane'
 export type { ConnectionsSplitPaneProps, ConnectionsGraphApi, NodePreviewCardProps } from './connections/ConnectionsSplitPane'
-export { ContainTree, ContainPaint, ContainPill, CONTAIN_METRICS, CaretHit, containsSummary, findTreePath, subtreeCount, treeKeyNav } from './connections/ContainTree'
+export { ContainTree, ContainPaint, ContainPill, CONTAIN_METRICS, CaretHit, containsSummary, findTreePath, OpenAncestors, subtreeCount, treeKeyNav } from './connections/ContainTree'
 export type { ContainTreeProps, ContainPaintEntry, ContainPillProps, ContainNode, OpenMap } from './connections/ContainTree'
 export { RelationCards, RelSourceGroup, REL_CARD_METRICS, REL_CARD_PARTS, groupItemsByTarget, groupRelationsByTarget, relationLook } from './connections/RelationCards'
 export type { RelationCardsProps, RelSourceGroupProps, Relation, RelationGroup, RelItem, TargetBlock, ViaRelation } from './connections/RelationCards'
