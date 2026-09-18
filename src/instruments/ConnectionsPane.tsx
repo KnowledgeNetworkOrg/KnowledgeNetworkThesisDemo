@@ -91,7 +91,7 @@ function buildContainTree(id: string): ContainNode {
   // without a domain and let it inherit the PANE's — would paint "everything" in whichever
   // topic you happen to be standing in, so the top of the column would change colour as you
   // navigate. A root that means "all of it" has no one topic, and says so.
-  const node: ContainNode = { id, title: byId.get(id)!.title, domain: topicHueOf(id) }
+  const node: ContainNode = { id, title: byId.get(id)!.title, domain: topicHueOf(id), root: id === ROOT_ID }
   if (kids.length) node.children = kids.map((k) => buildContainTree(k.id))
   return node
 }

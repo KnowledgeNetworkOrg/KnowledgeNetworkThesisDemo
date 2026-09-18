@@ -9,12 +9,12 @@
 // trim-and-bundle machinery pointed at a different edge set, and it could not
 // even be attempted while this lived inside a render function.
 
-import { byId, domainIds, domainOf, pathTo, topicIds, topicsUnder } from '../corpus/graph'
+import { byId, domainIds, domainOf, pathTo, ROOT_ID, topicIds, topicsUnder } from '../corpus/graph'
 import type { EdgeType, GEdge } from '../corpus/graph'
 import type { XY } from './derive'
 import type { LabelBox } from './labelfit'
 import { edgesTouching, leafPos, provinceIds, provinceOf, topicAnchorOf } from './flat'
-import { countryPath, countryRings, pointInPoly, provincePath, provinceRings, territories, topicPoly } from './nested'
+import { countryPath, countryRings, pointInPoly, provincePath, provinceRings, rootPath, territories, topicPoly } from './nested'
 
 // ── Geography: the label anchors and region centres, derived once ────────────
 const centroidOf = (members: string[]) => ({
@@ -37,6 +37,10 @@ export const provinceLabels = provinceIds.map((m) => ({
   key: m,
 }))
 
+/** OB-193: the corpus root's own label anchor — the centroid of every topic, since the root
+ *  contains all of them and its own level draws it as one region. */
+export const rootLabel = { ...centroidOf(topicIds), label: byId.get(ROOT_ID)!.title, key: ROOT_ID }
+
 // region anchor points for the rolled-up arrows — RAW centroids, not the
 // overlap-spread label positions (a road must leave from where the region is,
 // not from where its name was nudged to)
@@ -48,7 +52,8 @@ const terrD = new Map(territories.map((t) => [t.id, t.d]))
 /** The svg outline of any node's cell, at whatever grain it lives on. The
  * selection, the hover preselect and the cross-pane spotlight all ask this same
  * question, and all three used to spell out the same three-way fallback. */
-export const outlineOf = (id: string): string | undefined => countryPath[id] ?? provincePath[id] ?? terrD.get(id)
+export const outlineOf = (id: string): string | undefined =>
+  countryPath[id] ?? provincePath[id] ?? terrD.get(id) ?? (id === ROOT_ID ? rootPath : undefined)
 
 /** which grain a selection sits on: 0 = domain, 1 = module, 2+ = topic-or-deeper */
 export const tierOf = (id: string): number => (countryPath[id] ? 0 : provincePath[id] ? 1 : 2)

@@ -64,8 +64,8 @@ import { renderStopPreview } from './walkdesk/stoppreview'
 import { FLAT_H, FLAT_W, leafPos, provinceIds } from '../model/flat'
 import type { XY } from '../model/derive'
 import { colorOf, inkStrongOf, labelInkOf, territoryFillOf } from '../model/color'
-import { countryPath, countryRings, maxTier, provincePath, provinceRings, territories } from '../model/nested'
-import { countryLabels, endpointAtTier, flightTargetOf, outlineOf, provinceLabels, ringsCrossT, roadsFor } from '../model/atlas'
+import { countryPath, countryRings, maxTier, provincePath, provinceRings, rootPath, rootRings, territories } from '../model/nested'
+import { countryLabels, endpointAtTier, flightTargetOf, outlineOf, provinceLabels, ringsCrossT, roadsFor, rootLabel } from '../model/atlas'
 import { bowFor, bowSignAt, walkArrowBetween } from '../model/walkarrow'
 import { hoverMarks } from '../model/maphover'
 import { WALL_FRAME_INSET, wallArrowShown, wallExtent, wallFit, wallPinState } from '../model/walkwall'
@@ -121,8 +121,20 @@ const WALL_VIEW: View = { s: LEVEL_S[WALL_LEVEL], tx: U_CX - (U_CX / LEVEL_S[0])
  *  a full margin of warning and we act at half of it. Raising it past 60 would
  *  make things pop in at the edge; lowering it toward 0 just re-renders more. */
 const PAN_COMMIT = 30
-/** the LevelPicker's labels, "L0".."L{maxTier}" — OB-096 */
-const LEVEL_LABELS = Array.from({ length: L_MAX + 1 }, (_, i) => `L${i}`)
+/** the LevelPicker's labels, "L0".."L{maxTier+1}" — OB-096, extended by OB-193.
+ *
+ *  THE DISPLAY LABEL IS NOT THE INTERNAL `level` NUMBER, and that gap is deliberate rather
+ *  than a mismatch to close. OB-193 gives the corpus root its own level — drawn as ONE region,
+ *  the whole corpus, filling the same frame the six territories fill today — WITHOUT
+ *  renumbering the tier machinery every other level already depends on (the wheel-zoom floor,
+ *  the pin layout's level sync, the context-window ghost math: all of it keyed to `level`
+ *  0..L_MAX exactly as before). So internally `level` gains one new value, -1, reachable only
+ *  by picking the lowest LevelPicker entry — never by the wheel, which still floors at 0 — and
+ *  `levelToLabel`/`labelToLevel` below are the ONLY place the +1 offset exists, so a click on
+ *  "L0" reads as the root and "L1" as the domains, exactly as OB-193's vocabulary requires. */
+const LEVEL_LABELS = Array.from({ length: L_MAX + 2 }, (_, i) => `L${i}`)
+const levelToLabel = (l: number) => `L${l + 1}`
+const labelToLevel = (s: string) => Number(s.slice(1)) - 1
 const FLY_MS = 260
 
 /** the viewport in WORLD coords for a camera and a measured client box — what culls the deep
@@ -454,7 +466,10 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
     if (play.playing) pannedRef.current = true // a user's own gesture — the walk's look stands aside once (OB-179)
     setLevel(l)
     levelRef.current = l
-    const s = LEVEL_S[l]
+    // OB-193: level -1 (the root, one region) shares level 0's camera framing exactly — it is
+    // the same six-territory extent, just drawn as one shape instead of six, not a further
+    // zoom-out. LEVEL_S has no index for it, so the lookup floors at 0.
+    const s = LEVEL_S[Math.max(l, 0)]
     const v = viewRef.current
     const a = about ?? { x: U_CX, y: U_CY }
     flyTween({ s, tx: a.x - ((a.x - v.tx) / v.s) * s, ty: a.y - ((a.y - v.ty) / v.s) * s })
@@ -677,6 +692,9 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
     // has. Computed one level past their visibility window so the 350ms
     // opacity fades keep an element to fade.
     const region = new Map<string, { lines: FitLine[]; fs: number }>()
+    // OB-193: level -1 (the root) draws through its own small, separate block below — none of
+    // this memo's tier machinery applies to it, and LEVEL_S has no entry at -1 to index.
+    if (level < 0) return { active, ghost, region, box }
     const world = (v: number) => (v * f) / LEVEL_S[level]
     if (level <= 2)
       for (const c of countryLabels) {
@@ -715,6 +733,18 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
       }
     }
     return { active, ghost, region, box }
+  }, [level, f])
+
+  /** OB-193: the root's own name, fitted into `rootRings` the same way a country's name fits
+   *  into its own — kept OUT of `labelFit` above because that memo is guarded off entirely at
+   *  level -1, and this is the one thing still drawn there. Shares level 0's world-scale
+   *  (`LEVEL_S[0]`), for the same reason `flyToLevel` shares its camera framing. */
+  const rootLabelFit = useMemo(() => {
+    if (level !== -1) return null
+    const size = 24
+    const world = (v: number) => (v * f) / LEVEL_S[0]
+    const fit = fitRegionLabel(rootLabel.label, rootRings, rootLabel.x, rootLabel.y, world(size))
+    return { lines: fit.lines, fs: size * fit.shrink }
   }, [level, f])
 
   /** every name actually drawn at this level, as boxes — what a walk pin has to
@@ -1219,6 +1249,28 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
           {/* ── FILLS, painted shallow → deep. Only the active level carries
               paint (pale tree colors) and pointer events; everything else is
               mounted transparent so level changes FADE. ─────────────────── */}
+          {/* OB-193: THE ROOT'S OWN LEVEL — one region, the whole corpus, drawn where the six
+              domains sit today (same `rootRings`/`countryRings` extent, same camera). It takes
+              `territoryFillOf`/`colorOf(ROOT_ID)`, which every map fill/anchor lookup already
+              falls back to a neutral swatch for on an id with no hue family — the root has
+              none, by design (owner, 2026-09-15), so it draws colourless without a second
+              colour path to keep in step with the rest of the map. It has no sibling to
+              separate from, so it carries no ancestor-border line-work of its own. */}
+          <path
+            d={rootPath}
+            data-region={ROOT_ID}
+            data-rtier={-1}
+            fill={territoryFillOf(ROOT_ID)}
+            fillOpacity={level === -1 ? 0.95 : 0}
+            stroke="#ffffff"
+            strokeOpacity={level === -1 ? 0.9 : 0}
+            strokeWidth={px(1.2)}
+            pointerEvents={level === -1 ? 'auto' : 'none'}
+            style={{ cursor: sel === ROOT_ID ? 'grab' : 'pointer', transition: FADE }}
+            onClick={() => regionClick(ROOT_ID)}
+            onPointerEnter={() => enterCell(ROOT_ID)}
+            onPointerLeave={() => leaveCell(ROOT_ID)}
+          />
           <g>
             {domainIds.map((d) => (
               <path
@@ -1337,6 +1389,27 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
               labels the reader was zooming in to read. Ghosts are background;
               they go in the background. */}
           <g pointerEvents="none">
+            {/* OB-193: the root's own name — full ink only at its own level, exactly the
+                active-grain treatment `countryLabels` gets at level 0 below (no ghost: there
+                is nothing above the root to ghost it FOR, and nothing beside it to separate
+                it FROM). `colorOf(ROOT_ID)` resolves to the same neutral anchor its fill does. */}
+            {rootLabelFit && (
+              <text
+                data-regionlabel={ROOT_ID}
+                textAnchor="middle"
+                fontSize={px(rootLabelFit.fs)}
+                fontWeight={800}
+                fill={colorOf(ROOT_ID)}
+                opacity={0.55}
+                style={{ userSelect: 'none', transition: 'opacity 350ms' }}
+              >
+                {rootLabelFit.lines.map((ln, i) => (
+                  <tspan key={i} x={ln.x} y={ln.y}>
+                    {ln.text}
+                  </tspan>
+                ))}
+              </text>
+            )}
             {countryLabels.map((c) => {
               const fit = labelFit.region.get(c.key)
               if (!fit) return null
@@ -1944,7 +2017,7 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
           So the chrome climbs with the open state even though the map does not re-fit for it. */}
       {/* the wall (#267) has no chrome of its own: the room is looking at a picture */}
       {wall ? null : (<>
-      <LevelPicker style={{ position: 'absolute', left: 12, bottom: chromeBottom, transition: chromeRide, zIndex: 10 }} levels={LEVEL_LABELS} level={`L${level}`} onSelect={(l) => flyToLevel(Number(l.slice(1)))} />
+      <LevelPicker style={{ position: 'absolute', left: 12, bottom: chromeBottom, transition: chromeRide, zIndex: 10 }} levels={LEVEL_LABELS} level={levelToLabel(level)} onSelect={(l) => flyToLevel(labelToLevel(l))} />
       <div style={{ position: 'absolute', right: 12, bottom: chromeBottom, transition: chromeRide, zIndex: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {/* names the DRAWING, not its nodes: the button moves pins and arrows together */}
         <MapFloatingButton size={36} title={walkVisible ? 'hide the walk' : 'show the walk'} onClick={() => setHiddenWalks((h) => toggleWalkHidden(h, walkKey))}>

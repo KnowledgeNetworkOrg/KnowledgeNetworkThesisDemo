@@ -18,6 +18,11 @@ export interface ContainNode {
   domain?: string
   /** the same field under the newer name; `domain` wins if both are given */
   topic?: string
+  /** true ONLY for the corpus's own root — the one node with no topic of its own, because it
+   *  contains every topic. Distinct from a pill's `focus` (the top of whatever tree THIS pane
+   *  shows, which a re-rooted subtree still carries with a real topic): this flag says the
+   *  node is colourless, not merely that it heads the column (owner, 2026-09-15). */
+  root?: boolean
   children?: ContainNode[]
 }
 
@@ -249,6 +254,12 @@ export interface ContainPillProps {
   of?: number
   /** the tree's own root — bold, the thing the column is about */
   focus?: boolean
+  /** THE CORPUS'S OWN ROOT (owner, 2026-09-15) — colourless: the border draws the system's
+   *  neutral boundary token instead of a topic's stroke, because this node has no topic of
+   *  its own. Distinct from `focus`, which a re-rooted subtree's own top row also carries
+   *  while still owning a real topic colour. See `DomainDot`'s `root` for the same
+   *  distinction drawn as a hollow ring rather than a bordered pill. */
+  root?: boolean
   /** the second line inside the border, the pill's own "N nodes" */
   note?: string
   /** draw a disclosure caret. The pill reserves its 22px hit box; `open` says which way it points */
@@ -267,8 +278,8 @@ export interface ContainPillProps {
   scale?: number
 }
 
-export function ContainPill({ title, domain, paint, depth = 0, index = 0, focus, note, caret, open, selected, hovered, onCaretClick, compact, scale = 1 }: ContainPillProps) {
-  const stroke = paint ? paint.stroke : (depth ? nestedFamilyPaint(domain, { slot: index % FAMILY_SLOTS }).stroke : topicPaint(domain).stroke)
+export function ContainPill({ title, domain, paint, depth = 0, index = 0, focus, note, caret, open, selected, hovered, onCaretClick, compact, scale = 1, root }: ContainPillProps) {
+  const stroke = root ? 'var(--border-rule)' : paint ? paint.stroke : (depth ? nestedFamilyPaint(domain, { slot: index % FAMILY_SLOTS }).stroke : topicPaint(domain).stroke)
   const s = compact ? scale : 1
   const B = CONTAIN_METRICS.caretBox
   return (
@@ -397,7 +408,7 @@ function ContainRow({ node, domain, paint, counts, open, setOpen, isRoot, compac
         style={{ position: 'relative', padding: compact ? '4px 0' : '6px 0', display: 'flex', cursor: onSelect ? 'pointer' : 'default', userSelect: 'none' }}
       >
         <ContainPill
-          title={node.title} domain={domain} paint={paint ? paint[node.id] : undefined} depth={depth} index={index} focus={isRoot} note={note}
+          title={node.title} domain={domain} paint={paint ? paint[node.id] : undefined} depth={depth} index={index} focus={isRoot} root={node.root} note={note}
           caret={hasKids} open={isOpen} compact={compact} scale={scale}
           selected={!!onSelect && selectedId === node.id} hovered={hoveredId === node.id}
           onCaretClick={onCaretClick}

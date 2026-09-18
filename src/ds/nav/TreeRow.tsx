@@ -115,7 +115,11 @@ export interface TreeRowProps {
    *  ring hue was reported as an invalid prop (OB-153 retired the union here). The NAME is still
    *  wrong — this is a topic, not a domain — and OB-061 decides the rename on both sides at once. */
   domain: string
-  /** indentation level; NESTING px per step — see NESTING's own docblock */
+  /** indentation level; NESTING px per step — see NESTING's own docblock.
+   *  DEPTH 0 IS THE CORPUS ROOT, NOT A TOP-LEVEL TOPIC (owner, 2026-09-15). A full corpus
+   *  tree starts at the one node above everything, so a territory is `depth={1}`, a module
+   *  2, a topic 3. A pane deliberately showing a subtree (re-rooted by a double click) starts
+   *  its own root at 0 — depth is measured from whatever this pane calls the root. */
   depth?: number
   /** has children — draws the disclosure caret (`Caret`, rotated when open)
    *  and answers to double-click. Never a typed ▾/▸, never an SVG chevron */
@@ -125,6 +129,13 @@ export interface TreeRowProps {
   current?: boolean
   /** typed links touching this node; nonzero only at the topic level */
   linkCount?: number
+  /** this row is the corpus ROOT — its mark draws colourless (hollow ring) because it has no
+   *  topic of its own. Everything else about the row is unchanged: it selects, it discloses,
+   *  it re-roots. The owner's ruling (2026-09-15) is that the root is a node like any other
+   *  and a ROW rather than a pane heading, so there is no second component for it and nothing
+   *  here suppresses the caret or the click. See `DomainDot`'s `root` for why the mark is
+   *  hollow rather than grey. */
+  root?: boolean
   onSelect?: () => void
   onToggle?: () => void
   onZoom?: () => void
@@ -138,6 +149,7 @@ export function TreeRow({
   expanded,
   current,
   linkCount,
+  root,
   onSelect,
   onToggle,
   onZoom,
@@ -193,7 +205,7 @@ export function TreeRow({
       ) : (
         <span style={{ width: NESTING, flexShrink: 0 }} />
       )}
-      <DomainDot domain={domain} size={8} />
+      <DomainDot domain={domain} root={root} size={8} />
       <span
         {...titleClip}
         style={{

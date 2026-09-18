@@ -4,6 +4,10 @@ import { Fragment, useState } from 'react'
 export interface CrumbNode {
   id: string
   title: string
+  /** this node's OWN topic, when it differs from the path's. The case that matters is the
+   *  first crumb: a full ancestry starts at the corpus root, which has no topic — pass
+   *  `null` there. Omit on every other crumb and the path's `domain` is used. */
+  domain?: string | null
 }
 
 /** A PATH THROUGH THE CORPUS, current node last and highlighted. Unlike `TrailChip`'s trail,
@@ -38,8 +42,10 @@ export interface BreadcrumbProps {
    *  future host spanning topics widens this component rather than replacing it */
   domain?: string
   /** navigate to an ancestor. Omit and the whole row is static text — the current node is
-   *  never clickable either way */
-  onSelect?: (node: { id: string; title: string; domain?: string }) => void
+   *  never clickable either way. Reports `{ id, title, domain }`, where `domain` is that
+   *  NODE's own when it has one (including `null` for the root) and the path's otherwise —
+   *  so a root crumb reports `null` rather than the hue its descendants happen to share. */
+  onSelect?: (node: { id: string; title: string; domain?: string | null }) => void
 }
 
 export function Breadcrumb({ path, domain, onSelect }: BreadcrumbProps) {
@@ -69,7 +75,7 @@ export function Breadcrumb({ path, domain, onSelect }: BreadcrumbProps) {
             ) : live ? (
               <button
                 type="button" data-crumb={n.id}
-                onClick={() => onSelect!({ id: n.id, title: n.title, domain })}
+                onClick={() => onSelect!({ id: n.id, title: n.title, domain: n.domain !== undefined ? n.domain : domain })}
                 onMouseEnter={() => setHot(i)}
                 onMouseLeave={() => setHot((h) => (h === i ? null : h))}
                 /* only a KEYBOARD focus lights it — a click focuses the button too, and a crumb

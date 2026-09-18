@@ -123,9 +123,20 @@ export interface DomainDotProps {
   size?: number
   /** paper halo, for dots sitting on a coloured or busy ground */
   ring?: boolean
+  /** THE CORPUS ROOT: a hollow ring (hairline `--text-3`, no fill) instead of a filled dot.
+   *  Wins over `topic`/`domain`.
+   *  A corpus has one node above its top-level topics, and by the owner's ruling
+   *  (2026-09-15) it is a node like any other: drawn in the tree, in an ancestry, as a map
+   *  level. It simply has no topic, because it contains every topic.
+   *  DO NOT REACH FOR THE UNKNOWN-TOPIC FALLBACK INSTEAD. Passing no topic at all also gives
+   *  a neutral mark, and it is the wrong sentence: `domainToken()`'s grey anchor means "a
+   *  topic nobody has a hue for", and a filled grey dot among filled hue dots reads as a
+   *  territory whose colour failed to load. Hollow reads as "holds the others, has no topic
+   *  of its own". */
+  root?: boolean
 }
 
-export function DomainDot({ topic, domain, size = 9, ring }: DomainDotProps) {
+export function DomainDot({ topic, domain, size = 9, ring, root }: DomainDotProps) {
   return (
     <span
       style={{
@@ -133,8 +144,12 @@ export function DomainDot({ topic, domain, size = 9, ring }: DomainDotProps) {
         height: size,
         borderRadius: 'var(--radius-pill)',
         flexShrink: 0,
+        boxSizing: 'border-box',
         display: 'inline-block',
-        background: domainToken(topic !== undefined ? topic : domain),
+        background: root ? 'transparent' : domainToken(topic !== undefined ? topic : domain),
+        borderStyle: root ? 'solid' : 'none',
+        borderWidth: root ? 1.5 : 0,
+        borderColor: root ? 'var(--text-3)' : 'transparent',
         boxShadow: ring ? '0 0 0 2px var(--surface-raised)' : 'none',
       }}
     />
