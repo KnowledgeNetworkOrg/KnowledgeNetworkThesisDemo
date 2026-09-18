@@ -789,13 +789,14 @@
       "src/ds/connections/ContainTree.tsx": {
         "from": "components/connections/ContainTree.jsx",
         "contract": "components/connections/ContainTree.d.ts",
-        "syncedAt": "2026-09-10",
+        "syncedAt": "2026-09-16",
         "deviations": [
           "2026-09-06 NEW FILE, OB-101 (#253). Ported faithfully: CONTAIN_METRICS, CaretHit, containsSummary, findTreePath, treeKeyNav and the caret carve-out from the subtree double-click all present.",
           "NOTE ON `nestedFamilyPaint`, correcting a claim this entry carried for one commit: this is the SECOND consumer, not a revival. src/model/color.ts already feeds the map's territory fill through it (OB-119, #250, 2026-09-05), and src/ds/barrel.test.ts already says so - #221's dead-chain premise for that symbol was resolved before this rehaul, not by it.",
           "2026-09-10 OB-174 (owner-reported): A PILL DRAWS ITS NODE'S OWN TOPIC, not the tree's. The positional resolver this entry used to defend - `index % FAMILY_SLOTS` inside the pill - was wrong for a reason its own argument hid: it graded ONE tree-level `domain` by sibling position, so every pill in the column drew the same family and the whole tree read as one colour. The touching-pairs argument was sound and survives; what was missing was that the topic must be resolved PER NODE first. New export `ContainPaint(root, { domain, isOpen })` resolves the whole column in one pass, `ContainPill` takes an entry whole as `paint`, and ContainNode gained `domain`/`topic`. The pass walks VISIBLE order and skips a closed node's children, which is what keeps the touching-pairs argument true. Pinned in src/ds/connections/containpaint.test.ts (13 assertions) rather than by screenshot, because the clauses are arithmetic. `ContainMath` is deliberately NOT ported: its own contract says it exists for a card reading off `window.<Namespace>` and that application code imports the named functions instead.",
           "2026-09-10 OB-174, second half: `counts` prop. A container's node count is no longer a second line inside every pill - it doubled the height of every row for a number that is furniture at rest. Default `'hover'` draws none; the pane's preview card carries `containsSummary(node)`, and the row's native title carries it when no `onNodeEnter` exists. Never both: the tooltip is suppressed the moment a hover handler exists.",
-          "2026-09-10 OB-167: `onOpenUpdate` added, `onOpenChange` deprecated - see the ConnectionsSplitPane entry for the whole story."
+          "2026-09-10 OB-167: `onOpenUpdate` added, `onOpenChange` deprecated - see the ConnectionsSplitPane entry for the whole story.",
+          "2026-09-17 OB-198 — `OpenAncestors(tree, id)` ported: the selection's ancestors as an open map, the target itself excluded. `selectedId` widened to accept `null` explicitly (was `string | undefined`) so a host can say \"nothing selected\" without also losing its aim. Verified in `openancestors.test.ts` (the pure exclusion, confirmed to fail 4 of 7 cases against the DS's own inclusive `path.forEach` before this fix) and on the running app (`browsertest-connections-caret-and-release.mjs`): the corpus root's caret now closes it with nothing selected, and a selected, open territory's own caret closes it and it does not reopen on a later render."
         ]
       },
       "src/ds/connections/RelationCards.tsx": {
@@ -812,12 +813,13 @@
       "src/ds/connections/ConnectionsSplitPane.tsx": {
         "from": "components/connections/ConnectionsSplitPane.jsx",
         "contract": "components/connections/ConnectionsSplitPane.d.ts",
-        "syncedAt": "2026-09-06",
+        "syncedAt": "2026-09-16",
         "deviations": [
           "2026-09-06 NEW FILE, OB-101 + OB-113 (#253). The fifth amendment is in: the contains filter renders the shared chrome/TextInput, so it carries the house cross from IconButton and the next change to that box arrives here for free. OB-113 is on the outer frame (`user-select: none`) with TextInput opting its own input back in.",
           "2026-09-10 NO LONGER LOCAL - `treeOpen` / `onTreeOpenChange` were ours, reported on #74 and asked twice (receipts 97f9a84, 4b637d1). ADOPTED UPSTREAM at OB-167 in OUR spelling, so the local prop is deleted rather than reconciled - same precedent as OB-158's `walked`/`walkedTone`. ONE SHAPE CHANGE CAME BACK WITH IT: the callback now receives an UPDATER, not a resolved map, because resolving against the render it came from drops every toggle but the last when several land in one React batch - our own finding from the 4b637d1 driver run, taken upstream as a contract change. ContainTree gained `onOpenUpdate` for it and `onOpenChange` is deprecated, keeping the old shape and the old fault for callers already on it. AND A CONTROLLED TREE IS NO LONGER ALSO PERSISTED: passing `treeOpen` stops the pane handing the tree a persistKey for the open set, so remembering it across reloads is the host's business now - deliberately, since two writers for one piece of state is the worse failure.",
           "LOCAL - the hover preview's tip layer is found with `closest('[data-tip-layer]')` off the event's own target, where the DS holds a `layerRef`. `react-hooks/refs` refuses a ref reachable from a function handed out during render, and `showPreviewAt` is exactly that: it travels to the host inside renderGraph's api. Every node that can raise a preview is a descendant of the layer, so the query resolves the same element and stays scoped to this pane where a document-wide one would not. One consequence for the contract: `onPreviewEnter` needs the REAL pointer event rather than a bare { clientX, clientY }, typed here as `PreviewPointerEvent`. Reported on #74.",
-          "LOCAL - the divider's start width is synced in an effect, and the pin is released with React's render-time 'adjust state when a prop changes' pattern, where the DS writes a ref during render and clears the pin from an effect. Both are react-hooks hard errors here. The pin change is strictly better than what it replaces: the effect version painted one frame with the stale pin still filtering the new node's cards. Reported on #74."
+          "LOCAL - the divider's start width is synced in an effect, and the pin is released with React's render-time 'adjust state when a prop changes' pattern, where the DS writes a ref during render and clears the pin from an effect. Both are react-hooks hard errors here. The pin change is strictly better than what it replaces: the effect version painted one frame with the stale pin still filtering the new node's cards. Reported on #74.",
+          "2026-09-17 OB-198 + OB-202 — `selectedId?: string | null` added, resolved by the `selectedId === undefined` test and forwarded to the tree as `litId` in place of `selected.id`. OB-202: `graphClickSlop` (4) published on `CONNECTIONS_PANE_METRICS`; `onNodeSelect` and `ConnectionsGraphApi` gain the done-when's `onBackgroundClick` escape hatch; the graph slot is wrapped in a div taking capture-phase pointerdown/up and a bubble-phase click, releasing the pin on a click no node claimed within the slop. ★ LOCAL — the DS's four refs (a claim number, a claim timestamp window, a down point, an up point) are one `GraphGestures` class instance held in state instead: `onNodeSelect` travels to the host inside `renderGraph`'s api, and `react-hooks/refs` refuses a ref reachable from a function handed out during render (the same reason `showPreviewAt` already finds its layer from the event rather than a ref). The DS's 350ms claim WINDOW is not ported at all — a gesture NUMBER has no window to be wrong about, and their own receipt for this item records the window swallowing a legitimate second click. Verified on the running app: our own `RelationStar` graph needed no host change — its existing pan-vs-click distinction (a capture-phase `stopPropagation` on a drag) already keeps a pan from ever reaching this wrapper's click handler, so `onBackgroundClick` is unused by this app's one graph, as the contract says most graphs will find."
         ]
       },
       "src/ds/chrome/CloseMark.tsx": {
@@ -826,6 +828,14 @@
         "syncedAt": "2026-09-16",
         "deviations": [
           "2026-09-16 NEW FILE, OB-201 — the drawn ✕, ported faithfully. PATH: the item names `src/ds/CloseMark.tsx`; this repo keeps every chrome mark under `src/ds/chrome/`, so it lives beside FindMark and ExpandMark and is exported from `src/ds/index.ts` like them. `style` gains a doc comment the .d.ts does not carry (the adherence budget counts undocumented props, and every sibling mark documents it)."
+        ]
+      },
+      "src/instruments/ConnectionsPane.tsx": {
+        "from": null,
+        "contract": null,
+        "syncedAt": "2026-09-16",
+        "deviations": [
+          "2026-09-17 OB-198 host edits — the open set's union changed from `{...userOpen}` plus `pathTo(currentId)` (inclusive) to `{...userOpen, ...OpenAncestors(CORPUS_TREE, currentId)}` (ancestors only); `selectedId={bus.focus == null ? null : currentId}` passed to the pane so a deselect stops lighting a pill without moving the resting aim (#6). `pathTo` import removed — nothing else in this file used it."
         ]
       }
     },

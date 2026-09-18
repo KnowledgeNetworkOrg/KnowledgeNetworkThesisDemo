@@ -161,6 +161,33 @@ export function findTreePath(node: ContainNode, id: string, trail?: ContainNode[
   return null
 }
 
+/** THE ANCESTORS OF `id` AS AN OPEN MAP, AND THE TARGET ITSELF IS NEVER IN IT (DS OB-198). This is
+ *  the force-open set a host needs as the selection moves: the path down to where you stand has to
+ *  be open, or the column shows a tree with nothing highlighted in it — the one state a "you are
+ *  here" column may not be in. `{}` when `id` is not in the tree.
+ *
+ *  A FORCE-OPEN MAP THAT CONTAINS ITS OWN TARGET MAKES THAT NODE'S CARET INERT, and that is why this
+ *  is a function rather than a sentence in a contract. Merge an INCLUSIVE corpus path (which is what
+ *  `pathTo()` returns) into a host-owned open map and the selected node is re-forced open on every
+ *  render: the toggle lands, the next render undoes it, and the one pill the person is looking at is
+ *  the one pill they cannot collapse. Owner-reported on the running app (2026-09-16), FIRST against
+ *  the root row, because the root is on every path and was therefore inert whatever was selected.
+ *
+ *  THE PATH STILL WINS OVER A USER'S CLOSED ANCESTOR — spread this OVER the user's own map
+ *  (`{ ...userOpen, ...OpenAncestors(tree, id) }`), or a closed ancestor hides the selection. What
+ *  must never be forced is the target's OWN disclosure.
+ *
+ *  NOT PORTED: the DS's `ContainMath` alias, which exists so a specimen card can reach lower-case
+ *  helpers through `window.<Namespace>`. This app imports the named functions, as the DS's own
+ *  contract tells application code to. */
+export function OpenAncestors(tree: ContainNode | null | undefined, id: string): Record<string, 1> {
+  const m: Record<string, 1> = {}
+  const path = tree ? findTreePath(tree, id) : null
+  if (!path) return m
+  path.slice(0, -1).forEach((n) => { m[n.id] = 1 })
+  return m
+}
+
 /** ROVING KEYBOARD NAV over whatever pills are CURRENTLY visible — it reads the DOM instead of
  *  re-deriving the flattened list, so it stays correct across filtering and expand state for
  *  free. Wire it to the scroll container's own `onKeyDown` (the container takes `tabIndex={0}`
@@ -303,7 +330,9 @@ function ContainRow({ node, domain, paint, counts, open, setOpen, isRoot, compac
   isRoot?: boolean
   compact?: boolean
   scale?: number
-  selectedId?: string
+  /** widened to `| null` alongside `ContainTreeProps.selectedId` (DS OB-198) — a recursive prop,
+   *  so ContainRow has to accept whatever the tree's own public contract accepts */
+  selectedId?: string | null
   hoveredId?: string | null
   onSelect?: (node: { id: string; title: string; domain?: string }) => void
   onNodeEnter?: (e: ReactMouseEvent, node: ContainNode) => void
@@ -421,8 +450,11 @@ export interface ContainTreeProps {
    *  render was given, so several caret toggles landing in one React batch all compute from
    *  the same base and only the last survives. Use `onOpenUpdate` */
   onOpenChange?: (next: OpenMap) => void
-  /** the node the rest of the pane is aimed at — bold, primary wash */
-  selectedId?: string
+  /** the node drawn as SELECTED — bold, primary wash. `null`/omitted lights nothing, which is the
+   *  state to pass when the user has deselected, even if the host still aims the surrounding pane
+   *  at that node (DS OB-198). THE EMPTY STATE DRAWS NO MARK AT ALL — owner-ruled 2026-09-16 over
+   *  accent ink on the aimed row, a hairline ring, and a gutter tick. Do not add one back */
+  selectedId?: string | null
   /** the node under a pointer somewhere in the pane, ours or another instrument's */
   hoveredId?: string | null
   /** a row was clicked. Omit and the tree is a static picture: no cursor, no wash, no selection */

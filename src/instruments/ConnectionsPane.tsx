@@ -58,10 +58,10 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 
-import { CONNECTIONS_BODY_STYLE, ConnectionsSplitPane, IconButton, PaneCanvas } from '@/ds'
+import { CONNECTIONS_BODY_STYLE, ConnectionsSplitPane, IconButton, OpenAncestors, PaneCanvas } from '@/ds'
 import type { ConnectionsGraphApi, ContainNode, OpenMap, Relation } from '@/ds'
 
-import { byId, childrenOf, domainOf, EDGE_COLOR, EDGE_LABEL, edges, pathTo, ROOT_ID, topicHueOf } from '../corpus/graph'
+import { byId, childrenOf, domainOf, EDGE_COLOR, EDGE_LABEL, edges, ROOT_ID, topicHueOf } from '../corpus/graph'
 import { DOC_BODY } from '../corpus/docs'
 import { colorOf, fillOf } from '../model/color'
 import { regionStarFor, starFor } from '../model/star'
@@ -524,9 +524,14 @@ export default function ConnectionsPane({ bus }: { bus: Bus }) {
   // storage key, deliberately: two writers for one piece of state is the worse failure. So the
   // open set is rebuilt each mount from the root plus the path to wherever you are — which is
   // the useful state to be in anyway. The divider width and the collapse still persist.
+  //
+  // THE FORCED PATH IS THE ANCESTORS, NEVER THE NODE ITSELF (DS OB-198). `pathTo()` is inclusive,
+  // so the node you stand on was re-forced open every render and its caret could not close it —
+  // and the corpus ROOT is on every path, which is where the owner met it first, on "Computer
+  // Science", with nothing selected. The union stays: the path must win over a user's closed
+  // ancestor, or a selection arriving from another pane draws a column with nothing lit in it.
   const [userOpen, setUserOpen] = useState<OpenMap>({ [ROOT_ID]: 1 })
-  const open: OpenMap = { ...userOpen }
-  for (const id of pathTo(currentId)) open[id] = 1
+  const open: OpenMap = { ...userOpen, ...OpenAncestors(CORPUS_TREE, currentId) }
 
   const onSelect = (n: { id: string }) => {
     if (!byId.has(n.id)) return
@@ -569,6 +574,9 @@ export default function ConnectionsPane({ bus }: { bus: Bus }) {
           tree={CORPUS_TREE}
           domain={domain}
           selected={{ id: currentId, title: node.title, domain }}
+          /* the AIM keeps its resting reading after a deselect (#6), but the column stops LIGHTING a
+             pill nobody chose — and a foreign hover's preview is not a selection either (OB-198) */
+          selectedId={bus.focus == null ? null : currentId}
           onSelect={onSelect}
           relationsOf={relationsOfNode}
           summaryOf={summaryOfNode}
