@@ -7,7 +7,7 @@ import { describe, expect, test } from 'vitest'
 
 import { byId, domainIds, domainOf, edges, nodes, pathTo, topicIds, topicsUnder } from '../corpus/graph'
 import { provinceIds, provinceOf, topicAnchorOf } from './flat'
-import { maxTier, pointInPoly, territories } from './nested'
+import { countryPath, maxTier, pointInPoly, territories } from './nested'
 import { fitLabel, labelBox } from './labelfit'
 import { cellPolyOf, endpointAtTier, flightTargetOf, outlineOf, pinSpotClear, roadsFor, tierOf, walkAnchorAt } from './atlas'
 
@@ -156,8 +156,12 @@ describe('outlineOf and tierOf — one question, one answer', () => {
     for (const t of topicIds) expect(tierOf(t), t).toBe(2)
   })
 
-  test('the root is not a region — it has no outline', () => {
-    expect(outlineOf('root')).toBeUndefined()
+  test('OB-193: the root IS a region now — its own outline, at its own level', () => {
+    // the owner's ruling (2026-09-15): the corpus root is a node like any other, drawn as ONE
+    // region at the map's new level -1 — so it has an outline now, distinct from every
+    // domain's/province's/territory's own (rootPath, not countryPath/provincePath/a territory)
+    expect(outlineOf('root')).toBeDefined()
+    expect(outlineOf('root')).not.toBe(countryPath[domainIds[0]])
     expect(byId.get('root')!.parentId).toBeNull()
   })
 })

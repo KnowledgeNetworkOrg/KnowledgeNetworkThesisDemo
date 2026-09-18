@@ -20,7 +20,15 @@ const GLYPH = (
  * zoom-family button and bury the distinction.
  */
 export interface LevelPickerProps {
-  /** the level labels in order, e.g. ["L0","L1","L2","L3","L4","L5","L6"] */
+  /** the level labels in order, e.g. ["L0","L1","L2","L3","L4","L5","L6"].
+   *
+   *  WHAT A LEVEL NUMBER MEANS: a level is a DEPTH INTO THE CORPUS measured from the root, so
+   *  level 0 is the corpus root drawn as ONE region — the whole corpus as a single shape —
+   *  and level 1 is the top-level topics (the six territories in this app's corpus). A host
+   *  must not renumber to suit what it can draw: if the map has no level-0 rendering yet, the
+   *  honest list starts at "L1" rather than relabelling the territories as L0, which would
+   *  silently redefine the vocabulary the tree, the ancestry and the counts all share
+   *  (owner, 2026-09-15). */
   levels: string[]
   /** the current level — must be one of `levels`, drawn with the moss wash in the list */
   level?: string

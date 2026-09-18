@@ -192,8 +192,9 @@ export interface ConnectionsSplitPaneProps {
   /** the node the pane is aimed at: the relations column's subject and the tree's highlighted row */
   selected: { id: string; title: string; domain?: string }
   /** navigate. Every click that MOVES the pane comes through here — a crumb, a tree row, a card's
-   *  pill — and a graph click deliberately does not */
-  onSelect?: (node: { id: string; title: string; domain?: string }) => void
+   *  pill — and a graph click deliberately does not. `domain` is `null` for the corpus root's
+   *  own crumb (OB-193) rather than the path's shared hue, which the root does not carry */
+  onSelect?: (node: { id: string; title: string; domain?: string | null }) => void
   /** a node's own relationships, DECOMPOSED: one entry per target and kind, `kindLabel` in the
    *  corpus's own wording. Called for the selection and for every descendant of it (the
    *  via-children roll-up), so it must be cheap or memoised by the host */
@@ -373,8 +374,15 @@ export function ConnectionsSplitPane({ tree, domain, selected, onSelect, relatio
 
   const direct = useMemo(() => (relationsOf ? relationsOf(selected.id) || [] : []), [relationsOf, selected.id])
   const groups = useMemo(() => groupRelationsByTarget(direct), [direct])
-  const path = (tree && findTreePath(tree, selected.id)) || [{ id: selected.id, title: selected.title }]
+  const path = (tree && findTreePath(tree, selected.id)) || [{ id: selected.id, title: selected.title, domain: undefined, root: false }]
   const fullNode = path[path.length - 1]
+  /* THE ROOT CRUMB REPORTS `domain: null`, EXPLICITLY (owner, 2026-09-15) — the corpus root's
+     own `ContainNode.domain` is `undefined` (OB-174's grey pill, unresolved), and `undefined`
+     is exactly what `Breadcrumb` reads as "fall back to the path's shared domain". Left alone,
+     clicking the root crumb from inside, say, a Networking ancestry would report that
+     territory's hue for a node that owns none. `null` defeats the fallback; every other crumb
+     passes its own resolved topic through unchanged. */
+  const crumbPath = path.map((n) => ({ id: n.id, title: n.title, domain: n.root ? null : n.domain }))
   const via = useMemo<ViaRelation[]>(() => {
     if (!relationsOf || !fullNode || !fullNode.children) return []
     const out: ViaRelation[] = []
@@ -453,7 +461,7 @@ export function ConnectionsSplitPane({ tree, domain, selected, onSelect, relatio
       /* OB-113 — the pane's own drags are gestures, not text selections */
       userSelect: 'none', WebkitUserSelect: 'none',
     }}>
-      <Breadcrumb path={path} domain={domain} onSelect={onSelect} />
+      <Breadcrumb path={crumbPath} domain={domain} onSelect={onSelect} />
       <div data-tip-layer="1" style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
         {preview && preview.info ? (
           <div style={{ position: 'absolute', left: preview.x, top: preview.y, zIndex: 1000, pointerEvents: 'none' }}>

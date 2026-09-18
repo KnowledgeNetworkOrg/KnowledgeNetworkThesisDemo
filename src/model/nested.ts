@@ -123,6 +123,13 @@ for (const d of domainIds) {
   })
 }
 
+/** OB-193: the corpus ROOT'S own region — the whole corpus as ONE shape, the union of every
+ *  domain's territory. Same `regionGeom` recipe as `countryPath`/`provincePath` above, just
+ *  handed every topic instead of one domain's. There is exactly one, so no per-id record. */
+const rootGeom = regionGeom(topicIds)
+export const rootPath: string = rootGeom.d
+export const rootRings: XY[][] = rootGeom.rings
+
 // ── Convex-polygon toolkit ───────────────────────────────────────────────────
 function polyCentroid(poly: XY[]): XY {
   let a2 = 0
