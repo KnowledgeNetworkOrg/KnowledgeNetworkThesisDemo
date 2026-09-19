@@ -27,6 +27,8 @@ export { EdgeEntry } from './graph/EdgeEntry'
 export type { EdgeEntryProps } from './graph/EdgeEntry'
 export type { EdgeKind } from './graph/vocab'
 export { EDGE_TOKEN } from './graph/vocab'
+export { clipToRoom, LabelCut, textWidth } from './graph/textFit'
+export type { TextWidthOptions } from './graph/textFit'
 
 export { Breadcrumb } from './nav/Breadcrumb'
 export type { BreadcrumbProps, CrumbNode } from './nav/Breadcrumb'

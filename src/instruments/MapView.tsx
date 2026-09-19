@@ -56,7 +56,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import type { WalkMark } from '@/ds'
-import { ARROW_METRICS, headForSet, walkAddresses, walkArrival, walkLeadStop, walkLook, walkMarkLabel, walkProgress, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, PaneCanvas, PIN_RING_WIDTH, previewAnchor, shaftTailOffset, StepDot, VisibilityMark, WALK_ARROW_DEFAULTS, WALK_DOCK_METRICS, walkBand, WalkDock, WalkPreview, ZoomControl } from '@/ds'
+import { ARROW_METRICS, headForSet, LabelCut, walkAddresses, walkArrival, walkLeadStop, walkLook, walkMarkLabel, walkProgress, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, PaneCanvas, PIN_RING_WIDTH, previewAnchor, shaftTailOffset, StepDot, VisibilityMark, WALK_ARROW_DEFAULTS, WALK_DOCK_METRICS, walkBand, WalkDock, WalkPreview, ZoomControl } from '@/ds'
 import { byId, domainIds, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT_ID } from '../corpus/graph'
 import { DT } from './walkdesk/authordnd'
 import { routeIsWalk, useWalkPlayback } from './walkdesk/playback'
@@ -74,7 +74,7 @@ import { PIN_NO_POSITION, pinPosition, walkPins } from '../model/walkpins'
 import { toggleWalkHidden, walkDrawn, walkKeyOf } from '../model/walkvisibility'
 import type { Bundle } from '../model/atlas'
 import { fitLabel, fitRegionLabel, labelBox } from '../model/labelfit'
-import type { FitLine, LabelBox } from '../model/labelfit'
+import type { FitLine, LabelBox, LabelFit } from '../model/labelfit'
 import { descendantCount, parentOf } from '../model/nav'
 import type { Bus } from '../studio/bus'
 
@@ -638,6 +638,14 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
    * level renders the same authored style at its canonical scale */
   const px = (v: number) => (v * f) / view.s
 
+  /** OB-212: `labelFit`'s fitted font sizes are in ITS OWN world-unit space (`world()`,
+   *  pinned to the level's canonical scale so line breaks don't reflow mid-flight) — this
+   *  converts one back to the CURRENT live zoom's SVG units, same conversion `px` does, so a
+   *  shrunk label's rendered size still tracks the live camera exactly as an unshrunk one
+   *  does (`world(v) * LEVEL_S[level] / view.s === px(v)` when the camera is at rest, and
+   *  tracks smoothly through a fly-to since only `view.s` moves). */
+  const worldFsToPx = (worldFs: number) => (worldFs * LEVEL_S[level]) / view.s
+
   /** the parent layer's case, applied ONLY where a name is acting as a ghost.
    *  A domain name at L0 and a module name at L1 are the ACTIVE grain, not
    *  context — they are the level you are reading — and they keep exactly the
@@ -670,11 +678,27 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
     }
   }
 
+  // OB-212: `fitLabel` now MEASURES a name against the real webfont rather than estimating —
+  // before Nunito/Quicksand load, `textWidth` reads the fallback face's metrics, so the first
+  // paint can wrap and shrink names against the wrong numbers. Re-run the memo once the real
+  // face is in, same pattern as AuthorRoad's `setFontsReady`.
+  const [labelFontsReady, setLabelFontsReady] = useState(0)
+  useEffect(() => {
+    if (typeof document === 'undefined' || !document.fonts) return
+    let on = true
+    document.fonts.ready.then(() => { if (on) setLabelFontsReady((n) => n + 1) })
+    return () => { on = false }
+  }, [])
+
   // wrapped labels, fitted at the level's CANONICAL scale — not the mid-flight
   // zoom — so a name's line breaks are decided once per level, not per frame
   const labelFit = useMemo(() => {
-    const active = new Map<string, FitLine[]>()
-    const ghost = new Map<string, FitLine[]>()
+    // OB-212: no value read here, only a re-run trigger — `textWidth` measures against
+    // whichever face is ACTUALLY loaded for a given font-family string, and that changes
+    // as the webfont arrives even though the string itself never does.
+    void labelFontsReady
+    const active = new Map<string, LabelFit>()
+    const ghost = new Map<string, LabelFit>()
     // OB-108: every fitted label's own extent, so a walk pin can be kept off the
     // name it would otherwise delete. Built HERE rather than beside the pins
     // because this is the only place that knows each label's font size — the
@@ -711,15 +735,19 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
         noteBox(m.key, fit.lines, world(size * fit.shrink))
       }
     if (level < 2) return { active, ghost, region, box }
+    // OB-212: the floor a cell name may shrink to before `clipToRoom` takes over — in this
+    // memo's own world-unit space, so it shrinks alongside the name being fitted rather than
+    // a raw `LabelCut.floorPx` (a real-px number) being compared against a world-unit size.
+    const floorFs = world(LabelCut.floorPx)
     for (const t of territories) {
       if (t.tier === level || (t.leaf && t.tier < level)) {
         const fs = world(t.tier === level ? 12.5 : 11.5)
-        const fit = fitLabel(byId.get(t.id)!.title, t, fs, false)
+        const fit = fitLabel(byId.get(t.id)!.title, t, fs, false, floorFs)
         if (fit) active.set(t.id, fit)
-        noteBox(t.id, fit, fs)
+        noteBox(t.id, fit ? fit.lines : null, fit ? fit.fs : fs)
       } else if (level >= 3 && !t.leaf && t.tier === level - 1) {
         const fs = world(PARENT_LABEL_PX)
-        const fit = fitLabel(byId.get(t.id)!.title, t, fs, true)!
+        const fit = fitLabel(byId.get(t.id)!.title, t, fs, true, floorFs)!
         ghost.set(t.id, fit)
         // THE PARENT WATERMARK COUNTS AS A LABEL TOO (OB-108). It is the name of
         // the very cell a pin at this level belongs to, so a pin over it is the
@@ -729,11 +757,13 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
         // and `pinSpotClear` then leaves the pin where it was rather than
         // shoving it somewhere worse. Registering it costs one box and improves
         // the cases where a clear spot does exist.
-        noteBox(t.id, fit, fs)
+        noteBox(t.id, fit.lines, fit.fs)
       }
     }
     return { active, ghost, region, box }
-  }, [level, f])
+    // labelFontsReady is a re-run trigger only (OB-212): the memo re-measures against
+    // whichever face is loaded when it runs, it never branches on the counter's value.
+  }, [level, f, labelFontsReady])
 
   /** OB-193: the root's own name, fitted into `rootRings` the same way a country's name fits
    *  into its own — kept OUT of `labelFit` above because that memo is guarded off entirely at
@@ -1465,14 +1495,14 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                     key={`ghost-${t.id}`}
                     data-ghostlabel={t.id}
                     textAnchor="middle"
-                    fontSize={px(PARENT_LABEL_PX)}
+                    fontSize={worldFsToPx(labelFit.ghost.get(t.id)!.fs)}
                     fontWeight={800}
                     fill={colorOf(t.id)}
                     opacity={ancLabelOAt(1, t.id)}
                     {...ghostCase(true)}
                     style={{ userSelect: 'none', transition: 'opacity 200ms' }}
                   >
-                    {labelFit.ghost.get(t.id)!.map((ln, i) => (
+                    {labelFit.ghost.get(t.id)!.lines.map((ln, i) => (
                       <tspan key={i} x={ln.x} y={ln.y}>
                         {ln.text}
                       </tspan>
@@ -1498,7 +1528,7 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                       key={t.id}
                       data-label={t.id}
                       textAnchor="middle"
-                      fontSize={px(t.tier === level ? 12.5 : 11.5)}
+                      fontSize={worldFsToPx(labelFit.active.get(t.id)!.fs)}
                       fontWeight={isSel ? 700 : 600}
                       fill={isSel ? inkStrongOf(t.id) : labelInkOf(t.id)}
                       stroke="#ffffff"
@@ -1508,7 +1538,7 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                       opacity={isSel ? 1 : isMuted(t) ? 0.7 : 0.92}
                       style={{ userSelect: 'none' }}
                     >
-                      {labelFit.active.get(t.id)!.map((ln, i) => (
+                      {labelFit.active.get(t.id)!.lines.map((ln, i) => (
                         <tspan key={i} x={ln.x} y={ln.y}>
                           {ln.text}
                         </tspan>
