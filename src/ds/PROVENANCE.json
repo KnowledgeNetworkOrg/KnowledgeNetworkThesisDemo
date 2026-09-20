@@ -768,8 +768,10 @@
       "src/ds/graph/textFit.ts": {
         "from": "components/graph/textFit.js",
         "contract": "none - a helper file, not a component; the DS ships no .d.ts for it",
-        "syncedAt": "2026-09-06",
+        "syncedAt": "2026-09-19",
         "deviations": [
+          "2026-09-19 OB-213 — `CSS_SLACK` (1.12) deleted from `fitLines`; it measured a canvas-vs-CSS disagreement that turned out to be nil (`guidelines/label-width-measure.html`: canvas/rendered is 1.000 at 12.5px and 10px for every string once the family is declared once and `document.fonts.ready` has resolved). It is no longer upstream's number to attribute — upstream deleted it the same day.",
+          "2026-09-19 OB-212 — `textWidth`, `clipToRoom` and `LabelCut` ported new, verbatim (`floorPx` 10, `shrinkStep` 0.9, `minStub` 4, `minWord` 2, `minFragment` 3). NOT ported: upstream's `labelCase` (a paper-stroke case for map cell names, `ideas/map-selected-ghost-legibility.html`) — no obligation asks for it yet, so it stays unadopted rather than shipping a contract nobody asked for. All three new exports reachable on `@/ds` (`fitLines` stays off the barrel, unchanged).",
           "2026-09-06 NEW FILE, OB-101 (#253). `fitLines` travels with its importers the way textMeasure.ts travels with NodeChip: upstream, both NodeArrow's `fill label` and NodeChip's `border-2` measured-mention mode fit through this one function, so a port that copied it into either would be exactly the drift the extraction removed. The 1.12 canvas-vs-CSS factor, the three-character orphan rule and the 0.55em no-document fallback are all upstream's numbers."
         ]
       },

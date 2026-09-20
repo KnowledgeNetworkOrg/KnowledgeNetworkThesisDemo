@@ -9,6 +9,7 @@ import { byId, domainIds, domainOf, edges, nodes, pathTo, topicIds, topicsUnder 
 import { provinceIds, provinceOf, topicAnchorOf } from './flat'
 import { countryPath, maxTier, pointInPoly, territories } from './nested'
 import { fitLabel, labelBox } from './labelfit'
+import { LabelCut } from '@/ds'
 import { cellPolyOf, endpointAtTier, flightTargetOf, outlineOf, pinSpotClear, roadsFor, tierOf, walkAnchorAt } from './atlas'
 
 const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`)
@@ -300,9 +301,9 @@ describe('pinSpotClear — a walk pin must not sit on its own territory name (OB
    *  the corpus or the fitter changes, this changes with it. */
   const cases = territories
     .filter((t) => t.tier === 2)
-    .map((t) => ({ t, lines: fitLabel(byId.get(t.id)!.title, t, 12.5, false) }))
-    .filter((c) => c.lines !== null)
-    .map((c) => ({ ...c, box: labelBox(c.lines!, 12.5)! }))
+    .map((t) => ({ t, fit: fitLabel(byId.get(t.id)!.title, t, 12.5, false, LabelCut.floorPx) }))
+    .filter((c) => c.fit !== null)
+    .map((c) => ({ t: c.t, fit: c.fit!, box: labelBox(c.fit!.lines, c.fit!.fs)! }))
 
   test('the corpus actually exercises this — most centres START on the name', () => {
     // If this ever drops to nothing, every assertion below passes vacuously.

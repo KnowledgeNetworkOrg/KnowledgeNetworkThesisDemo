@@ -16,6 +16,7 @@
 import { chordAt, regionChordAt } from './nested'
 import type { Territory } from './nested'
 import type { XY } from './derive'
+import { clipToRoom, LabelCut, textWidth } from '@/ds'
 
 const CHAR_W = 0.58 // ≈ average glyph width / font-size of the UI sans
 const FIT = 0.88 // fraction of the chord a line may fill
@@ -39,7 +40,12 @@ export interface FitLine {
  *  x, and from roughly four-fifths of the font size above the baseline to a
  *  fifth below it — cap height up, descender down. Approximate on purpose: this
  *  is used to keep other marks off the text, where being a pixel generous is
- *  free and being a pixel mean is the bug. */
+ *  free and being a pixel mean is the bug.
+ *
+ *  KEEPS THE CHARACTER ESTIMATE ON PURPOSE (OB-212): `fitLabel` below now MEASURES a name's
+ *  width, because there being generous was the whole bug (an over-wide estimate dropped names
+ *  that fit). A keep-away box has the opposite incentive — measured 1.11-1.25x too wide is a
+ *  free margin here, not a missing name, so the cheap estimate stays. */
 export interface LabelBox {
   x0: number
   y0: number
@@ -63,31 +69,75 @@ export function labelBox(lines: FitLine[], fs: number): LabelBox | null {
   return { x0, y0, x1, y1 }
 }
 
-export function fitLabel(title: string, t: Territory, fs: number, force: boolean): FitLine[] | null {
-  const lh = fs * 1.12
-  const wOf = (s: string) => s.length * fs * CHAR_W
-  const at = (y: number, text: string) => {
-    const c = chordAt(t.poly, y)
-    return {
-      x: c ? (c[0] + c[1]) / 2 : t.cx,
-      y: y + fs * 0.35,
-      text,
-      over: wOf(text) - (c ? (c[1] - c[0]) * FIT : 0),
-    }
-  }
-  const one = at(t.cy, title)
-  if (one.over <= 0) return [one]
+/** The result of fitting a name into a cell: the lines to draw, and the font size actually
+ *  used to draw them — which may be smaller than the size asked for (OB-212 clause 3: a
+ *  shrunk label must REPORT its shrunk size, not the ceiling it started from, or a caller
+ *  sizing a box from the request rather than the answer reserves room the label isn't using
+ *  and starves whatever else wanted that room, e.g. a walk pin, OB-108). */
+export interface LabelFit {
+  lines: FitLine[]
+  fs: number
+}
 
-  const words = title.split(' ')
-  let best: { l1: FitLine; l2: FitLine; over: number } | null = null
-  for (let k = 1; k < words.length; k++) {
-    const l1 = at(t.cy - lh / 2, words.slice(0, k).join(' '))
-    const l2 = at(t.cy + lh / 2, words.slice(k).join(' '))
-    const over = Math.max(l1.over, l2.over)
-    if (!best || over < best.over) best = { l1, l2, over }
+/** Fits `title` into cell `t` at up to `fs` (same unit space as `t`'s own coordinates — the
+ *  caller may be measuring in real px or, as the map does, in a world-unit stand-in for one;
+ *  `textWidth` is linear in its `fontPx` so either is exact as long as `fs` and `floorFs`
+ *  share the caller's space). MEASURED, not estimated (OB-212): the old `CHAR_W * length`
+ *  guess over-counted a real name by 1.11-1.25x, so combined with `FIT`'s margin the cell
+ *  demanded ~1.4x the room a name actually needed — deciding whether a cell got a name by
+ *  NAME LENGTH, not cell size, which is the bug this replaces.
+ *
+ *  Tries the whole title on one line, then the best two-word split, then — if neither fits —
+ *  SHRINKS the winning split by `LabelCut.shrinkStep` down to `floorFs` before giving up
+ *  (region names have shrunk this way since they were written; cell names now do too, down
+ *  to their own floor rather than region's, since a name this small is noise at a cell's
+ *  base size — see `LabelCut.floorPx`'s docblock). Below the floor: `force` (the parent
+ *  watermark ghost) returns its best split regardless, unclipped, since orientation text may
+ *  bleed but must never vanish; otherwise `clipToRoom` decides one final one-line cut, or
+ *  drops the name (`null`) if even that reads as noise. */
+export function fitLabel(title: string, t: Territory, fs: number, force: boolean, floorFs: number): LabelFit | null {
+  const attempt = (f: number) => {
+    const lh = f * 1.12
+    const wOf = (s: string) => textWidth(s, { fontPx: f })
+    const at = (y: number, text: string) => {
+      const c = chordAt(t.poly, y)
+      return {
+        x: c ? (c[0] + c[1]) / 2 : t.cx,
+        y: y + f * 0.35,
+        text,
+        over: wOf(text) - (c ? (c[1] - c[0]) * FIT : 0),
+      }
+    }
+    const one = at(t.cy, title)
+    if (one.over <= 0) return { lines: [one], over: one.over }
+    const words = title.split(' ')
+    let best: { l1: FitLine; l2: FitLine; over: number } | null = null
+    for (let k = 1; k < words.length; k++) {
+      const l1 = at(t.cy - lh / 2, words.slice(0, k).join(' '))
+      const l2 = at(t.cy + lh / 2, words.slice(k).join(' '))
+      const over = Math.max(l1.over, l2.over)
+      if (!best || over < best.over) best = { l1, l2, over }
+    }
+    return best ? { lines: [best.l1, best.l2], over: best.over } : { lines: [one], over: one.over }
   }
-  if (best && best.over <= 0) return [best.l1, best.l2]
-  return force ? (best ? [best.l1, best.l2] : [one]) : null
+
+  let curFs = fs
+  let a = attempt(curFs)
+  while (a.over > 0 && curFs > floorFs) {
+    curFs = Math.max(floorFs, curFs * LabelCut.shrinkStep)
+    a = attempt(curFs)
+  }
+  if (a.over <= 0) return { lines: a.lines, fs: curFs }
+  if (force) return { lines: a.lines, fs: curFs }
+
+  const c = chordAt(t.poly, t.cy)
+  const room = c ? (c[1] - c[0]) * FIT : 0
+  const clipped = clipToRoom(title, room, { fontPx: floorFs })
+  if (clipped == null) return null
+  return {
+    lines: [{ x: c ? (c[0] + c[1]) / 2 : t.cx, y: t.cy + floorFs * 0.35, text: clipped }],
+    fs: floorFs,
+  }
 }
 
 // ── Region names (SelfNotes: "labels overlap / region text not wrapped") ─────
