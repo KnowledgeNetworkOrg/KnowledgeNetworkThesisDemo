@@ -17,12 +17,10 @@
 //   sec  Public-Key → RSA → Key Generation → Prime Selection → Miller–Rabin
 //   se   Version Control → Git Internals → Object Model → Packfiles → Delta Compression
 
-export interface DeepSpec {
-  /** one-line teaching blurb — merged into DOC_BODY under the derived id */
-  d: string
-  /** children by title; absence means this node is a true leaf */
-  c?: Record<string, DeepSpec>
-}
+// The shape lives in corpusbuild.ts now — both corpora author deep layers the
+// same way, so there is one definition of what a layer is.
+export type { DeepSpec } from './graphshape'
+import type { DeepSpec } from './graphshape'
 
 /** children of each topic, keyed by the topic's id in graph.ts */
 export const DEEP: Record<string, Record<string, DeepSpec>> = {

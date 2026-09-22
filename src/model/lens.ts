@@ -144,8 +144,26 @@ export function curriculum(goal: string, type: EdgeType, maxDepth: number): Curr
 
 // ── Module-load guards (idiom: graph.ts throws if the deterministic corpus
 // ever stops matching what these functions assume) ─────────────────────────
-const HUB = 'cry-tls-certificates' // TLS & Certificates — the corpus's richest builds-on cone
-if (!byId.has(HUB)) throw new Error(`lens.ts guard: hub id typo, not in corpus: ${HUB}`)
+// The hub is CHOSEN FROM THE DATA, not named: the topic with the most outgoing
+// `depends_on` edges — whichever corpus is loaded, that is its richest builds-on
+// cone and so the hardest case for these functions. It was the literal id
+// `cry-tls-certificates` until the repo gained a second corpus, where that id
+// does not exist and this guard turned a different dataset into a crash on
+// import. Ties break on id so the choice is deterministic.
+const HUB = (() => {
+  const outDegree = new Map<string, number>()
+  for (const e of edges) if (e.type === 'depends_on') outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1)
+  let best = ''
+  let bestN = 0
+  for (const [id, n] of [...outDegree].sort((a, b) => a[0].localeCompare(b[0]))) {
+    if (n > bestN) {
+      best = id
+      bestN = n
+    }
+  }
+  return best
+})()
+if (!HUB || !byId.has(HUB)) throw new Error('lens.ts guard: the corpus has no depends_on edges to pick a hub from')
 
 {
   const c = curriculum(HUB, 'depends_on', 3)
