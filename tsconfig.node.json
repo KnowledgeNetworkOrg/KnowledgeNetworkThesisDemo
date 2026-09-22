@@ -22,5 +22,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["vite.config.ts", "src/ds/adherence.test.ts", "src/corpus/edgecolor.test.ts", "src/ds/graph/topicpaint.test.ts", "src/studio/browsertestguard.test.ts", "src/unreachedmodule.test.ts"]
+  "include": ["vite.config.ts", "src/ds/adherence.test.ts", "src/corpus/edgecolor.test.ts", "src/ds/graph/topicpaint.test.ts", "src/studio/browsertestguard.test.ts", "src/unreachedmodule.test.ts", "src/layering.test.ts"]
 }
