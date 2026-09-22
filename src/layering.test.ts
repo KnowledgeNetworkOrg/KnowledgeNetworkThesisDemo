@@ -37,7 +37,7 @@
 // exceptions beside the check) and studio/browsertestguard.test.ts (self-checks its own
 // parse so an empty result cannot pass vacuously).
 import { describe, expect, it } from 'vitest'
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join, posix, relative, sep } from 'node:path'
 
@@ -153,7 +153,8 @@ const resolve = (fromRel: string, spec: string): string | null => {
   else return null
   for (const suffix of ['.ts', '.tsx', '/index.ts', '']) {
     const candidate = base + suffix
-    if (existsSync(join(SRC, ...candidate.split('/')))) return candidate
+    const abs = join(SRC, ...candidate.split('/'))
+    if (existsSync(abs) && statSync(abs).isFile()) return candidate
   }
   return null
 }
@@ -224,7 +225,7 @@ const STORAGE_WRITERS_FOR_NOW: Record<string, string> = {
 describe('the scan can still see the app', () => {
   // Without these, a walk that stops matching would empty the edge list and every
   // check below would pass vacuously — the failure mode this file exists to catch,
-  // reproduced inside the catcher. browerstestguard.test.ts is the precedent.
+  // reproduced inside the catcher. browsertestguard.test.ts is the precedent.
   it('found the modules, the edges and the anchors', () => {
     expect(moduleFiles.length, 'the scan found suspiciously few modules').toBeGreaterThanOrEqual(120)
     expect(edges.length, 'the scan resolved suspiciously few imports').toBeGreaterThanOrEqual(400)
@@ -238,7 +239,7 @@ describe('the scan can still see the app', () => {
 })
 
 describe('the folder import rule', () => {
-  it('every import runs with the layered table, or is written down as an exception', () => {
+  it('every import respects the layered table, or is written down as an exception', () => {
     const offenders = edges
       .filter((e) => !MAY_IMPORT[e.fromLayer].includes(e.toLayer))
       .filter((e) => !(`${e.from} -> ${e.to}` in ALLOWED_FOR_NOW))
@@ -258,7 +259,10 @@ describe('the folder import rule', () => {
   it('browser storage is written in one place', () => {
     const writers = [...texts]
       .filter(([rel]) => rel !== 'platform/web.ts' && !rel.startsWith('ds/'))
-      .filter(([, text]) => text.includes('localStorage') || text.includes('sessionStorage'))
+      .filter(([, text]) => {
+        const code = codeOnly(text)
+        return code.includes('localStorage') || code.includes('sessionStorage')
+      })
       .map(([rel]) => rel)
       .sort()
     expect(
