@@ -91,7 +91,7 @@ const registrySource = readFileSync(join(REPO, 'src', 'studio', 'instruments.tsx
 const presetsAt = registrySource.indexOf('export const PRESETS')
 const idsIn = (text: string) => [...text.matchAll(/^\s+id: '([a-z0-9-]+)',$/gm)].map((m) => m[1])
 
-const EDGE_TYPES = (readFileSync(join(REPO, 'src', 'corpus', 'graph.ts'), 'utf8').match(/export type EdgeType = ([^\n]+)/)?.[1] ?? '')
+const EDGE_TYPES = (readFileSync(join(REPO, 'src', 'corpus', 'graphshape.ts'), 'utf8').match(/export type EdgeType = ([^\n]+)/)?.[1] ?? '')
   .split('|')
   .map((t) => t.trim().replace(/'/g, ''))
   .filter(Boolean)

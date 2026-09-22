@@ -1,0 +1,704 @@
+{
+  "_README": "Hand-reviewed extraction of Toronto Metropolitan University Computer Science course outlines. Read tools/courseimport/README.md before editing: it records where each field comes from and which judgments are the author's rather than the university's. `outline` names the source document; a course with `outline: null` is a STUB — it exists because another course's published prerequisite names it, and it carries only the title the program catalogue gives it.",
+
+  "program": {
+    "id": "root",
+    "title": "Computer Science, Toronto Metropolitan University"
+  },
+
+  "areas": [
+    {
+      "id": "lang",
+      "title": "Programming & Languages",
+      "hue": "rose",
+      "modules": [
+        { "id": "lang-core", "title": "Required", "courses": ["CPS109", "CPS209", "CPS393", "CPS506"] },
+        { "id": "lang-elective", "title": "Elective", "courses": ["CPS710"] },
+        { "id": "lang-outside", "title": "Other departments", "courses": ["CPS118", "CPS125"] }
+      ]
+    },
+    {
+      "id": "algo",
+      "title": "Algorithms & Theory",
+      "hue": "fern",
+      "modules": [
+        { "id": "algo-core", "title": "Required", "courses": ["CPS305", "CPS420"] },
+        { "id": "algo-outside", "title": "Other departments", "courses": ["COE428", "MTH210", "MTH304", "MTH314"] }
+      ]
+    },
+    {
+      "id": "math",
+      "title": "Mathematics & Science",
+      "hue": "honey",
+      "modules": [{ "id": "math-core", "title": "Required", "courses": ["MTH108", "MTH207", "BLG143"] }]
+    },
+    {
+      "id": "sys",
+      "title": "Computer Systems",
+      "hue": "cobalt",
+      "modules": [
+        { "id": "sys-core", "title": "Required", "courses": ["CPS213", "CPS310", "CPS590"] },
+        { "id": "sys-elective", "title": "Elective", "courses": ["CPS730", "CPS801"] }
+      ]
+    },
+    {
+      "id": "seng",
+      "title": "Software Engineering",
+      "hue": "clay",
+      "modules": [
+        { "id": "seng-core", "title": "Required", "courses": ["CPS406"] },
+        { "id": "seng-elective", "title": "Elective", "courses": ["CPS707", "CPS714", "CPS831"] }
+      ]
+    },
+    {
+      "id": "data",
+      "title": "Data & Intelligence",
+      "hue": "teal",
+      "modules": [
+        { "id": "data-core", "title": "Required", "courses": ["CPS510", "CPS721"] },
+        { "id": "data-elective", "title": "Elective", "courses": ["CPS501", "CPS803", "CPS822", "CPS824", "CPS840"] }
+      ]
+    },
+    {
+      "id": "people",
+      "title": "People, Ethics & Interfaces",
+      "hue": "lime",
+      "modules": [
+        { "id": "people-core", "title": "Required", "courses": ["CPS412"] },
+        { "id": "people-elective", "title": "Elective", "courses": ["CPS511", "CPS607", "CPS613"] }
+      ]
+    }
+  ],
+
+  "courses": {
+    "CPS109": { "title": "Computer Science I", "outline": null },
+    "CPS118": { "title": "Introduction to Computer Programming", "outline": null, "note": "Named only as an alternative prerequisite of CPS 501; not in the Computer Science program table." },
+    "CPS125": { "title": "Digital Computation and Programming", "outline": null, "note": "Named only as an alternative prerequisite of CPS 501; not in the Computer Science program table." },
+    "CPS209": { "title": "Computer Science II", "outline": null },
+    "CPS393": { "title": "Introduction to UNIX, C and C++", "outline": null },
+    "CPS305": { "title": "Data Structures", "outline": null },
+    "CPS420": { "title": "Discrete Structures", "outline": null },
+    "CPS406": { "title": "Introduction to Software Engineering", "outline": null },
+    "CPS213": { "title": "Computer Organization I", "outline": null },
+    "CPS590": { "title": "Operating Systems I", "outline": null },
+    "MTH108": { "title": "Linear Algebra", "outline": null },
+    "MTH207": { "title": "Calculus and Computational Methods I", "outline": null },
+    "BLG143": { "title": "Biology I", "outline": null },
+    "COE428": { "title": "COE 428", "outline": null, "note": "Named as an alternative prerequisite of CPS 710. A Computer Engineering course; no title is available from the Computer Science program table." },
+    "MTH210": { "title": "MTH 210", "outline": null, "note": "Named as an alternative prerequisite of CPS 707 and CPS 721. A Mathematics course; no title is available from the Computer Science program table." },
+    "MTH304": { "title": "MTH 304", "outline": null, "note": "Named as an alternative prerequisite of CPS 721. A Mathematics course; no title is available from the Computer Science program table." },
+    "MTH314": { "title": "MTH 314", "outline": null, "note": "Named as an alternative prerequisite of CPS 710. A Mathematics course; no title is available from the Computer Science program table." },
+
+    "CPS310": {
+      "title": "Computer Organization II",
+      "outline": "CMF - CPS 310 - Spring 2020.pdf",
+      "term": "Spring 2020",
+      "prerequisites": ["CPS213"],
+      "prerequisiteText": "CPS213",
+      "description": "A continuation of CPS 213. Memory; CPU architecture and instruction set; the instruction processing sequence; generic assembler level programming illustrated for specific CPUs; I/O essentials including interrupts and DMA; characteristics of major peripherals interfaces; RISC and CISC architectures compared; parallel processing. The laboratory requires using a specific assembler/editor for the creation of programs illustrating some of the principles discussed in lectures.",
+      "topicSource": "calendar description",
+      "topics": {
+        "Memory": { "d": "Where a running program's code and data actually sit, and at what cost to reach them." },
+        "CPU Architecture & Instruction Set": { "d": "The processor's own vocabulary: the operations it offers and the registers it offers them on." },
+        "The Instruction Processing Sequence": { "d": "Fetch, decode, execute — the cycle every instruction passes through." },
+        "Assembler-Level Programming": { "d": "Writing for a specific CPU in its own language, with an assembler and editor, in the lab." },
+        "I/O, Interrupts & DMA": { "d": "How a machine talks to the world without spending all its time asking: interrupts to be told, direct memory access to be spared the copying." },
+        "Peripheral Interfaces": { "d": "The characteristics of the major interfaces a device attaches through." },
+        "RISC and CISC Compared": { "d": "Two answers to how big an instruction set should be, set against each other." },
+        "Parallel Processing": { "d": "More than one thing at once, in hardware." }
+      }
+    },
+
+    "CPS412": {
+      "title": "Social Issues, Ethics and Professionalism",
+      "outline": "CPS412_CMF_W2021.pdf",
+      "term": "Winter 2021",
+      "prerequisites": [],
+      "prerequisiteText": "None.",
+      "description": "This course will cover some of the fundamental social, legal, and ethical issues inherent in the discipline of computing. Topics include social context, analytical tools, professional ethics, intellectual property, privacy and civil liberties, professional communication and sustainability.",
+      "topicSource": "weekly schedule",
+      "topics": {
+        "Computer Science as a Catalyst": { "d": "How the discipline came to be, and why it keeps changing faster than almost any other." },
+        "Networked Communications": { "d": "What changes socially once everybody is connected to everybody." },
+        "Introduction to Ethics": {
+          "d": "Theories of ethical decision-making, and applying them to professional life. Two weeks of the term.",
+          "c": {
+            "Analytical Tools": { "d": "The frameworks used to reason about a case rather than react to it." },
+            "Applying Theory to Practice": { "d": "Taking a framework to an actual professional decision." }
+          }
+        },
+        "Intellectual Property in Canada": { "d": "Who owns what is created, under this country's law." },
+        "Privacy": { "d": "Personal privacy and public safety as competing interests, not a single value." },
+        "Computer and Network Security": { "d": "The vulnerabilities of networked computers, and how they are used for cybercrime, cyber-espionage and cyber-attack." },
+        "The Role of the Chief Information Officer": { "d": "Where technical judgment meets organizational responsibility." },
+        "Professional Ethics": { "d": "The codes of practice a computer scientist is held to." },
+        "Equity, Diversity and Inclusion": { "d": "Who the discipline is built by and for." },
+        "Computer Science and the Public Good": { "d": "What the field owes the society it runs on." }
+      }
+    },
+
+    "CPS501": {
+      "title": "Bioinformatics",
+      "outline": "CPS 501_F18_Harley.pdf",
+      "term": "Fall 2018",
+      "prerequisites": ["CPS118", "CPS125", "CPS109", "BLG143"],
+      "prerequisiteText": "(CPS118 or CPS125 or CPS109) and BLG143",
+      "description": "An overview of mathematical modeling and simulation, pattern matching, methods for phylogenetics, gene recognition, distributed and parallel biological computing, designing and managing biological databases (both relational and object-oriented), linking disparate databases and data, data mining, reasoning by analogy, hypothesis formation and testing by machine.",
+      "topicSource": "week-by-week course content table",
+      "topics": {
+        "NCBI Databases": {
+          "d": "The public genome databases, and the studies built on them.",
+          "c": {
+            "Primary Databases & Metadatabases": { "d": "Where sequence data is published, and what indexes it." },
+            "Genome-Wide Association Studies": { "d": "Looking across a whole genome for what tracks with a condition — Parkinson's disease as the worked case." }
+          }
+        },
+        "Computational Manipulation of DNA": {
+          "d": "Treating a genome as a string, and what that buys.",
+          "c": {
+            "String Manipulation in Python": { "d": "The everyday operations, done in code." },
+            "Genetic Screening": { "d": "Cystic fibrosis screening as the worked case." }
+          }
+        },
+        "Sequence Alignment": {
+          "d": "Lining two sequences up to see where they agree — the field's central operation.",
+          "c": {
+            "Global and Local Alignment": { "d": "Aligning whole sequences, or only their best-matching stretches." },
+            "The Needleman-Wunsch Algorithm": { "d": "Dynamic programming over a two-dimensional array; the EMBOSS implementation." },
+            "Origin of Influenza Strains": { "d": "The worked case: where a new strain came from, read off the alignment." }
+          }
+        },
+        "Database Searching & Multiple Alignment": {
+          "d": "Searching sequence databases for matches, and aligning more than two at once.",
+          "c": {
+            "BLAST": { "d": "Searching for matches fast enough to be usable, by giving up the guarantee of finding the best one." },
+            "ClustalW": { "d": "Multiple sequence alignment, with its algorithms and heuristics." },
+            "Antibiotic Resistance": { "d": "The worked case: overuse in agriculture, read in the sequences." }
+          }
+        },
+        "Substitution Matrices & Protein Alignment": {
+          "d": "Scoring an alignment of proteins, where not all substitutions are equally surprising.",
+          "c": {
+            "Deriving Substitution Matrices": { "d": "Where the scores come from rather than being assumed." },
+            "Nested Hash Tables": { "d": "The data structure the scoring is carried in." }
+          }
+        },
+        "Molecular Phylogenetics": { "d": "Distance measurement between sequences, and the trees built from it." },
+        "Data Mining": { "d": "Run alongside the biology all term: class, attribute and instance; 0R and 1R rules; naive Bayes; credibility and accuracy; decision trees." }
+      }
+    },
+
+    "CPS506": {
+      "title": "Comparative Programming Languages",
+      "outline": "CPS506_Course_Outline_w2021.pdf",
+      "term": "Winter 2021",
+      "prerequisites": ["CPS209"],
+      "prerequisiteText": "CPS 209",
+      "description": "A survey of major programming paradigms, with emphasis on the functional paradigm. Discussion of data typing, program decomposition, scoping rules, control structures parameter passing. Programming languages will likely include commercially important functional languages such as Haskell, Clojure and Erlang, with examples of others as time permits.",
+      "topicSource": "course content section",
+      "topics": {
+        "Languages Studied": {
+          "d": "Four languages chosen to span dynamic and static typing and the object-oriented, functional and imperative paradigms. Java, C and C++ serve as reference points.",
+          "c": {
+            "Smalltalk": { "d": "Object-oriented taken all the way down, dynamically typed." },
+            "Elixir": { "d": "Functional and concurrent, on the Erlang virtual machine." },
+            "Haskell": { "d": "Purely functional, statically typed, lazily evaluated." },
+            "Rust": { "d": "Imperative and statically typed, with ownership in place of a garbage collector." }
+          }
+        },
+        "Describing Syntax & Semantics": { "d": "How a language's form and meaning are written down precisely enough to implement." },
+        "Scopes of Names": { "d": "Which binding a name refers to, and where that is decided." },
+        "Data Types": { "d": "What values a language admits, and how strictly it checks them." },
+        "Assignment & Control Structures": { "d": "Changing state, and choosing what runs next." },
+        "Subprograms & Parameter Passing": { "d": "Decomposing a program, and what actually crosses the boundary on a call." },
+        "Encapsulation": { "d": "Drawing a line around a piece of a program and controlling what crosses it." },
+        "Object-Oriented Programming": { "d": "The paradigm as a language design question rather than a style guide." },
+        "Concurrency": { "d": "More than one thing in progress, and what the language does about it." },
+        "Exception Handling": { "d": "How a language lets a failure travel." }
+      }
+    },
+
+    "CPS510": {
+      "title": "Database Systems I",
+      "outline": "CPS510Course OutlineFall2019 .pdf",
+      "term": "Fall 2019",
+      "prerequisites": ["CPS305"],
+      "prerequisiteText": "CPS 305 Data Structures and Algorithms",
+      "description": "Advanced file management techniques involving fundamentals of database systems: database architecture, data modelling, relational databases, normalization, query languages, physical organization, and the design and implementation of a working database application.",
+      "topicSource": "weekly topic list",
+      "topics": {
+        "Database & DBMS Overview": { "d": "What a database management system is for, before any particular one. Weeks 1-2." },
+        "Database System Architecture": { "d": "The conceptual, internal and external schemas — three views of one database, and why the separation matters. Weeks 1-2." },
+        "Data Modeling & the ER Model": { "d": "Entities, relationships and the diagram that captures them, before any table exists. Weeks 2-3." },
+        "Relational Databases & Normalization": { "d": "Tables as the implementation, and the discipline that keeps them from contradicting themselves. Weeks 3-4." },
+        "Query Languages": {
+          "d": "Asking the database for what you want rather than telling it how to find it. Weeks 5-7.",
+          "c": {
+            "Relational Algebra": { "d": "The operations everything else compiles down to." },
+            "Relational Calculus": { "d": "Describing the answer rather than the route to it." },
+            "Query by Example": { "d": "Stating a query by showing a shape of the result." },
+            "SQL": { "d": "The one that is actually used, on Oracle, all term." }
+          }
+        },
+        "Functional Dependencies & Normal Forms": { "d": "What determines what, and the successive forms — up to Boyce-Codd — that follow from it. Weeks 8-10." },
+        "Physical Organization & File Management": { "d": "How the rows actually sit on disk. Weeks 10-12." },
+        "User Interfaces & Other Database Types": { "d": "The front end over the database, and the systems that are not relational. Weeks 11-12, time permitting." }
+      }
+    },
+
+    "CPS511": {
+      "title": "Computer Graphics",
+      "outline": "CPS511-CourseOutline.docx",
+      "term": "Fall 2020",
+      "prerequisites": ["CPS305", "MTH108"],
+      "prerequisiteText": "CPS305 and MTH108",
+      "description": "Software and hardware considerations in computer graphics. Mathematical manipulation of graphical objects; interactive graphics and user interface; representation of 3-D shapes; fundamental implementation of algorithms.",
+      "topicSource": "calendar description and learning objectives",
+      "topics": {
+        "Software & Hardware Considerations": { "d": "What the graphics pipeline is made of, in both senses." },
+        "Mathematical Manipulation of Graphical Objects": { "d": "The linear algebra that moves, turns and scales a shape — which is why MTH 108 is a prerequisite." },
+        "Representation of 3-D Shapes": { "d": "How a solid becomes data a machine can draw." },
+        "Interactive Graphics & User Interface": { "d": "Drawing that answers back within a frame." },
+        "Fundamental Implementation Algorithms": { "d": "The classic routines the pipeline is assembled from." },
+        "Modern OpenGL": { "d": "The course's practical half: writing modern OpenGL programs is a stated condition of passing." }
+      }
+    },
+
+    "CPS607": {
+      "title": "Autonomous Mobile Robotics",
+      "outline": "CPS 607_F18_Ferworn.pdf",
+      "term": "Fall 2018",
+      "prerequisites": ["CPS310"],
+      "prerequisiteText": "CPS 310 - Computer Organization II",
+      "description": "An introductory course in the design and implementation of autonomous vehicles. Topics will include the nature of autonomy and autonomous behaviour. Issues involving sensing and actuation will be discussed. Students will be introduced to the constraints and issues involved in building systems designed to interact with an environment independently. Students will be expected to construct working robots.",
+      "topicSource": "calendar description",
+      "topics": {
+        "The Nature of Autonomy": { "d": "What it means for a machine to act on its own, stated carefully enough to build toward." },
+        "Autonomous Behaviour": { "d": "What the machine does once nobody is steering." },
+        "Sensing": { "d": "Getting the world into the machine, imperfectly." },
+        "Actuation": { "d": "Getting the machine to act on the world, imperfectly." },
+        "Building Systems That Interact Independently": { "d": "The constraints that show up only when a robot has to survive contact with a real environment. Students build working robots." }
+      }
+    },
+
+    "CPS613": {
+      "title": "Human-Computer Interaction",
+      "outline": "CPS613_F18_Quigley.pdf",
+      "term": "Fall 2018",
+      "prerequisites": ["CPS209"],
+      "prerequisiteText": "CPS209",
+      "description": "This course introduces the concepts of human-computer interaction and usability testing. Topics include: human information processing, usability principles, models of interaction, user interface paradigms, design of user interfaces. Students will also learn how to develop Graphical User Interfaces using a specific User Interface Management system.",
+      "topicSource": "course content topics, with the outline's own hour counts",
+      "topics": {
+        "Software Engineering": {
+          "d": "The process half of the course: how a usable interface gets specified, checked and tested. 20 hours.",
+          "c": {
+            "User-Centered Design & Usability Engineering": { "d": "Designing from the person outward. 1 hour." },
+            "Needs Analysis & User Profiles": { "d": "Finding out who will use it and what for, before designing. 5 hours." },
+            "Formative Evaluation": { "d": "Testing while the design is still changeable. 4 hours." },
+            "Usability Testing": { "d": "The largest single block in the course. 10 hours." }
+          }
+        },
+        "UI Design": {
+          "d": "The design half: the vocabulary an interface is composed in. 12 hours.",
+          "c": {
+            "Interaction Paradigms": { "d": "The broad families an interface can belong to. 3 hours." },
+            "Conceptual Models & Metaphors": { "d": "The story the interface tells the user about what it is. 6 hours." },
+            "Direct Manipulation, Menu-Forms & Command Line": { "d": "Three concrete styles, compared. 3 hours." }
+          }
+        },
+        "Cognitive Science": {
+          "d": "The half that is about the person rather than the machine. 11 hours.",
+          "c": {
+            "Human Information Processing & Perception": { "d": "What reaches a person, and in what order. 5 hours." },
+            "Memory": { "d": "What a person can be expected to hold onto. 3 hours." },
+            "Mental Models": { "d": "The theory a user forms about how the system works, right or wrong. 3 hours." }
+          }
+        },
+        "Visual Studio": { "d": "The user interface management system the course builds in. 6 hours." }
+      }
+    },
+
+    "CPS707": {
+      "title": "Software Verification and Validation",
+      "outline": "CPS 707 CMF.pdf",
+      "term": "Winter 2021",
+      "prerequisites": ["CPS406", "CPS420", "MTH210"],
+      "prerequisiteText": "(CPS 406 and CPS 420) or (CPS 406 and MTH 210)",
+      "description": "This course introduces the topics of verification and validation of computer software. Material covered may include statistical and functional approaches to testing, test data analysis, testability, static analysis techniques, dynamic analysis techniques, selected state-of-the-art results, and real-world applications.",
+      "topicSource": "calendar description",
+      "topics": {
+        "Statistical Approaches to Testing": { "d": "Testing treated as sampling, with what that implies about confidence." },
+        "Functional Approaches to Testing": { "d": "Testing against what the software is supposed to do." },
+        "Test Data Analysis": { "d": "Reading what a test run actually told you." },
+        "Testability": { "d": "Whether a piece of software can be checked at all, treated as a property to design for." },
+        "Static Analysis": { "d": "Finding faults without running the program." },
+        "Dynamic Analysis": { "d": "Finding faults by running it." },
+        "Real-World Applications": { "d": "Selected current results, and where they have actually been used." }
+      }
+    },
+
+    "CPS710": {
+      "title": "Compilers and Interpreters",
+      "outline": "CPS710_F18_Quigley.pdf",
+      "term": "Fall 2018",
+      "prerequisites": ["CPS305", "COE428", "CPS420", "MTH314"],
+      "prerequisiteText": "(CPS 305 or COE 428) and (CPS 420 or MTH 314)",
+      "description": "An introduction to the theory and practice of language translation: the phases a compiler or interpreter passes through, and the construction of each. Assignments build a scanner, a parser and an interpreter in Java using JavaCC.",
+      "topicSource": "course content topics, with the outline's own hour counts",
+      "topics": {
+        "Introduction & Compilation Phases": { "d": "History, and the division of the job into phases — interpretation against compilation. 3 hours." },
+        "Scanning": {
+          "d": "Turning characters into tokens. 5 hours; Assignment 1 builds one.",
+          "c": {
+            "Finite-State Automata": { "d": "The machine a scanner really is." },
+            "Regular Expressions": { "d": "The notation those machines are written in." }
+          }
+        },
+        "Parsing & Grammars": { "d": "Recovering structure from a flat stream of tokens — the largest block in the course at 9 hours. Assignments 2 and 3." },
+        "Intermediate Representations": { "d": "What the front end hands the back end, including the abstract syntax tree. 3 hours." },
+        "Semantic Analysis": { "d": "The checks that a grammar cannot express. 2 hours." },
+        "Evaluation": { "d": "Actually running the program that has been read. 6 hours; Assignment 4 builds the interpreter." },
+        "Scoping": { "d": "Symbol tables, and which declaration a name resolves to. 5 hours." },
+        "Error Detection & Recovery": { "d": "Reporting a fault usefully, and carrying on to find the next one. 3 hours; the bonus assignment." }
+      }
+    },
+
+    "CPS714": {
+      "title": "Software Project Management",
+      "outline": "CPS 714_F18_VMisic.pdf",
+      "term": "Fall 2018",
+      "prerequisites": [],
+      "prerequisiteText": "Not stated in this outline.",
+      "description": "Introduction to issues involved in managing large, complex software projects. Introduction to industry-standard project management techniques and tools needed to use them, as well as their application to software projects.",
+      "topicSource": "topic list in the course description",
+      "topics": {
+        "Project Management Basics": {
+          "d": "The general discipline, before anything specific to software.",
+          "c": {
+            "Context & Processes": { "d": "What a project is and what running one consists of." },
+            "Time, Cost, Quality & Risk": { "d": "The four things being traded against each other throughout." },
+            "Project Plan Analysis": { "d": "Reading a plan critically rather than following it." },
+            "Structures, Teams & Leadership": { "d": "How the work is arranged, and who answers for it." }
+          }
+        },
+        "Software & IT Project Management": {
+          "d": "What is different once the project is software.",
+          "c": {
+            "Measurement & Estimation": { "d": "Software production metrics, and how badly estimation goes without them." },
+            "Systems Thinking": { "d": "Treating the project as a system with feedback rather than a list of tasks." },
+            "Uncertainty & the Manager's Role": { "d": "Planning for what is not yet known." },
+            "Governing Rules, Staffing & Operations Reviews": { "d": "The organizational machinery around the team." }
+          }
+        },
+        "Agile Approaches": {
+          "d": "The methods, their management, and — deliberately — where they do not apply.",
+          "c": {
+            "Extreme Programming, Scrum & Kanban": { "d": "Three named methods, compared." },
+            "Managing Agile Development": { "d": "What a manager does when the plan is short by design." },
+            "Metrics for Classical and Agile Work": { "d": "Measuring both kinds with one instrument." },
+            "Where Agile Does Not Apply": { "d": "The outline's own closing note on applicability." }
+          }
+        }
+      }
+    },
+
+    "CPS721": {
+      "title": "Artificial Intelligence I",
+      "outline": "CPS721 Course Management Form (CMF).htm",
+      "term": "Fall 2024",
+      "prerequisites": ["CPS305", "CPS420", "MTH210", "MTH304"],
+      "prerequisiteText": "(CPS 305, MTH210, MTH 304 or CPS 305 and CPS 420)",
+      "description": "This course provides introduction to several important AI problems and techniques, including knowledge representation and reasoning, constraints satisfaction, search, natural language understanding, planning, uncertainty, belief networks, learning. A moderate amount of Prolog programming is required.",
+      "topicSource": "tentative topic sequence; the outline gives roughly two weeks per topic",
+      "topics": {
+        "Deductive Reasoning": {
+          "d": "Basic logic and resolution-style reasoning, applied to problems such as combinatorial puzzles.",
+          "c": {
+            "Deductive Databases": { "d": "A relational database augmented with general recursive rules for new relations." },
+            "Conjunctive Queries in Prolog": { "d": "Formulating a query against those facts, and tracing how it is answered." }
+          }
+        },
+        "Recursive Programs over Recursive Data": {
+          "d": "Writing programs whose shape follows the shape of the data — lists, terms, trees.",
+          "c": {
+            "Prolog Lists": { "d": "When two lists match and when they do not." },
+            "Recursive Data Structures": { "d": "The general case beyond lists." }
+          }
+        },
+        "Constraint Satisfaction": { "d": "Finding an assignment that satisfies a set of constraints — scheduling, puzzles — by two different techniques, with the efficiency of each argued rather than asserted." },
+        "Natural Language Understanding": {
+          "d": "Recovering meaning from text, and finding where it is genuinely ambiguous.",
+          "c": {
+            "Context-Free Grammars": { "d": "Analysing a given grammar." },
+            "Parsing Noun Phrases": { "d": "Parsing, and identifying the sources of syntactic ambiguity." }
+          }
+        },
+        "Problem Solving & Planning": { "d": "Reaching a goal by searching for a sequence of actions, with preconditions and successor state axioms describing how facts change." },
+        "Pruning the Search Space": { "d": "Not looking where the answer cannot be." },
+        "Bayesian Networks": { "d": "Conditional probabilities for diagnostic reasoning under uncertainty." },
+        "Discrete Structures Reinforced": { "d": "Modular arithmetic, functions and relations, set cardinality and counting, revisited as the AI material needs them." }
+      }
+    },
+
+    "CPS730": {
+      "title": "Web Technology and Performance Measurement",
+      "outline": "CMF-CPS730-F2013.pdf",
+      "term": "Fall 2013",
+      "prerequisites": ["CPS393", "CPS590"],
+      "prerequisiteText": "CPS393 or CPS590",
+      "description": "This course focuses on understanding the core technologies underlying the World Wide Web such as protocols (e.g. HTTP), software components (client, server and proxy), and important web applications (e.g. web caching and web multimedia). Another part of this course is an introduction to performance measurement and in particular web performance measurement.",
+      "topicSource": "main topic list",
+      "topics": {
+        "Web Components": { "d": "The pieces the web is assembled from, named before any of them is opened." },
+        "Web Clients & Servers": { "d": "The two ends of every exchange." },
+        "Socket Programming": { "d": "The layer underneath: opening a connection and moving bytes yourself, in Unix." },
+        "Web Proxies": { "d": "The thing in the middle that is neither client nor server." },
+        "HTTP, DNS & Other Internet Protocols": { "d": "The agreements that make the exchange possible." },
+        "Serving Multimedia": { "d": "What changes when the payload is large and time-sensitive." },
+        "Web Caching": { "d": "Not fetching what you already have — the single largest performance lever." },
+        "Web Performance Measurement": { "d": "Measuring it rather than guessing, and characterising the workload that produced the number." },
+        "Web Applications & Web 2.0": { "d": "Web services, social networking and web information retrieval — covered as time allows." }
+      }
+    },
+
+    "CPS801": {
+      "title": "Operating Systems II",
+      "outline": "CMF-801-W2013.pdf",
+      "term": "Winter 2013",
+      "prerequisites": ["CPS406", "CPS590"],
+      "prerequisiteText": "CPS 406 and CPS590",
+      "description": "This course will cover the principle internal functions of operating systems with particular emphasis on Unix and system programming. The course consists of assignments and practical examples based on Unix/Linux which help students understand the principles of how operating systems are built.",
+      "topicSource": "course outline topic list",
+      "topics": {
+        "OS Concepts": { "d": "What an operating system is for, and the vocabulary the rest of the course uses." },
+        "Process Management": { "d": "Processes and threads: the living things the system schedules and keeps apart." },
+        "Memory Management": { "d": "Dividing one memory among many programs that each believe they have it all." },
+        "File Systems": { "d": "Turning a block device into names, directories and durable content." },
+        "I/O & Auxiliary Storage Management": { "d": "Talking to devices, and managing what does not fit in memory." },
+        "Distributed Systems": { "d": "Covered on remaining time: an operating system spread across machines." },
+        "OS Security": { "d": "Covered on remaining time: the system defending its own separations." }
+      }
+    },
+
+    "CPS803": {
+      "title": "Machine Learning",
+      "outline": "CPS 803_F2019_N.Bruce.pdf",
+      "term": "Fall 2019",
+      "prerequisites": ["MTH108", "MTH207", "CPS305"],
+      "prerequisiteText": "MTH 108 and MTH 207 and CPS 305",
+      "description": "Machine learning is the study of algorithms that learn to perform a task from prior experience. Machine learning has a broad range of applicability, including computer vision, robotics, medical diagnosis, bioinformatics and natural language processing. This course will cover the underlying theory and practical applications of machine learning.",
+      "topicSource": "none — this outline publishes no topic breakdown",
+      "topics": {}
+    },
+
+    "CPS822": {
+      "title": "Artificial Intelligence II",
+      "outline": "CPS822.htm",
+      "term": "Fall 2024",
+      "prerequisites": ["CPS721"],
+      "prerequisiteText": "For undergraduate students: an undergraduate level course in AI (e.g. CPS721 at TMU).",
+      "description": "The course will focus on the theory and implementation of dynamical systems considered from the perspective of artificial intelligence. Modern logical representations of actions and their effects will be discussed in detail. The emphasis will be on the compromises required to ensure computational tractability of reasoning about effects of actions.",
+      "topicSource": "tentative lecture topic list",
+      "topics": {
+        "Propositional Logic": {
+          "d": "The course starts from the ground up: no previous knowledge of mathematical logic is expected.",
+          "c": {
+            "Syntax": { "d": "Well-formed formulas, sub-formulas, defined connectives." },
+            "Semantics": { "d": "Truth assignment, satisfiability, tautology, logical consequence, the well-known equivalences." },
+            "Normal Forms": { "d": "Disjunctive, conjunctive and negation normal form." },
+            "Resolution": { "d": "Reasoning by refutation, with its refinements: set-of-support, linear resolution, SLD-resolution, Horn formulas." },
+            "Soundness & Completeness": { "d": "Proving the algorithm both only says true things and eventually says all of them." }
+          }
+        },
+        "First-Order Logic": {
+          "d": "Quantifiers, and everything that has to be rebuilt once you have them.",
+          "c": {
+            "Syntax": { "d": "Predicate and function symbols, terms, quantifiers, free and bound variables." },
+            "Semantics": { "d": "Interpretations, object assignments, models, satisfiability, logical consequence, validity." },
+            "Substitution & Unification": { "d": "Substituting into terms and formulas safely; unifying two terms." },
+            "Prenex Normal Form & Skolemization": { "d": "Pushing the quantifiers out, then removing them." },
+            "Herbrand's Theorem": { "d": "Why resolution over a first-order language terminates when it should." },
+            "Godel's Completeness Theorem": { "d": "Soundness and completeness for first-order logic." }
+          }
+        },
+        "The Situation Calculus": {
+          "d": "A logic in which actions and the states they produce are themselves objects.",
+          "c": {
+            "The Projection Problem": { "d": "Whether a state is reachable by a given sequence of actions when the initial state is not fully known." },
+            "Regression & Progression": { "d": "Reasoning backwards from the goal, or forwards from the start." },
+            "Precondition & Successor State Axioms": { "d": "What must hold for an action to happen, and what holds afterwards." },
+            "The Frame Problem": { "d": "Saying succinctly what an action does NOT change." }
+          }
+        },
+        "Planning & Execution Monitoring": { "d": "Finding a sequence of actions that reaches a goal, and noticing when reality diverges from it. Automated heuristic lifted planning in an open world with unknown objects." },
+        "Time & Continuous Processes": {
+          "d": "Advanced topic: actions that take time, and worlds that change while nothing acts.",
+          "c": {
+            "Instantaneous Actions & Extended Processes": { "d": "The distinction, and why it matters for the axioms." },
+            "Natural Actions": { "d": "Representing physical law as something that happens on its own; the least natural time point." },
+            "Hybrid Systems": { "d": "Planning, reasoning and diagnosing failure in mixed discrete-continuous systems." },
+            "Concurrency": { "d": "Approaches to axiomatizing more than one thing happening at once." }
+          }
+        },
+        "Indirect Effects & Causality": {
+          "d": "Optional topic: pressing a switch presses the switch, and also turns on the light.",
+          "c": {
+            "Circumscription": { "d": "Minimising what is true; with fixed and variable predicates, and when it can be expressed in first-order logic." },
+            "The Ramification & Qualification Problems": { "d": "Chains of indirect effects, and unstated preconditions." },
+            "Causal Rules": { "d": "Compiling state constraints into successor state axioms through a causality predicate." }
+          }
+        },
+        "Stochastic Actions": {
+          "d": "Optional topic: actions whose effects are not certain.",
+          "c": {
+            "Markov Decision Processes": { "d": "Decision-theoretic planning as a formal problem." },
+            "Decision-Tree Methods": { "d": "Solving the finite-horizon decision-theoretic planning problem." },
+            "DT-Golog": { "d": "Representation, semantics, computing a policy and its value, sensing actions, the on-line interpreter; applied to robot programming and requirements engineering." }
+          }
+        },
+        "Taxonomies of Actions": { "d": "Optional topic: troponyms, the relations between verbs in WordNet's semantic network, and the computational advantage of organising actions that way." }
+      }
+    },
+
+    "CPS824": {
+      "title": "Reinforcement Learning",
+      "outline": "ReinforcementLearningCourseOutline_Final.pdf",
+      "term": "Winter 2021",
+      "prerequisites": ["CPS305", "CPS420"],
+      "prerequisiteText": "CPS 305 and CPS 420",
+      "description": "This course focuses on topics related to reinforcement learning. The course will cover making decisions under uncertainty, Markov decision processes, dynamic programming, temporal-difference learning, eligibility traces, value function approximation methods, Monte Carlo reinforcement learning methods, and the integration of learning and planning.",
+      "topicSource": "week-by-week course schedule",
+      "topics": {
+        "Introduction to Reinforcement Learning": { "d": "Learning from consequences rather than from labelled answers. Week 1." },
+        "Background Review": {
+          "d": "Three reviews the course does not assume: weeks 1-3.",
+          "c": {
+            "Probability Theory": { "d": "Week 1." },
+            "Linear Algebra": { "d": "Week 2." },
+            "Python": { "d": "Week 3 — the assignments are programmed in it." }
+          }
+        },
+        "Markov Decision Processes": { "d": "The formal frame the whole field is stated in. Week 2." },
+        "Dynamic Programming": {
+          "d": "Solving the process when you know it. Week 3.",
+          "c": {
+            "Policy Evaluation": { "d": "How good is this way of acting?" },
+            "Policy & Value Iteration": { "d": "Two routes to the best way of acting." }
+          }
+        },
+        "Q-Learning": { "d": "Learning the value of an action without a model of the world. Week 4." },
+        "Value Function Approximation": { "d": "What to do when there are too many states to write down. Week 4." },
+        "Deep Reinforcement Learning": {
+          "d": "Weeks 5-6.",
+          "c": {
+            "Deep Learning, CNNs & RNNs": { "d": "The approximators, introduced for the purpose." },
+            "Deep Q-Learning": { "d": "Q-learning with a network in place of the table." }
+          }
+        },
+        "Imitation Learning": { "d": "Learning from a demonstration rather than from reward. Week 6." },
+        "Policy Gradient": { "d": "Improving the way of acting directly, rather than through values. Weeks 6-7." },
+        "Exploration & Exploitation": {
+          "d": "Weeks 7-8: the field's defining tension.",
+          "c": {
+            "Multi-Armed Bandits": { "d": "The tension in its smallest form." },
+            "Exploration Strategies": { "d": "Deciding when to stop taking the known-good option." }
+          }
+        },
+        "Batch Reinforcement Learning": { "d": "Learning from a fixed log rather than from fresh interaction. Week 8." },
+        "Monte Carlo Tree Search": { "d": "Planning by sampling forward. Week 9." },
+        "Inverse Reinforcement Learning": { "d": "Recovering the reward from the behaviour. Week 9." },
+        "Transfer, Multi-Task & Meta-Learning": { "d": "Carrying what was learned to the next problem. Week 10." }
+      }
+    },
+
+    "CPS831": {
+      "title": "Software Engineering II",
+      "outline": "cmf831w21.pdf",
+      "term": "Winter 2021",
+      "prerequisites": [],
+      "prerequisiteText": "Not stated in this outline.",
+      "description": "Topics include: formal specification, algebraic specification, model oriented specification, software reliability, fault-tolerance, software tools, programming environments, toolkits, method based environments, software development workbenches, software metrics, software standards, complexity measures, software quality assurance, automated programming, CASE tools.",
+      "topicSource": "calendar topic list and the instructor's tentative schedule, kept separate because they differ",
+      "topics": {
+        "From the Calendar": {
+          "d": "What the published calendar entry promises. The outline reproduces it and then says the course will focus elsewhere — the two lists are kept apart here for that reason.",
+          "c": {
+            "Formal Specification": { "d": "Algebraic and model-oriented specification." },
+            "Software Reliability & Fault Tolerance": { "d": "Carrying on correctly when a part does not." },
+            "Tools & Environments": { "d": "Programming environments, toolkits, method-based environments, development workbenches." },
+            "Metrics, Standards & Complexity Measures": { "d": "Putting numbers on software." },
+            "Software Quality Assurance": { "d": "The discipline around the measurement." },
+            "Automated Programming & CASE Tools": { "d": "Machines writing or shaping the software." }
+          }
+        },
+        "As Actually Taught": {
+          "d": "The instructor's tentative schedule for the term: advanced software engineering concepts, and a noticeably more modern list.",
+          "c": {
+            "Software Architecture": { "d": "Basic concepts, views and perspectives, software product lines." },
+            "Distributed Computing Architectures": { "d": "The evolution of cloud and edge computing, and their use in practice." },
+            "Virtualization": { "d": "Basic concepts, hypervisors and their types, sample environments." },
+            "Containers": { "d": "Container-based design." },
+            "Microservices": { "d": "Microservice-based applications." },
+            "DevOps": { "d": "Rationale, concepts and practice." }
+          }
+        }
+      }
+    },
+
+    "CPS840": {
+      "title": "Selected Topics in Computer Science",
+      "outline": "CPS 840_F18_Bruce.pdf",
+      "term": "Fall 2018",
+      "prerequisites": ["CPS721"],
+      "prerequisiteText": "CPS 721 or equivalent courses and/or prior experience",
+      "description": "A course whose content changes by term. In Fall 2018 it was taught as Machine Learning: the study of algorithms that learn to perform a task from prior experience, with applications including computer vision, robotics, medical diagnosis, bioinformatics and natural language processing, covering both the underlying theory and practical applications.",
+      "topicSource": "none — this outline publishes no topic breakdown",
+      "note": "The Fall 2018 outline for this course is, apart from the course number and the prerequisite line, the same document as CPS 803 Machine Learning. The title in the program table is 'Selected Topics in Computer Science'; the title on the outline is 'Machine Learning'. Both are recorded.",
+      "topics": {}
+    }
+  },
+
+  "walks": [
+    {
+      "id": "required-spine",
+      "title": "The required spine of the degree",
+      "description": "The prerequisite chain every Computer Science student walks, from the first programming course to the upper-year required courses that rest on it. Every step here is a published prerequisite, not a suggestion.",
+      "stops": [
+        { "id": "cps109", "note": "Where it starts. Everything downstream assumes you can program." },
+        { "id": "cps209", "note": "The second programming course — the prerequisite named most often by everything above it." },
+        { "id": "cps305", "note": "Data Structures. Four of the outlined courses name this directly; nothing in the upper years is reachable without it." },
+        { "id": "cps420", "note": "Discrete Structures. The other half of the gate: the mathematics the AI, compiler and verification courses all assume." },
+        { "id": "cps213", "note": "A parallel branch, not a continuation — hardware runs alongside the programming chain rather than after it." },
+        { "id": "cps310", "note": "Computer Organization II continues CPS 213, and is what the robotics course stands on." },
+        { "id": "cps590", "note": "Operating Systems I. With CPS 406, the gate to the systems electives." },
+        { "id": "cps406", "note": "Introduction to Software Engineering — required, and the prerequisite of both the verification and the advanced operating systems courses." }
+      ]
+    },
+    {
+      "id": "toward-ai",
+      "title": "Getting to artificial intelligence",
+      "description": "What a student must have done before the AI courses will admit them, and how far the subject then goes. The path is read off the published prerequisites; the last two courses are where it ends.",
+      "stops": [
+        { "id": "cps305", "note": "Data structures first — the AI courses are built on recursive structures over lists and trees." },
+        { "id": "cps420", "note": "Discrete structures: logic, relations, counting. CPS 721 reinforces these rather than teaching them." },
+        { "id": "cps721", "note": "Artificial Intelligence I. Reasoning, constraints, search, language, planning and Bayesian networks, in Prolog." },
+        { "id": "cps822", "note": "Artificial Intelligence II names CPS 721 as its prerequisite, then rebuilds logic from scratch anyway — propositional, then first-order, then the situation calculus." },
+        { "id": "cps824", "note": "Reinforcement Learning takes the other fork out of CPS 305 and CPS 420: decisions under uncertainty rather than deduction." },
+        { "id": "cps840", "note": "And Selected Topics, which in Fall 2018 was Machine Learning — the same document as CPS 803, under a different number and a different prerequisite." }
+      ]
+    },
+    {
+      "id": "software-practice",
+      "title": "Learning to build software with other people",
+      "description": "The software engineering track: the required introduction, then the three electives that follow it. Notable for what the graph shows — two of the three publish no prerequisite at all.",
+      "stops": [
+        { "id": "cps209", "note": "You can program." },
+        { "id": "cps406", "note": "Introduction to Software Engineering — the one required course of the track, and a prerequisite of CPS 707 and CPS 801." },
+        { "id": "cps707", "note": "Software Verification and Validation: CPS 406 plus discrete structures. Static analysis, dynamic analysis, testability." },
+        { "id": "cps714", "note": "Software Project Management states no prerequisite in its outline — it hangs unconnected in the graph, which is a fact about the published record, not a gap in the data." },
+        { "id": "cps831", "note": "Software Engineering II, also with no stated prerequisite. Its calendar entry and what the instructor actually taught are two visibly different lists." }
+      ]
+    }
+  ]
+}

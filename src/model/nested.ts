@@ -299,7 +299,12 @@ for (const t of topicIds) {
   const last = cell[cell.length - 1]
   if (Math.abs(first.x - last.x) < 1e-6 && Math.abs(first.y - last.y) < 1e-6) cell = cell.slice(0, -1)
   const c = polyCentroid(cell)
-  territories.push({ id: t, tier: 2, topic: t, d: pathOf(cell), cx: c.x, cy: c.y, leaf: false, poly: cell })
+  // `leaf` is ASKED OF THE DATA, not assumed. It was the constant `false` while the
+  // only corpus was the hand-authored one, where every topic has subtopics — the
+  // course corpus has topics with nothing under them (a course whose outline was
+  // never collected), and those are leaves like any other childless node.
+  const childless = (childrenOf.get(t) ?? []).length === 0
+  territories.push({ id: t, tier: 2, topic: t, d: pathOf(cell), cx: c.x, cy: c.y, leaf: childless, poly: cell })
   topicPoly.set(t, cell)
   subdivide(cell, childrenOf.get(t) ?? [], 1, t)
 }

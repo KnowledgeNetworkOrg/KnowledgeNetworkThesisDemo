@@ -12,6 +12,7 @@
 
 import { useSyncExternalStore } from 'react'
 
+import { CORPUS_NAME, topicIds } from '../../corpus/graph'
 import { mintId, saveWalk, walkById } from '../../model/walkstore'
 import type { Walk } from '../../model/walkstore'
 import { loadDraft, nextIds, saveDraft } from './draftpersist'
@@ -64,8 +65,13 @@ function useStore<T>(s: Store<T>): [T, (v: T) => void] {
 
 /** The draft starts SEEDED with a fork and an optional stop so branching is
  * visible at first paint; every id is a real corpus node — tiers and variants
- * alike stay pure overlay on an untouched corpus. */
-const SEED: Stop[] = [
+ * alike stay pure overlay on an untouched corpus.
+ *
+ * A FUNCTION, not a constant, and only one of two: the ids below are the
+ * hand-authored teaching corpus's, so evaluating this against any other corpus
+ * would put nodes on the road that the corpus does not have — which surfaces as
+ * a blank screen, not an error, because the players assert their lookups. */
+const teachingSeed = (): Stop[] => [
   { node: 'stk-dns-naming', variants: [] },
   {
     key: 'seed-net',
@@ -93,6 +99,38 @@ const SEED: Stop[] = [
   { node: 'web-sockets-apis', optional: true, variants: [] },
   { node: 'app-authentication-authorization', variants: [] },
 ]
+
+/** The same SHAPE — a plain leaf, a group, a fork of two variants, an optional,
+ *  a closing leaf — over whatever topics the loaded corpus actually has, named
+ *  by position rather than by id. A fixture for the desk to open on, nothing more. */
+function genericSeed(): Stop[] {
+  const t = (i: number): Stop | null => (topicIds[i] ? { node: topicIds[i], variants: [] } : null)
+  const some = (from: number, n: number): Stop[] => topicIds.slice(from, from + n).map((node) => ({ node, variants: [] }))
+  const seed: Stop[] = []
+  const first = t(0)
+  if (first) seed.push(first)
+  const groupSteps = some(1, 2)
+  if (groupSteps.length) seed.push({ key: 'seed-group', title: 'A first leg', variants: [{ id: 'seed-group-v0', label: '', steps: groupSteps }] })
+  const shortLane = some(3, 1)
+  const longLane = some(3, 3)
+  if (shortLane.length && longLane.length > 1) {
+    seed.push({
+      key: 'seed-fork',
+      title: 'Two ways on',
+      variants: [
+        { id: 'seed-fork-v0', label: 'the short way', steps: shortLane },
+        { id: 'seed-fork-v1', label: 'the long way', steps: longLane },
+      ],
+    })
+  }
+  const opt = topicIds[6]
+  if (opt) seed.push({ node: opt, optional: true, variants: [] })
+  const last = t(7)
+  if (last) seed.push(last)
+  return seed
+}
+
+const SEED: Stop[] = CORPUS_NAME === 'teaching' ? teachingSeed() : genericSeed()
 
 // ── Restored, or seeded (#16) ───────────────────────────────────────────────
 // The stores are module-level, which since #21 has made the draft SHARED. It did

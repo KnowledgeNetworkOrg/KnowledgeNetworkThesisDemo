@@ -7,9 +7,28 @@ navigation instruments.
 Its scope is the **teaching domain** of the knowledge network, iterated
 independently of the coding and infrastructure projects. The coder-shaped
 framing has been removed: there is no Coding preset and no architecture-map
-generator. The corpus's four relations are pedagogical (`depends_on`, `uses`,
-`see_also`, `implemented_with`), with `depends_on` — the prerequisite backbone —
-as the spine of a generated curriculum.
+generator. The four relations are pedagogical (`depends_on`, `uses`, `see_also`,
+`implemented_with`), with `depends_on` — the prerequisite backbone — as the spine
+of a generated curriculum.
+
+## Two corpora
+
+`src/corpus/graph.ts` chooses between them; it does not contain either. Every
+instrument imports from it exactly as it always has.
+
+- **teaching** (the default) — the hand-authored CS corpus in `teachingdata.ts`.
+  Six domains, sixteen modules, 53 topics, 116 authored edges. **Every pinned
+  count in the test suite measures this one**, so leave it the default.
+- **courses** — 36 real courses from Toronto Metropolitan University's published
+  outlines, GENERATED into `coursedata.ts` by `tools/courseimport/`. Read that
+  folder's `README.md` before touching anything in it: it records what is the
+  university's data and what is the author's judgment, and the distinction is
+  load-bearing for the thesis. Run it with `VITE_CORPUS=courses npm run dev`.
+
+A module that names a corpus node id in a literal will crash the *other* corpus
+on import, which presents as a blank screen rather than an error. If you write
+one, guard it the way `model/lens.ts` and `walkdesk/authordraft.ts` do — derive
+the node from the loaded data, or branch on `CORPUS_NAME`.
 
 ## Where the knowledge lives
 
