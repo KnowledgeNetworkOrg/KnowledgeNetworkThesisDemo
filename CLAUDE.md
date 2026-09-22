@@ -66,3 +66,4 @@ authors in its own project and marks binding work under `## OBLIGATIONS` in its
 - Agents open PRs here.
 - Verification is self-contained: `npm run verify` runs typecheck, lint, and
   tests, and reaches outside this repository for nothing.
+- The import rule between the folders is written in `src/layering.test.ts`.
