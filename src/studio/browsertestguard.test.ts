@@ -180,17 +180,19 @@ describe('the browser-test folder', () => {
  *  file's own location never does, so there is nothing legitimate to exclude. */
 const NAMES_A_CHECKOUT = /['"`][^'"`]*KnowledgeNetworkThesisDemo/
 
-/** Every `.mjs` under tools/, RECURSIVELY — not just the driver folder. Seven of
- *  the files #362 rewrote live in five other spike folders, so a studio-spike-only
- *  check would pass while five folders stayed broken. */
-const toolsMjs = (() => {
+/** Every script under tools/ that could name a checkout — `.mjs`, `.js`, `.cjs`,
+ *  `.ts`, `.tsx`, `.py` — RECURSIVELY, not just the driver folder. Seven of the
+ *  files #362 rewrote live in five other spike folders, so a studio-spike-only
+ *  check would pass while five folders stayed broken; the wider net is that same
+ *  reasoning one step out. */
+const toolScripts = (() => {
   const files: string[] = []
   const walk = (dir: string) => {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
       if (e.name === 'node_modules' || e.name === 'out' || e.name === 'shots') continue
       const p = join(dir, e.name)
       if (e.isDirectory()) walk(p)
-      else if (e.name.endsWith('.mjs')) files.push(p)
+      else if (/\.(mjs|js|cjs|ts|tsx|py)$/.test(e.name)) files.push(p)
     }
   }
   walk(join(REPO, 'tools'))
@@ -204,16 +206,23 @@ const toolsMjs = (() => {
 const MAY_NAME_A_CHECKOUT: Record<string, string> = {}
 
 describe('no tool spells a checkout it does not live in', () => {
+  it('walked a believable number of files', () => {
+    // "nothing found" and "nothing wrong" look the same, so the walk keeps a floor
+    // the way the registry checks above do.
+    expect(toolScripts.length, 'the tools walk found suspiciously few files').toBeGreaterThanOrEqual(50)
+  })
+
   it('names every offending file AND line in one failure', () => {
     const offenders: string[] = []
-    for (const f of toolsMjs) {
+    for (const f of toolScripts) {
       const rel = f.slice(REPO.length).replace(/\\/g, '/')
       if (rel in MAY_NAME_A_CHECKOUT) continue
       readFileSync(f, 'utf8')
         .split('\n')
         .forEach((line, i) => {
-          // a comment about a checkout is prose, not a reach — the same reason hooksOf skips them
-          if (/^\s*(\/\/|\*|\/\*)/.test(line)) return
+          // a comment about a checkout is prose, not a reach — the same reason
+          // hooksOf skips them (`#` is the Python scripts' comment leader)
+          if (/^\s*(\/\/|\*|\/\*|#)/.test(line)) return
           if (NAMES_A_CHECKOUT.test(line)) offenders.push(`${rel}:${i + 1}`)
         })
     }
