@@ -83,7 +83,6 @@ export function useWallFit({
       const uy = U_CY + (fit.at.y - cb.h / 2) * ff
       showView({ s, tx: ux - fit.focus.x * s, ty: uy - fit.focus.y * s })
       showLevel(frame.level)
-      return s
     }
     if (!wall || !clientBox) return
     const have = fittedRef.current

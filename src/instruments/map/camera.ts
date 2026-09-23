@@ -5,6 +5,10 @@
 //
 // The camera's MOVING parts — the tween, the level steps, the pan, the look — are
 // still in MapView.tsx. #324's camera seam is the step that brings them here.
+//
+// The wall's opening frame (`WALL_LEVEL`, `WALL_VIEW`) is measured in these numbers but
+// is not kept here: it is the frame the wall draws once before its fit replaces it, so it
+// lives with that fit in `wallfit.ts`, and the map's first camera reads it from there.
 
 import { FLAT_H, FLAT_W } from '../../model/flat'
 import { maxTier } from '../../model/nested'
