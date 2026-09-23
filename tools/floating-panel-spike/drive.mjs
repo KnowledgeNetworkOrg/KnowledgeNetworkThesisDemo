@@ -9,9 +9,12 @@
 import { createRequire } from 'node:module'
 import { spawn } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 
-const REPO = 'D:/ShiZhong/MyCode/KnowledgeNetworkThesisDemo'
-const OUT = REPO + '/tools/floating-panel-spike/out'
+const HERE = dirname(fileURLToPath(import.meta.url))
+const REPO = join(HERE, '..', '..')
+const OUT = join(HERE, 'out')
 const PORT = 5199
 mkdirSync(OUT, { recursive: true })
 

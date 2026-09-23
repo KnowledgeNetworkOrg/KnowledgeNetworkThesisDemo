@@ -2,10 +2,14 @@
 // screenshot each, and pull the metrics table's ground truth via DOM text
 // (not just pixels). Exits nonzero on any page/console error.
 import { createRequire } from 'node:module'
-const require = createRequire('D:/ShiZhong/MyCode/KnowledgeNetworkThesisDemo/package.json')
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
+const HERE = dirname(fileURLToPath(import.meta.url))
+const REPO = join(HERE, '..', '..')
+const require = createRequire(join(REPO, 'package.json'))
 const { chromium } = require('playwright-core')
 
-const OUT = 'D:/ShiZhong/MyCode/KnowledgeNetworkThesisDemo/tools/evoc-spike/out'
+const OUT = join(HERE, 'out')
 const errors = []
 
 const browser = await chromium.launch({ channel: 'msedge', headless: true })

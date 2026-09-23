@@ -164,6 +164,80 @@ describe('the browser-test folder', () => {
   })
 })
 
+// ── the path a driver drives ────────────────────────────────────────────────
+// A browser test's OTHER string-shaped link to its subject: WHICH CHECKOUT it
+// serves. Every driver used to spell this one out (`const REPO = 'D:/…'`) and
+// spawn vite with it, so a run from a worktree or a second clone silently served
+// and tested the FIRST checkout's app — found for real when this checkout was
+// moved to another branch mid-task (#362). The sweep that fixed it is a sweep:
+// the 48th file is not a mistake anyone made, it is a file written in parallel,
+// against the convention that was true when it was written. That is the normal
+// state of this repo, so it is checked here rather than swept again.
+
+/** The repo folder's NAME, matched inside a string literal. Any spelled-out
+ *  checkout contains it — `D:/…/KnowledgeNetworkThesisDemo`, a backslash
+ *  spelling, another drive, a `-worktree1` clone — while a path DERIVED from the
+ *  file's own location never does, so there is nothing legitimate to exclude. */
+const NAMES_A_CHECKOUT = /['"`][^'"`]*KnowledgeNetworkThesisDemo/
+
+/** Every script under tools/ that could name a checkout — `.mjs`, `.js`, `.cjs`,
+ *  `.ts`, `.tsx`, `.py` — RECURSIVELY, not just the driver folder. Seven of the
+ *  files #362 rewrote live in five other spike folders, so a studio-spike-only
+ *  check would pass while five folders stayed broken; the wider net is that same
+ *  reasoning one step out. */
+const toolScripts = (() => {
+  const files: string[] = []
+  const walk = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.name === 'node_modules' || e.name === 'out' || e.name === 'shots') continue
+      const p = join(dir, e.name)
+      if (e.isDirectory()) walk(p)
+      else if (/\.(mjs|js|cjs|ts|tsx|py)$/.test(e.name)) files.push(p)
+    }
+  }
+  walk(join(REPO, 'tools'))
+  return files
+})()
+
+/** Files allowed to name a checkout, each with the reason. Empty on purpose: the
+ *  derivation IS the fix, not an exception. If one is ever needed it goes here as
+ *  a name → reason pair, the way NOT_IN_THE_RUN above does it, so "this one is
+ *  allowed" stays a decision somebody made rather than a silent hole. */
+const MAY_NAME_A_CHECKOUT: Record<string, string> = {}
+
+describe('no tool spells a checkout it does not live in', () => {
+  it('walked a believable number of files', () => {
+    // "nothing found" and "nothing wrong" look the same, so the walk keeps a floor
+    // the way the registry checks above do.
+    expect(toolScripts.length, 'the tools walk found suspiciously few files').toBeGreaterThanOrEqual(50)
+  })
+
+  it('names every offending file AND line in one failure', () => {
+    const offenders: string[] = []
+    for (const f of toolScripts) {
+      const rel = f.slice(REPO.length).replace(/\\/g, '/')
+      if (rel in MAY_NAME_A_CHECKOUT) continue
+      readFileSync(f, 'utf8')
+        .split('\n')
+        .forEach((line, i) => {
+          // a comment about a checkout is prose, not a reach — the same reason
+          // hooksOf skips them (`#` is the Python scripts' comment leader)
+          if (/^\s*(\/\/|\*|\/\*|#)/.test(line)) return
+          if (NAMES_A_CHECKOUT.test(line)) offenders.push(`${rel}:${i + 1}`)
+        })
+    }
+    expect(
+      offenders,
+      `these files name a checkout instead of deriving their own root:\n  ` +
+        offenders.join('\n  ') +
+        `\nA driver that names one checkout serves and tests THAT checkout's app wherever it is ` +
+        `run — a worktree, a second clone — and nothing about the run says so. ` +
+        `Derive the root from the file's own location: ` +
+        `join(dirname(fileURLToPath(import.meta.url)), '..', '..').`,
+    ).toEqual([])
+  })
+})
+
 describe('every hook a browser test reaches for still exists', () => {
   // The whole set at once rather than one test per driver: a rename usually breaks
   // several files, and the useful output is the whole list, not the first casualty.
