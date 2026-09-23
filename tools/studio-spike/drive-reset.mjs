@@ -20,8 +20,10 @@
 import { createRequire } from 'node:module'
 import { spawn } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 
-const REPO = 'D:/ShiZhong/MyCode/KnowledgeNetworkThesisDemo'
+const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const OUT = REPO + '/tools/studio-spike/shots'
 const PORT = 5203
 mkdirSync(OUT, { recursive: true })

@@ -41,8 +41,10 @@
 // Run:  node tools/studio-spike/browsertest-pickerviewport.mjs
 import { createRequire } from 'node:module'
 import { spawn } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 
-const REPO = 'D:/ShiZhong/MyCode/KnowledgeNetworkThesisDemo'
+const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const PORT = 5225
 // a roomy window, a laptop, and a short one. All three are sizes a person has.
 const HEIGHTS = [950, 800, 700]

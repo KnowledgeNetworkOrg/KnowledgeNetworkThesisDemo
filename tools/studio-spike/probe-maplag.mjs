@@ -53,8 +53,10 @@
 // Run:  node tools/studio-spike/probe-maplag.mjs   (exits nonzero if the ratio goes)
 import { createRequire } from 'node:module'
 import { spawn } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 
-const REPO = 'D:/ShiZhong/MyCode/KnowledgeNetworkThesisDemo'
+const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const PORT = 5219
 const LEVELS = [0, 2, 4]
 const STEPS = 60

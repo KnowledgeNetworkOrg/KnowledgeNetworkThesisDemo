@@ -4,10 +4,14 @@
 // errors, exit nonzero on any. Pulls DOM text (not just pixels) for the ground-truth
 // claims: breadcrumb vs. trail divergence on JUMP, and the walk's remaining count.
 import { createRequire } from 'node:module'
-const require = createRequire('D:/ShiZhong/MyCode/KnowledgeNetworkThesisDemo/package.json')
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
+const HERE = dirname(fileURLToPath(import.meta.url))
+const REPO = join(HERE, '..', '..')
+const require = createRequire(join(REPO, 'package.json'))
 const { chromium } = require('playwright-core')
 
-const OUT = 'D:/ShiZhong/MyCode/KnowledgeNetworkThesisDemo/tools/cockpit-spike/out'
+const OUT = join(HERE, 'out')
 const errors = []
 
 const browser = await chromium.launch({ channel: 'msedge', headless: true })

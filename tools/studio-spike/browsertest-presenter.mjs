@@ -19,8 +19,10 @@
 // Exits nonzero on any failed check or any page error.
 import { createRequire } from 'node:module'
 import { spawn } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 
-const REPO = 'D:/ShiZhong/MyCode/KnowledgeNetworkThesisDemo'
+const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const PORT = 5240
 
 const require = createRequire(REPO + '/package.json')
