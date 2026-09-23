@@ -51,6 +51,7 @@ const NOT_IN_THE_RUN: Record<string, string> = {
   'shot-cardhead.mjs': 'screenshot instrument, holds assertions — see #299',
   'shot-domaindot.mjs': 'screenshot instrument, holds assertions — see #299',
   'shot-foldab.mjs': 'calibration fixture for GroupGeometry, drives tools/studio-spike/foldab rather than the app',
+  'shot-markspair.mjs': 'fixture for the two rail marks (OB-234, #340), drives tools/studio-spike/markspair rather than the app — see #299',
   'shot-nested.mjs': 'screenshot instrument, holds assertions — see #299',
   'shot-palette.mjs': 'screenshot instrument, holds assertions — see #299',
   'shot-toolbox.mjs': 'screenshot instrument, holds assertions — see #299',

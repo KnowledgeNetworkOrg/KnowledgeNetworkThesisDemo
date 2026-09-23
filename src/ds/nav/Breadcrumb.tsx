@@ -32,8 +32,17 @@ export interface CrumbNode {
  *  pointer is not reachable, and hover held in React state is the only way to beat an inline
  *  style object, so the stylesheet cannot do this for us.
  *
+ *  ITS VERTICAL ROOM IS A DOCUMENT HEAD'S, AND A PANE'S HEADER ROW NEEDS `dense` (DS OB-243,
+ *  #340). The default reserves 40px of height and 10px under the words — room for a wrapped
+ *  second line and separation from the title beneath, which is what a document head is. In a
+ *  single row beside a 24px button all of that reservation sits BELOW the text, so the words
+ *  ride high and the button reads as dropped. `dense` drops both: the row becomes as tall as
+ *  its own text and centres against whatever is next to it. Nothing else changes — same ink,
+ *  same hover, same wrap.
+ *
  *  Extracted upstream 2026-08-28 from `ConnectionsSplitPane`'s private `Breadcrumb`.
- *  Typed port of the DS components/nav/Breadcrumb.jsx, OB-101 / #253. */
+ *  Typed port of the DS components/nav/Breadcrumb.jsx, OB-101 / #253 (the `dense` prop added
+ *  with OB-243, #340). */
 export interface BreadcrumbProps {
   /** the ancestry, root first and the current node LAST. An empty path draws an empty row */
   path?: readonly CrumbNode[]
@@ -46,9 +55,16 @@ export interface BreadcrumbProps {
    *  NODE's own when it has one (including `null` for the root) and the path's otherwise —
    *  so a root crumb reports `null` rather than the hue its descendants happen to share. */
   onSelect?: (node: { id: string; title: string; domain?: string | null }) => void
+  /** DROP THE DOCUMENT-HEAD SPACING for a pane's own header row. By default the row reserves
+   *  40px of height and 10px under the words — room for a wrapped second line and separation
+   *  from a title beneath it, which is what a document head needs. Beside a 24px button in a
+   *  single row, all of that sits BELOW the text: the words ride high and the button reads as
+   *  dropped (owner-reported 2026-09-20 on the map's header row). `dense` makes the row as tall
+   *  as its own text so it centres against whatever is next to it. Same ink, hover and wrap */
+  dense?: boolean
 }
 
-export function Breadcrumb({ path, domain, onSelect }: BreadcrumbProps) {
+export function Breadcrumb({ path, domain, onSelect, dense }: BreadcrumbProps) {
   /* which crumb the pointer or the keyboard is on. State rather than CSS because the ink and
      the underline are set inline, and an inline style object wins against any stylesheet rule
      a `:hover` selector could carry. */
@@ -57,8 +73,8 @@ export function Breadcrumb({ path, domain, onSelect }: BreadcrumbProps) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', columnGap: 6, rowGap: 1, fontSize: 11,
-      color: 'var(--text-2)', padding: '0 0 10px', flexWrap: 'wrap', lineHeight: 1.3,
-      minHeight: 40, flexShrink: 0,
+      color: 'var(--text-2)', padding: dense ? 0 : '0 0 10px', flexWrap: 'wrap', lineHeight: 1.3,
+      minHeight: dense ? 0 : 40, flexShrink: 0,
     }}>
       {items.map((n, i) => {
         const last = i === items.length - 1
