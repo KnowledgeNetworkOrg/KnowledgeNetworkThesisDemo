@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react'
 
 import { wrapTip } from '../chrome/IconButton'
@@ -484,7 +484,9 @@ export interface ContainTreeProps {
    *  `undefined` = the tree owns the hover, `null` = the host says nothing is hovered, an id =
    *  the host says this one is */
   hoveredId?: string | null
-  /** a row was clicked. Omit and the tree is a static picture: no cursor, no wash, no selection */
+  /** a row was clicked. Omit and the tree is a static picture: no pointer cursor, no selection —
+   *  the hover wash is NOT part of that list since OB-225: the wash is the tree's own business, so
+   *  a row still lights while the pointer is on it whether or not the tree can be selected in */
   onSelect?: (node: { id: string; title: string; domain?: string }) => void
   /** the pointer entered a row — the host's hook for a preview card. Carries the event, because
    *  the card is placed at the pointer rather than at the row */
@@ -536,6 +538,16 @@ export function ContainTree({ root, domain, counts, defaultOpen, persistKey, ope
     : onOpenChange
       ? (fn) => onOpenChange(typeof fn === 'function' ? fn(open) : fn)
       : setOpenState
+  /* THE PAINT PASS IS MEMOISED ON THE INPUTS IT READS (root, domain, open) — nothing else can
+     change its result. The self-owned hover (OB-225) re-renders this component on every row
+     enter/leave, and the walk has nothing to do with the hover: without the memo a pointer
+     crossing an UNCONTROLLED column re-walked the whole visible tree once per row. The query
+     branch below computes its own walk over the filtered tree, so the memo stands down there
+     rather than paying for a paint nobody draws. */
+  const paint = useMemo(
+    () => (!root || query ? undefined : ContainPaint(root, { domain, isOpen: (n) => !!open[n.id] })),
+    [root, domain, open, query],
+  )
   if (!root) return null
   const common = { domain, counts, open, setOpen, compact, scale, selectedId, hoveredId: hot, onSelect, onNodeEnter, onNodeLeave, onRowHover }
   /* THE PAINT PASS IS COMPUTED HERE, NOT PER ROW, because a pill's shade depends on the pill
@@ -547,5 +559,5 @@ export function ContainTree({ root, domain, counts, defaultOpen, persistKey, ope
     /* a filtered tree is entirely force-open, so the paint pass counts every surviving node */
     return <ContainRow node={filtered} isRoot {...common} paint={ContainPaint(filtered, { domain, isOpen: () => true })} forceOpenIds={collectIds(filtered, new Set())} />
   }
-  return <ContainRow node={root} isRoot {...common} paint={ContainPaint(root, { domain, isOpen: (n) => !!open[n.id] })} />
+  return <ContainRow node={root} isRoot {...common} paint={paint} />
 }
