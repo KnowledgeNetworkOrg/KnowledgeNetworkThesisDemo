@@ -11,6 +11,13 @@ generator. The four relations are pedagogical (`depends_on`, `uses`, `see_also`,
 `implemented_with`), with `depends_on` — the prerequisite backbone — as the spine
 of a generated curriculum.
 
+## House rules
+
+Every agent follows `AGENTS.md`. Claude Code does not read that file by itself, so it is
+loaded here:
+
+@AGENTS.md
+
 ## Two corpora
 
 `src/corpus/graph.ts` chooses between them; it does not contain either. Every
