@@ -10,7 +10,8 @@ app.
 
 ## Pull request review
 
-**Status: ON.** Only the repository owner turns this off, by changing this line.
+**Status: ON.** This process stands in until the KnowledgeNetwork-Code tool is ready for
+use. Only the repository owner turns it off, by changing this line.
 
 These rules apply across the KnowledgeNetwork projects; this is this repository's copy.
 
