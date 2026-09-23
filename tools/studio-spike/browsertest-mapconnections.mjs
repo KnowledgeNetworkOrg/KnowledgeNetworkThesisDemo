@@ -89,13 +89,18 @@ await page.waitForTimeout(600)
 /** the map camera's transform, for asserting flights happened / came home */
 const getCam = () => page.$eval('[data-nested] > g', (g) => g.getAttribute('transform'))
 
-/** Step the map to a containment level. The old `nested-level-N` button row was
- *  deleted with the map's bottom info bar (`1e530af`, OB-094/096); the level is
- *  chosen from a floating DS `LevelPicker` now — a "levels" button that opens
- *  L0..Lmax. Every level change below goes through here. */
+/** Step the map to a containment level, named by the INTERNAL tier every `data-tier`
+ *  and `data-rtier` below reads. The old `nested-level-N` button row was deleted with
+ *  the map's bottom info bar (`1e530af`, OB-094/096); the level is chosen from a
+ *  floating DS `LevelPicker` now — a "levels" button that opens L0..Lmax.
+ *
+ *  THE PICKER'S DISPLAYED LABELS RUN ONE AHEAD OF THE TIER SINCE #336 (OB-193): the
+ *  corpus root became displayed "L0" (internal level -1, one region), so the domains
+ *  are displayed "L1" and a tier-N cell is reached by picking "L{N+1}". This helper
+ *  takes the TIER, so every call below keeps the grain its own comment names. */
 const goLevel = async (n) => {
   await page.locator('[aria-label="levels"]').click()
-  await page.locator('[aria-label="levels"] ~ div button', { hasText: new RegExp(`^L${n}$`) }).click()
+  await page.locator('[aria-label="levels"] ~ div button', { hasText: new RegExp(`^L${n + 1}$`) }).click()
 }
 
 /** Run `fn` with the palette pane open, and leave it as it was found. Applying a
@@ -367,6 +372,7 @@ await page.screenshot({ path: OUT + '/5-atlas-L4.png' })
 // pointerenter fires (a synthetic click would not), aiming at a point verified
 // to actually land on a tier-4 cell — a bbox centre can fall outside a convex
 // polygon. Frame 5 above is the same view un-faded, so the two compare.
+// #336 (OB-193): these tier-4 cells are now displayed "L5"; `goLevel` takes the tier.
 const cell = await page.evaluate(() => {
   const cells = [...document.querySelectorAll('path[data-terr][data-tier="4"]')]
   cells.sort((a, b) => {
@@ -434,6 +440,8 @@ if (rollupDups.length) errors.push('rollup collapse: pair drawn more than once �
 // SelfNotes: region names WRAP inside their territories now. At L0 the active
 // domain names must not collide (they used to run two cells over and pile up),
 // and the corpus's multi-word names mean at least one must have split lines.
+// #336 (OB-193): the domain names are now the picker's "L1" — its "L0" is the
+// corpus root's own single region, which is the one label this block must not read.
 {
   const boxes = await page.$$eval('[data-regionlabel]', (ts) =>
     ts
