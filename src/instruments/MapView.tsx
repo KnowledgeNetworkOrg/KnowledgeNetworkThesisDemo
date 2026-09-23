@@ -52,24 +52,27 @@
 // walk route would reuse, and it has its own tests. What is left here is what a
 // component should be: a camera, a hover, and a paint order.
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import type { WalkMark } from '@/ds'
 import { ARROW_METRICS, headForSet, LabelCut, walkAddresses, walkArrival, walkLeadStop, walkLook, walkMarkLabel, walkProgress, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, PaneCanvas, PIN_RING_WIDTH, previewAnchor, shaftTailOffset, StepDot, VisibilityMark, WALK_ARROW_DEFAULTS, WALK_DOCK_METRICS, walkBand, WalkDock, WalkPreview, ZoomControl } from '@/ds'
 import { byId, domainIds, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT_ID } from '../corpus/graph'
+import { L_MAX, LEVEL_S, U_CX, U_CY, VB_H, VB_W, VB_X, VB_Y } from './map/camera'
+import type { View } from './map/camera'
+import { useWallFit, WALL_LEVEL, WALL_VIEW } from './map/wallfit'
 import { DT } from './walkdesk/authordnd'
 import { routeIsWalk, useWalkPlayback } from './walkdesk/playback'
 import { renderStopPreview } from './walkdesk/stoppreview'
-import { FLAT_H, FLAT_W, leafPos, provinceIds } from '../model/flat'
+import { leafPos, provinceIds } from '../model/flat'
 import type { XY } from '../model/derive'
 import { colorOf, inkStrongOf, labelInkOf, territoryFillOf } from '../model/color'
-import { countryPath, countryRings, maxTier, provincePath, provinceRings, rootPath, rootRings, territories } from '../model/nested'
+import { countryPath, countryRings, provincePath, provinceRings, rootPath, rootRings, territories } from '../model/nested'
 import { countryLabels, endpointAtTier, flightTargetOf, outlineOf, provinceLabels, ringsCrossT, roadsFor, rootLabel } from '../model/atlas'
 import { bowFor, bowSignAt, walkArrowBetween } from '../model/walkarrow'
 import { hoverMarks } from '../model/maphover'
-import { WALL_FRAME_INSET, wallArrowShown, wallExtent, wallFit, wallPinState } from '../model/walkwall'
-import type { WallFrame, WallView } from '../model/walkwall'
+import { wallArrowShown, wallPinState } from '../model/walkwall'
+import type { WallView } from '../model/walkwall'
 import { PIN_NO_POSITION, pinPosition, walkPins } from '../model/walkpins'
 import { toggleWalkHidden, walkDrawn, walkKeyOf } from '../model/walkvisibility'
 import type { Bundle } from '../model/atlas'
@@ -78,33 +81,12 @@ import type { FitLine, LabelBox, LabelFit } from '../model/labelfit'
 import { descendantCount, parentOf } from '../model/nav'
 import type { Bus } from '../studio/bus'
 
-const VB_X = -40
-const VB_Y = -40
-const VB_W = FLAT_W + 80
-const VB_H = FLAT_H + 80
-const U_CX = VB_X + VB_W / 2
-const U_CY = VB_Y + VB_H / 2
-
 /** the water behind every territory — exported so the shell can pass it as the
  *  Pane's own `face` (OB-066), rather than leaving it to the frame's default
  *  `--surface-paper` to show around the canvas's corners and its shorter-than-
  *  the-pane bottom edge. One value, read here and by the shell; a second typed
  *  copy is the staleness this item exists to close. */
 export const MAP_WATER = '#eef4f8'
-
-// Levels run L0..maxTier — the deepest stratum in the DATA decides how far
-// the scale goes. Each level is a canonical scale; there is nothing between.
-const L_MAX = maxTier
-const BASE_S = [0.8, 1.6, 3.0, 5.5, 9.5, 14]
-const LEVEL_S = Array.from({ length: L_MAX + 1 }, (_, i) => BASE_S[i] ?? BASE_S[BASE_S.length - 1] * Math.pow(1.5, i - (BASE_S.length - 1)))
-
-/** THE WALL (#267, DS OB-139): the map held up to the room opens at the province level — one
- *  grain in from the atlas, where a walk's stops spread onto their own cells — with the camera
- *  about the atlas's centre, the same arithmetic `flyToLevel` uses from the home view. Since
- *  OB-163 this is only the frame the wall's FIRST render draws and the level its pins are laid
- *  out at for the fit; the fit below replaces it before the wall has finished growing. */
-const WALL_LEVEL = 1
-const WALL_VIEW: View = { s: LEVEL_S[WALL_LEVEL], tx: U_CX - (U_CX / LEVEL_S[0]) * LEVEL_S[WALL_LEVEL], ty: U_CY - (U_CY / LEVEL_S[0]) * LEVEL_S[WALL_LEVEL] }
 
 /** How far the camera may drift, in WORLD units, before a pan has to re-render.
  *
@@ -217,12 +199,6 @@ const ancLabelO = (d: number) => (d === 1 ? 0.32 : 0)
  *  fade to 0.03 keeps working untouched — the ghost you are standing inside
  *  still steps aside. */
 const GHOST_CASE = { stroke: '#ffffff', strokeWidth: 3.2, strokeOpacity: 0.75 }
-
-interface View {
-  tx: number
-  ty: number
-  s: number
-}
 
 /** `wall` (#267, DS OB-139 rule 4): the map as the room sees it when the professor holds it up.
  *  A still picture — every stop of the lecture a pin, the covered stops and the lit stop joined
@@ -830,66 +806,14 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   const pinPos = dockShown ? pinPosition(routeStops, play.position) : null
 
   // ── OB-163: THE WALL FITS THE WHOLE WALK ONCE, THEN NEVER MOVES ──────────────
-  // The owner's ruling (2026-09-06): the map on the wall fits to the extent of EVERY stop
-  // at the moment it first goes up and holds that frame for the lecture — advancing,
-  // roaming, M down and M up all leave the camera where it is; only a change to the walk
-  // re-fits. THE FRAME IS THE HOST'S: `wall.frame` comes back on every mount and the fit is
-  // recomputed from it (deterministic, so M down / M up is one picture), and a mount with
-  // no frame yet reads the pins' extent, laid out at `WALL_LEVEL`, and reports it through
-  // `onFrame`. The fit sets the scale AND the level — the level is what the map draws at,
-  // and a walk that fits at a topic scale wants topic cells under its pins, the same
-  // pairing `flyToLevel` keeps. TWO PASSES, because the pins are laid out PER LEVEL: the
-  // first reads their extent at `WALL_LEVEL` and only picks the level its scale asks for;
-  // the second reads the extent again at THAT level (topic pins spread wider than the
-  // province pin standing for them, and a first-pass frame left two of seven outside) and
-  // sets the camera, keeping the level — bounded, no third pass. The frame records the
-  // level, so a later mount draws the same cells under the same camera. `wallFit` and
-  // `wallExtent` are `model/walkwall.ts`'s.
-  const wallFrame = wall ? wall.frame ?? null : null
-  const onWallFrame = wall ? wall.onFrame : undefined
-  const fittedRef = useRef<{ route: readonly string[]; frame: WallFrame } | null>(null)
-  const wallPassRef = useRef<{ route: readonly string[]; level: number } | null>(null)
-  const applyWallFit = (frame: WallFrame, cb: { w: number; h: number }) => {
-    const fit = wallFit(frame, cb, WALL_FRAME_INSET)
-    const ff = Math.max(VB_W / cb.w, VB_H / cb.h)
-    const s = Math.min(LEVEL_S[L_MAX], Math.max(LEVEL_S[0], fit.pxPerUnit * ff))
-    // the clear area's centre in viewBox units: the viewBox is centred in the box (xMidYMid)
-    const ux = U_CX + (fit.at.x - cb.w / 2) * ff
-    const uy = U_CY + (fit.at.y - cb.h / 2) * ff
-    setView({ s, tx: ux - fit.focus.x * s, ty: uy - fit.focus.y * s })
-    setLevel(frame.level)
-    levelRef.current = frame.level
-    return s
-  }
-  // (the camera and the level are set ONCE per frame, from a measured box a render cannot know;
-  // a layout effect, so the fit lands in the same frame as the measurement)
-  useLayoutEffect(() => {
-    if (!wall || !clientBox) return
-    const have = fittedRef.current
-    if (have && have.route === bus.route && (!wallFrame || have.frame === wallFrame)) return
-    if (wallFrame) {
-      fittedRef.current = { route: bus.route, frame: wallFrame }
-      applyWallFit(wallFrame, clientBox)
-      return
-    }
-    const pass = wallPassRef.current
-    if (!pass || pass.route !== bus.route) {
-      // pass 1: the extent at the level the pins are laid out at now decides the level only
-      const first = wallExtent(routeStops.map((p) => p.c), level)
-      if (!first) return
-      const s = wallFit(first, clientBox, WALL_FRAME_INSET).pxPerUnit * Math.max(VB_W / clientBox.w, VB_H / clientBox.h)
-      let l = 0
-      while (l + 1 <= L_MAX && LEVEL_S[l + 1] <= s) l++
-      wallPassRef.current = { route: bus.route, level: l }
-      if (l !== level) { setLevel(l); levelRef.current = l; return } // the pins re-lay-out; pass 2 follows
-    }
-    // pass 2: the extent at the level the wall will draw at IS the frame
-    const frame = wallExtent(routeStops.map((p) => p.c), wallPassRef.current!.level)
-    if (!frame) return
-    fittedRef.current = { route: bus.route, frame }
-    applyWallFit(frame, clientBox)
-    if (onWallFrame) onWallFrame(frame)
-  }, [wall, wallFrame, onWallFrame, clientBox, routeStops, bus.route, level])
+  // The fit, its two passes and the frame the host keeps are `map/wallfit.ts` (#324). The fit
+  // IS a camera move, made from a box a render cannot know, so it is handed this camera's own
+  // two setters — the level's ref kept in step, as every level change here keeps it.
+  const showLevel = useCallback((l: number) => {
+    setLevel(l)
+    levelRef.current = l
+  }, [])
+  useWallFit({ wall, clientBox, route: bus.route, pins: routeStops, level, showLevel, showView: setView })
 
   // ── OB-179: PLAYBACK MOVES THE CAMERA ONLY WHEN THE STOP IS OFF-SCREEN ─────
   // The owner's call (2026-09-14), answering the gap OB-173's receipt reported: nothing

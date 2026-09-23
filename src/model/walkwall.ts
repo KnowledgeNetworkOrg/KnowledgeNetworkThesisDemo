@@ -31,7 +31,7 @@ export interface WallView {
 // picture each time. Why not the province tier the wall opened at before: early in a
 // lecture the walk was a small mark in a large map, and the wall exists to show the class
 // where it has been. Pure arithmetic in the map's own world units and the box's pixels;
-// the host (MapView) turns it into its camera.
+// the host (MapView, through `instruments/map/wallfit.ts`) turns it into its camera.
 
 /** a rect in the map's world units — the extent the wall shows — and the LEVEL the wall draws
  *  it at. The level is part of the frame, not derived from it on each mount: the pins are laid
