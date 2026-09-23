@@ -443,7 +443,11 @@ ok('at full width the chain is whole, so it carries NO marker',
 ok('and the chains run deep enough that a cut would really lose something',
   wideChains.some((p) => p.split('/').filter((seg) => seg.trim()).length >= 3), JSON.stringify(wideChains[0] ?? null))
 
-await page.setViewportSize({ width: 680, height: 950 })
+// 620, NOT 680: #337 (OB-213) removed `fitLines`' 12% width slack, so at 680 the
+// two-line chain now genuinely fits whole and is correctly unmarked — the squeeze has
+// to go narrower to witness the drop. Still well above the plain-text fallback
+// (`avail < 2 x pillMin`), where no chain is drawn at all.
+await page.setViewportSize({ width: 620, height: 950 })
 await page.waitForTimeout(600)
 const cutChains = await drawnChains()
 ok('squeezed, the pill drops the root — and says so',
