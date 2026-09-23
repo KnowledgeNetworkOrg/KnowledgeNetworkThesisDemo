@@ -17,7 +17,7 @@ function MarkRow({ label, name, children }: { label: string; name: string; child
   return (
     <div data-mark={name} style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
       <span style={{ width: 90, fontSize: 'var(--fs-micro)', color: 'var(--text-3)' }}>{label}</span>
-      <span style={{ color: 'var(--text-2)', display: 'inline-flex', alignItems: 'center' }}>{children}</span>
+      <span data-mark-box="1" style={{ color: 'var(--text-2)', display: 'inline-flex', alignItems: 'center' }}>{children}</span>
     </div>
   )
 }

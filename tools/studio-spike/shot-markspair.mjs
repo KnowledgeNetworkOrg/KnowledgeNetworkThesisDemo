@@ -51,10 +51,13 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + 
 await page.goto(`http://localhost:${PORT}/tools/studio-spike/markspair/`)
 await page.waitForTimeout(400)
 
-/** the geometry a mark actually drew, read off its SVG */
+/** the geometry a mark actually drew, read off its SVG and the wrapper the specimen puts
+ *  around it. The wrapper is found by its own hook: `[data-mark]` is on the ROW, whose first
+ *  span is the row's 90px label — reading that as "the mark's box" was the wrong element
+ *  every run and the log said 90. The row labels its mark wrapper `[data-mark-box]`. */
 const markFacts = (sel) => page.evaluate((s) => {
   const svg = document.querySelector(s + ' svg')
-  const box = document.querySelector(s + ' span')
+  const box = document.querySelector(s + ' [data-mark-box]')
   if (!svg || !box) return null
   const r = svg.getBoundingClientRect()
   return {
@@ -68,7 +71,7 @@ const markFacts = (sel) => page.evaluate((s) => {
     boxW: Math.round(r.width),
     boxH: Math.round(r.height),
     ink: getComputedStyle(svg).stroke,
-    parentW: Math.round(box.getBoundingClientRect().width),
+    wrapperW: Math.round(box.getBoundingClientRect().width),
   }
 }, sel)
 
@@ -84,6 +87,7 @@ for (const [name, m] of [['outline', outline], ['relations', relations]]) {
   if (m.strokeWidth !== '1.4') fail(`${name}: stroke-width ${m.strokeWidth}, expected 1.4`)
   if (m.stroke !== 'currentColor') fail(`${name}: stroke ${m.stroke}, expected currentColor`)
   if (m.boxW !== 12 || m.boxH !== 12) fail(`${name}: box ${m.boxW}x${m.boxH}, expected 12x12`)
+  if (m.wrapperW !== 12) fail(`${name}: the mark's wrapper is ${m.wrapperW}px wide, expected 12`)
 }
 // the pair must be the SAME ink weight in the same box — that is the clause that makes
 // them read as one set rather than two drawings that happen to sit together
