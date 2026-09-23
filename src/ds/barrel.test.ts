@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { Bullet, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, FindMark, FlagButton, FlagMark, IconButton, InlineText, LeafMark, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, segmentWalked, usedStroke, walkEase, walkHoverStyle } from '@/ds'
+import { Bullet, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, FindMark, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -214,6 +214,28 @@ describe('ported but not adopted DS components', () => {
   it('segmentWalked / walkEase — read by walkArrow and walkAdvance from inside src/ds', () => {
     expect(typeof segmentWalked).toBe('function')
     expect(typeof walkEase).toBe('function')
+  })
+
+  // #340 (OB-225, 234, 237, 239, 241, 243) — the dissolution's shared chrome, ported into
+  // src/ds and deliberately NOT adopted yet: the two rails that render it are #341's (the
+  // map's Explorer rail) and #342's (the document's Relations rail), and the panes they mount
+  // in are rewired there. Listed so mounting one is a deliberate edit here, not an audit miss.
+  // `FIRST_ROW_PAD` is read by RailFrame itself; it crosses the barrel for #358, which
+  // completes OB-249.
+  it('RailFrame / RailOpenButton / RailCorner / OutlineMark / RelationsMark — waiting on #341 and #342 to mount the rails', () => {
+    expect(typeof RailFrame).toBe('function')
+    expect(typeof RailOpenButton).toBe('function')
+    expect(typeof RailCorner).toBe('function')
+    expect(typeof OutlineMark).toBe('function')
+    expect(typeof RelationsMark).toBe('function')
+    expect(FIRST_ROW_PAD).toBe(14)
+    expect(PANE_RAIL_METRICS.left.pad.startsWith('14px')).toBe(true)
+    expect(railFloor('left')).toBe(PANE_RAIL_METRICS.left.min + PANE_RAIL_METRICS.left.keep)
+    expect(railFloor('right')).toBe(PANE_RAIL_METRICS.right.min + PANE_RAIL_METRICS.right.keep)
+    expect(railFits('left', 0)).toBe(true)
+    expect(railWidth('left', 400)).toBe(PANE_RAIL_METRICS.left.max)
+    expect(typeof RailMath.width).toBe('function')
+    expect(typeof usePaneWidth).toBe('function')
   })
 
   // `nestedFamilyPaint` / `familySlots` / `FAMILY_SLOTS` are NOT listed here because

@@ -778,16 +778,18 @@
       "src/ds/chrome/CollapseChevron.tsx": {
         "from": "components/chrome/CollapseChevron.jsx",
         "contract": "components/chrome/CollapseChevron.d.ts",
-        "syncedAt": "2026-09-06",
+        "syncedAt": "2026-09-23",
         "deviations": [
+          "2026-09-23 OB-237 (#340) — the `side` prop ported (`'left' | 'right'`, default `'left'`): direction is `collapsed` against the edge the column sits on, so a right-hand rail's chevron points the way the column will GO. The default is the old behaviour exactly, so no existing caller moves. NOT ADOPTED YET: the two rail handles that pass it are #341's and #342's, and neither rail exists in this repo yet.",
           "2026-09-06 NEW FILE, OB-101 (#253). Ported verbatim. The DS extracted it 2026-08-28 out of ConnectionsSplitPane's own CollapseToggle, which had rebuilt IconButton's hover ramp, reserved border and disabled handling by hand."
         ]
       },
       "src/ds/nav/Breadcrumb.tsx": {
         "from": "components/nav/Breadcrumb.jsx",
         "contract": "components/nav/Breadcrumb.d.ts",
-        "syncedAt": "2026-09-17",
+        "syncedAt": "2026-09-23",
         "deviations": [
+          "2026-09-23 OB-243 (#340) — `dense` ported: it drops the 40px min-height and the 10px under-pad and NOTHING else, so a pane's header row becomes as tall as its own text and centres against the 24px button beside it. The document head's spacing is unchanged wherever a breadcrumb is still drawn as one. NOT ADOPTED YET: the map's header row that passes it is #341's. Clause 3 stands as a host rule: no caller may correct the spacing from outside with a margin, a transform or a wrapper height.",
           "2026-09-17 OB-193 — `CrumbNode.domain?: string | null` ported, and `onSelect` now reports `n.domain !== undefined ? n.domain : domain` in place of the bare path-level `domain`. Adopted at once in `ConnectionsSplitPane.tsx`: its `path`/`crumbPath` maps the corpus root's own crumb to `domain: null` explicitly (the root's `ContainNode.domain` is `undefined`, which the fallback above reads as \"use the path's shared hue\" — `null` is what defeats it), so clicking the root crumb from inside, say, a Networking ancestry reports `null` rather than leaking that territory's colour for a node that owns none. A payload-only change: the row draws identically either way.",
           "2026-09-06 NEW FILE, OB-101 (#253). Ported with the 2026-09-05 hover change already in it - ink and underline arrive together on hover and on :focus-visible, and there is no rest-state underline - so no second pass is owed on it."
         ]
@@ -795,8 +797,9 @@
       "src/ds/connections/ContainTree.tsx": {
         "from": "components/connections/ContainTree.jsx",
         "contract": "components/connections/ContainTree.d.ts",
-        "syncedAt": "2026-09-17",
+        "syncedAt": "2026-09-23",
         "deviations": [
+          "2026-09-23 OB-225 (#340) — the tree owns its hover wash: `selfHover` state, `hot = hoveredId !== undefined ? hoveredId : selfHover`, and `onRowHover` handed down only while uncontrolled. The three states are distinct — `undefined` = the tree owns it, `null` = the host says nothing is hovered, an id = the host says this one. The row's enter/leave handlers are now attached UNCONDITIONALLY and call the host's `onNodeEnter`/`onNodeLeave` IN ADDITION to the tree's own tracking, not instead of it; the count rule is untouched, so with no `onNodeEnter` the pill still sets its native title from `containsSummary(node)` and BOTH host shapes are complete. `hoveredId`'s doc comment carries the three-state meaning in words. NOT PORTED HERE, deliberately: OB-240's `deselectable` and OB-247's `bare` leaves — both edit this same file and both are #341's. The DS's current .jsx was re-read to take OB-225 alone; the `var(--surface-raised)` resting face and the leaf stroke were left exactly as they are so a later port cannot read this one as having undone OB-247.",
           "2026-09-17 OB-193 — ★ LOCAL ADOPTION, no DS source for this shape: `ContainNode.root`/`ContainPillProps.root` (distinct from `focus`, which a re-rooted subtree's own top row still carries with a real topic — `root` means specifically the corpus's colourless root). `ContainRow` threads `node.root` to `ContainPill`, which now draws `stroke = root ? 'var(--border-rule)' : …` ahead of the usual `paint`/`nestedFamilyPaint`/`topicPaint` chain — the system's neutral boundary token in place of the anchor-fallback grey the root pill drew before, the same colourless-not-grey distinction `DomainDot`'s `root` (hollow ring) draws for the DS's own row shape. `ConnectionsPane.tsx`'s `buildContainTree` sets `root: id === ROOT_ID`. Depth needed no change: this tree's root row was already `depth={0}` with territories at `depth={1}` under it (the DS's screenshot for this item was of THIS screen, and that half of its ask was already true here).",
           "2026-09-06 NEW FILE, OB-101 (#253). Ported faithfully: CONTAIN_METRICS, CaretHit, containsSummary, findTreePath, treeKeyNav and the caret carve-out from the subtree double-click all present.",
           "NOTE ON `nestedFamilyPaint`, correcting a claim this entry carried for one commit: this is the SECOND consumer, not a revival. src/model/color.ts already feeds the map's territory fill through it (OB-119, #250, 2026-09-05), and src/ds/barrel.test.ts already says so - #221's dead-chain premise for that symbol was resolved before this rehaul, not by it.",
@@ -815,6 +818,17 @@
           "2026-09-06 NEW FILE, OB-101 (#253). All four amendments are in: the drawn width is derived, repeated targets collapse onto one pill behind a 1px spine with `stacked` arrows and target-count hover, `blockGap` 13 and `arrowStacked` 26 are ported as the published PAIR, and `cardMax` 620 is applied as a maxWidth on the MEASURED container with `pillMax` 200 and no declared arrow maximum.",
           "LOCAL - the unfiltered height is held in STATE where the DS holds it in a ref. `react-hooks/refs` hard-errors on reading `.current` from a render body, and a hard error takes the whole component out of the lint pass. Still written from a layout effect, still only while nothing is filtered, with an equality guard; behaviour unchanged. Reported on #74.",
           "2026-09-16 OB-195 — both row forms (`RelSourceGroup`, `RelRowPlain`) draw `borderTop` only; the rule belongs to the card below it and the 6px `marginBottom` stays. The DS's ONE RULE PER BOUNDARY note is ported above the two rows. Measured: 232 grouped cards on the root, none with a bottom border."
+        ]
+      },
+      "src/ds/connections/RailFrame.tsx": {
+        "from": "components/connections/RailFrame.jsx",
+        "contract": "components/connections/RailFrame.d.ts",
+        "syncedAt": "2026-09-23",
+        "deviations": [
+          "2026-09-23 NEW FILE, #340 (OB-238 + OB-239 + OB-241) — the chrome both rails wear: the column, its header, the handle and the corner button, with PANE_RAIL_METRICS, railWidth, railFloor, railFits, usePaneWidth, RailMath, RailOpenButton and RailCorner. Ported from the .jsx, not from the obligations' prose. NOT MOUNTED: the two rails that render it are #341's and #342's, so `closedControl=\"host\"` has no caller yet — the frame's default floating corner is the only path a host can reach today.",
+          "ONE DEPENDENCY LANDED WITH IT: `PANE_RAIL_METRICS.left.pad`'s top is Pane's `FIRST_ROW_PAD` (14), which did not exist here. The constant was added to Pane.tsx with this port so RailFrame could import it exactly as the DS does — that is OB-249's RailFrame change, tracked by #358. The REST of OB-249 (FIRST_LINE, FIRST_SCROLL_PAD, PaneHeader's LEGEND_ROW, DocHeader's pad, the host pads) is deliberately untouched for #358. Recorded here so the receipt, this file and #358 agree about which half is done.",
+          "LOCAL ADAPTATIONS, two, both behaviour-identical: the native title on the button's lowercase <button> goes through `wrapTip` (adherence.test.ts's rule — the DS's raw `'Show ' + label` cannot ship here), and `onFocus` tests `e.currentTarget` rather than the DS's `e.target` (the button contains the mark span; currentTarget is the element the handler is about). The intentional no-dependency `useLayoutEffect` (the every-render re-read) carries an eslint-disable with its reason.",
+          "Every prop of the three new interfaces carries a doc comment, so the adherence budget stays at 84 — this port adds no undocumented surface. Verified by `tools/studio-spike/shot-markspair.mjs` for the marks; the frame itself has no host to drive yet."
         ]
       },
       "src/ds/connections/ConnectionsSplitPane.tsx": {
@@ -836,6 +850,22 @@
         "syncedAt": "2026-09-16",
         "deviations": [
           "2026-09-16 NEW FILE, OB-201 — the drawn ✕, ported faithfully. PATH: the item names `src/ds/CloseMark.tsx`; this repo keeps every chrome mark under `src/ds/chrome/`, so it lives beside FindMark and ExpandMark and is exported from `src/ds/index.ts` like them. `style` gains a doc comment the .d.ts does not carry (the adherence budget counts undocumented props, and every sibling mark documents it)."
+        ]
+      },
+      "src/ds/chrome/OutlineMark.tsx": {
+        "from": "components/chrome/OutlineMark.jsx",
+        "contract": "components/chrome/OutlineMark.d.ts",
+        "syncedAt": "2026-09-23",
+        "deviations": [
+          "2026-09-23 NEW FILE, #340 (OB-234) — the containment rail's mark, ported from the .jsx: three strokes on AddNodeMark's construction exactly (invisible baseline character, absolutely positioned SVG, stroke 1.4 in the 16 viewBox). NOT MOUNTED: the closed Explorer pill that draws it is #341's. `size`/`style` are documented here where the DS's own .d.ts leaves them bare, so the adherence budget is unchanged. Confirmed as a visual PAIR with RelationsMark by tools/studio-spike/shot-markspair.mjs: same viewBox, same stroke, same 12x12 box, both in currentColor, each in its pill with its word."
+        ]
+      },
+      "src/ds/chrome/RelationsMark.tsx": {
+        "from": "components/chrome/RelationsMark.jsx",
+        "contract": "components/chrome/RelationsMark.d.ts",
+        "syncedAt": "2026-09-23",
+        "deviations": [
+          "2026-09-23 NEW FILE, #340 (OB-234) — the relations rail's mark: three discs (r 1.9) every pair linked, same construction and weight as OutlineMark. NOT MOUNTED: the closed relations pill that draws it (and keeps its count) is #342's. `size`/`style` documented here, DS's .d.ts leaves them bare, budget unchanged. Pair verified by tools/studio-spike/shot-markspair.mjs — see OutlineMark's entry."
         ]
       },
       "src/instruments/ConnectionsPane.tsx": {

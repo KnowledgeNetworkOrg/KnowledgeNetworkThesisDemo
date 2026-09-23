@@ -331,7 +331,7 @@ function useOpenState(persistKey: string | null | undefined, fallback: OpenMap):
   return [open, setOpen]
 }
 
-function ContainRow({ node, domain, paint, counts, open, setOpen, isRoot, compact, scale = 1, selectedId, hoveredId, onSelect, onNodeEnter, onNodeLeave, forceOpenIds, depth = 0, index = 0 }: {
+function ContainRow({ node, domain, paint, counts, open, setOpen, isRoot, compact, scale = 1, selectedId, hoveredId, onSelect, onNodeEnter, onNodeLeave, onRowHover, forceOpenIds, depth = 0, index = 0 }: {
   node: ContainNode
   domain?: string
   paint?: Record<string, ContainPaintEntry>
@@ -348,6 +348,10 @@ function ContainRow({ node, domain, paint, counts, open, setOpen, isRoot, compac
   onSelect?: (node: { id: string; title: string; domain?: string }) => void
   onNodeEnter?: (e: ReactMouseEvent, node: ContainNode) => void
   onNodeLeave?: () => void
+  /** the tree's own hover tracking, present only while the hover is UNCONTROLLED — see
+   *  `ContainTreeProps.hoveredId`'s three states. The host's `onNodeEnter`/`onNodeLeave` are
+   *  called IN ADDITION to this, never instead of it (DS OB-225) */
+  onRowHover?: (id: string | null) => void
   forceOpenIds?: Set<string>
   depth?: number
   index?: number
@@ -403,7 +407,11 @@ function ContainRow({ node, domain, paint, counts, open, setOpen, isRoot, compac
     <div style={{ display: 'flex', flexDirection: 'column' }}>
       <div
         onClick={onClick} onDoubleClick={onDbl}
-        onMouseEnter={onNodeEnter ? (e) => onNodeEnter(e, node) : undefined} onMouseLeave={onNodeLeave}
+        /* ATTACHED UNCONDITIONALLY, and they call the host's handlers IN ADDITION to the tree's
+           own tracking — not instead of it. They used to be attached only when `onNodeEnter` was
+           passed, which is what made the wash a capability the host had to grant (DS OB-225). */
+        onMouseEnter={(e) => { if (onRowHover) onRowHover(node.id); if (onNodeEnter) onNodeEnter(e, node) }}
+        onMouseLeave={() => { if (onRowHover) onRowHover(null); if (onNodeLeave) onNodeLeave() }}
         data-node-id={node.id} data-open={isOpen ? '1' : '0'} title={nativeTip ? wrapTip(nativeTip) : undefined}
         style={{ position: 'relative', padding: compact ? '4px 0' : '6px 0', display: 'flex', cursor: onSelect ? 'pointer' : 'default', userSelect: 'none' }}
       >
@@ -424,7 +432,7 @@ function ContainRow({ node, domain, paint, counts, open, setOpen, isRoot, compac
             <ContainRow
               key={c.id} node={c} domain={domain} paint={paint} counts={counts} open={open} setOpen={setOpen} compact={compact} scale={scale}
               selectedId={selectedId} hoveredId={hoveredId} onSelect={onSelect}
-              onNodeEnter={onNodeEnter} onNodeLeave={onNodeLeave} forceOpenIds={forceOpenIds}
+              onNodeEnter={onNodeEnter} onNodeLeave={onNodeLeave} onRowHover={onRowHover} forceOpenIds={forceOpenIds}
               depth={depth + 1} index={i}
             />
           ))}
@@ -466,7 +474,15 @@ export interface ContainTreeProps {
    *  at that node (DS OB-198). THE EMPTY STATE DRAWS NO MARK AT ALL — owner-ruled 2026-09-16 over
    *  accent ink on the aimed row, a hairline ring, and a gutter tick. Do not add one back */
   selectedId?: string | null
-  /** the node under a pointer somewhere in the pane, ours or another instrument's */
+  /** the node currently hovered, when the HOST is tracking it (it usually is, because it draws
+   *  the preview) — paints the pill's hover wash, and a host mirroring a hover published by
+   *  another pane passes it for that reason. OMIT IT AND THE TREE WASHES ITS OWN ROW (DS OB-225,
+   *  #340): the wash is not a capability a host grants, and it used to be — it was reachable only
+   *  through this prop, and coupled to a second one, because the pill's native count tooltip is
+   *  drawn only when there is no `onNodeEnter`, so a host with no preview card that wired hover
+   *  just to get the wash gave up the count line to do it. THE THREE STATES ARE DISTINCT:
+   *  `undefined` = the tree owns the hover, `null` = the host says nothing is hovered, an id =
+   *  the host says this one is */
   hoveredId?: string | null
   /** a row was clicked. Omit and the tree is a static picture: no cursor, no wash, no selection */
   onSelect?: (node: { id: string; title: string; domain?: string }) => void
@@ -491,6 +507,19 @@ export interface ContainTreeProps {
 export function ContainTree({ root, domain, counts, defaultOpen, persistKey, open: openProp, onOpenUpdate, onOpenChange, selectedId, hoveredId, onSelect, onNodeEnter, onNodeLeave, query, compact, scale = 1 }: ContainTreeProps) {
   const [openState, setOpenState] = useOpenState(persistKey, defaultOpen || (root ? { [root.id]: 1 } : {}))
   const open = openProp || openState
+  /* THE TREE WASHES ITS OWN ROW WHEN NOBODY ELSE IS TRACKING THE HOVER (DS OB-225, #340). The
+     wash was reachable only through `hoveredId`, which the pane supplies because it also draws a
+     preview card — and the two were coupled through a second prop: the pill's native count
+     tooltip is drawn only when there is no `onNodeEnter`, so a host that wired hover purely to
+     get the wash lost the count line by doing so. A rail with no preview surface therefore had
+     to choose between a tree that does not respond to the pointer and a tree that cannot say
+     how many nodes a container holds (owner-reported on the Explorer rail: "the file explorer
+     tree is missing wash on hover"). Hover is the component's own business; `hoveredId` still
+     WINS when passed, because a host mirroring a hover from another pane is the case it exists
+     for. `undefined` means uncontrolled, and `null` from a host still means nothing hovered. */
+  const [selfHover, setSelfHover] = useState<string | null>(null)
+  const hot = hoveredId !== undefined ? hoveredId : selfHover
+  const onRowHover = hoveredId !== undefined ? undefined : setSelfHover
   /* A CONTROLLED TREE HANDS THE UPDATER STRAIGHT OUT, UNRESOLVED (DS OB-167). Calling
      `fn(open)` here resolves it against the map THIS render was handed, so several caret
      toggles dispatched inside one React batch all compute from the same base and only the
@@ -508,7 +537,7 @@ export function ContainTree({ root, domain, counts, defaultOpen, persistKey, ope
       ? (fn) => onOpenChange(typeof fn === 'function' ? fn(open) : fn)
       : setOpenState
   if (!root) return null
-  const common = { domain, counts, open, setOpen, compact, scale, selectedId, hoveredId, onSelect, onNodeEnter, onNodeLeave }
+  const common = { domain, counts, open, setOpen, compact, scale, selectedId, hoveredId: hot, onSelect, onNodeEnter, onNodeLeave, onRowHover }
   /* THE PAINT PASS IS COMPUTED HERE, NOT PER ROW, because a pill's shade depends on the pill
      drawn immediately ABOVE it — which no row can see on its own. It walks the same open set the
      rows read, so the two never disagree about what is visible. */

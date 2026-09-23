@@ -19,6 +19,18 @@ import { Grip } from './Grip'
  *  it for you. */
 export const SCROLLER_INSET = 12
 
+/** THE FIRST ROW'S OWN TOP PADDING, when that row sits directly under the legend in a
+ *  `scroll="none"` body with no margin — the pad that puts a pane's first line of text on
+ *  the shared `FIRST_LINE` (25) below the frame's top edge, so panes docked side by side
+ *  read level (DS OB-249, #358).
+ *
+ *  ONLY THIS ONE CONSTANT IS HERE SO FAR: `RailFrame` imports it for the left rail's head,
+ *  which opens its pane and must sit on that line (#340). OB-249's other two exports
+ *  (`FIRST_LINE` 25 and `FIRST_SCROLL_PAD` 2, for a first row inside a scrolling body),
+ *  `PaneHeader`'s `LEGEND_ROW`, `DocHeader`'s pad and the host pads are #358's — do not
+ *  restate any of them from here. */
+export const FIRST_ROW_PAD = 14
+
 export interface PaneScrollerProps {
   /** which axis scrolls; the other is hidden. Default `y` */
   axis?: 'y' | 'x' | 'both'
