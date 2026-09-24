@@ -230,6 +230,14 @@ describe('ported but not adopted DS components', () => {
     expect(typeof RelationsMark).toBe('function')
     expect(FIRST_ROW_PAD).toBe(14)
     expect(PANE_RAIL_METRICS.left.pad.startsWith('14px')).toBe(true)
+    // OB-250 — the closed corner is placed at the open head's `top`, so the control does not step
+    // between states: 14 on the left, 6 on the right.
+    expect(PANE_RAIL_METRICS.left.top).toBe(14)
+    expect(PANE_RAIL_METRICS.right.top).toBe(6)
+    // OB-253 — a dragged width is a TARGET, capped at `stretch` and still clamped by the pane.
+    expect(PANE_RAIL_METRICS.left.stretch).toBe(360)
+    expect(railWidth('left', 9999, 500)).toBe(360)
+    expect(railWidth('left', 400, 500)).toBe(400 - PANE_RAIL_METRICS.left.keep)
     expect(railFloor('left')).toBe(PANE_RAIL_METRICS.left.min + PANE_RAIL_METRICS.left.keep)
     expect(railFloor('right')).toBe(PANE_RAIL_METRICS.right.min + PANE_RAIL_METRICS.right.keep)
     expect(railFits('left', 0)).toBe(true)
