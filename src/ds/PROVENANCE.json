@@ -846,6 +846,14 @@
           "2026-09-24 OB-253 (#341) — the seam drags: `width`/`onWidthChange`, `stretch` (left 360, right 420), `railWidth`'s third argument, `children` as a function of the DRAWN width, and the `PaneDivider` the frame draws over its own border. Ported because the DS source carries it and its own cross-warning says to take it with this file. The HOST half — the map pane holding the stored width — lands in the same branch; the Relations seam belongs to #342, and persistence across reloads is OB-255 (#368)."
         ]
       },
+      "src/ds/connections/ExplorerRail.tsx": {
+        "from": "components/connections/ExplorerRail.jsx",
+        "contract": "components/connections/ExplorerRail.d.ts",
+        "syncedAt": "2026-09-24",
+        "deviations": [
+          "2026-09-24 NEW FILE, OB-238 (#341) — the whole rail at its 2026-09-24 revision: the filter (`TextInput` + `FindMark`, pruning the tree IN PLACE, never a floating list), the `ContainTree` it drives, the `RailFrame` it wears, plus `ExplorerRailCorner` (the word-and-mark pairing made once, for a pane with a header row) and `explorerRailWidth`. Everything it passes through — `deselectable`, `open`/`onOpenUpdate`, `hoveredId`, `width`/`onWidthChange` — is the contracts of the components beside it, not new rail logic. ★ LOCAL, one: host rule 3 in the header says to fold `OpenOnSelect` ONCE per selection and merge `OpenForVisible` per view change, where the DS's .jsx comment still says to merge `OpenAncestors` over the map every render — that is the shape OB-244 was raised against, and the DS's own `ContainTree.d.ts` obligation 5 already carries the corrected rule, so the comment follows the contract and the stale sentence is reported on the receipt rather than followed. NOT MOUNTED YET: the map pane is this branch's next commit."
+        ]
+      },
       "src/ds/connections/ConnectionsRails.tsx": {
         "from": "components/connections/ConnectionsRails.jsx",
         "contract": "components/connections/ConnectionsRails.d.ts",

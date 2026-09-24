@@ -178,3 +178,5 @@ export { RelationCards, RelSourceGroup, REL_CARD_METRICS, REL_CARD_PARTS, groupI
 export type { RelationCardsProps, RelSourceGroupProps, Relation, RelationGroup, RelItem, TargetBlock, ViaRelation } from './connections/RelationCards'
 export { RailFrame, RailOpenButton, RailCorner, RailMath, PANE_RAIL_METRICS, railWidth, railFloor, railFits, usePaneWidth } from './connections/RailFrame'
 export type { RailFrameProps, RailOpenButtonProps, RailCornerProps, RailMetrics } from './connections/RailFrame'
+export { ExplorerRail, ExplorerRailCorner, explorerRailWidth, ExplorerRailMath } from './connections/ExplorerRail'
+export type { ExplorerRailProps, ExplorerRailCornerProps } from './connections/ExplorerRail'
