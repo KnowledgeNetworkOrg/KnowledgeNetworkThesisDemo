@@ -5,7 +5,6 @@ import { relationPaint } from '../graph/EdgeLegend'
 import { NodeArrow } from '../graph/NodeArrow'
 import { NodeChip } from '../graph/NodeChip'
 import { Caret } from '../nav/TreeRow'
-import type { ContainNode } from './ContainTree'
 
 /** ONE RELATIONSHIP, DECOMPOSED — one entry per (target, kind). Not the corpus's own edge
  *  record: an edge that a host reads both ways round arrives here twice, once per direction it
@@ -29,8 +28,18 @@ export interface Relation {
 /** a descendant's relationship, rolled up under the selected node — the path down to the child
  *  that owns it, plus the relation itself */
 export interface ViaRelation {
-  /** the chain from the selected node down to the child, the child LAST */
-  path: ContainNode[]
+  /** the containment path from the SELECTED node down to the descendant that owns the relation,
+   *  inclusive both ends — names in it are shown whole or dropped, never cut.
+   *
+   *  **PASS THE TREE NODES, NOT `{id,title}` COPIES OF THEM.** The LAST entry is the pill's own
+   *  node, and its `domain` is what that pill's border draws (`viaSourceDomain`) — a descendant
+   *  whose topic differs from its parent's is the common case, and "Tooling / Shell & Scripting"
+   *  must draw Shell & Scripting's colour (owner, 2026-09-17). Strip the field and every via
+   *  pill silently falls back to the SELECTED node's topic, or — if that does not resolve either
+   *  — to the anchor fallback, a warm neutral that reads as a deliberate grey rather than as
+   *  missing data. `ConnectionsSplitPane` already concatenates whole tree nodes here, so a host
+   *  using the pane supplies this for free. */
+  path: { id: string; title: string; domain?: string }[]
   rel: Relation
 }
 
@@ -141,12 +150,30 @@ export function groupItemsByTarget(items: readonly RelItem[] | null | undefined)
   return Array.from(map.values())
 }
 
+/** THE COLOUR A VIA-CHILDREN PILL WEARS, AS A CALL — the LAST path entry's own `domain` when it
+ *  has one, and the SELECTED node's otherwise (DS OB-211, #341).
+ *
+ *  WHY THIS IS CODE. It was prose nowhere and a hard-coded `source.domain` in three call sites,
+ *  and the failure is SILENT in the worst way: an unresolvable topic answers the anchor fallback
+ *  by design, so a via pill drew `--swatch-anchor-fallback` — a warm neutral — and read as a
+ *  deliberate grey rather than as "I was handed the wrong field". Nothing errors, nothing looks
+ *  broken, and the column next door (`ContainTree`, via `ContainPaint`) had already ruled the
+ *  other way, so the two halves of one pane disagreed about whose colour a pill wears. A caller
+ *  now picks a NODE, never a domain. */
+export function viaSourceDomain(node?: { domain?: string }, selectedDomain?: string): string | undefined {
+  return node && node.domain != null ? node.domain : selectedDomain
+}
+
 /* two via-children rows with the same path are the same child seen twice — collapse them so the
    grouped view draws that child once. Order preserved: a source appears where its FIRST
    relationship appeared. `pathParts` is the whole chain ABOVE the child, nearest last; the pill
-   decides how much of it fits and drops from the far end. */
+   decides how much of it fits and drops from the far end.
+
+   `node` is the whole path entry, not a {id,title} copy of it: the pane builds `path` by walking
+   the tree and concatenating tree NODES, so a descendant's `domain` is already present and only
+   had to be read. Copying two fields out is what hid it. */
 function groupViaBySource(rows: readonly ViaRelation[] | null | undefined) {
-  const map = new Map<string, { key: string; pathParts: string[]; node: ContainNode; items: ViaRelation[] }>()
+  const map = new Map<string, { key: string; pathParts: string[]; node: { id: string; title: string; domain?: string }; items: ViaRelation[] }>()
   for (const vc of rows || []) {
     const key = vc.path.map((n) => n.id).join('/')
     if (!map.has(key)) map.set(key, { key, pathParts: vc.path.slice(0, -1).map((n) => n.title), node: vc.path[vc.path.length - 1], items: [] })
@@ -196,7 +223,7 @@ function RelGroupHeader({ label, count, open, onClick }: { label: string; count:
  *  `String(RelationCards)` cannot see — a specimen guarding the change had nothing to match. Same
  *  reason `LECTURE_NOTES_PARTS` and `PRESENTER_STRIP_PARTS` exist. `REL_CARD_PARTS.GroupHeader`
  *  IS `RelGroupHeader`: read it, do not mount it — `RelationCards` renders these itself. */
-export const REL_CARD_PARTS = { GroupHeader: RelGroupHeader }
+export const REL_CARD_PARTS = { GroupHeader: RelGroupHeader, viaSourceDomain: viaSourceDomain }
 
 /* ONE RULE PER BOUNDARY, and it governs both row forms below (DS OB-195, owner 2026-09-16: "is it
    necessary to have the two dividers between each card… it looks a bit distracting"). Every card
@@ -480,21 +507,22 @@ export function RelationCards({ source, direct = [], via = [], filterTargetId = 
             ? viaRows.map((vc, i) => {
                 const it = itemOf(vc.rel, onSelect, vc.rel.id + '-' + i)
                 const src = vc.path[vc.path.length - 1]
+                const srcDomain = viaSourceDomain(src, source.domain)
                 return (
                   <RelRowPlain
-                    key={it.key} leftLabel={src.title} leftDomain={source.domain}
+                    key={it.key} leftLabel={src.title} leftDomain={srcDomain}
                     rightLabel={vc.rel.targetTitle} rightDomain={vc.rel.targetDomain}
                     kindLabel={it.kindLabel} kindColor={it.kindColor} heads={it.heads}
-                    onSelectLeft={onSelect ? () => onSelect({ id: src.id, title: src.title, domain: source.domain }) : undefined}
+                    onSelectLeft={onSelect ? () => onSelect({ id: src.id, title: src.title, domain: srcDomain }) : undefined}
                     onSelectRight={it.onSelect}
                   />
                 )
               })
             : groupViaBySource(viaRows).map((g) => (
               <RelSourceGroup
-                key={g.key} sourceLabel={g.node.title} sourcePathParts={g.pathParts} sourceDomain={source.domain}
+                key={g.key} sourceLabel={g.node.title} sourcePathParts={g.pathParts} sourceDomain={viaSourceDomain(g.node, source.domain)}
                 leftWidth={pillWidth} rightWidth={rightWidth} arrowWidth={arrowWidth}
-                onSelectSource={onSelect ? () => onSelect({ id: g.node.id, title: g.node.title, domain: source.domain }) : undefined}
+                onSelectSource={onSelect ? () => onSelect({ id: g.node.id, title: g.node.title, domain: viaSourceDomain(g.node, source.domain) }) : undefined}
                 items={g.items.map((vc, i) => itemOf(vc.rel, onSelect, vc.rel.id + '-' + i))} {...hoverProps}
               />
             ))) : null}

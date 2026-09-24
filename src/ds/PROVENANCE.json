@@ -824,12 +824,13 @@
       "src/ds/connections/RelationCards.tsx": {
         "from": "components/connections/RelationCards.jsx",
         "contract": "components/connections/RelationCards.d.ts",
-        "syncedAt": "2026-09-16",
+        "syncedAt": "2026-09-24",
         "deviations": [
           "2026-09-14 OB-182 — re-ported the group header from the DS's 2026-09-14 source: `alignItems: 'baseline'` (was `center`), the caret keeps `alignSelf: 'center'` and its 1px lift, the label is wrapped in a bare `<span>` so it can be measured, and `REL_CARD_PARTS.GroupHeader` is published (on the barrel). One property; nothing else in the component changed. Test hook only: `data-rel-group-header`. `browsertest-connections.mjs` reads both runs' baselines out of the DOM after `fonts.ready`.",
           "2026-09-06 NEW FILE, OB-101 (#253). All four amendments are in: the drawn width is derived, repeated targets collapse onto one pill behind a 1px spine with `stacked` arrows and target-count hover, `blockGap` 13 and `arrowStacked` 26 are ported as the published PAIR, and `cardMax` 620 is applied as a maxWidth on the MEASURED container with `pillMax` 200 and no declared arrow maximum.",
           "LOCAL - the unfiltered height is held in STATE where the DS holds it in a ref. `react-hooks/refs` hard-errors on reading `.current` from a render body, and a hard error takes the whole component out of the lint pass. Still written from a layout effect, still only while nothing is filtered, with an equality guard; behaviour unchanged. Reported on #74.",
-          "2026-09-16 OB-195 — both row forms (`RelSourceGroup`, `RelRowPlain`) draw `borderTop` only; the rule belongs to the card below it and the 6px `marginBottom` stays. The DS's ONE RULE PER BOUNDARY note is ported above the two rows. Measured: 232 grouped cards on the root, none with a bottom border."
+          "2026-09-16 OB-195 — both row forms (`RelSourceGroup`, `RelRowPlain`) draw `borderTop` only; the rule belongs to the card below it and the 6px `marginBottom` stays. The DS's ONE RULE PER BOUNDARY note is ported above the two rows. Measured: 232 grouped cards on the root, none with a bottom border.",
+          "2026-09-24 OB-211 (#341) — the rule is code: `viaSourceDomain(node, selectedDomain)` exported and on `REL_CARD_PARTS`, and all three via-children call sites take their domain from it — the grouped pill's `sourceDomain`, that pill's `onSelectSource` payload, and the narrow `plainRows` path's `leftDomain` + `onSelectLeft` payload; no `source.domain` remains in the via branch. `ViaRelation.path` is typed `{ id, title, domain? }[]` and carries the item's own doc. The second of the item's two stacked faults was the host adapter's: `ConnectionsSplitPane`'s walk already passes whole tree nodes, and `buildContainTree` fills each node's `domain` with `topicHueOf` — hue names, not display strings, so the resolver accepts them and the wrong-colour pill was the call sites alone. Pinned in `viasourcedomain.test.ts`."
         ]
       },
       "src/ds/connections/RailFrame.tsx": {

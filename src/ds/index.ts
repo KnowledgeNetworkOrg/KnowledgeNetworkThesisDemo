@@ -174,7 +174,7 @@ export { NodePreviewCard, NodePreviewLayer, PREVIEW_LAYER_METRICS, previewPlacem
 export type { NodePreviewCardProps, NodePreviewLayerProps, PreviewController, HighlightInputs } from './connections/ConnectionsRails'
 export { ContainTree, ContainPaint, ContainPill, CONTAIN_METRICS, CaretHit, containsSummary, findTreePath, OpenAncestors, OpenOnSelect, OpenForVisible, subtreeCount, treeKeyNav } from './connections/ContainTree'
 export type { ContainTreeProps, ContainPaintEntry, ContainPillProps, ContainNode, OpenMap } from './connections/ContainTree'
-export { RelationCards, RelSourceGroup, REL_CARD_METRICS, REL_CARD_PARTS, groupItemsByTarget, groupRelationsByTarget, relationLook } from './connections/RelationCards'
+export { RelationCards, RelSourceGroup, REL_CARD_METRICS, REL_CARD_PARTS, viaSourceDomain, groupItemsByTarget, groupRelationsByTarget, relationLook } from './connections/RelationCards'
 export type { RelationCardsProps, RelSourceGroupProps, Relation, RelationGroup, RelItem, TargetBlock, ViaRelation } from './connections/RelationCards'
 export { RailFrame, RailOpenButton, RailCorner, RailMath, PANE_RAIL_METRICS, railWidth, railFloor, railFits, usePaneWidth } from './connections/RailFrame'
 export type { RailFrameProps, RailOpenButtonProps, RailCornerProps, RailMetrics } from './connections/RailFrame'
