@@ -55,9 +55,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
-import type { WalkMark } from '@/ds'
-import { ARROW_METRICS, headForSet, LabelCut, walkAddresses, walkArrival, walkLeadStop, walkLook, walkMarkLabel, walkProgress, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, PaneCanvas, PIN_RING_WIDTH, previewAnchor, shaftTailOffset, StepDot, VisibilityMark, WALK_ARROW_DEFAULTS, WALK_DOCK_METRICS, walkBand, WalkDock, WalkPreview, ZoomControl } from '@/ds'
-import { byId, domainIds, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT_ID } from '../corpus/graph'
+import type { OpenMap, WalkMark } from '@/ds'
+import { ARROW_METRICS, Breadcrumb, containsSummary, ExplorerRail, ExplorerRailCorner, findTreePath, FIRST_ROW_PAD, headForSet, LabelCut, walkAddresses, walkArrival, walkLeadStop, walkLook, walkMarkLabel, walkProgress, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, NodePreviewLayer, OpenForVisible, OpenOnSelect, PaneCanvas, PIN_RING_WIDTH, previewAnchor, shaftTailOffset, StepDot, usePaneWidth, VisibilityMark, WALK_ARROW_DEFAULTS, WALK_DOCK_METRICS, walkBand, WalkDock, WalkPreview, ZoomControl } from '@/ds'
+import { byId, domainIds, domainOf, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT_ID } from '../corpus/graph'
 import { L_MAX, LEVEL_S, U_CX, U_CY, VB_H, VB_W, VB_X, VB_Y } from './map/camera'
 import type { View } from './map/camera'
 import { useWallFit, WALL_LEVEL, WALL_VIEW } from './map/wallfit'
@@ -80,6 +80,7 @@ import { fitLabel, fitRegionLabel, labelBox } from '../model/labelfit'
 import type { FitLine, LabelBox, LabelFit } from '../model/labelfit'
 import { descendantCount, parentOf } from '../model/nav'
 import type { Bus } from '../studio/bus'
+import { CORPUS_TREE, summaryOfNode } from './corpustree'
 
 /** the water behind every territory — exported so the shell can pass it as the
  *  Pane's own `face` (OB-066), rather than leaving it to the frame's default
@@ -213,6 +214,31 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   const [clientBox, setClientBox] = useState<{ w: number; h: number } | null>(null)
   /** selected region — its topics' typed edges stay drawn until click-off */
   const [sel, setSel] = useState<string | null>(null)
+
+  // ── THE EXPLORER RAIL (OB-238, #341) ──────────────────────────────────────
+  // The dissolved connections pane's contains column, mounted HERE because what contains what
+  // is a fact about territory. The rail owns its filter, tree and chrome; this pane owns the
+  // four things the DS's contract leaves to the host: the selection, the open set, the hover
+  // pair, and the measured width.
+  /* CLOSED AT FIRST, and that is a measured decision rather than a taste: opening the rail
+     narrows the canvas, and at the explore preset's width the map's own L0 label boxes then
+     meet by ~3px (`sys`/`cs`, 1750x950) — a map-side fit gap that does not know about
+     label-vs-label collisions, surfaced by the narrower pane. Starting closed leaves the map
+     exactly as it was until the reader asks for the explorer; the corner in the row is the
+     way in. Raised as its own finding rather than papered over here. */
+  const [railOpen, setRailOpen] = useState(false)
+  /* THE SEAM'S STORED WIDTH (OB-253): null until the professor drags, which means the rail's
+     own fit. The frame clamps it every render and only what `onWidthChange` reports is stored.
+     Persisting it across reloads is OB-255 (#368). */
+  const [railW, setRailW] = useState<number | null>(null)
+  const [paneW, paneBox] = usePaneWidth()
+  const [userOpen, setUserOpen] = useState<OpenMap>({ [ROOT_ID]: 1 })
+  /* THE TREE'S POINTER, tracked directly — NOT the preview layer's `hovered`, which is the
+     CARD's state raised after its open delay and held through its close grace. A wash driven
+     by that arrived ~1.5s late and outlived the pointer (verifier-measured on the DS's shell,
+     2026-09-22). `treeHotRef` exists only so a leave can end the bus hover it published. */
+  const [treeHover, setTreeHover] = useState<string | null>(null)
+  const treeHotRef = useRef<string | null>(null)
 
   // TWO HOVERS, and they are genuinely different questions.
   //   `hover` (local) — the cell MY cursor is on. Draws the dashed preselect.
@@ -951,7 +977,46 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   const isActive = (t: { tier: number; leaf: boolean }) => t.tier === level || (t.leaf && t.tier < level)
   const isMuted = (t: { tier: number; leaf: boolean }) => t.leaf && t.tier < level
 
+  /* THE USER'S OWN OPEN MAP, WITH THE SELECTION'S PATH FOLDED INTO IT ONCE PER SELECTION
+     (OB-244). Never spread over it per render: the forced path wins again on the very next
+     frame, so every ancestor of the selected node springs back open the instant it is
+     collapsed and the carets read as dead. Folded once, the path opens when you arrive and
+     every caret works immediately afterwards; the fold INCLUDES the node itself, which is
+     what makes selecting a container open it. */
+  useEffect(() => {
+    if (!bus.focus) return
+    const add = OpenOnSelect(CORPUS_TREE, bus.focus)
+    setUserOpen((o) => {
+      let changed = false
+      for (const k in add) { if (!o[k]) { changed = true; break } }
+      return changed ? { ...o, ...add } : o
+    })
+  }, [bus.focus])
+
+  /* AND THE MAP'S VIEW OPENS WHAT IT SHOWS (OB-227 clause 4): every visible node's ancestors
+     are open and nothing else is force-opened — the user's collapses elsewhere survive,
+     because this merges and never closes. The visible set is the CURRENT LEVEL's cells, the
+     same list the paint below walks. */
+  const visibleKey = mounted.filter(isActive).map((t) => t.id).join('|')
+  useEffect(() => {
+    if (!visibleKey) return
+    const add = OpenForVisible(CORPUS_TREE, visibleKey.split('|'))
+    setUserOpen((o) => {
+      let changed = false
+      for (const k in add) { if (!o[k]) { changed = true; break } }
+      return changed ? { ...o, ...add } : o
+    })
+  }, [visibleKey])
+
   const selOutline = selDrawn ? outlineOf(selDrawn) : undefined
+
+  /* THE HEADER ROW'S PATH (OB-241 + OB-243): the selection's ancestry, walkable back up. The
+     aim keeps its resting reading after a deselect while the LIT state goes out — the same
+     split the connections pane draws — because the breadcrumb is the readout for where the
+     pane is AIMED, not for what is selected. */
+  const restId = bus.history.cursor >= 0 ? bus.history.stack[bus.history.cursor] : ROOT_ID
+  const aimId = bus.focus ?? (byId.has(restId) ? restId : ROOT_ID)
+  const crumbPath = (findTreePath(CORPUS_TREE, aimId) ?? []).map((n) => ({ id: n.id, title: n.title, domain: n.root ? null : n.domain }))
   const hoverOutline = hover && hover !== sel && !dragging ? outlineOf(hover) : undefined
 
   // SPOTLIGHT — a hover published by ANOTHER instrument: "the thing your cursor
@@ -1053,7 +1118,7 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   const ghostUnderCursor = hover ? parentOf(hover) : null
   const ancLabelOAt = (d: number, id: string) => (id === ghostUnderCursor ? 0.03 : ancLabelO(d))
 
-  return (
+  const canvas = (
     <PaneCanvas aria-label="map-view" face="none" style={{ background: MAP_WATER }}>
       <svg
         ref={svgRef}
@@ -2012,5 +2077,70 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
         })()
       )}
     </PaneCanvas>
+  )
+
+  // THE WALL IS A STILL PICTURE (OB-139 rule 4): no rail, no header row, no preview layer —
+  // it renders the canvas alone, exactly as it did before the rail landed.
+  if (onWall) return canvas
+
+  // THE RAIL AND THE MAP ARE ONE PANE now (OB-226/238): the rail beside the canvas, the map's
+  // own upper row above the canvas, and ONE `NodePreviewLayer` over both because a hover's
+  // card belongs to the pane, not to the rail. `paneBox` measures the box the rail's width is
+  // a fraction of; `closedControl="host"` puts the way back in the row rather than floating it.
+  return (
+    <NodePreviewLayer>
+      {({ show, hide }) => (
+        <div ref={paneBox} style={{ display: 'flex', flex: 1, minHeight: 0, width: '100%', position: 'relative', background: 'var(--surface-paper)' }}>
+          {/* `data-explorer-rail` is a test hook (attributes only), the same precedent the map's
+              own `data-nested`/`data-sel` set: a driver that had to find this column by a title
+              or a class would break on the next copy change. */}
+          <div data-explorer-rail="1" style={{ display: 'flex', minHeight: 0, flex: '0 0 auto' }}>
+          <ExplorerRail
+            root={CORPUS_TREE} selectedId={bus.focus} deselectable
+            /* ONE SELECTION (OB-227 clause 1): the rail's clicks move the same focus the map's
+               cells move, and clearing passes NULL so the pill and the map's ring both go out
+               while the document keeps reading the node. */
+            onSelect={(n) => { if (n) { if (byId.has(n.id)) bus.setFocus(n.id, 'tree') } else busClearFocus() }}
+            open={userOpen} onOpenUpdate={setUserOpen} paneW={paneW}
+            width={railW} onWidthChange={setRailW}
+            railOpen={railOpen} onRailOpenChange={setRailOpen} closedControl="host"
+            /* TREE HOVER WINS (the pointer is in one place), and the map's own cursor washes
+               the row for the same node below (OB-248). The tree's hover goes back the other
+               way on the BUS — the spotlight another pane's hover already lights a cell with —
+               and is cleared only by the id that set it. */
+            hoveredId={treeHover ?? hover ?? null}
+            onNodeEnter={(e, n) => {
+              setTreeHover(n.id)
+              treeHotRef.current = n.id
+              busSetHover(n.id)
+              show(e, { domain: n.domain, title: n.title, summary: summaryOfNode(n.id), contains: n.children && n.children.length ? containsSummary(n) : undefined }, 'tree', n.id)
+            }}
+            onNodeLeave={() => {
+              const id = treeHotRef.current
+              treeHotRef.current = null
+              setTreeHover(null)
+              if (id) busEndHover(id)
+              hide()
+            }}
+          />
+          </div>
+          <div style={{ flex: '1 1 260px', minWidth: 200, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            {/* THE MAP'S OWN UPPER ROW — where the selection SITS, as a path you can walk back
+                up, with the closed rail's way back as the row's first item rather than floating
+                over it. `FIRST_ROW_PAD` less 1 at the top: a crumb's own box sits 1px above its
+                text, so the row reads level with the Explorer's head beside it. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: (FIRST_ROW_PAD - 1) + 'px var(--space-3) 5px', borderBottom: '1px solid var(--border-hair)', minWidth: 0 }}>
+              <span data-explorer-corner="1" style={{ display: 'contents' }}>
+                <ExplorerRailCorner paneW={paneW} open={railOpen} onOpenChange={setRailOpen} style={{ flex: '0 0 auto' }} />
+              </span>
+              <div style={{ minWidth: 0, flex: '1 1 auto' }}>
+                <Breadcrumb dense path={crumbPath} domain={domainOf(aimId)} onSelect={(n) => { if (n && byId.has(n.id)) bus.setFocus(n.id, 'tree') }} />
+              </div>
+            </div>
+            {canvas}
+          </div>
+        </div>
+      )}
+    </NodePreviewLayer>
   )
 }
