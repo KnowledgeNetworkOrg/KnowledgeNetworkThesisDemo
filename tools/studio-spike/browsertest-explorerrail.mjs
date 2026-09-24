@@ -25,7 +25,9 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
-const PORT = 5262
+/* 5263, not 5262: 5262 is `browsertest-previewclamp.mjs`'s (review nit on #372). Each shared
+   port makes #364 — two checkouts at once — harder, and a free number costs nothing. */
+const PORT = 5263
 
 const require = createRequire(REPO + '/package.json')
 const { chromium } = require('playwright-core')
@@ -266,6 +268,85 @@ if (railBox && (await sep.count()) === 1) {
   await page.waitForTimeout(300)
   const back = (await page.locator('[data-explorer-rail]').boundingBox()).width
   ok('double-click returns the seam to the rail\'s own fit', Math.abs(back - railBox.width) <= 2, `${grown} -> ${back}`)
+}
+
+// ── 9. a bare leaf is exactly a container's box (OB-247's trap, reviewer-asked on #372) ──
+/* The border on a bare leaf is TRANSPARENT, not removed — dropped to save the pixel it shifts
+   the title 1px left and the row 2px shorter, and nothing else on the page would say so. Read
+   the container and the leaf out of the SAME column so the comparison is like for like.
+   A leaf is only ON SCREEN once a container is open deep enough — the root level is containers
+   all the way down, so open closed containers one level at a time until a bare leaf appears.
+   One level per click, not the double-click shortcut: the earlier sections leave containers
+   both open and closed, and a subtree toggle on an already-open node closes the whole subtree. */
+for (let i = 0; i < 8; i++) {
+  const next = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('[data-explorer-rail] [data-node-id]')]
+    if (rows.some((r) => !r.querySelector('[data-caret]'))) return 'leaf'
+    const closed = rows.find((r) => r.querySelector('[data-caret]') && r.getAttribute('data-open') === '0' && r.getAttribute('data-node-id') !== 'root')
+    return closed ? closed.getAttribute('data-node-id') : null
+  })
+  if (next === 'leaf' || next === null) break
+  const caret = page.locator(`[data-explorer-rail] [data-node-id="${next}"] [data-caret]`).first()
+  if ((await caret.count()) === 0) break
+  await caret.click()
+  await page.waitForTimeout(300)
+}
+const sample = await page.evaluate(() => {
+  const rows = [...document.querySelectorAll('[data-explorer-rail] [data-node-id]')]
+  const box = (r) => {
+    const p = r.firstElementChild
+    const cs = getComputedStyle(p)
+    return { h: p.getBoundingClientRect().height, border: cs.borderTopWidth, color: cs.borderTopColor }
+  }
+  const cont = rows.find((r) => r.querySelector('[data-caret]') && r.getAttribute('data-node-id') !== 'root')
+  const leaf = rows.find((r) => !r.querySelector('[data-caret]'))
+  return cont && leaf ? { cont: box(cont), leaf: box(leaf) } : null
+})
+ok('found a container and a bare leaf to compare', !!sample)
+if (sample) {
+  ok('a bare leaf is the same height as a container pill', Math.abs(sample.cont.h - sample.leaf.h) <= 0.5,
+    `${sample.cont.h.toFixed(1)} vs ${sample.leaf.h.toFixed(1)}`)
+  ok('a bare leaf keeps a 1px border, transparent rather than gone',
+    sample.leaf.border === '1px' && sample.leaf.color === 'rgba(0, 0, 0, 0)', `${sample.leaf.border} ${sample.leaf.color}`)
+}
+
+// ── 10. the filter prunes WITHOUT changing what a node is, or what it holds (OB-236 × OB-247) ──
+/* The bug this pins (reviewer-measured on #372): `filterTree` prunes a container's children, and
+   the row read its pill-ness from the pruned list — so filtering to a container's own title drew
+   it as plain text with no caret. A filter PRUNES; it does not reclassify. */
+const filterTarget = await page.evaluate(() => {
+  const rows = [...document.querySelectorAll('[data-explorer-rail] [data-node-id]')]
+  const r = rows.find((el) => el.querySelector('[data-caret]') && el.getAttribute('data-node-id') !== 'root')
+  return r ? { id: r.getAttribute('data-node-id'), title: r.querySelector('[data-pill-title]')?.textContent?.trim() ?? '' } : null
+})
+ok('found a container to filter the tree down to', !!(filterTarget && filterTarget.title), JSON.stringify(filterTarget))
+if (filterTarget && filterTarget.title) {
+  const before = await page.locator('[data-explorer-rail] [data-node-id]').count()
+  await page.locator('[data-explorer-rail] input').fill(filterTarget.title)
+  await page.waitForTimeout(400)
+  const after = await page.locator('[data-explorer-rail] [data-node-id]').count()
+  ok('the filter prunes the tree', after > 0 && after < before, `${before} -> ${after}`)
+  const filtered = await page.evaluate((id) => {
+    const row = document.querySelector(`[data-explorer-rail] [data-node-id="${id}"]`)
+    if (!row) return null
+    return { caret: !!row.querySelector('[data-caret]'), stroke: getComputedStyle(row.firstElementChild).borderTopColor }
+  }, filterTarget.id)
+  ok('a container matching the filter is STILL a pill, with its caret',
+    !!filtered && filtered.caret && filtered.stroke !== 'rgba(0, 0, 0, 0)', JSON.stringify(filtered))
+  /* the card's count line reads the NODE, not the pruned copy — it must not vanish when a
+     container's children were filtered away (the second half of the same reviewer finding) */
+  const fbox = await page.locator(`[data-explorer-rail] [data-node-id="${filterTarget.id}"]`).first().boundingBox()
+  if (fbox) {
+    await park()
+    await glideTo({ x: fbox.x + fbox.width - 8, y: fbox.y + fbox.height / 2 })
+    await page.waitForTimeout(500)
+    const line = await page.evaluate(() => document.querySelector('[data-preview-contains]')?.textContent?.trim() ?? null)
+    ok('the card still counts what the container holds under a filter', line != null && /\d/.test(line), JSON.stringify(line))
+    await park()
+    await page.waitForTimeout(250)
+  }
+  await page.locator('[data-explorer-rail] input').fill('')
+  await page.waitForTimeout(350)
 }
 
 await page.evaluate(() => localStorage.clear())
