@@ -26,7 +26,7 @@ import { colorOf } from '../model/color'
 import type { EdgeType } from '../corpus/graph'
 import { edgesTouching } from '../model/flat'
 import { UnfoldStartPicker } from './UnfoldView'
-import type { Bus } from '../studio/bus'
+import type { Bus } from '../state/bus'
 
 const EDGE_TYPES = Object.keys(EDGE_LABEL) as EdgeType[]
 

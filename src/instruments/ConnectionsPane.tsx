@@ -65,7 +65,7 @@ import { byId, childrenOf, domainOf, EDGE_COLOR, EDGE_LABEL, edges, ROOT_ID, top
 import { DOC_BODY } from '../corpus/docs'
 import { colorOf, fillOf } from '../model/color'
 import { regionStarFor, starFor } from '../model/star'
-import type { Bus } from '../studio/bus'
+import type { Bus } from '../state/bus'
 
 export { CONNECTIONS_BODY_STYLE }
 

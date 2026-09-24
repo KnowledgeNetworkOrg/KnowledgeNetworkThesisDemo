@@ -11,6 +11,10 @@
 // With the bus, a new channel is ONE field below plus its writer. An instrument
 // that ignores it does not change. That is the whole point, and it is the thing
 // that makes the next feature cheap instead of frightening.
+//
+// It lives in state/ because it is what every screen shares and no screen owns
+// it: a pane that reads the bus must not be importing the shell that composes
+// it, and studio/ is a reader like any other.
 
 import { useCallback, useMemo, useState } from 'react'
 
@@ -21,7 +25,6 @@ import { HISTORY_EMPTY, mark, step, visit } from '../model/nav'
 import { routeLeafIds, routeOfIds } from '../model/route'
 import type { RouteStep } from '../model/route'
 import type { ActiveWalkState, History, TrailEntry, TrailVia } from '../model/nav'
-import type { InstrumentId } from './instruments'
 
 export type { ActiveWalkState, History, TrailEntry, TrailVia }
 export type { RouteStep }
@@ -96,8 +99,14 @@ export interface BusState {
   draftCursor: number
 }
 
+/** The panes the bus itself reveals — where the next-stop controls live, where a curriculum is shown.
+ *  A fact about the session, not a copy of the registry: the shell's typed `reveal` is what proves
+ *  each of these is a real pane (StudioView passes `ensureActive`, whose parameter is InstrumentId,
+ *  so a rename in the registry fails to compile HERE rather than at runtime). */
+export type BusRevealTarget = 'walkviewer' | 'walk' | 'map'
+
 // ── What instruments may WRITE ──────────────────────────────────────────────
-export interface BusActions {
+export interface BusActions<Id extends string = string> {
   /** focus + a trail entry tagged with where the click came from. `via` is
    * provenance, not routing: it colours the trail chip and nothing else. */
   setFocus(id: string, via: TrailVia, jump?: boolean): void
@@ -147,12 +156,12 @@ export interface BusActions {
   /** clear WHERE you are, not WHAT you have on screen */
   reset(): void
   /** reveal a pane without disturbing an already-active composition */
-  reveal(inst: InstrumentId): void
+  reveal(inst: Id): void
 }
 
-export type Bus = BusState & BusActions
+export type Bus<Id extends string = string> = BusState & BusActions<Id>
 
-export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
+export function useStudioBus<Id extends string>(reveal: (inst: Id | BusRevealTarget) => void): Bus<Id> {
   const [focus, setFocusState] = useState<string | null>(null)
   const [hover, setHoverState] = useState<string | null>(null)
   const [hoverStep, setHoverStepState] = useState<number | null>(null)

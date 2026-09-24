@@ -9,8 +9,8 @@
 import { PaneScroller } from '@/ds'
 import LayerStack from './LayerStack'
 import { useDrill, usePresentedRoad } from './presented'
-import { useHover } from '../../studio/bus'
-import type { Bus } from '../../studio/bus'
+import { useHover } from '../../state/bus'
+import type { Bus } from '../../state/bus'
 
 export default function WalkStackView({ bus }: { bus: Bus }) {
   const sync = useHover(bus)

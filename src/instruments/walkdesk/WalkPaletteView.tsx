@@ -12,8 +12,8 @@
 
 import { useAuthorDraft } from './authordraft'
 import Palette from './Palette'
-import { useHover } from '../../studio/bus'
-import type { Bus } from '../../studio/bus'
+import { useHover } from '../../state/bus'
+import type { Bus } from '../../state/bus'
 
 export default function WalkPaletteView({ bus }: { bus: Bus }) {
   const sync = useHover(bus)

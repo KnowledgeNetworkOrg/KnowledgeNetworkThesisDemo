@@ -25,7 +25,7 @@ import { colorOf } from '../model/color'
 import type { EdgeType } from '../corpus/graph'
 import { lensModel } from '../model/lens'
 import type { ConeSide, LensModel } from '../model/lens'
-import type { Bus } from '../studio/bus'
+import type { Bus } from '../state/bus'
 
 export interface LensPaneProps {
   bus: Bus

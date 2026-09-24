@@ -79,7 +79,7 @@ import type { Bundle } from '../model/atlas'
 import { fitLabel, fitRegionLabel, labelBox } from '../model/labelfit'
 import type { FitLine, LabelBox, LabelFit } from '../model/labelfit'
 import { descendantCount, parentOf } from '../model/nav'
-import type { Bus } from '../studio/bus'
+import type { Bus } from '../state/bus'
 
 /** the water behind every territory — exported so the shell can pass it as the
  *  Pane's own `face` (OB-066), rather than leaving it to the frame's default

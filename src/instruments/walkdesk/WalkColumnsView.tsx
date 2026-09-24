@@ -10,8 +10,8 @@
 import { LEGEND_INSET } from '@/ds'
 import { useDrill, usePresentedRoad } from './presented'
 import WalkColumns from './WalkColumns'
-import { useHover } from '../../studio/bus'
-import type { Bus } from '../../studio/bus'
+import { useHover } from '../../state/bus'
+import type { Bus } from '../../state/bus'
 
 export default function WalkColumnsView({ bus }: { bus: Bus }) {
   const sync = useHover(bus)

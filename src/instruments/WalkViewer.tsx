@@ -22,7 +22,7 @@ import { WalkStrip } from '@/ds'
 import { usePresentedRoad, usePublishPresentedRoute } from './walkdesk/presented'
 import { useWalkPlayback } from './walkdesk/playback'
 import { renderStopPreview } from './walkdesk/stoppreview'
-import type { Bus } from '../studio/bus'
+import type { Bus } from '../state/bus'
 
 export default function WalkViewer({ bus }: { bus: Bus }) {
   const road = usePresentedRoad()

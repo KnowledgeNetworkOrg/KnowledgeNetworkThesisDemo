@@ -44,7 +44,7 @@ import { bandFor, DT, gapFor, handleDrop } from './authordnd'
 import type { Band } from './authordnd'
 import { chosenIdx, chosenSteps, isLeaf } from './mockwalk'
 import type { Stop } from './mockwalk'
-import type { HoverBinding } from '../../studio/bus'
+import type { HoverBinding } from '../../state/bus'
 
 const NODEW = 150
 // an UNSET slot is the road's own picker — a dashed pill round a <select> — so

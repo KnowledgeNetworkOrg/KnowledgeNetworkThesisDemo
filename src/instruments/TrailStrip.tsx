@@ -12,7 +12,7 @@ import { IconButton, LEGEND_INSET, PaneScroller, TrailChip, wrapTip } from '@/ds
 import { byId, topicHueOf } from '../corpus/graph'
 import { listWalks, subscribeWalks } from '../model/walkstore'
 import type { TrailVia } from '../model/nav'
-import type { Bus } from '../studio/bus'
+import type { Bus } from '../state/bus'
 
 const VIA_TAG: Record<TrailVia, string> = {
   map: 'MAP',
