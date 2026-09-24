@@ -168,8 +168,10 @@ export { LectureRecap, LECTURE_RECAP_METRICS, LectureClock, recapStats, RecapMat
 export type { LectureRecapProps, RecapStat, RecapCounts, RecapAction, FlaggedSlide } from './presenter/LectureRecap'
 
 // ── connections (#253) — the Combined-B3 rehaul of the pane (OB-101, OB-113) ──
-export { ConnectionsSplitPane, NodePreviewCard, CONNECTIONS_PANE_METRICS, CONNECTIONS_BODY_STYLE } from './connections/ConnectionsSplitPane'
-export type { ConnectionsSplitPaneProps, ConnectionsGraphApi, NodePreviewCardProps } from './connections/ConnectionsSplitPane'
+export { ConnectionsSplitPane, CONNECTIONS_PANE_METRICS, CONNECTIONS_BODY_STYLE } from './connections/ConnectionsSplitPane'
+export type { ConnectionsSplitPaneProps, ConnectionsGraphApi } from './connections/ConnectionsSplitPane'
+export { NodePreviewCard, NodePreviewLayer, PREVIEW_LAYER_METRICS, previewPlacement, previewGutter, connectionsHighlight, ConnectionsRails } from './connections/ConnectionsRails'
+export type { NodePreviewCardProps, NodePreviewLayerProps, PreviewController, HighlightInputs } from './connections/ConnectionsRails'
 export { ContainTree, ContainPaint, ContainPill, CONTAIN_METRICS, CaretHit, containsSummary, findTreePath, OpenAncestors, subtreeCount, treeKeyNav } from './connections/ContainTree'
 export type { ContainTreeProps, ContainPaintEntry, ContainPillProps, ContainNode, OpenMap } from './connections/ContainTree'
 export { RelationCards, RelSourceGroup, REL_CARD_METRICS, REL_CARD_PARTS, groupItemsByTarget, groupRelationsByTarget, relationLook } from './connections/RelationCards'
