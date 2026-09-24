@@ -76,7 +76,7 @@ import type { Bundle } from '../model/atlas'
 import { fitLabel, fitRegionLabel, labelBox } from '../model/labelfit'
 import type { FitLine, LabelBox, LabelFit } from '../model/labelfit'
 import { descendantCount, parentOf } from '../model/nav'
-import type { Bus } from '../studio/bus'
+import type { Bus } from '../state/bus'
 
 const VB_X = -40
 const VB_Y = -40

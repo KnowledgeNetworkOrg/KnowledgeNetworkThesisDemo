@@ -15,7 +15,7 @@ import { ProjectedMap } from '@/ds'
 
 import MapView from '../instruments/MapView'
 import { useKeptWallFrame } from './wallframe'
-import { useStudioBus } from '../studio/bus'
+import { useStudioBus } from '../state/bus'
 import { LectureSlide } from './LectureSlide'
 import { useProjectedState } from './projector'
 import { WallTransition } from './WallTransition'

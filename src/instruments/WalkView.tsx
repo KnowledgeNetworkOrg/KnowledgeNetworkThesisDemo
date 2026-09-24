@@ -15,7 +15,7 @@ import { useEffect, useRef } from 'react'
 
 import { DomainDot, LEGEND_INSET, PaneScroller, topicPaint, wrapTip } from '@/ds'
 import { byId, domainIds, edges, EDGE_COLOR, EDGE_LABEL, topicHueOf, topicsUnder } from '../corpus/graph'
-import type { Bus } from '../studio/bus'
+import type { Bus } from '../state/bus'
 import type { EdgeType } from '../corpus/graph'
 import { degreeOf, HUB_IDS } from '../model/flat'
 

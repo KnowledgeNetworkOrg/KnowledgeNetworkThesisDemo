@@ -175,35 +175,9 @@ const edgeKeys = edges.map((e) => `${e.from} -> ${e.to}`)
 
 // ── what is knowingly wrong today ───────────────────────────────────────────
 
-const BUS_REASON = 'the bus lives above the panes that read it; step 2 moves it to state/'
 const MODEL_DS_REASON = 'the model reaches arithmetic through the component barrel; step 4 opens ds/values.ts'
 
-const BUS_IMPORTERS = [
-  'instruments/ConnectionsPane.tsx',
-  'instruments/DocumentPanel.tsx',
-  'instruments/LensPane.tsx',
-  'instruments/MapView.tsx',
-  'instruments/NeighborhoodPanel.tsx',
-  'instruments/TrailStrip.tsx',
-  'instruments/UnfoldGraphView.tsx',
-  'instruments/WalkView.tsx',
-  'instruments/WalkViewer.tsx',
-  'instruments/walkdesk/AuthorRoad.tsx',
-  'instruments/walkdesk/LayerStack.tsx',
-  'instruments/walkdesk/Palette.tsx',
-  'instruments/walkdesk/playback.ts',
-  'instruments/walkdesk/presented.ts',
-  'instruments/walkdesk/WalkColumns.tsx',
-  'instruments/walkdesk/WalkColumnsView.tsx',
-  'instruments/walkdesk/WalkEditorView.tsx',
-  'instruments/walkdesk/WalkPaletteView.tsx',
-  'instruments/walkdesk/WalkStackView.tsx',
-  'present/PresenterScreen.tsx',
-  'present/ProjectorScreen.tsx',
-]
-
 const ALLOWED_FOR_NOW: Record<string, string> = {
-  ...Object.fromEntries(BUS_IMPORTERS.map((f) => [`${f} -> studio/bus.ts`, BUS_REASON])),
   'model/color.ts -> ds/index.ts': MODEL_DS_REASON,
   'model/flat.ts -> ds/index.ts': MODEL_DS_REASON,
   'model/labelfit.ts -> ds/index.ts': MODEL_DS_REASON,

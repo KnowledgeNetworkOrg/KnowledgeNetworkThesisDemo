@@ -53,7 +53,7 @@ import { leafStops, routeStepsOf } from './mockwalk'
 import { routeNumbers } from '../../model/route'
 import type { Stop } from './mockwalk'
 import { usePresentedRoad } from './presented'
-import type { Bus } from '../../studio/bus'
+import type { Bus } from '../../state/bus'
 
 /** ONE STEP of a walk being played. Extends the DS's own `WalkStep` — id, title,
  *  note, optional — so the player and the strip it feeds cannot drift apart

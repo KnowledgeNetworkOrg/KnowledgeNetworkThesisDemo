@@ -2,7 +2,7 @@
 // the COMPOSITION (which panes are on, in what order, at what weight), and the
 // flexbox that lays them out.
 //
-// What it no longer owns: the session state, which is studio/bus.ts, and the
+// What it no longer owns: the session state, which is state/bus.ts, and the
 // list of what a pane even IS, which is studio/instruments.tsx. It used to own
 // both — six useStates, eight closures, an InstrumentId union, a CATALOG order,
 // a LABEL record, a LENS_TYPE lookup, and a switch that hand-wired every
@@ -31,7 +31,7 @@ import { PROJECTOR_QUERY, PROJECTOR_WINDOW } from '../present/projector'
 import { AppToolbar } from './AppToolbar'
 import type { PresentState } from './presentbutton'
 import { PALETTE_HOOK_SELECTOR } from './PaletteGlyph'
-import { useStudioBus } from './bus'
+import { useStudioBus } from '../state/bus'
 import { FAMILIES } from './families'
 import type { Family } from './families'
 import { byInstrument, flattenSlots, INSTRUMENTS, lensTypeOf, PRESETS } from './instruments'
@@ -232,6 +232,9 @@ export default function StudioView() {
   /** an instrument handing off to another one: reveal it WITHOUT disturbing the
    * rest of the composition. This is the bus's `reveal`. */
   const ensureActive = (inst: InstrumentId) => {
+    // a pane's bus is typed Bus (default Id = string), so it can hand us any
+    // string; the seam's rule is a weak answer, never a throw
+    if (!byInstrument.has(inst)) return
     // Nothing is composed while presenting, so revealing a pane is meaningless
     // there — and worse than meaningless: activateWalk reveals 'walkviewer', so
     // one step of a SAVED walk inside a deck would quietly rewrite `active` and
@@ -259,7 +262,7 @@ export default function StudioView() {
   }
 
   // ── the bus ───────────────────────────────────────────────────────────────
-  const bus = useStudioBus(ensureActive)
+  const bus = useStudioBus<InstrumentId>(ensureActive)
 
   // ── coming back from the presenter (#214) ─────────────────────────────────
   // The desk's panes are NOT mounted while the presenter is up — one instance of

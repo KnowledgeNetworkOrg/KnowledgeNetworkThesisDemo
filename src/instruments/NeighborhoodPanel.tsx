@@ -14,7 +14,7 @@ import { byId, childrenOf, domainOf, EDGE_COLOR, ROOT_ID } from '../corpus/graph
 import { colorOf } from '../model/color'
 import { edgesTouching } from '../model/flat'
 import { EDGE_TYPES } from '../model/nav'
-import type { Bus } from '../studio/bus'
+import type { Bus } from '../state/bus'
 
 const CX = 320
 const CY = 150
