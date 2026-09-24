@@ -12,7 +12,7 @@ import { topicHueOf } from '../../corpus/graph'
 import { columnsFor } from './columns'
 import { isBox, isLeaf } from './mockwalk'
 import type { Stop } from './mockwalk'
-import type { HoverBinding } from '../../studio/bus'
+import type { HoverBinding } from '../../state/bus'
 
 const PLANE_STEP = 92
 const PLANE_TOP = 44

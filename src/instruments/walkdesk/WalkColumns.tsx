@@ -16,7 +16,7 @@ import { colorOf } from '../../model/color'
 import { columnsFor } from './columns'
 import { isBox, isLeaf, visitCount } from './mockwalk'
 import type { Stop } from './mockwalk'
-import type { HoverBinding } from '../../studio/bus'
+import type { HoverBinding } from '../../state/bus'
 
 const COLW = 148
 const GAP = 56

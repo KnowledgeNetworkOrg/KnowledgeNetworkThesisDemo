@@ -40,8 +40,8 @@ import AuthorRoad from './AuthorRoad'
 import { redoDraft, undoDraft, useAuthorDraft, usePreviewOpen, useRoad } from './authordraft'
 import { usePresentedRoad, usePublishPresentedRoute } from './presented'
 import WalkChapters from './WalkChapters'
-import { useHover } from '../../studio/bus'
-import type { Bus } from '../../studio/bus'
+import { useHover } from '../../state/bus'
+import type { Bus } from '../../state/bus'
 import { IconButton } from '@/ds'
 
 /** the slide-in preview pane (0005 D9). It OVERLAYS the road rather than splitting

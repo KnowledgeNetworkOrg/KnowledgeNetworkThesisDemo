@@ -20,7 +20,7 @@
 //   platform/     host capabilities, capability-shaped (#211)            platform
 //   ds/           design-system ports, plus ds/values.ts, a pure entry   ds, ds-values
 //   model/        pure arithmetic: no React, no DOM, no state, no storage  corpus, model, ds-values
-//   state/ (new)  React-bearing or stateful things shared across screens  corpus, model, platform, ds, state
+//   state/       React-bearing or stateful things shared across screens  corpus, model, platform, ds, state
 //   instruments/  panes: rendering only                                  corpus, model, platform, ds, state, instruments
 //   present/      presenter and projector screens (they compose the map) corpus, model, platform, ds, state, instruments, present
 //   studio/       composition root: registry, shell, presets             every layer
@@ -30,7 +30,7 @@
 //
 // The layer of a file is its first path segment under src/; files directly under src/ are
 // `root`, and src/ds/values.ts is its own layer, `ds-values`. A folder that does not exist
-// yet (`state/`, `ds/values.ts`) must not make this test fail or warn — the table is the
+// yet (`ds/values.ts`) must not make this test fail or warn — the table is the
 // target, the tree catches up.
 //
 // MODELED ON unreachedmodule.test.ts (a node program that reads source text and keeps its
@@ -175,35 +175,9 @@ const edgeKeys = edges.map((e) => `${e.from} -> ${e.to}`)
 
 // ── what is knowingly wrong today ───────────────────────────────────────────
 
-const BUS_REASON = 'the bus lives above the panes that read it; step 2 moves it to state/'
 const MODEL_DS_REASON = 'the model reaches arithmetic through the component barrel; step 4 opens ds/values.ts'
 
-const BUS_IMPORTERS = [
-  'instruments/ConnectionsPane.tsx',
-  'instruments/DocumentPanel.tsx',
-  'instruments/LensPane.tsx',
-  'instruments/MapView.tsx',
-  'instruments/NeighborhoodPanel.tsx',
-  'instruments/TrailStrip.tsx',
-  'instruments/UnfoldGraphView.tsx',
-  'instruments/WalkView.tsx',
-  'instruments/WalkViewer.tsx',
-  'instruments/walkdesk/AuthorRoad.tsx',
-  'instruments/walkdesk/LayerStack.tsx',
-  'instruments/walkdesk/Palette.tsx',
-  'instruments/walkdesk/playback.ts',
-  'instruments/walkdesk/presented.ts',
-  'instruments/walkdesk/WalkColumns.tsx',
-  'instruments/walkdesk/WalkColumnsView.tsx',
-  'instruments/walkdesk/WalkEditorView.tsx',
-  'instruments/walkdesk/WalkPaletteView.tsx',
-  'instruments/walkdesk/WalkStackView.tsx',
-  'present/PresenterScreen.tsx',
-  'present/ProjectorScreen.tsx',
-]
-
 const ALLOWED_FOR_NOW: Record<string, string> = {
-  ...Object.fromEntries(BUS_IMPORTERS.map((f) => [`${f} -> studio/bus.ts`, BUS_REASON])),
   'model/color.ts -> ds/index.ts': MODEL_DS_REASON,
   'model/flat.ts -> ds/index.ts': MODEL_DS_REASON,
   'model/labelfit.ts -> ds/index.ts': MODEL_DS_REASON,

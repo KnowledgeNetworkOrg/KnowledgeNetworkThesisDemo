@@ -64,7 +64,7 @@ import type { ConnectionsGraphApi, OpenMap, Relation } from '@/ds'
 import { byId, childrenOf, domainOf, EDGE_COLOR, EDGE_LABEL, edges, ROOT_ID, topicHueOf } from '../corpus/graph'
 import { colorOf, fillOf } from '../model/color'
 import { regionStarFor, starFor } from '../model/star'
-import type { Bus } from '../studio/bus'
+import type { Bus } from '../state/bus'
 import { CORPUS_TREE, summaryOfNode } from './corpustree'
 
 export { CONNECTIONS_BODY_STYLE }

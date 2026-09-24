@@ -8,15 +8,17 @@
 //
 // Now: an instrument is one entry. Add one, and its sidebar row, its pane, its
 // label and its preset eligibility all follow. InstrumentId is DERIVED from the
-// array, so a preset cannot name a pane that does not exist, and reveal() cannot
-// be handed a typo.
+// array, so a preset cannot name a pane that does not exist; the bus's own
+// reveal targets (`BusRevealTarget`) are checked against it through the shell's
+// `ensureActive`, so a rename in the registry fails to compile rather than at
+// runtime.
 
 import type { CSSProperties, ReactNode } from 'react'
 
 import { EDGE_LABEL } from '../corpus/graph'
 import type { EdgeType } from '../corpus/graph'
 import { EDGE_TYPES } from '../model/nav'
-import type { Bus } from './bus'
+import type { Bus } from '../state/bus'
 import type { Family } from './families'
 
 import ConnectionsPane, { CONNECTIONS_BODY_STYLE, ConnectionsPaneActions } from '../instruments/ConnectionsPane'
@@ -39,6 +41,11 @@ import WalkStackView from '../instruments/walkdesk/WalkStackView'
 import WalkView from '../instruments/WalkView'
 import WalkViewer from '../instruments/WalkViewer'
 
+// The members that take a bus are generic over its id on purpose: InstrumentId
+// is derived from VIEWS below, so naming Bus<InstrumentId> here would be a
+// circular type alias (TS2456). The registry tie lives where StudioView creates
+// the bus: useStudioBus<InstrumentId>(ensureActive) fails to compile if a
+// BusRevealTarget is not a real InstrumentId.
 export interface Instrument {
   id: string
   label: string
@@ -77,11 +84,11 @@ export interface Instrument {
    * instruments have no pane-local actions and leave this out; the shell mounts it
    * as a sibling of `render`'s output, not inside it, so `Pane` can clip its top
    * corners to the frame's own arc. */
-  actionBar?(bus: Bus): ReactNode
+  actionBar?<Id extends string>(bus: Bus<Id>): ReactNode
   /** pane-scoped controls beside the TITLE itself (DS `Pane.actions`) — an 18px-
    * tall icon-height slot in the header row, not a separate bar. Most instruments
    * have nothing that belongs there and leave this out. */
-  actions?(bus: Bus): ReactNode
+  actions?<Id extends string>(bus: Bus<Id>): ReactNode
   /** the pane's own FRAME colour (DS `Pane.face`, OB-066) — a data-driven host
    * names its own (the map's water) so the frame stops relying on its default
    * `--surface-paper` to show around content that doesn't reach every edge.
@@ -90,7 +97,7 @@ export interface Instrument {
   /** the pane's BODY. The title bar and the ✕ are the shell's job, not the
    * instrument's — which is why an instrument that reads nothing from the bus
    * (Unfold, Contours, EVoC) simply does not take it. */
-  render(bus: Bus): ReactNode
+  render<Id extends string>(bus: Bus<Id>): ReactNode
 }
 
 // ── The views ───────────────────────────────────────────────────────────────

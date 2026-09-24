@@ -44,7 +44,7 @@ import MapView from '../instruments/MapView'
 import { useKeptWallFrame } from './wallframe'
 import { useWalkPlayback } from '../instruments/walkdesk/playback'
 import { renderStopPreview } from '../instruments/walkdesk/stoppreview'
-import type { Bus } from '../studio/bus'
+import type { Bus } from '../state/bus'
 import { BOOKED_SECONDS, clampStop, coveredBefore, lectureStart, lectureSteps, mmss } from './lecture'
 import { LectureSlide } from './LectureSlide'
 import {

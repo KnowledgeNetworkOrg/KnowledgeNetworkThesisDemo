@@ -23,7 +23,7 @@ import { DocHeader, LEGEND_INSET, SectionLabel, WalkCard } from '@/ds'
 import { byId, pathTo, ROOT_ID, topicHueOf } from '../corpus/graph'
 import { DOC_BODY } from '../corpus/docs'
 import { listWalks, subscribeWalks } from '../model/walkstore'
-import type { Bus } from '../studio/bus'
+import type { Bus } from '../state/bus'
 
 export default function DocumentPanel({ bus }: { bus: Bus }) {
   const currentId = bus.focus ?? ROOT_ID

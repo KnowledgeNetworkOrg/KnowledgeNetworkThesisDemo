@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url'
 import { join, relative, sep } from 'node:path'
 
 const SRC = fileURLToPath(new URL('.', import.meta.url))
-const WATCHED = ['instruments', 'present', 'studio']
+const WATCHED = ['instruments', 'present', 'studio', 'state']
 
 /** Modules that nothing imports ON PURPOSE, each with the reason. Anything here is a
  *  decision somebody made, not an accident nobody noticed — which is the whole
