@@ -268,6 +268,21 @@ if (railBox && (await sep.count()) === 1) {
   await page.waitForTimeout(300)
   const back = (await page.locator('[data-explorer-rail]').boundingBox()).width
   ok('double-click returns the seam to the rail\'s own fit', Math.abs(back - railBox.width) <= 2, `${grown} -> ${back}`)
+
+  /* A CLICK ON THE SEAM IS NOT A CHOICE (reviewer-found on #372). At full width a pinned fit and
+     the fit itself draw the same number, so the check narrows the window until the rail shrinks
+     below its own max, clicks without moving, and widens again: the rail must grow back. It
+     stayed at the narrow width while zero travel was stored as a chosen width. */
+  await page.setViewportSize({ width: 1100, height: 950 })
+  await page.waitForTimeout(300)
+  const narrow = (await page.locator('[data-explorer-rail]').boundingBox()).width
+  const nb = await sep.first().boundingBox()
+  await page.mouse.click(nb.x + nb.width / 2, nb.y + nb.height / 2)
+  await page.waitForTimeout(300)
+  await page.setViewportSize({ width: 1750, height: 950 })
+  await page.waitForTimeout(400)
+  const regrown = (await page.locator('[data-explorer-rail]').boundingBox()).width
+  ok('a click on the seam leaves the rail on its own fit', narrow < railBox.width - 2 && Math.abs(regrown - railBox.width) <= 2, `${narrow} at 1100 -> ${regrown} at 1750`)
 }
 
 // ── 9. a bare leaf is exactly a container's box (OB-247's trap, reviewer-asked on #372) ──

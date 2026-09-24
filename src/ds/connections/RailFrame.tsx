@@ -322,10 +322,15 @@ export function RailFrame({ side = 'left', label, count, mark, open, onOpenChang
   /* a positive delta grows the thing BEFORE the handle: the left rail, or the right rail's pane */
   const fit = (w0: number, d: number) => Math.max(m.min, Math.min(hi, w0 + (side === 'left' ? d : -d)))
   const changeWidth = onWidthChange
+  /* A GESTURE THAT MOVED NOTHING STORES NOTHING. Travel 0 is a plain click on the seam, or a
+     pointer the browser cancelled (`PaneDivider` reports that as 0). Storing `fit(w0, 0)` then
+     would turn the rail's own fit — null, which follows the pane — into a pinned number that
+     looks identical at this width, so the rail never grew back when the pane widened again
+     (reviewer-measured on #372, 2026-09-24: 185px at a 1100px window, still 185 at 1750). */
   const divider = changeWidth ? (
     <PaneDivider label={'resize the ' + String(label).toLowerCase() + ' rail'} now={shown} min={m.min} max={hi}
       onDrag={(d) => { if (start.current == null) start.current = shown; setLive(fit(start.current ?? shown, d)) }}
-      onDragEnd={(d) => { const w0 = start.current != null ? start.current : shown; start.current = null; setLive(null); changeWidth(fit(w0, d)) }}
+      onDragEnd={(d) => { const w0 = start.current != null ? start.current : shown; start.current = null; setLive(null); if (d !== 0) changeWidth(fit(w0, d)) }}
       onReset={() => { start.current = null; setLive(null); changeWidth(null) }}
       /* ON THE SEAM, OVER IT: the strip straddles the rail's own border, half over the pane's
          content, and takes no width from either — a strip in the flow would move both by 14px
