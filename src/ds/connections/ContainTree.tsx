@@ -430,6 +430,14 @@ function ContainRow({ node, domain, paint, counts, open, setOpen, isRoot, compac
   index?: number
 }) {
   const kids = node.children
+  /* WHAT A NODE IS, AND HOW MANY OF ITS CHILDREN ARE DRAWN, ARE TWO QUESTIONS. `isContainer`
+     reads the node's own shape — the key's presence — because `filterTree` prunes a container's
+     children WITHOUT turning it into a leaf (`children: []`) while a leaf never carries the key
+     at all. `hasKids` stays the count of what is on screen. Reading pill-ness from `hasKids`
+     drew a container filtered down to its own title as plain text — no border, no caret
+     (reviewer-measured on #372, 2026-09-24: filtering to "Computer Systems" stripped exactly
+     that). Filtering does not change what a node IS. */
+  const isContainer = !!kids
   const hasKids = !!(kids && kids.length)
   const isOpen = forceOpenIds ? forceOpenIds.has(node.id) : !!open[node.id]
   /* THE COUNT IS A SECOND LINE ONLY WHEN THE HOST ASKS FOR ONE (DS OB-174, the owner's own
@@ -458,7 +466,7 @@ function ContainRow({ node, domain, paint, counts, open, setOpen, isRoot, compac
      "this level only" everywhere in the system; two clicks on it are two level toggles and
      nothing more. The test is published as `CaretHit` so a host re-implementing the tree asks
      the same question instead of re-deriving it. */
-  const onDbl = hasKids
+  const onDbl = isContainer
     ? (e: ReactMouseEvent) => {
         if (CaretHit(e)) { e.stopPropagation(); return }
         e.stopPropagation()
@@ -472,7 +480,7 @@ function ContainRow({ node, domain, paint, counts, open, setOpen, isRoot, compac
     : undefined
   /* the caret behaves exactly as it does everywhere else in this system — one level, and it
      stops propagation so it never also fires the row's select. `TreeRow`'s own rule. */
-  const onCaretClick = hasKids
+  const onCaretClick = isContainer
     ? (e: ReactMouseEvent) => {
         e.stopPropagation()
         setOpen((o) => {
@@ -497,8 +505,8 @@ function ContainRow({ node, domain, paint, counts, open, setOpen, isRoot, compac
       >
         <ContainPill
           title={node.title} domain={domain} paint={paint ? paint[node.id] : undefined} depth={depth} index={index} focus={isRoot} root={node.root} note={note}
-          caret={hasKids} open={isOpen} compact={compact} scale={scale}
-          selected={!!onSelect && selectedId === node.id} hovered={hoveredId === node.id} bare={!hasKids}
+          caret={isContainer} open={isOpen} compact={compact} scale={scale}
+          selected={!!onSelect && selectedId === node.id} hovered={hoveredId === node.id} bare={!isContainer}
           onCaretClick={onCaretClick}
         />
       </div>

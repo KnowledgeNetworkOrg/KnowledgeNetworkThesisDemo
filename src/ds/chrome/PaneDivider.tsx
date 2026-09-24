@@ -128,7 +128,9 @@ export interface PaneDividerProps {
   onDrag?: (delta: number) => void
   /** the gesture ended, and it hands back the gesture's TOTAL TRAVEL in px. THE ONLY MOMENT TO
    *  PERSIST — a store written on every move records a hundred widths for one drag. Also fires
-   *  after each keyboard nudge, which is one whole gesture.
+   *  after each keyboard nudge, which is one whole gesture. A CANCELLED POINTER (the browser
+   *  took the gesture over) fires it too, with travel 0: the gesture is over and nothing moved,
+   *  so re-running the clamp from the gesture's start leaves the stored width standing.
    *
    *  RE-RUN THE CLAMP WITH THIS DELTA; DO NOT READ YOUR OWN STATE HERE. On a key nudge both
    *  callbacks fire inside one event, so the `setState` from `onDrag` has not rendered and a host
@@ -190,12 +192,23 @@ export function PaneDivider({ orientation = 'vertical', onDrag, onDragEnd, onRes
       travel.current = (vertical ? ev.clientX : ev.clientY) - start.current
       if (onDrag) onDrag(travel.current)
     }
-    const up = () => {
+    const end = (travel: number) => {
       setDragging(false)
-      if (onDragEnd) onDragEnd(travel.current)
-      window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up)
+      if (onDragEnd) onDragEnd(travel)
+      window.removeEventListener('pointermove', mv)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', cancel)
     }
-    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up)
+    const up = () => end(travel.current)
+    /* A CANCELLED POINTER IS STILL A GESTURE THAT ENDED. The browser cancels one when it takes
+       the pointer over — a touch or pen gesture claimed for a scroll, or the pointer lost
+       mid-drag — and `pointerup` then never fires: the window listeners stayed attached,
+       `dragging` stayed true, and the host was never told, so a half-dragged width stayed live
+       and the next gesture measured from a stale origin (reviewer-measured on #372, 2026-09-24).
+       Travel 0 is the report that says "over, and nothing moved": the host re-derives from where
+       the drag began (see `onDragEnd`), so the width it had already stored is what stands. */
+    const cancel = () => end(0)
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cancel)
   }
   const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
     if (disabled) return

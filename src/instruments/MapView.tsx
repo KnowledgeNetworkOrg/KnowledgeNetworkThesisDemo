@@ -223,9 +223,13 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   /* CLOSED AT FIRST, and that is a measured decision rather than a taste: opening the rail
      narrows the canvas, and at the explore preset's width the map's own L0 label boxes then
      meet by ~3px (`sys`/`cs`, 1750x950) — a map-side fit gap that does not know about
-     label-vs-label collisions, surfaced by the narrower pane. Starting closed leaves the map
-     exactly as it was until the reader asks for the explorer; the corner in the row is the
-     way in. Raised as its own finding rather than papered over here. */
+     label-vs-label collisions, surfaced by the narrower pane. Raised as its own finding rather
+     than papered over here.
+     THE UPPER ROW IS NOT THE RAIL'S FOOTPRINT — it is the approved drawing's (OB-241/243): the
+     map pane's own row, where the selection sits and where the closed control lives. It draws
+     open or closed, and it takes its ~44px of canvas either way; closing gives back the canvas
+     WIDTH and nothing else. An earlier version of this comment said a closed rail left the map
+     "exactly as it was", which described the pane before the row existed and was wrong. */
   const [railOpen, setRailOpen] = useState(false)
   /* THE SEAM'S STORED WIDTH (OB-253): null until the professor drags, which means the rail's
      own fit. The frame clamps it every render and only what `onWidthChange` reports is stored.
@@ -2113,7 +2117,15 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
               setTreeHover(n.id)
               treeHotRef.current = n.id
               busSetHover(n.id)
-              show(e, { domain: n.domain, title: n.title, summary: summaryOfNode(n.id), contains: n.children && n.children.length ? containsSummary(n) : undefined }, 'tree', n.id)
+              /* THE CARD ANSWERS FOR THE NODE, NOT FOR THE FILTERED COPY (reviewer-measured on
+                 #372): `filterTree` prunes a container's children to the matches, or to none, so
+                 `n.children` under a filter is not what the node holds — the count line
+                 vanished on a container filtered down to itself. Find the real node in the
+                 corpus tree by id and summarise THAT; `n` stays the source for what is on the
+                 row (its title and topic are the same node's). */
+              const path = findTreePath(CORPUS_TREE, n.id)
+              const full = path ? path[path.length - 1] : n
+              show(e, { domain: n.domain, title: n.title, summary: summaryOfNode(n.id), contains: full.children && full.children.length ? containsSummary(full) : undefined }, 'tree', n.id)
             }}
             onNodeLeave={() => {
               const id = treeHotRef.current
