@@ -172,7 +172,7 @@ export { ConnectionsSplitPane, CONNECTIONS_PANE_METRICS, CONNECTIONS_BODY_STYLE 
 export type { ConnectionsSplitPaneProps, ConnectionsGraphApi } from './connections/ConnectionsSplitPane'
 export { NodePreviewCard, NodePreviewLayer, PREVIEW_LAYER_METRICS, previewPlacement, previewGutter, connectionsHighlight, ConnectionsRails } from './connections/ConnectionsRails'
 export type { NodePreviewCardProps, NodePreviewLayerProps, PreviewController, HighlightInputs } from './connections/ConnectionsRails'
-export { ContainTree, ContainPaint, ContainPill, CONTAIN_METRICS, CaretHit, containsSummary, findTreePath, OpenAncestors, subtreeCount, treeKeyNav } from './connections/ContainTree'
+export { ContainTree, ContainPaint, ContainPill, CONTAIN_METRICS, CaretHit, containsSummary, findTreePath, OpenAncestors, OpenOnSelect, OpenForVisible, subtreeCount, treeKeyNav } from './connections/ContainTree'
 export type { ContainTreeProps, ContainPaintEntry, ContainPillProps, ContainNode, OpenMap } from './connections/ContainTree'
 export { RelationCards, RelSourceGroup, REL_CARD_METRICS, REL_CARD_PARTS, groupItemsByTarget, groupRelationsByTarget, relationLook } from './connections/RelationCards'
 export type { RelationCardsProps, RelSourceGroupProps, Relation, RelationGroup, RelItem, TargetBlock, ViaRelation } from './connections/RelationCards'

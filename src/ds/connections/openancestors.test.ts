@@ -14,7 +14,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { OpenAncestors } from './ContainTree'
+import { OpenAncestors, OpenForVisible, OpenOnSelect } from './ContainTree'
 import type { ContainNode } from './ContainTree'
 
 const leaf = (id: string, children?: ContainNode[]): ContainNode => (children ? { id, title: id, children } : { id, title: id })
@@ -60,5 +60,42 @@ describe('OpenAncestors — the target is never in its own force-open set', () =
     const userOpen: Record<string, 1> = { root: 1 } // a is absent = closed
     const merged = { ...userOpen, ...OpenAncestors(TREE, 'a1x') }
     expect(merged.a).toBe(1)
+  })
+})
+
+/* The TWO SPENDS of that force-open set, pinned beside it (OB-244 + OB-227): the one-shot fold
+   that includes the target, and the whole-view fold that excludes what it is shown. */
+describe('OpenOnSelect — the one-shot fold, applied when the selection changes', () => {
+  it('includes the target itself, so selecting a container opens it', () => {
+    expect(OpenOnSelect(TREE, 'a1')).toEqual({ root: 1, a: 1, a1: 1 })
+    // the contrast with OpenAncestors is the whole point: the SAME selection, one key more
+    expect(OpenOnSelect(TREE, 'a1x')).toEqual({ ...OpenAncestors(TREE, 'a1x'), a1x: 1 })
+  })
+
+  it('on the root it opens the root alone — it has no ancestor', () => {
+    expect(OpenOnSelect(TREE, 'root')).toEqual({ root: 1 })
+  })
+
+  it('an empty id opens nothing', () => {
+    expect(OpenOnSelect(TREE, '')).toEqual({})
+  })
+})
+
+describe('OpenForVisible — what a whole view must open, and never what it shows', () => {
+  it('excludes the ids it is handed, so a visible container\'s caret stays live', () => {
+    const m = OpenForVisible(TREE, ['a1x', 'b'])
+    expect(m).toEqual({ root: 1, a: 1, a1: 1 })
+    expect(m).not.toHaveProperty('a1x')
+    expect(m).not.toHaveProperty('b')
+  })
+
+  it('merges over the user\'s own map — it never closes anything', () => {
+    const userOpen = { a2: 1 }
+    expect({ ...userOpen, ...OpenForVisible(TREE, ['b']) }).toEqual({ a2: 1, root: 1 })
+  })
+
+  it('an id it cannot resolve, or a null tree, answers {} rather than throwing', () => {
+    expect(OpenForVisible(TREE, ['nowhere'])).toEqual({})
+    expect(OpenForVisible(null, ['a'])).toEqual({})
   })
 })

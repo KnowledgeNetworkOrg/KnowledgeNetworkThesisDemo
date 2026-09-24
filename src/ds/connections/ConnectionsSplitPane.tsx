@@ -518,7 +518,9 @@ export function ConnectionsSplitPane({ tree, domain, selected, selectedId, onSel
             <FilterInput value={query} onChange={setQuery} />
             <ContainTree
               key={tree ? tree.id : 'none'} root={tree || { id: selected.id, title: selected.title }} domain={domain}
-              compact scale={scale} selectedId={litId} hoveredId={hoveredTreeId} onSelect={onSelect} counts={treeCounts}
+              /* this pane never grants `deselectable`, so the null branch cannot arrive — the
+                 wrapper is what the widened `node | null` contract asks of a host that does not */
+              compact scale={scale} selectedId={litId} hoveredId={hoveredTreeId} onSelect={(n) => { if (n && onSelect) onSelect(n) }} counts={treeCounts}
               /* `onOpenUpdate`, NOT the deprecated `onOpenChange`: the updater is handed
                  out unresolved so two caret toggles inside one React batch both survive */
               query={query} open={treeOpen} onOpenUpdate={onTreeOpenChange}

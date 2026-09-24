@@ -178,9 +178,15 @@ export function findTreePath(node: ContainNode, id: string, trail?: ContainNode[
  *  the one pill they cannot collapse. Owner-reported on the running app (2026-09-16), FIRST against
  *  the root row, because the root is on every path and was therefore inert whatever was selected.
  *
- *  THE PATH STILL WINS OVER A USER'S CLOSED ANCESTOR — spread this OVER the user's own map
- *  (`{ ...userOpen, ...OpenAncestors(tree, id) }`), or a closed ancestor hides the selection. What
- *  must never be forced is the target's OWN disclosure.
+ *  THE PATH STILL WINS OVER A USER'S CLOSED ANCESTOR, AND THERE ARE TWO WAYS TO SPEND THAT, one
+ *  of which the owner reported on 2026-09-20. Spreading this over the host's map ON EVERY RENDER
+ *  (`{ ...userOpen, ...OpenAncestors(tree, id) }`) keeps the selection visible and makes every
+ *  ANCESTOR of it inert for as long as it stays selected: the toggle lands, the next render
+ *  undoes it, and the report is "after I select a node I cannot collapse the tree for a while" —
+ *  the while being until something else is selected. **Prefer `OpenOnSelect`, merged ONCE when
+ *  the selection changes.** Per-render spreading is still correct where the open set is not the
+ *  user's to keep (a driver, a printout, a view that recomputes from scratch each time). What
+ *  must never be forced per render is any caret a person can reach.
  *
  *  NOT PORTED: the DS's `ContainMath` alias, which exists so a specimen card can reach lower-case
  *  helpers through `window.<Namespace>`. This app imports the named functions, as the DS's own
@@ -190,6 +196,57 @@ export function OpenAncestors(tree: ContainNode | null | undefined, id: string):
   const path = tree ? findTreePath(tree, id) : null
   if (!path) return m
   path.slice(0, -1).forEach((n) => { m[n.id] = 1 })
+  return m
+}
+
+/** WHAT TO OPEN WHEN A SELECTION CHANGES: every ancestor of the node, AND THE NODE ITSELF.
+ *  Merge it into the host's own open map ONCE, in response to the selection changing — never
+ *  spread it over that map per render.
+ *
+ *  TWO OWNER REPORTS ON ONE DAY MEET HERE (2026-09-20). "After I select a node I cannot
+ *  collapse/expand the nodes in the tree for a while" is the per-render spread of
+ *  `OpenAncestors`: the path is re-forced on every render, so every ancestor of the selected
+ *  node springs back open the instant it is collapsed. "When I select a node, expand its nodes
+ *  as well" asks for the opposite of that rule's other half. A ONE-SHOT resolves both, and it is
+ *  why the shape matters more than the contents: applied once, opening the target's own
+ *  disclosure costs nothing — the caret is a working control again the moment the fold is done,
+ *  and closing it stays closed. Applied per render, the SAME map is the inert-caret fault twice
+ *  over.
+ *
+ *  A selection that does not move does not re-fold, which is deliberate: re-selecting the node
+ *  you are already on should not re-open what you have since closed. */
+export function OpenOnSelect(tree: ContainNode | null | undefined, id: string): Record<string, 1> {
+  const m = OpenAncestors(tree, id)
+  if (id) m[id] = 1
+  return m
+}
+
+/** THE OPEN SET FOR A WHOLE VIEW — every ancestor of every node in `ids`, THE NODES THEMSELVES
+ *  EXCLUDED, merged (OB-232). Published for the Explorer rail, whose tree has to follow what the
+ *  MAP is showing: as the map zooms or refocuses it hands down the ids it draws, and the column
+ *  opens far enough to contain them.
+ *
+ *  IT IS THE FOLD OF `OpenAncestors`, AND IT IS PUBLISHED BECAUSE THE EXCLUSION IS THE SUBTLE
+ *  PART — the same `slice(0, -1)` that rule already turns on. A host folding an INCLUSIVE path
+ *  over a list re-forces every visible container open on every render, so a user who collapses
+ *  one sees it spring back, and the caret becomes a control that does nothing. One node getting
+ *  that wrong is a reported bug; a whole view getting it wrong looks like the tree ignoring the
+ *  pointer.
+ *
+ *  WHAT IT DOES NOT DO, deliberately: it does not CLOSE anything. It answers "what must be open",
+ *  and the host merges it over the user's own map (`{ ...userOpen, ...OpenForVisible(...) }`), so
+ *  a collapse elsewhere in the tree survives a pan. A host that wants the column to contract as
+ *  the map narrows replaces its open map with this result instead of merging — that is a
+ *  different product decision, not a different function, and it throws the user's own
+ *  disclosures away. */
+export function OpenForVisible(tree: ContainNode | null | undefined, ids: string[]): Record<string, 1> {
+  const m: Record<string, 1> = {}
+  if (!tree || !ids) return m
+  for (const id of ids) {
+    const path = findTreePath(tree, id)
+    if (!path) continue
+    for (let i = 0; i < path.length - 1; i++) m[path[i].id] = 1
+  }
   return m
 }
 
@@ -270,6 +327,14 @@ export interface ContainPillProps {
   selected?: boolean
   /** the pointer is on this node HERE or somewhere else in the pane — a face wash, no ring */
   hovered?: boolean
+  /** draw as TEXT, not a pill: no border and no raised fill, at rest or selected (owner,
+   *  2026-09-22; the tree passes it for every node with NO CHILDREN — only a container is a
+   *  pill). A selected bare row is the accent wash plus bold accent ink and nothing else, and the
+   *  border does not come back on select. The border stays in the box as `transparent`, so a bare
+   *  row is exactly a pill's size and titles line up — dropping it to save the pixel is the fault
+   *  clause 4 of the item measures. What is given up, deliberately: a leaf no longer shows its
+   *  topic colour at rest */
+  bare?: boolean
   /** one level of disclosure. Stops its own propagation so it never also fires the row's select */
   onCaretClick?: (e: ReactMouseEvent) => void
   /** the dense column form: 11px, full width, scaled padding. The wide form is inline-flex */
@@ -278,17 +343,23 @@ export interface ContainPillProps {
   scale?: number
 }
 
-export function ContainPill({ title, domain, paint, depth = 0, index = 0, focus, note, caret, open, selected, hovered, onCaretClick, compact, scale = 1, root }: ContainPillProps) {
+export function ContainPill({ title, domain, paint, depth = 0, index = 0, focus, note, caret, open, selected, hovered, bare, onCaretClick, compact, scale = 1, root }: ContainPillProps) {
   const stroke = root ? 'var(--border-rule)' : paint ? paint.stroke : (depth ? nestedFamilyPaint(domain, { slot: index % FAMILY_SLOTS }).stroke : topicPaint(domain).stroke)
+  /* `bare` HIDES the border rather than removing it — `transparent` at the same width — so a
+     leaf's title starts at the same x as its container siblings' and the row is the same height.
+     The rest fill goes too; hover and selected are untouched, because selection never lived in
+     the border (see the prop's doc). */
+  const edge = bare ? 'transparent' : stroke
+  const rest = bare ? 'transparent' : 'var(--surface-raised)'
   const s = compact ? scale : 1
   const B = CONTAIN_METRICS.caretBox
   return (
     <div style={{
       display: compact ? 'flex' : 'inline-flex', width: compact ? '100%' : undefined,
       flex: compact ? '1 1 auto' : undefined, boxSizing: 'border-box', flexDirection: 'column', gap: 1,
-      border: (compact ? 1 : 1.5) + 'px solid ' + stroke, borderRadius: 'var(--radius-md)',
+      border: (compact ? 1 : 1.5) + 'px solid ' + edge, borderRadius: 'var(--radius-md)',
       padding: compact ? (2 * s) + 'px ' + (6 * s) + 'px' : '4px 11px',
-      background: selected ? 'var(--accent-primary-wash)' : (hovered ? 'var(--surface-hover)' : 'var(--surface-raised)'),
+      background: selected ? 'var(--accent-primary-wash)' : (hovered ? 'var(--surface-hover)' : rest),
       minWidth: 0,
     }}>
       <span style={{ display: 'flex', alignItems: 'center', gap: compact ? 4 : 6, minWidth: 0 }}>
@@ -331,7 +402,7 @@ function useOpenState(persistKey: string | null | undefined, fallback: OpenMap):
   return [open, setOpen]
 }
 
-function ContainRow({ node, domain, paint, counts, open, setOpen, isRoot, compact, scale = 1, selectedId, hoveredId, onSelect, onNodeEnter, onNodeLeave, onRowHover, forceOpenIds, depth = 0, index = 0 }: {
+function ContainRow({ node, domain, paint, counts, open, setOpen, isRoot, compact, scale = 1, selectedId, hoveredId, onSelect, deselectable, onNodeEnter, onNodeLeave, onRowHover, forceOpenIds, depth = 0, index = 0 }: {
   node: ContainNode
   domain?: string
   paint?: Record<string, ContainPaintEntry>
@@ -345,7 +416,9 @@ function ContainRow({ node, domain, paint, counts, open, setOpen, isRoot, compac
    *  so ContainRow has to accept whatever the tree's own public contract accepts */
   selectedId?: string | null
   hoveredId?: string | null
-  onSelect?: (node: { id: string; title: string; domain?: string }) => void
+  onSelect?: (node: { id: string; title: string; domain?: string } | null) => void
+  /** granted by the host — see `ContainTreeProps.deselectable`. A recursive prop, so it travels */
+  deselectable?: boolean
   onNodeEnter?: (e: ReactMouseEvent, node: ContainNode) => void
   onNodeLeave?: () => void
   /** the tree's own hover tracking, present only while the hover is UNCONTROLLED — see
@@ -369,7 +442,14 @@ function ContainRow({ node, domain, paint, counts, open, setOpen, isRoot, compac
      same gesture is worse than either. */
   const note = counts === 'pill' && hasKids ? kids!.length + ' node' + (kids!.length === 1 ? '' : 's') : undefined
   const nativeTip = counts !== 'pill' && hasKids && !onNodeEnter ? containsSummary(node) : undefined
-  const onClick = onSelect ? (e: ReactMouseEvent) => { e.stopPropagation(); onSelect({ id: node.id, title: node.title, domain }) } : undefined
+  /* CLICKING THE SELECTED ROW CLEARS THE SELECTION when the host grants `deselectable`, and
+     `onSelect` is then called with NULL. Owner-reported 2026-09-20: a tree you can select in and
+     not out of leaves the user hunting for an empty patch to click, and there is none — every
+     pixel of a row belongs to a node. It is a CAPABILITY, not a state, so it is off by default:
+     a host whose selection can never be empty (a document pane must read something) would be
+     handed a null it has nowhere to put, and absent is the honest way to say "this tree's
+     selection is mandatory". */
+  const onClick = onSelect ? (e: ReactMouseEvent) => { e.stopPropagation(); if (deselectable && selectedId === node.id) { onSelect(null); return } onSelect({ id: node.id, title: node.title, domain }) } : undefined
   /* double-click expands the node AND every descendant; double-click again contracts the whole
      subtree — the tree's own shortcut, like a folder tree. The caret stays one level.
      THE CARET IS CARVED OUT OF THE GESTURE. `onCaretClick` stops CLICK propagation, but dblclick
@@ -418,7 +498,7 @@ function ContainRow({ node, domain, paint, counts, open, setOpen, isRoot, compac
         <ContainPill
           title={node.title} domain={domain} paint={paint ? paint[node.id] : undefined} depth={depth} index={index} focus={isRoot} root={node.root} note={note}
           caret={hasKids} open={isOpen} compact={compact} scale={scale}
-          selected={!!onSelect && selectedId === node.id} hovered={hoveredId === node.id}
+          selected={!!onSelect && selectedId === node.id} hovered={hoveredId === node.id} bare={!hasKids}
           onCaretClick={onCaretClick}
         />
       </div>
@@ -431,7 +511,7 @@ function ContainRow({ node, domain, paint, counts, open, setOpen, isRoot, compac
           {kids!.map((c, i) => (
             <ContainRow
               key={c.id} node={c} domain={domain} paint={paint} counts={counts} open={open} setOpen={setOpen} compact={compact} scale={scale}
-              selectedId={selectedId} hoveredId={hoveredId} onSelect={onSelect}
+              selectedId={selectedId} hoveredId={hoveredId} onSelect={onSelect} deselectable={deselectable}
               onNodeEnter={onNodeEnter} onNodeLeave={onNodeLeave} onRowHover={onRowHover} forceOpenIds={forceOpenIds}
               depth={depth + 1} index={i}
             />
@@ -486,8 +566,19 @@ export interface ContainTreeProps {
   hoveredId?: string | null
   /** a row was clicked. Omit and the tree is a static picture: no pointer cursor, no selection —
    *  the hover wash is NOT part of that list since OB-225: the wash is the tree's own business, so
-   *  a row still lights while the pointer is on it whether or not the tree can be selected in */
-  onSelect?: (node: { id: string; title: string; domain?: string }) => void
+   *  a row still lights while the pointer is on it whether or not the tree can be selected in.
+   *  A host that granted `deselectable` also receives NULL when a click CLEARS the selection */
+  onSelect?: (node: { id: string; title: string; domain?: string } | null) => void
+  /** LET A CLICK ON THE ALREADY-SELECTED ROW CLEAR THE SELECTION, reported as `onSelect(null)`.
+   *  Off by default. Owner-reported 2026-09-20: a tree you can select in and not out of leaves
+   *  the user hunting for empty space to click, and a full-width pill list has none.
+   *
+   *  IT IS A CAPABILITY, NOT A STATE, so absent and false mean the same thing deliberately: a
+   *  pane whose selection can never be empty would be handed a null it has nowhere to put, and
+   *  not granting it is how that pane says the selection is mandatory. Granting it obliges the
+   *  host to decide what empty MEANS — pass `selectedId={null}` when it happens, or the tree
+   *  keeps a pill lit that nobody chose (host obligation 6) */
+  deselectable?: boolean
   /** the pointer entered a row — the host's hook for a preview card. Carries the event, because
    *  the card is placed at the pointer rather than at the row */
   onNodeEnter?: (e: ReactMouseEvent, node: ContainNode) => void
@@ -506,7 +597,7 @@ export interface ContainTreeProps {
   scale?: number
 }
 
-export function ContainTree({ root, domain, counts, defaultOpen, persistKey, open: openProp, onOpenUpdate, onOpenChange, selectedId, hoveredId, onSelect, onNodeEnter, onNodeLeave, query, compact, scale = 1 }: ContainTreeProps) {
+export function ContainTree({ root, domain, counts, defaultOpen, persistKey, open: openProp, onOpenUpdate, onOpenChange, selectedId, hoveredId, onSelect, deselectable, onNodeEnter, onNodeLeave, query, compact, scale = 1 }: ContainTreeProps) {
   const [openState, setOpenState] = useOpenState(persistKey, defaultOpen || (root ? { [root.id]: 1 } : {}))
   const open = openProp || openState
   /* THE TREE WASHES ITS OWN ROW WHEN NOBODY ELSE IS TRACKING THE HOVER (DS OB-225, #340). The
@@ -549,7 +640,7 @@ export function ContainTree({ root, domain, counts, defaultOpen, persistKey, ope
     [root, domain, open, query],
   )
   if (!root) return null
-  const common = { domain, counts, open, setOpen, compact, scale, selectedId, hoveredId: hot, onSelect, onNodeEnter, onNodeLeave, onRowHover }
+  const common = { domain, counts, open, setOpen, compact, scale, selectedId, hoveredId: hot, onSelect, deselectable, onNodeEnter, onNodeLeave, onRowHover }
   /* THE PAINT PASS IS COMPUTED HERE, NOT PER ROW, because a pill's shade depends on the pill
      drawn immediately ABOVE it — which no row can see on its own. It walks the same open set the
      rows read, so the two never disagree about what is visible. */
