@@ -17,6 +17,11 @@
 // below hands work out in order, never starting two drivers that share a port, and
 // starts four workers (#370). --workers=N or KN_BROWSER_WORKERS changes the count.
 //
+// THE FOUR VITES SHARE ONE PRE-BUNDLE CACHE (node_modules/.vite), which with a warm
+// cache they only read. A cold cache was the one thing four at a time could plausibly
+// break, so it was run once cold (#371 review, 2026-09-24, cache deleted): 31/31 in
+// 146s, no 504 Outdated-Optimize-Dep reload, no flake.
+//
 // A driver that fails is retried once, alone, after the pool has drained. If the
 // retry passes, the row says FLAKY and the suite stays green — a known intermittent
 // (#365) should not turn a pull request red for no change. A failure that survives
@@ -30,6 +35,7 @@
 // Run:  npm run test:browser                 — every test
 //       npm run test:browser -- walk         — only tests whose name contains "walk"
 //       npm run test:browser -- --workers=1  — one at a time
+// The `=` matters: `-- --workers 2` would make "2" the name filter and find no test.
 import { readdirSync, readFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -47,9 +53,19 @@ const tests = readdirSync(HERE)
 
 const args = process.argv.slice(2)
 const only = args.find((a) => !a.startsWith('-'))
-const workersFlag = args.find((a) => a.startsWith('--workers='))
-const wanted = Number(workersFlag?.slice('--workers='.length) ?? process.env.KN_BROWSER_WORKERS)
-const workers = Number.isFinite(wanted) && wanted >= 1 ? Math.floor(wanted) : 4
+/* An EXPLICIT worker count that cannot be used is worth stopping for, the same rule the port
+   read below follows: silently running four when someone asked for "abc" or "0" hides the
+   mistake behind a run that looks fine (reviewer nit on #371). Absent, four is the default. */
+const workersArg = args.find((a) => a.startsWith('--workers='))?.slice('--workers='.length) ?? process.env.KN_BROWSER_WORKERS
+let workers = 4
+if (workersArg !== undefined) {
+  const n = Number(workersArg)
+  if (!Number.isFinite(n) || n < 1) {
+    console.error(`the worker count must be a number >= 1, not "${workersArg}" (--workers=N or KN_BROWSER_WORKERS)`)
+    process.exit(1)
+  }
+  workers = Math.floor(n)
+}
 
 const chosen = only ? tests.filter((f) => f.includes(only)) : tests
 if (!chosen.length) {
@@ -120,12 +136,18 @@ if (failed.length) {
   console.log(`\nretrying ${n === 1 ? 'the failed driver' : `all ${n} failed drivers`} once, alone, with the machine quiet\n`)
 }
 const flaky = []
+const hardFail = []
 for (const r of failed) {
   const again = await runOne(r)
   if (again.pass) {
     flaky.push(r)
     row(r.f, 'FLAKY', again.secs, 'passed on retry')
   } else {
+    /* Keep the RETRY's output too (reviewer finding on #371): it ran alone, on a quiet machine,
+       so it is the run that says what really broke. The first run's tail is kept beside it,
+       labelled — when the two differ, the difference IS the diagnosis (load-only timing, or a
+       port/process the first run left behind). */
+    hardFail.push({ ...r, retry: again })
     row(r.f, 'FAIL', again.secs, 'failed twice')
   }
 }
@@ -134,10 +156,15 @@ const wall = ((Date.now() - startedAt) / 1000).toFixed(0)
 const passed = chosen.length - failed.length + flaky.length
 console.log(`\n${passed}/${chosen.length} passed${flaky.length ? ` (${flaky.length} flaky)` : ''} in ${wall}s`)
 
-const hard = failed.filter((r) => !flaky.includes(r))
-if (hard.length) {
+if (hardFail.length) {
   // the last few lines are where every one of these prints its own summary
   const tail = (out) => (out || '').trimEnd().split('\n').slice(-6).join('\n')
-  for (const r of hard) console.error(`\nFAILED: ${r.f}\n${[tail(r.stdout), tail(r.stderr)].filter(Boolean).join('\n')}`)
+  for (const r of hardFail) {
+    const runs = [
+      ['first run', [tail(r.stdout), tail(r.stderr)].filter(Boolean).join('\n')],
+      ['retry', [tail(r.retry.stdout), tail(r.retry.stderr)].filter(Boolean).join('\n')],
+    ]
+    console.error(`\nFAILED: ${r.f}\n` + runs.map(([label, out]) => `--- ${label} ---\n${out}`).join('\n'))
+  }
   process.exit(1)
 }
