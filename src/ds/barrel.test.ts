@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { Bullet, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, FindMark, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
+import { Bullet, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, ExplorerRail, ExplorerRailCorner, ExplorerRailMath, explorerRailWidth, FindMark, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_DIVIDER_METRICS, PaneDivider, paneFit, clampDesk, deskBounds, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -230,12 +230,42 @@ describe('ported but not adopted DS components', () => {
     expect(typeof RelationsMark).toBe('function')
     expect(FIRST_ROW_PAD).toBe(14)
     expect(PANE_RAIL_METRICS.left.pad.startsWith('14px')).toBe(true)
+    // OB-250 — the closed corner is placed at the open head's `top`, so the control does not step
+    // between states: 14 on the left, 6 on the right.
+    expect(PANE_RAIL_METRICS.left.top).toBe(14)
+    expect(PANE_RAIL_METRICS.right.top).toBe(6)
+    // OB-253 — a dragged width is a TARGET, capped at `stretch` and still clamped by the pane.
+    expect(PANE_RAIL_METRICS.left.stretch).toBe(360)
+    expect(railWidth('left', 9999, 500)).toBe(360)
+    expect(railWidth('left', 400, 500)).toBe(400 - PANE_RAIL_METRICS.left.keep)
     expect(railFloor('left')).toBe(PANE_RAIL_METRICS.left.min + PANE_RAIL_METRICS.left.keep)
     expect(railFloor('right')).toBe(PANE_RAIL_METRICS.right.min + PANE_RAIL_METRICS.right.keep)
     expect(railFits('left', 0)).toBe(true)
     expect(railWidth('left', 400)).toBe(PANE_RAIL_METRICS.left.max)
     expect(typeof RailMath.width).toBe('function')
     expect(typeof usePaneWidth).toBe('function')
+  })
+
+  // #341 (OB-253) — the rail's seam drags, so the desk's drag handle came with the frame it
+  // hangs on. No host draws one yet: `RailFrame` is the first reader, and the map pane's seam
+  // is the one this port wires.
+  it('PaneDivider / PANE_DIVIDER_METRICS / paneFit / clampDesk / deskBounds — the rail seam\'s drag handle (OB-253)', () => {
+    expect(typeof PaneDivider).toBe('function')
+    expect(PANE_DIVIDER_METRICS.hit).toBe(14)
+    expect(paneFit({ narrowBelow: 100 }).floor).toBe(100)
+    expect(paneFit({ floor: 80 }).narrowBelow).toBe(80)
+    expect(clampDesk({ sizes: [200, 200], index: 0, delta: 50, fits: [{ floor: 150 }, { floor: 150 }] })).toEqual([250, 150])
+    expect(deskBounds({ sizes: [200, 200], index: 0, fits: [{ floor: 150 }, { floor: 150 }] })).toEqual({ now: 200, min: 150, max: 250 })
+  })
+
+  // #341 (OB-238) — the Explorer rail is a whole component now; the map pane mounts it in this
+  // branch, and `ConnectionsRails` carries the hover layer it pairs with.
+  it('ExplorerRail / ExplorerRailCorner / explorerRailWidth — the map\'s rail, ported waiting on its mount (#341)', () => {
+    expect(typeof ExplorerRail).toBe('function')
+    expect(typeof ExplorerRailCorner).toBe('function')
+    expect(explorerRailWidth(400, null)).toBe(railWidth('left', 400, null))
+    expect(explorerRailWidth(9999, 500)).toBe(PANE_RAIL_METRICS.left.stretch)
+    expect(typeof ExplorerRailMath.width).toBe('function')
   })
 
   // `nestedFamilyPaint` / `familySlots` / `FAMILY_SLOTS` are NOT listed here because

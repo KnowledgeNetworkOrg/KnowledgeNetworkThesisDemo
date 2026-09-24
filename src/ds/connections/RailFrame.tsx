@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { CollapseChevron } from '../chrome/CollapseChevron'
 import { wrapTip } from '../chrome/IconButton'
 import { FIRST_ROW_PAD } from '../chrome/Pane'
+import { PaneDivider, PANE_DIVIDER_METRICS } from '../chrome/PaneDivider'
 
 /** THE NUMBERS A RAIL IS MADE OF, and every one of them is CHOSEN. `min` is the narrowest the
  *  column may draw and still be read; `max` is the widest it is worth; `keep` is what the pane's
@@ -15,31 +16,45 @@ import { FIRST_ROW_PAD } from '../chrome/Pane'
  *  rail it carries — kept equal deliberately, so a pane honoured at its minimum still shows its
  *  rail rather than hiding it the moment it is granted.
  *
- *  `left.pad`'s top is `FIRST_ROW_PAD` (14, was 6): the left rail opens its pane, so its head
- *  sits on the pane's shared first line and reads level with the panes beside it. The right rail
- *  sits under a header row of its own and keeps 6 (DS OB-249 — the rest of that item, and
- *  `FIRST_LINE`/`FIRST_SCROLL_PAD` beside it, are #358's). */
+ *  THE LEFT RAIL OPENS ITS PANE, so its head sits on the pane's shared first line (`top` =
+ *  `FIRST_ROW_PAD`, 14; it was 6, which put the Explorer 8px above the panes beside it) and it
+ *  must be mounted in a body with no top margin. The right rail sits under a header row of its
+ *  own and keeps 6. `pad`'s first value IS `top` — read `top`, never parse `pad`. (DS OB-249;
+ *  the rest of that item, and `FIRST_LINE`/`FIRST_SCROLL_PAD` beside it, are #358's.) */
 export interface RailMetrics {
   /** the narrowest the column may draw and still be read */
   min: number
-  /** the widest the column is worth */
+  /** the widest the column is worth — what it FITS ITSELF to untouched */
   max: number
+  /** THE WIDEST A DRAG MAY TAKE THE COLUMN (left 360, right 420) — CHOSEN, not derived: `max`
+   *  stays what the column fits itself to untouched, and a professor who wants a wider tree may
+   *  have it, up to here, and never past `paneW - keep` */
+  stretch: number
   /** what the pane's own content must be left with */
   keep: number
-  /** the rail body's padding */
+  /** THE HEAD'S TOP PADDING AS A NUMBER, and the closed corner is placed at it so open and closed
+   *  start at the same height. LEFT: `Pane`'s `FIRST_ROW_PAD` (14). RIGHT: 6, that rail sitting
+   *  under a header row of its own */
+  top: number
+  /** the rail body's padding. Its first value IS `top` */
   pad: string
 }
 
 export const PANE_RAIL_METRICS: Record<'left' | 'right', RailMetrics> = {
-  left: { min: 140, max: 196, keep: 190, pad: FIRST_ROW_PAD + 'px 6px 10px' },
-  right: { min: 186, max: 250, keep: 210, pad: '6px 8px 12px' },
+  left: { min: 140, max: 196, stretch: 360, keep: 190, top: FIRST_ROW_PAD, pad: FIRST_ROW_PAD + 'px 6px 10px' },
+  right: { min: 186, max: 250, stretch: 420, keep: 210, top: 6, pad: '6px 8px 12px' },
 }
 
-/** the column's width at this pane width — it SHRINKS to its floor before it goes */
-export function railWidth(side: 'left' | 'right', paneW?: number): number {
+/** the column's width at this pane width — it SHRINKS to its floor before it goes. `want` is a
+ *  width the professor dragged to (the host's stored number, px, or null for none): it replaces
+ *  `max` as the target and may reach `stretch`, and it is still clamped by the pane every call —
+ *  a width chosen in a wide pane never pushes the pane's own content under `keep`. */
+export function railWidth(side: 'left' | 'right', paneW?: number, want?: number | null): number {
   const r = PANE_RAIL_METRICS[side] || PANE_RAIL_METRICS.left
-  if (!paneW) return r.max
-  return Math.max(r.min, Math.min(r.max, paneW - r.keep))
+  const chosen = typeof want === 'number' && Number.isFinite(want)
+  const target = chosen ? Math.min(r.stretch, want) : r.max
+  if (!paneW) return Math.max(r.min, target)
+  return Math.max(r.min, Math.min(target, paneW - r.keep))
 }
 
 /** the pane width below which the rail must not be drawn — `min + keep` */
@@ -198,10 +213,14 @@ export const RailMath = { width: railWidth, floor: railFloor, fits: railFits, me
  *  contents; nothing else about them is shared, and nothing about the chrome is written twice.
  *
  *  THREE STATES, AND THE THIRD IS THE ONE HOSTS GET WRONG:
- *  1. OPEN — the column, at `railWidth(side, paneW)`.
+ *  1. OPEN — the column, at `railWidth(side, paneW, width)`.
  *  2. CLOSED — a button in the pane's own corner, carrying the rail's MARK and its word. Not a
  *     32px shelf: a permanent column of pane width holding one sideways word is what the corner
- *     button replaced. The control never moves between states; only the column does.
+ *     button replaced. It sits at the same HEIGHT as the open head (`top`), so closing a rail
+ *     does not move the pane's first line. It does NOT sit at the same x as the open handle:
+ *     open, the handle is at the SEAM end of the rail's head (beside the content, pointing the
+ *     way the rail will go); closed, the button is in the pane's OUTER corner. Both live in the
+ *     pane's top row; they are one rail width apart.
  *  3. NO ROOM — the same corner, as a NOTE: no cursor, no handler, and it says what would make
  *     the rail available. A control that refuses is worse than no control, and a rail squeezed
  *     past its own minimum is worse still: a flex item cannot shrink below its minimum, so the
@@ -215,8 +234,12 @@ export const RailMath = { width: railWidth, floor: railFloor, fits: railFits, me
  *  3. DECLARE ITS OWN MINIMUM AS `RailMath.floor(side)`. A pane that asks for less than its rail's
  *     floor is a pane whose rail is usually absent.
  *  4. OWN `open`. The rail is the user's to close; the frame only reports the intent.
+ *  5. IF THE SEAM SHOULD DRAG, OWN THE WIDTH: pass `width` (stored) and `onWidthChange` (store
+ *     what it reports, on release only). The frame draws the `PaneDivider` itself, over its own
+ *     border — the host must not draw a second handle or a resting rule in the gutter.
  *
- *  Typed port of the DS components/connections/RailFrame.jsx, #340 / OB-238 + OB-239 + OB-241. */
+ *  Typed port of the DS components/connections/RailFrame.jsx, #340 / OB-238 + OB-239 + OB-241
+ *  (OB-250's `top` and the corrected comments, and OB-253's seam, with #341). */
 export interface RailFrameProps {
   /** which edge of the pane the rail sits on. Decides the border, the corner, the chevron's
    *  direction and which set of widths applies */
@@ -242,18 +265,36 @@ export interface RailFrameProps {
    *
    *  A PANE WITH A HEADER ROW MUST USE `'host'`. The floating corner is absolutely positioned at
    *  the pane's top corner, which is exactly where a header row's first (or last) item already
-   *  is, so the two land on top of each other. It is the same corner in both cases — the point
-   *  of the rule is that the control never moves — and in a pane that has a row, the row is
-   *  where that corner lives */
+   *  is, so the two land on top of each other. In a pane that has a row, the row is where the way
+   *  back lives */
   closedControl?: 'corner' | 'host'
-  /** the rail's contents — the tree, the figure, the filter. The chrome is the frame's */
-  children?: ReactNode
+  /** THE WIDTH THE PROFESSOR DRAGGED THE SEAM TO, px, or null/omitted for the frame's own fit.
+   *  The HOST stores it. It is a target, not a width to draw: the frame still clamps it to
+   *  `[min, min(stretch, paneW - keep)]` every render, so a width chosen in a wide pane cannot
+   *  starve a narrow one. NEVER write the clamped value back — store only what `onWidthChange`
+   *  reports */
+  width?: number | null
+  /** PASS THIS AND THE SEAM DRAGS: a `PaneDivider` straddles the rail's border, drawing nothing
+   *  at rest. Called ONCE per gesture, on release (and after each key nudge), with the width to
+   *  store; with `null` on the reset gesture (double-click, Enter), meaning "back to the fit".
+   *  Omit it and the seam is not a handle — the rail fits itself, as before */
+  onWidthChange?: (width: number | null) => void
+  /** content, or a function of the column's DRAWN width — for content that must track the seam
+   *  while it is being dragged (the relations figure does), which the host's stored width
+   *  cannot, since it only changes on release */
+  children?: ReactNode | ((railW: number) => ReactNode)
 }
 
-export function RailFrame({ side = 'left', label, count, mark, open, onOpenChange, paneW, closedControl = 'corner', children }: RailFrameProps) {
+export function RailFrame({ side = 'left', label, count, mark, open, onOpenChange, paneW, closedControl = 'corner', width, onWidthChange, children }: RailFrameProps) {
   const m = PANE_RAIL_METRICS[side] || PANE_RAIL_METRICS.left
   const room = railFits(side, paneW)
   const edge = side === 'left' ? 'left' : 'right'
+  /* THE SEAM DRAGS when the host passes `onWidthChange` (owner, 2026-09-23). The host OWNS the
+     width and is told once, on release; `live` is only the gesture in flight, so the frame never
+     keeps a second copy of the professor's choice. `start` is the width AS IT WAS when the gesture
+     began: the delta is measured from there, never added to the live width. */
+  const [live, setLive] = useState<number | null>(null)
+  const start = useRef<number | null>(null)
   if (!open || !room) {
     /* `closedControl="host"` — the pane draws `RailCorner` itself, in its own header row. A
        pane WITH a header row cannot use the floating corner: the button would land on top of
@@ -264,7 +305,7 @@ export function RailFrame({ side = 'left', label, count, mark, open, onOpenChang
     return (
       <RailCorner
         side={side} label={label} count={count} mark={mark} paneW={paneW} open={false} onOpenChange={onOpenChange}
-        style={{ position: 'absolute', top: 6, [edge]: 6, zIndex: 3 }}
+        style={{ position: 'absolute', top: m.top, [edge]: 6, zIndex: 3 }}
       />
     )
   }
@@ -276,20 +317,44 @@ export function RailFrame({ side = 'left', label, count, mark, open, onOpenChang
     }}>{label}</span>
   )
   const handle = <CollapseChevron collapsed={false} side={side} onClick={() => onOpenChange && onOpenChange(false)} title={'Hide ' + label} />
+  const shown = live != null ? live : railWidth(side, paneW, width)
+  const hi = Math.max(m.min, Math.min(m.stretch, paneW ? paneW - m.keep : m.stretch))
+  /* a positive delta grows the thing BEFORE the handle: the left rail, or the right rail's pane */
+  const fit = (w0: number, d: number) => Math.max(m.min, Math.min(hi, w0 + (side === 'left' ? d : -d)))
+  const changeWidth = onWidthChange
+  /* A GESTURE THAT MOVED NOTHING STORES NOTHING. Travel 0 is a plain click on the seam, or a
+     pointer the browser cancelled (`PaneDivider` reports that as 0). Storing `fit(w0, 0)` then
+     would turn the rail's own fit — null, which follows the pane — into a pinned number that
+     looks identical at this width, so the rail never grew back when the pane widened again
+     (reviewer-measured on #372, 2026-09-24: 185px at a 1100px window, still 185 at 1750). */
+  const divider = changeWidth ? (
+    <PaneDivider label={'resize the ' + String(label).toLowerCase() + ' rail'} now={shown} min={m.min} max={hi}
+      onDrag={(d) => { if (start.current == null) start.current = shown; setLive(fit(start.current ?? shown, d)) }}
+      onDragEnd={(d) => { const w0 = start.current != null ? start.current : shown; start.current = null; setLive(null); if (d !== 0) changeWidth(fit(w0, d)) }}
+      onReset={() => { start.current = null; setLive(null); changeWidth(null) }}
+      /* ON THE SEAM, OVER IT: the strip straddles the rail's own border, half over the pane's
+         content, and takes no width from either — a strip in the flow would move both by 14px
+         the moment a host passed the callback. */
+      style={{ position: 'absolute', top: 0, bottom: 0, [side === 'left' ? 'right' : 'left']: -PANE_DIVIDER_METRICS.hit / 2, zIndex: 4 }} />
+  ) : null
   return (
     <div style={{
-      flex: '0 0 ' + railWidth(side, paneW) + 'px', minWidth: 0,
+      flex: '0 0 ' + shown + 'px', minWidth: 0, minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column',
       [side === 'left' ? 'borderRight' : 'borderLeft']: '1px solid var(--border-hair)',
-      overflowY: 'auto', overflowX: 'hidden', padding: m.pad,
     }}>
-      {/* THE HANDLE SITS IN THE PANE'S OWN CORNER — the same corner the closed button occupies,
-          which is what makes the way back findable: open, it is the rail header's outer end;
-          closed, it is the first thing in that corner of the pane. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 0 4px 2px' }}>
-        {side === 'left' ? eyebrow : handle}
-        {side === 'left' ? handle : eyebrow}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: m.pad }}>
+        {/* THE HANDLE SITS AT THE SEAM END OF THE HEAD — beside the content, pointing the way the
+            rail will go. The eyebrow's `flex: 1` is what puts it there, on both sides. This is
+            the approved drawing (`ideas/connections-dissolved-into-map-and-document.html`), not
+            an accident. The way back is findable because it stays in the pane's TOP ROW at the
+            same height, not because it keeps the same x. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 0 4px 2px' }}>
+          {side === 'left' ? eyebrow : handle}
+          {side === 'left' ? handle : eyebrow}
+        </div>
+        {typeof children === 'function' ? children(shown) : children}
       </div>
-      {children}
+      {divider}
     </div>
   )
 }

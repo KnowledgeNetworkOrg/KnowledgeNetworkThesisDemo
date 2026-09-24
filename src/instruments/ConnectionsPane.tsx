@@ -59,43 +59,23 @@ import { useEffect, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 
 import { CONNECTIONS_BODY_STYLE, ConnectionsSplitPane, IconButton, OpenAncestors, PaneCanvas } from '@/ds'
-import type { ConnectionsGraphApi, ContainNode, OpenMap, Relation } from '@/ds'
+import type { ConnectionsGraphApi, OpenMap, Relation } from '@/ds'
 
 import { byId, childrenOf, domainOf, EDGE_COLOR, EDGE_LABEL, edges, ROOT_ID, topicHueOf } from '../corpus/graph'
-import { DOC_BODY } from '../corpus/docs'
 import { colorOf, fillOf } from '../model/color'
 import { regionStarFor, starFor } from '../model/star'
 import type { Bus } from '../state/bus'
+import { CORPUS_TREE, summaryOfNode } from './corpustree'
 
 export { CONNECTIONS_BODY_STYLE }
 
 // ── corpus adapters ─────────────────────────────────────────────────────────
-// All three are MODULE SCOPE, and that is load-bearing rather than tidy: the pane
-// memoises `relationsOf`'s answers on the function's identity, and a fresh closure
-// per render would recompute the whole via-children roll-up — one call per
-// descendant of the selection — on every keystroke in the filter box.
-
-/** the whole corpus as the tree the CONTAINS column draws. Built once: the corpus is
- *  static, and rebuilding it per render would remount `ContainTree` (it keys on the
- *  root's id) and drop the open set with it. */
-function buildContainTree(id: string): ContainNode {
-  const kids = childrenOf.get(id) ?? []
-  // EVERY NODE CARRIES ITS OWN TOPIC (DS OB-174 clause 6). Without this the column draws one
-  // colour for the whole tree — the fault reported on the running app — because the component
-  // can only fall back to the pane's single `domain`. It cannot invent a per-node topic, and
-  // our corpus has had one all along: `domainOf` is what the map's territories already read.
-  //
-  // THE CORPUS ROOT IS THE ONE PILL THIS DRAWS GREY, and that is the wanted answer rather
-  // than an accident to tidy up. `domainOf(ROOT_ID)` is the root's own id, which is not a
-  // topic, so it takes the anchor fallback. The contract's alternative — leave the root
-  // without a domain and let it inherit the PANE's — would paint "everything" in whichever
-  // topic you happen to be standing in, so the top of the column would change colour as you
-  // navigate. A root that means "all of it" has no one topic, and says so.
-  const node: ContainNode = { id, title: byId.get(id)!.title, domain: topicHueOf(id), root: id === ROOT_ID }
-  if (kids.length) node.children = kids.map((k) => buildContainTree(k.id))
-  return node
-}
-const CORPUS_TREE = buildContainTree(ROOT_ID)
+// The tree and the preview summary MOVED to `./corpustree` when the Explorer rail mounted on
+// the map (#341, OB-238) — two hosts read the same tree now. `relationsOf` stays here: it is
+// MODULE SCOPE and that is load-bearing rather than tidy — the pane memoises its answers on
+// the function's identity, and a fresh closure per render would recompute the whole
+// via-children roll-up — one call per descendant of the selection — on every keystroke in the
+// filter box.
 
 /** ONE ENTRY PER TARGET AND KIND, decomposed — the shape the cards and the graph both
  *  read. An authored edge is a fact about a PAIR, so it appears twice in this index,
@@ -124,18 +104,6 @@ const RELATIONS: Map<string, Relation[]> = (() => {
 const NO_RELATIONS: Relation[] = []
 function relationsOfNode(id: string): Relation[] {
   return RELATIONS.get(id) ?? NO_RELATIONS
-}
-
-/** the hover preview's body — the FIRST SENTENCE of the node's own teaching article, never
- *  invented prose. A document body here opens with a definition ("Computer Science — the
- *  whole field this map describes, …"), which is exactly the register a one-line preview
- *  wants; the rest is the Document pane's job. A node with no article draws the card's
- *  skeleton instead, which is the honest fallback. */
-function summaryOfNode(id: string): string | undefined {
-  const body = DOC_BODY[id]
-  if (!body) return undefined
-  const stop = body.indexOf('. ')
-  return stop > 40 ? body.slice(0, stop + 1) : body.slice(0, 180)
 }
 
 // ── the graph slot: this app's real relation star ───────────────────────────

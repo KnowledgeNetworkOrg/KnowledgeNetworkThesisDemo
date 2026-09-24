@@ -5,8 +5,9 @@ import { CollapseChevron } from '../chrome/CollapseChevron'
 import { wrapTip } from '../chrome/IconButton'
 import { PaneColumnHeader } from '../chrome/PaneColumnHeader'
 import { TextInput } from '../chrome/TextInput'
-import { topicPaint } from '../graph/DomainDot'
 import { Breadcrumb } from '../nav/Breadcrumb'
+import { NodePreviewCard, PREVIEW_LAYER_METRICS } from './ConnectionsRails'
+import type { NodePreviewCardProps } from './ConnectionsRails'
 import { ContainTree, containsSummary, findTreePath, treeKeyNav } from './ContainTree'
 import type { ContainNode, OpenMap } from './ContainTree'
 import { RelationCards, groupRelationsByTarget } from './RelationCards'
@@ -15,12 +16,14 @@ import type { Relation, RelationGroup, ViaRelation } from './RelationCards'
 /** THE PANE'S GEOMETRY, published. `narrowBelow`: under this MEASURED width the split becomes a
  *  single sliding view, one column visible at a time with the collapse toggle swapping them.
  *  `tipW`/`tipH`: the hover preview card's box, which the clamped placement has to know without
- *  measuring. `treeMin`/`treeMax` and their narrow twins: the divider's clamp — ONE clamp pair
+ *  measuring — READ from `PREVIEW_LAYER_METRICS` since the card moved to `ConnectionsRails`
+ *  (OB-232), so the retired pane and the rails cannot leave two boxes behind that drift.
+ *  `treeMin`/`treeMax` and their narrow twins: the divider's clamp — ONE clamp pair
  *  shared by the drag AND the double-click fit (they disagreed once, and a fit past the drag's
  *  cap snapped back on the first touch of the divider). Capping how far the TREE column can grow
  *  is what guarantees the relations column always keeps enough room for legible pills. */
 export const CONNECTIONS_PANE_METRICS = {
-  narrowBelow: 380, tipW: 262, tipH: 112,
+  narrowBelow: 380, tipW: PREVIEW_LAYER_METRICS.tipW, tipH: PREVIEW_LAYER_METRICS.tipH,
   treeMin: 85, treeMinNarrow: 70, treeMax: 360, treeMaxNarrow: 170, divider: 14,
   /* `graphClickSlop` belongs to the empty-graph release (OB-202), not to layout, and it is CHOSEN:
      the travel, in px between pointerdown and pointerup, below which a gesture on the graph's
@@ -34,62 +37,14 @@ const PM = CONNECTIONS_PANE_METRICS
  *  gutter. Pass this as the host `Pane`'s `bodyStyle` (or match it). */
 export const CONNECTIONS_BODY_STYLE: CSSProperties = { padding: '0 0 10px 8px', marginTop: 0, overflow: 'hidden' }
 
-/** THE HOVER PREVIEW CARD — a one-line stand-in for the node's actual document: topic dot and a
- *  bold title over a hairline, then the summary, or a two-bar skeleton when the corpus has no
- *  summary for it. Prose is never invented; the skeleton is the honest fallback. Same recipe as
- *  `WalkStrip`'s step preview, and distinct from `MapTooltip`, which answers "how does this
- *  connect" with count rows — this one answers "what does this say". */
-export interface NodePreviewCardProps {
-  /** the node's topic hue */
-  domain?: string
-  /** the node's name */
-  title: string
-  /** the corpus's own one-liner. Absent draws the skeleton */
-  summary?: string
-  /** THE NODE'S COUNT LINE, drawn last — `containsSummary(node)`. This is where the contains
-   *  tree's "N nodes" lives since DS OB-174: on the pill it was furniture on every row at rest,
-   *  and here it is an answer about the one node you are pointing at. A host that draws its OWN
-   *  preview instead of this card has to carry the line, or the count has nowhere left to be
-   *  read */
-  contains?: string
-}
-
-export function NodePreviewCard({ domain, title, summary, contains }: NodePreviewCardProps) {
-  const hue = topicPaint(domain).mark
-  return (
-    <div style={{ position: 'relative' }}>
-      <span style={{
-        position: 'absolute', top: -7, left: 16, width: 0, height: 0,
-        borderLeft: '7px solid transparent', borderRight: '7px solid transparent',
-        borderBottom: '7px solid var(--surface-raised)',
-      }} />
-      <div style={{
-        background: 'var(--surface-raised)', border: '1px solid var(--border-rule)',
-        borderRadius: 'var(--radius-lg)', padding: '12px 15px', boxShadow: 'var(--lift-2)',
-        minWidth: 200, maxWidth: PM.tipW - 2, fontFamily: 'var(--font-ui)',
-      }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 6, fontWeight: 'var(--fw-bold)', fontSize: 12,
-          color: 'var(--text-1)', paddingBottom: 6, marginBottom: 6, borderBottom: '1px solid var(--border-hair)',
-        }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: hue, flexShrink: 0 }} />
-          {title}
-        </div>
-        {summary
-          ? <p style={{ margin: 0, color: 'var(--text-2)', fontSize: 'var(--fs-caption)', lineHeight: 'var(--lh-snug)' }}>{summary}</p>
-          : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div style={{ height: 8, borderRadius: 4, background: 'var(--surface-sunken)', width: '92%' }} />
-              <div style={{ height: 8, borderRadius: 4, background: 'var(--surface-sunken)', width: '68%' }} />
-            </div>
-          )}
-        {contains ? (
-          <div data-preview-contains style={{ marginTop: 8, paddingTop: 6, borderTop: '1px solid var(--border-hair)', color: 'var(--text-3)', fontSize: 'var(--fs-caption)', lineHeight: 'var(--lh-snug)' }}>{contains}</div>
-        ) : null}
-      </div>
-    </div>
-  )
-}
+/* THE CARD MOVED TO `./ConnectionsRails` (OB-232, 2026-09-20): it is the card BOTH rails show, and
+   a shared piece cannot live in the file scheduled for retirement. Re-exported here so no existing
+   import breaks until OB-226 unmounts this pane — the DS's own pane re-exports it the same way —
+   and `NodePreviewCardProps` travels with it. The card's `contains` line now carries that file's
+   styling (the DS's current revision) and keeps our `data-preview-contains` hook, which
+   `browsertest-connections.mjs` reads. */
+export { NodePreviewCard } from './ConnectionsRails'
+export type { NodePreviewCardProps } from './ConnectionsRails'
 
 /* the contains filter IS `TextInput` (chrome) since 2026-09-02 — the recipe used to live here,
    and a second hand-rolled copy is how a recipe drifts. OB-113 rides on it too: the pane's frame
@@ -563,7 +518,9 @@ export function ConnectionsSplitPane({ tree, domain, selected, selectedId, onSel
             <FilterInput value={query} onChange={setQuery} />
             <ContainTree
               key={tree ? tree.id : 'none'} root={tree || { id: selected.id, title: selected.title }} domain={domain}
-              compact scale={scale} selectedId={litId} hoveredId={hoveredTreeId} onSelect={onSelect} counts={treeCounts}
+              /* this pane never grants `deselectable`, so the null branch cannot arrive — the
+                 wrapper is what the widened `node | null` contract asks of a host that does not */
+              compact scale={scale} selectedId={litId} hoveredId={hoveredTreeId} onSelect={(n) => { if (n && onSelect) onSelect(n) }} counts={treeCounts}
               /* `onOpenUpdate`, NOT the deprecated `onOpenChange`: the updater is handed
                  out unresolved so two caret toggles inside one React batch both survive */
               query={query} open={treeOpen} onOpenUpdate={onTreeOpenChange}
