@@ -732,6 +732,14 @@
           "2026-08-19 `children` is documented on both interfaces where the DS leaves it bare, because src/ds/adherence.test.ts ratchets the undocumented-prop count and two bare `children` would have raised the budget from 56 to 58. Documenting was preferred to loosening the ratchet."
         ]
       },
+      "src/ds/chrome/PaneDivider.tsx": {
+        "from": "components/chrome/PaneDivider.jsx",
+        "contract": "components/chrome/PaneDivider.d.ts",
+        "syncedAt": "2026-09-24",
+        "deviations": [
+          "2026-09-24 NEW FILE, pulled in for OB-253 (#341): the rail's seam drags, so `RailFrame` needs this handle and its `PANE_DIVIDER_METRICS`. Ported whole — `paneFit`, `clampDesk`, `deskBounds`, the component and the metrics. NOT PORTED: the DS's `DeskMath` alias, which exists so a card reads the lower-case helpers through `window.<Namespace>`; the DS's own contract says a port imports the functions, and this app does. Nothing here adopts a desk: the first reader is `RailFrame`, which draws one divider over its own border, and the map pane's seam is the one this port wires."
+        ]
+      },
       "src/ds/chrome/PaneColumnHeader.tsx": {
         "from": "components/chrome/PaneColumnHeader.jsx",
         "contract": "components/chrome/PaneColumnHeader.d.ts",

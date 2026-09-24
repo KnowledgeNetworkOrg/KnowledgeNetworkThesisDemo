@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { Bullet, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, FindMark, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
+import { Bullet, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, FindMark, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_DIVIDER_METRICS, PaneDivider, paneFit, clampDesk, deskBounds, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -236,6 +236,18 @@ describe('ported but not adopted DS components', () => {
     expect(railWidth('left', 400)).toBe(PANE_RAIL_METRICS.left.max)
     expect(typeof RailMath.width).toBe('function')
     expect(typeof usePaneWidth).toBe('function')
+  })
+
+  // #341 (OB-253) — the rail's seam drags, so the desk's drag handle came with the frame it
+  // hangs on. No host draws one yet: `RailFrame` is the first reader, and the map pane's seam
+  // is the one this port wires.
+  it('PaneDivider / PANE_DIVIDER_METRICS / paneFit / clampDesk / deskBounds — the rail seam\'s drag handle (OB-253)', () => {
+    expect(typeof PaneDivider).toBe('function')
+    expect(PANE_DIVIDER_METRICS.hit).toBe(14)
+    expect(paneFit({ narrowBelow: 100 }).floor).toBe(100)
+    expect(paneFit({ floor: 80 }).narrowBelow).toBe(80)
+    expect(clampDesk({ sizes: [200, 200], index: 0, delta: 50, fits: [{ floor: 150 }, { floor: 150 }] })).toEqual([250, 150])
+    expect(deskBounds({ sizes: [200, 200], index: 0, fits: [{ floor: 150 }, { floor: 150 }] })).toEqual({ now: 200, min: 150, max: 250 })
   })
 
   // `nestedFamilyPaint` / `familySlots` / `FAMILY_SLOTS` are NOT listed here because
