@@ -43,8 +43,9 @@ import WalkViewer from '../instruments/WalkViewer'
 
 // The members that take a bus are generic over its id on purpose: InstrumentId
 // is derived from VIEWS below, so naming Bus<InstrumentId> here would be a
-// circular type alias. The shell's call site still infers InstrumentId —
-// StudioView passes Bus<InstrumentId> — and that is where the tie is checked.
+// circular type alias (TS2456). The registry tie lives where StudioView creates
+// the bus: useStudioBus<InstrumentId>(ensureActive) fails to compile if a
+// BusRevealTarget is not a real InstrumentId.
 export interface Instrument {
   id: string
   label: string

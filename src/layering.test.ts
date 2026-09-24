@@ -20,7 +20,7 @@
 //   platform/     host capabilities, capability-shaped (#211)            platform
 //   ds/           design-system ports, plus ds/values.ts, a pure entry   ds, ds-values
 //   model/        pure arithmetic: no React, no DOM, no state, no storage  corpus, model, ds-values
-//   state/ (new)  React-bearing or stateful things shared across screens  corpus, model, platform, ds, state
+//   state/       React-bearing or stateful things shared across screens  corpus, model, platform, ds, state
 //   instruments/  panes: rendering only                                  corpus, model, platform, ds, state, instruments
 //   present/      presenter and projector screens (they compose the map) corpus, model, platform, ds, state, instruments, present
 //   studio/       composition root: registry, shell, presets             every layer
@@ -30,7 +30,7 @@
 //
 // The layer of a file is its first path segment under src/; files directly under src/ are
 // `root`, and src/ds/values.ts is its own layer, `ds-values`. A folder that does not exist
-// yet (`state/`, `ds/values.ts`) must not make this test fail or warn — the table is the
+// yet (`ds/values.ts`) must not make this test fail or warn — the table is the
 // target, the tree catches up.
 //
 // MODELED ON unreachedmodule.test.ts (a node program that reads source text and keeps its
