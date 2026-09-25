@@ -127,7 +127,7 @@ function createWindow(url: string = START): BrowserWindow {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// THE ONE CAPABILITY THIS PROCESS ANSWERS (#202)
+// WINDOW FULLSCREEN (#202) — the first capability this process answered
 //
 // `setFullScreen` fullscreens the WINDOW. That is a different thing from the
 // DOM's Element fullscreen, and the difference is why the seam's four fullscreen
@@ -171,7 +171,8 @@ function wireFullscreenIpc(): void {
     if (win) await settle(win, false)
   })
 
-  // SYNCHRONOUS, and the only synchronous channel in the app. The preload needs
+  // SYNCHRONOUS, the first of the app's two synchronous channels — `window:open`
+  // is the other. The preload needs
   // one seed value at load time — before any event could have been pushed — and
   // `isFullscreen()` is a plain `boolean` on the seam because the DOM's own
   // `document.fullscreenElement` is synchronous too. One blocking call at
@@ -186,8 +187,8 @@ function wireFullscreenIpc(): void {
 //
 // `platform.openWindow` is SYNCHRONOUS on the seam — a boolean, not a promise —
 // because the browser's answer (`window.open`) is, and the caller is bound to
-// the click's user gesture. So this is a `sendSync`, the app's second and last
-// blocking channel: main creates the window in the same turn and answers with
+// the click's user gesture. So this is a `sendSync`, the app's second blocking
+// channel: main creates the window in the same turn and answers with
 // what it did. It has to be main: a BrowserWindow can only be made here, and
 // the renderer is sandboxed with no Node.
 //
@@ -200,9 +201,12 @@ function wireFullscreenIpc(): void {
 // accident to route around; main opens the window instead.
 //
 // NAMED, AND THE NAME IS THE DOOR: a live window under the same name is focused
-// and reused rather than doubled — what `window.open(path, name)` gives the web
+// — not reloaded, and not doubled — what `window.open(path, name)` gives the web
 // answer, and what the seam's contract promises callers (#267's re-land rule).
-// Placement is deliberately not decided here; #197 owns that.
+// Focused rather than reloaded on purpose: a re-press lands the professor on
+// the screen that is already there, whatever it was showing, rather than
+// tearing it down mid-talk. Placement is deliberately not decided here; #197
+// owns that.
 // ─────────────────────────────────────────────────────────────────────────────
 const namedWindows = new Map<string, BrowserWindow>()
 

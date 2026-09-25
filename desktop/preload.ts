@@ -93,7 +93,7 @@ const electronPlatform: Platform = {
   //
   // SYNCHRONOUS BECAUSE THE SEAM IS: `openWindow` returns a boolean, not a
   // promise, so main must answer in the same turn — one `sendSync`, the
-  // app's second and last blocking channel after `fullscreen:get`.
+  // app's second blocking channel after `fullscreen:get`.
   openWindow: (path, name) => ipcRenderer.sendSync('window:open', path, name) === true,
 }
 
