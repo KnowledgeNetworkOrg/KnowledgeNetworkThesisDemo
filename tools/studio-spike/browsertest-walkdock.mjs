@@ -506,24 +506,33 @@ pins = await pinInfo()
 ok('and two stops back the last pin has settled to rest — the same pin, 1.36× smaller than when it was current', Math.abs(lastScaleAtEnd / pins[pins.length - 1].scale - 1.36) < 0.01, `${(lastScaleAtEnd / pins[pins.length - 1].scale).toFixed(3)}`)
 
 // PLAYING: the animation IS the position. Sample the drawing while the clock runs.
+// THE SAMPLING WINDOW OPENS WITH THE WALK (#374). This block used to count fps for a full
+// second BEFORE the sampling loop, so the loop's first reading came at ~1.0s — after the
+// pop it exists to read. The walk reaches stop 2 at 0.63s and the pin holds the full pop
+// through the 0.27s dwell, so by ~0.95s it is over; what the old window saw was the falling
+// tail, and it passed only because the tail at ~1.0s sat inside the 0.02 tolerance (it
+// read 1.353 of 1.36). #372's heavier pane (54fps against 59) delayed the driver's first
+// readings 50–150ms and pushed that tail out (1.25–1.33). In-page per-frame sampling of
+// this same play-through reads the full 1.3600 for the whole dwell (`probe-walkpop.mjs`).
+// So: samples first, the fps count after, both still inside one play.
 await page.keyboard.press('Home')
 await page.waitForTimeout(200)
 await map.getByLabel('play the walk').click()
-const fps = await page.evaluate(() => new Promise((res) => {
-  let n = 0
-  const t0 = performance.now()
-  const f = () => { n++; if (performance.now() - t0 < 1000) requestAnimationFrame(f); else res(n) }
-  requestAnimationFrame(f)
-}))
-ok('the map keeps at least 30 frames a second while the walk plays', fps >= 30, `${fps} fps`)
 const samples = []
 const tStart = Date.now()
 while (Date.now() - tStart < 1400) {
   samples.push({ pins: await pinInfo(), arrows: await arrowInfo() })
   await page.waitForTimeout(30)
 }
+const fps = await page.evaluate(() => new Promise((res) => {
+  let n = 0
+  const t0 = performance.now()
+  const f = () => { n++; if (performance.now() - t0 < 1000) requestAnimationFrame(f); else res(n) }
+  requestAnimationFrame(f)
+}))
 await map.getByLabel('pause the walk').click()
 await page.waitForTimeout(150)
+ok('the map keeps at least 30 frames a second while the walk plays', fps >= 30, `${fps} fps`)
 const scalesOf1 = samples.map((s) => s.pins.find((p) => p.k === 1)?.scale).filter((v) => v !== undefined)
 const distinct = new Set(scalesOf1.map((v) => v.toFixed(4))).size
 ok('pin 2 POPS as the walk arrives — its scale passes through many values, not a jump', distinct >= 6, `${distinct} distinct scales over ${samples.length} samples`)
