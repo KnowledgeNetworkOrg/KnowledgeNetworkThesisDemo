@@ -78,6 +78,23 @@ const electronPlatform: Platform = {
   // exactly that reason. `smoke.mjs` asserts a non-empty answer so we would
   // find out rather than assume.
   screens: () => webPlatform.screens(),
+
+  // ── openWindow: WHY THIS ONE IS IPC AND ITS NEIGHBOUR IS NOT (#330) ────────
+  // #211's rule is WEB API FIRST, IPC ONLY WHERE CHROMIUM HAS NO ANSWER, and
+  // this was tried that way first — the line here WAS
+  // `(path, name) => webPlatform.openWindow(path, name)`, the same explicit
+  // delegation `screens()` uses, and it did what it promises: the TypeError
+  // went away and the lecture started. What it did not do is open a window.
+  // The smoke run measured what neither file can see by reading the other:
+  // this host denies every renderer-opened window by design
+  // (`setWindowOpenHandler` in main.ts), so `window.open` answers null. The
+  // web answer keeps shipping to the browser port; in THIS host Chromium's
+  // answer is vetoed, and the smallest main-process answer takes the call.
+  //
+  // SYNCHRONOUS BECAUSE THE SEAM IS: `openWindow` returns a boolean, not a
+  // promise, so main must answer in the same turn — one `sendSync`, the
+  // app's second and last blocking channel after `fullscreen:get`.
+  openWindow: (path, name) => ipcRenderer.sendSync('window:open', path, name) === true,
 }
 
 contextBridge.exposeInMainWorld('knPlatform', electronPlatform)
