@@ -21,8 +21,8 @@
 // no version or schema field — a stored draft is the bare `DraftSnapshot` shape,
 // a stored walk list is a bare array (lecture notes put a version in the key
 // name, `.v1`, so they are the exception). So when a payload's shape and the
-// expectations drift apart, the reader cannot tell "written by an older build"
-// from "corrupt", and both readers already had to pick a silent answer:
+// reader's expectations drift apart, the reader cannot tell "written by an
+// older build" from "corrupt", and both readers already had to pick a silent answer:
 // draftpersist repairs what it can and falls back to the seed on structural
 // damage, walkstore drops the members it cannot read. Neither can report that it
 // happened, and neither can migrate. That is the whole reason a stale payload
