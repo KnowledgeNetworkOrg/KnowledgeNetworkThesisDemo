@@ -47,6 +47,7 @@ const isCollected = (f: string) => f.startsWith('browsertest-') || f.startsWith(
 const NOT_IN_THE_RUN: Record<string, string> = {
   'run-browsertests.mjs': 'the runner itself',
   'probe-maplag.mjs': 'a MEASUREMENT — prints a speed ratio, which is the assertion that fails randomly on a loaded machine',
+  'probe-walkpop.mjs': 'a MEASUREMENT for #374 — prints one pin\'s scale per drawn frame across a play-through and the driver\'s own reading beside it; it measures, it does not assert',
   'shot-apptoolbar.mjs': 'screenshot instrument, holds assertions — see #299',
   'shot-cardhead.mjs': 'screenshot instrument, holds assertions — see #299',
   'shot-domaindot.mjs': 'screenshot instrument, holds assertions — see #299',
