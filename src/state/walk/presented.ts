@@ -18,7 +18,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { isBox, resolveRoad, routeStepsOf } from './mockwalk'
 import type { Stop } from './mockwalk'
 import { useAuthorDraft, useRoad } from './authordraft'
-import type { Bus } from '../../state/bus'
+import type { Bus } from '../bus'
 
 /** the draft currently open on the desk, resolved: every container down to one
  * variant, optionals in or out per the road's own toggle. Live — re-renders on

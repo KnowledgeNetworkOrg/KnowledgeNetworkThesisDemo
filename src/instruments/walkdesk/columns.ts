@@ -3,8 +3,8 @@
 // disagree about which tiers are open. Kept out of the component files —
 // react-refresh wants those to export only components.
 
-import { isBox } from './mockwalk'
-import type { Stop } from './mockwalk'
+import { isBox } from '../../state/walk/mockwalk'
+import type { Stop } from '../../state/walk/mockwalk'
 
 export interface Column {
   source: string

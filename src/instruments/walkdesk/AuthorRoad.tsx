@@ -38,12 +38,12 @@ import {
   wrapTip, PaneScroller,
 } from '@/ds'
 import type { GroupSpec, NodeOption } from '@/ds'
-import type { AuthorState, Path } from './authordraft'
-import { pathKey, useFreshGroup } from './authordraft'
-import { bandFor, DT, gapFor, handleDrop } from './authordnd'
-import type { Band } from './authordnd'
-import { chosenIdx, chosenSteps, isLeaf } from './mockwalk'
-import type { Stop } from './mockwalk'
+import type { AuthorState, Path } from '../../state/walk/authordraft'
+import { pathKey, useFreshGroup } from '../../state/walk/authordraft'
+import { bandFor, DT, gapFor, handleDrop } from '../../state/walk/authordnd'
+import type { Band } from '../../state/walk/authordnd'
+import { chosenIdx, chosenSteps, isLeaf } from '../../state/walk/mockwalk'
+import type { Stop } from '../../state/walk/mockwalk'
 import type { HoverBinding } from '../../state/bus'
 
 const NODEW = 150

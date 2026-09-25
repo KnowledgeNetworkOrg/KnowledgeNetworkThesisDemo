@@ -37,8 +37,8 @@
 import { useEffect } from 'react'
 
 import AuthorRoad from './AuthorRoad'
-import { redoDraft, undoDraft, useAuthorDraft, usePreviewOpen, useRoad } from './authordraft'
-import { usePresentedRoad, usePublishPresentedRoute } from './presented'
+import { redoDraft, undoDraft, useAuthorDraft, usePreviewOpen, useRoad } from '../../state/walk/authordraft'
+import { usePresentedRoad, usePublishPresentedRoute } from '../../state/walk/presented'
 import WalkChapters from './WalkChapters'
 import { useHover } from '../../state/bus'
 import type { Bus } from '../../state/bus'

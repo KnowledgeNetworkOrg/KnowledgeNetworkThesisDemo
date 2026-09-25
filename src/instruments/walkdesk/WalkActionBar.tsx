@@ -15,8 +15,8 @@
 
 import { AddNodeMark, NewWalkMark, OptionalMark, PaneActionBar } from '@/ds'
 import { clearStoredData, listStoredData } from '../../model/storeddata'
-import { parsePath, stopAt, useAuthorDraft, useRoad } from './authordraft'
-import { chosenIdx, isFork } from './mockwalk'
+import { parsePath, stopAt, useAuthorDraft, useRoad } from '../../state/walk/authordraft'
+import { chosenIdx, isFork } from '../../state/walk/mockwalk'
 
 // TEMPORARY (2026-08-22) — the "Reset data" pill below, and this function with
 // it. Both go when the stale-payload question is closed; src/model/storeddata.ts

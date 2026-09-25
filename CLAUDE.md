@@ -34,7 +34,7 @@ instrument imports from it exactly as it always has.
 
 A module that names a corpus node id in a literal will crash the *other* corpus
 on import, which presents as a blank screen rather than an error. If you write
-one, guard it the way `model/lens.ts` and `walkdesk/authordraft.ts` do — derive
+one, guard it the way `model/lens.ts` and `state/walk/authordraft.ts` do — derive
 the node from the loaded data, or branch on `CORPUS_NAME`.
 
 ## Where the knowledge lives

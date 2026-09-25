@@ -190,7 +190,7 @@ const STORAGE_WRITERS_FOR_NOW: Record<string, string> = {
   'model/walkstore.ts': STORAGE_REASON,
   'model/storeddata.ts': STORAGE_REASON,
   'present/lecturenotes.ts': STORAGE_REASON,
-  'instruments/walkdesk/draftpersist.ts': STORAGE_REASON,
+  'state/walk/draftpersist.ts': STORAGE_REASON,
   'ui/floatingPanelRect.ts': STORAGE_REASON,
 }
 

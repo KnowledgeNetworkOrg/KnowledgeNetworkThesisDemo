@@ -8,7 +8,7 @@
 
 import { PaneScroller } from '@/ds'
 import LayerStack from './LayerStack'
-import { useDrill, usePresentedRoad } from './presented'
+import { useDrill, usePresentedRoad } from '../../state/walk/presented'
 import { useHover } from '../../state/bus'
 import type { Bus } from '../../state/bus'
 

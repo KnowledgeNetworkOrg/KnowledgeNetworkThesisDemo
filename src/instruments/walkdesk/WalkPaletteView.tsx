@@ -10,7 +10,7 @@
 // This wrapper exists to JOIN the bus (hover) and the shared draft; Palette
 // itself is presentation plus two callbacks, and stays reusable.
 
-import { useAuthorDraft } from './authordraft'
+import { useAuthorDraft } from '../../state/walk/authordraft'
 import Palette from './Palette'
 import { useHover } from '../../state/bus'
 import type { Bus } from '../../state/bus'

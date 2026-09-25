@@ -1,11 +1,11 @@
 // The active walk — whichever one is relevant right now — as a navigable strip.
 // Two sources, one component: a SAVED walk (bus.activeWalk, played via Trail's
 // walk buttons) takes priority when one is active; otherwise this shows the
-// DRAFT currently open on the walk desk, live (walkdesk/presented.ts). Present
+// DRAFT currently open on the walk desk, live (state/walk/presented.ts). Present
 // mode mounts this instead of the walk editor, so a finished walk can be
 // stepped through without the authoring UI on screen.
 //
-// The model behind that — steps, cursor, seek — moved to walkdesk/playback.ts
+// The model behind that — steps, cursor, seek — moved to state/walk/playback.ts
 // in #195, where the presentation frame's keyboard reads the same definition.
 // Seeking a SAVED walk now also moves bus.focus, which it never did before:
 // activateWalk writes activeWalk and the route prefix and nothing else, so the
@@ -19,15 +19,15 @@
 
 import { WalkStrip } from '@/ds'
 
-import { usePresentedRoad, usePublishPresentedRoute } from './walkdesk/presented'
-import { useWalkPlayback } from './walkdesk/playback'
-import { renderStopPreview } from './walkdesk/stoppreview'
+import { usePresentedRoad, usePublishPresentedRoute } from '../state/walk/presented'
+import { useWalkPlayback } from '../state/walk/playback'
+import { renderStopPreview } from '../state/walk/stoppreview'
 import type { Bus } from '../state/bus'
 
 export default function WalkViewer({ bus }: { bus: Bus }) {
   const road = usePresentedRoad()
   // The two-source branch, the step list and the cursor all live in
-  // walkdesk/playback.ts now (#195), because the presentation frame walks the
+  // state/walk/playback.ts now (#195), because the presentation frame walks the
   // same walk with a keyboard and the two must not each carry their own copy.
   const play = useWalkPlayback(bus)
   // opt out of publishing while a saved walk plays — activateWalk already owns

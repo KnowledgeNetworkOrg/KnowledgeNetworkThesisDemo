@@ -16,7 +16,7 @@
 
 import { DOC_BODY } from '../corpus/docs'
 import { byId, domainOf, topicHueOf } from '../corpus/graph'
-import type { PlayStep } from '../instruments/walkdesk/playback'
+import type { PlayStep } from '../state/walk/playback'
 
 /** one stop of the lecture, as every presenter part reads it */
 export interface LectureStep {

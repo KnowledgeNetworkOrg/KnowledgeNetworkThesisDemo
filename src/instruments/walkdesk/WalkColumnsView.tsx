@@ -8,7 +8,7 @@
 // resolves the SAME draft the walk editor writes.
 
 import { LEGEND_INSET } from '@/ds'
-import { useDrill, usePresentedRoad } from './presented'
+import { useDrill, usePresentedRoad } from '../../state/walk/presented'
 import WalkColumns from './WalkColumns'
 import { useHover } from '../../state/bus'
 import type { Bus } from '../../state/bus'
