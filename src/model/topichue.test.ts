@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { HUE_RING, TOPIC_WALK, nextTopicSlot, topicHue } from '../ds/graph/DomainDot'
+import { HUE_RING, TOPIC_WALK, nextTopicSlot, topicHue } from '@/ds/values'
 import { byId, domainIds, topicHueOf, topicIds } from '../corpus/graph'
 import { createTopic, deleteTopic, hueNamesOf, renameTopic, type TopicRecord } from './topichue'
 

@@ -29,7 +29,7 @@
 //               type, not a muddy colored gray, on a hue-tinted/glowing cell
 
 import { childrenOf, domainIds, topicHueOf } from '../corpus/graph'
-import { familySlots, nestedFamilyPaint, topicPaintValues, topicSlots } from '@/ds'
+import { familySlots, nestedFamilyPaint, topicPaintValues, topicSlots } from '@/ds/values'
 import { countryRings, provinceRings, territories } from './nested'
 import { hexToOklch, lin, oklchToHex } from './oklab'
 import type { XY } from './derive'

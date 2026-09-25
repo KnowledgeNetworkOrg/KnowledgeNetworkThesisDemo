@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { HUE_RING, TOPIC_SEPARATION_MIN, topicSlots } from '../ds/graph/DomainDot'
+import { HUE_RING, TOPIC_SEPARATION_MIN, topicSlots } from '@/ds/values'
 import { domainIds, topicHueOf } from '../corpus/graph'
 import { countryRings } from './nested'
 import { fillOf, hexToOklch, territoryFillOf, topicTerritoryFills } from './color'

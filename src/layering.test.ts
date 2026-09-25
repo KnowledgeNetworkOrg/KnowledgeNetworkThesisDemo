@@ -175,15 +175,7 @@ const edgeKeys = edges.map((e) => `${e.from} -> ${e.to}`)
 
 // ── what is knowingly wrong today ───────────────────────────────────────────
 
-const MODEL_DS_REASON = 'the model reaches arithmetic through the component barrel; step 4 opens ds/values.ts'
-
-const ALLOWED_FOR_NOW: Record<string, string> = {
-  'model/color.ts -> ds/index.ts': MODEL_DS_REASON,
-  'model/flat.ts -> ds/index.ts': MODEL_DS_REASON,
-  'model/labelfit.ts -> ds/index.ts': MODEL_DS_REASON,
-  'model/topichue.ts -> ds/index.ts': MODEL_DS_REASON,
-  'model/walkarrow.ts -> ds/index.ts': MODEL_DS_REASON,
-}
+const ALLOWED_FOR_NOW: Record<string, string> = {}
 
 const STORAGE_REASON = 'step 5 puts storage under the platform seam'
 const STORAGE_WRITERS_FOR_NOW: Record<string, string> = {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { familySlots } from '../ds/graph/DomainDot'
+import { familySlots } from '@/ds/values'
 import { domainIds, topicHueOf } from '../corpus/graph'
 import { provinceRings, territories } from './nested'
 import { familyOf, hexToOklch, inkOf, labelInkOf, territoryFillOf, territoryNeighboursOf, territorySlotOf } from './color'

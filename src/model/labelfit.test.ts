@@ -10,7 +10,7 @@ import { fitLabel, fitRegionLabel } from './labelfit'
 import { regionChordAt } from './nested'
 import type { Territory } from './nested'
 import type { XY } from './derive'
-import { LabelCut } from '@/ds'
+import { LabelCut } from '@/ds/values'
 
 const rect = (w: number, h: number): XY[] => [
   { x: 0, y: 0 },

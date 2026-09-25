@@ -9,7 +9,7 @@ import { byId, domainIds, domainOf, edges, nodes, pathTo, topicIds, topicsUnder 
 import { provinceIds, provinceOf, topicAnchorOf } from './flat'
 import { countryPath, maxTier, pointInPoly, territories } from './nested'
 import { fitLabel, labelBox } from './labelfit'
-import { LabelCut } from '@/ds'
+import { LabelCut } from '@/ds/values'
 import { cellPolyOf, endpointAtTier, flightTargetOf, outlineOf, pinSpotClear, roadsFor, tierOf, walkAnchorAt } from './atlas'
 
 const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`)

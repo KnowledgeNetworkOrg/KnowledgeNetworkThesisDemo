@@ -14,7 +14,7 @@
 // No screen creates a top-level topic yet — the corpus is authored — so today the only
 // caller is the test that proves the rule. The function is the rule, stated once, for the
 // day a screen does.
-import { nextTopicSlot } from '@/ds'
+import { nextTopicSlot } from '@/ds/values'
 
 /** what a graph stores per top-level topic: the id, the name, and the ring hue it was
  *  handed at creation — the hue is data on the topic, never derived from the name */

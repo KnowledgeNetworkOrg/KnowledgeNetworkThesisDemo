@@ -10,7 +10,7 @@
 // draws detected-vs-authored disagreement over the same positions.
 
 import { byId, childrenOf, domainIds, domainOf, edges, pathTo, topicHueOf, topicIds, topicsUnder } from '../corpus/graph'
-import { topicPaintValues } from '@/ds'
+import { topicPaintValues } from '@/ds/values'
 import { oklchToHex } from './oklab'
 import type { GEdge } from '../corpus/graph'
 import type { XY } from './derive'

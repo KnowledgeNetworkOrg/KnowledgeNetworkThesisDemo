@@ -5,6 +5,9 @@
 // These are typed ports of the KnowledgeNetwork Design System's components/**;
 // the tokens they consume are vendored in src/tokens/ (#60). This barrel grows
 // per migration step: graph now (#62), nav (#63), chrome/doc/sidebar (#64).
+//
+// `ds/values.ts` is the second, pure door: arithmetic only, for `src/model/`.
+// Model code imports from `@/ds/values`, never from this barrel.
 
 export { NodeArrow } from './graph/NodeArrow'
 export type { NodeArrowProps } from './graph/NodeArrow'
