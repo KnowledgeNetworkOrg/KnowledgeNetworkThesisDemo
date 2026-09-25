@@ -3,10 +3,11 @@
 // walk. `WalkViewer`'s strip and the presentation frame's keyboard are two
 // gestures over this one model, not two models that happen to agree.
 //
-// It lives beside `presented.ts` because half of the dual source below IS the
-// desk: the draft is `authordraft.ts`'s singleton. Not in `src/model/`, whose
-// rule is "pure and synchronous, no React"; not in `src/present/`, which would
-// make a plain instrument depend on the presentation shell and invert the seam.
+// It lives in `state/walk/` because every surface that plays a walk reads it,
+// and no one instrument owns it: the desk is now one of its readers. Not in
+// `src/model/`, whose rule is "pure and synchronous, no React"; not in
+// `src/present/`, which would make a plain instrument depend on the
+// presentation shell and invert the seam.
 //
 // TWO SOURCES, ONE CURSOR. A saved walk (`bus.activeWalk`, started from Trail or
 // the document panel) wins when one is playing; otherwise this plays the draft
@@ -53,7 +54,7 @@ import { leafStops, routeStepsOf } from './mockwalk'
 import { routeNumbers } from '../../model/route'
 import type { Stop } from './mockwalk'
 import { usePresentedRoad } from './presented'
-import type { Bus } from '../../state/bus'
+import type { Bus } from '../bus'
 
 /** ONE STEP of a walk being played. Extends the DS's own `WalkStep` — id, title,
  *  note, optional — so the player and the strip it feeds cannot drift apart

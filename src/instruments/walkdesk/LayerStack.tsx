@@ -10,8 +10,8 @@ import { byId } from '../../corpus/graph'
 import { DomainDot, wrapTip } from '@/ds'
 import { topicHueOf } from '../../corpus/graph'
 import { columnsFor } from './columns'
-import { isBox, isLeaf } from './mockwalk'
-import type { Stop } from './mockwalk'
+import { isBox, isLeaf } from '../../state/walk/mockwalk'
+import type { Stop } from '../../state/walk/mockwalk'
 import type { HoverBinding } from '../../state/bus'
 
 const PLANE_STEP = 92

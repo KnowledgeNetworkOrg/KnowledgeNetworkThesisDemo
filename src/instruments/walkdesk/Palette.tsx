@@ -28,8 +28,8 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { DomainDot, IconButton, PaneScroller, wrapTip } from '@/ds'
 import { byId, nodes, pathTo } from '../../corpus/graph'
 import { topicHueOf } from '../../corpus/graph'
-import type { AuthorState } from './authordraft'
-import { DT } from './authordnd'
+import type { AuthorState } from '../../state/walk/authordraft'
+import { DT } from '../../state/walk/authordnd'
 import type { HoverBinding } from '../../state/bus'
 
 // ── Recent searches — a module-level ring so it survives a remount within the

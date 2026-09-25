@@ -1,7 +1,7 @@
 import { CopyMark, LoadMark, NewMapMark, PasteMark, PrintMark, SaveMark, Toolbar } from '@/ds'
 import type { ToolbarItemSpec } from '@/ds'
 
-import { redoDraft, undoDraft } from '../instruments/walkdesk/authordraft'
+import { redoDraft, undoDraft } from '../state/walk/authordraft'
 import { PALETTE_HOOK, PALETTE_TIP, PaletteGlyph } from './PaletteGlyph'
 import { PRESENT_HOOK, PRESENT_TITLE } from './presentbutton'
 import type { PresentState } from './presentbutton'

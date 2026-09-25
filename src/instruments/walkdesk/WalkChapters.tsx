@@ -21,7 +21,7 @@
 import { PaneScroller } from '@/ds'
 import { byId, domainOf } from '../../corpus/graph'
 import { colorOf } from '../../model/color'
-import { isLeaf, type Stop } from './mockwalk'
+import { isLeaf, type Stop } from '../../state/walk/mockwalk'
 
 /** leaves in a resolved subtree. `resolveRoad` has already picked one variant per
  *  container and dropped skipped optionals, so this is a plain sum — no branching. */

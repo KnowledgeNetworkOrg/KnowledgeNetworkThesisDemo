@@ -14,8 +14,8 @@ import { OptionalMark, PaneScroller } from '@/ds'
 import { byId, domainOf } from '../../corpus/graph'
 import { colorOf } from '../../model/color'
 import { columnsFor } from './columns'
-import { isBox, isLeaf, visitCount } from './mockwalk'
-import type { Stop } from './mockwalk'
+import { isBox, isLeaf, visitCount } from '../../state/walk/mockwalk'
+import type { Stop } from '../../state/walk/mockwalk'
 import type { HoverBinding } from '../../state/bus'
 
 const COLW = 148

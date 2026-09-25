@@ -171,7 +171,7 @@ const VIEWS = [
   {
     // #20: the desk's two reading zones, now instruments in their own right.
     // They present a resolved road and cannot edit it — fed by the desk via
-    // walkdesk/presented.ts's usePresentedRoad().
+    // state/walk/presented.ts's usePresentedRoad().
     id: 'walkcolumns',
     label: 'Walk·Columns',
     family: 'walks',

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { WALKS } from '../corpus/walks'
 import { DOC_BODY } from '../corpus/docs'
 import { byId, domainOf } from '../corpus/graph'
-import { playSteps } from '../instruments/walkdesk/playback'
+import { playSteps } from '../state/walk/playback'
 import { BOOKED_SECONDS, clampStop, coveredBefore, lectureStart, lectureSteps, mmss } from './lecture'
 
 /* #267 (DS OB-135) — the pure half of presenter mode, asked directly. */

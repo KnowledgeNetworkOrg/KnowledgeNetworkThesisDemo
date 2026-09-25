@@ -288,7 +288,7 @@ export function useStudioBus<Id extends string>(reveal: (inst: Id | BusRevealTar
     activateWalk,
     // advanceWalk was here, unreachable since it was written, and deleted in
     // #195 rather than finally given a caller. Stepping a walk lives in
-    // walkdesk/playback.ts now, and this was the wrong primitive for it three
+    // state/walk/playback.ts now, and this was the wrong primitive for it three
     // ways: it cannot write bus.focus (see activateWalk above — it never has,
     // so the document did not follow), it knows only the SAVED source while a
     // deck is routinely the draft road, and it answers no question about where
