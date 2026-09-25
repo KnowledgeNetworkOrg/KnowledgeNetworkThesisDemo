@@ -123,7 +123,7 @@ export interface Playback {
 // ── pure core ───────────────────────────────────────────────────────────────
 // Split out because vitest here runs `environment: 'node'` with no DOM — hooks
 // cannot be tested, but the arithmetic and the projection can, and they are the
-// parts that would break silently. Same split as floatingPanelRect.ts.
+// parts that would break silently.
 
 /** the played steps, from whichever source is live. Saved walks are already flat
  *  ({id, note} — no containers, no optionals, no variants); a draft road is a

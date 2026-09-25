@@ -8,20 +8,21 @@
 //
 // WHY A PREFIX SWEEP AND NOT THREE NAMED KEYS. Three modules persist things —
 // draftpersist.ts (`pkt.walkdesk.draft`), walkstore.ts (`pkt.walks.saved`) and
-// ui/floatingPanelRect.ts (`pkt.floating-panel.<id>`, one per panel). Importing
-// each module's key would clear exactly the keys the CURRENT code knows the
-// names of, which is the one set that is guaranteed not to include the problem:
-// a key goes ORPHAN the moment the feature that wrote it is retired, and nothing
-// then names it. #144 retired WalkToolbox and its FloatingPanel with it, so
-// whatever `pkt.floating-panel.<toolbox-id>` that panel last wrote is still in
-// the browser with no module left that could ask for it. Sweeping the shared
-// `pkt.` prefix is what reaches those.
+// lecturenotes.ts (`pkt.lecture.*`). Importing each module's key would clear
+// exactly the keys the CURRENT code knows the names of, which is the one set
+// that is guaranteed not to include the problem: a key goes ORPHAN the moment
+// the feature that wrote it is retired, and nothing then names it. #144 retired
+// WalkToolbox and its FloatingPanel with it, so the `pkt.floating-panel.<id>`
+// keys that panel last wrote now have no writer at all — exactly the orphan case
+// the prefix sweep exists to reach. Sweeping the shared `pkt.` prefix is what
+// reaches those.
 //
-// WHY THE PAYLOADS CANNOT SAY WHAT THEY ARE. None of the three carries a version
-// or schema field — a stored draft is the bare `DraftSnapshot` shape, a stored
-// walk list is a bare array. So when a payload's shape and the reader's
-// expectations drift apart, the reader cannot tell "written by an older build"
-// from "corrupt", and both readers already had to pick a silent answer:
+// WHY THE PAYLOADS CANNOT SAY WHAT THEY ARE. The draft and the walk list carry
+// no version or schema field — a stored draft is the bare `DraftSnapshot` shape,
+// a stored walk list is a bare array (lecture notes put a version in the key
+// name, `.v1`, so they are the exception). So when a payload's shape and the
+// reader's expectations drift apart, the reader cannot tell "written by an
+// older build" from "corrupt", and both readers already had to pick a silent answer:
 // draftpersist repairs what it can and falls back to the seed on structural
 // damage, walkstore drops the members it cannot read. Neither can report that it
 // happened, and neither can migrate. That is the whole reason a stale payload

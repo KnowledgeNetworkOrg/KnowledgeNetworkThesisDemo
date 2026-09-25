@@ -24,7 +24,6 @@
 //   instruments/  panes: rendering only                                  corpus, model, platform, ds, state, instruments
 //   present/      presenter and projector screens (they compose the map) corpus, model, platform, ds, state, instruments, present
 //   studio/       composition root: registry, shell, presets             every layer
-//   ui/           a draggable panel nothing mounts (#144)                ds, ui
 //   App.tsx,      the entry                                              every layer
 //   main.tsx
 //
@@ -54,7 +53,6 @@ type Layer =
   | 'model'
   | 'ds-values'
   | 'ds'
-  | 'ui'
   | 'platform'
   | 'corpus'
 
@@ -67,7 +65,6 @@ const EVERY_LAYER: readonly Layer[] = [
   'model',
   'ds-values',
   'ds',
-  'ui',
   'platform',
   'corpus',
 ]
@@ -81,7 +78,6 @@ const MAY_IMPORT: Record<Layer, readonly Layer[]> = {
   model: ['corpus', 'model', 'ds-values'],
   'ds-values': ['ds', 'ds-values'],
   ds: ['ds', 'ds-values'],
-  ui: ['ds', 'ui'],
   platform: ['platform'],
   corpus: ['corpus'],
 }
@@ -97,8 +93,7 @@ const layerOf = (rel: string): Layer => {
     top === 'state' ||
     top === 'instruments' ||
     top === 'present' ||
-    top === 'studio' ||
-    top === 'ui'
+    top === 'studio'
   )
     return top
   return 'root'
@@ -183,7 +178,6 @@ const STORAGE_WRITERS_FOR_NOW: Record<string, string> = {
   'model/storeddata.ts': STORAGE_REASON,
   'present/lecturenotes.ts': STORAGE_REASON,
   'state/walk/draftpersist.ts': STORAGE_REASON,
-  'ui/floatingPanelRect.ts': STORAGE_REASON,
 }
 
 // ── the checks ──────────────────────────────────────────────────────────────
