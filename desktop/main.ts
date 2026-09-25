@@ -7,9 +7,10 @@
 // else: where do the app's files come from, what window shows them, and what
 // can the renderer ask us to do that Chromium cannot do for itself.
 //
-// Today that last list has exactly one entry — window fullscreen. See #201 for
-// the five capabilities that will genuinely need this process later, and #202
-// for why this slice deliberately adds no others.
+// Today that last list has two entries — window fullscreen (#202), and opening
+// a second window of the app for a lecture's projector (#330). See #201 for the
+// capabilities that will genuinely need this process later, and #202 for why
+// this process does as little as it can get away with.
 
 import { app, BrowserWindow, ipcMain, net, protocol } from 'electron'
 import { once } from 'node:events'
@@ -79,7 +80,7 @@ function isAllowed(url: string): boolean {
   }
 }
 
-function createWindow(): BrowserWindow {
+function createWindow(url: string = START): BrowserWindow {
   const win = new BrowserWindow({
     width: 1600,
     height: 1000,
@@ -121,12 +122,12 @@ function createWindow(): BrowserWindow {
   win.on('enter-full-screen', () => win.webContents.send('fullscreen:changed', true))
   win.on('leave-full-screen', () => win.webContents.send('fullscreen:changed', false))
 
-  void win.loadURL(START)
+  void win.loadURL(url)
   return win
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// THE ONE CAPABILITY THIS PROCESS ANSWERS (#202)
+// WINDOW FULLSCREEN (#202) — the first capability this process answered
 //
 // `setFullScreen` fullscreens the WINDOW. That is a different thing from the
 // DOM's Element fullscreen, and the difference is why the seam's four fullscreen
@@ -170,13 +171,74 @@ function wireFullscreenIpc(): void {
     if (win) await settle(win, false)
   })
 
-  // SYNCHRONOUS, and the only synchronous channel in the app. The preload needs
+  // SYNCHRONOUS, the first of the app's two synchronous channels — `window:open`
+  // is the other. The preload needs
   // one seed value at load time — before any event could have been pushed — and
   // `isFullscreen()` is a plain `boolean` on the seam because the DOM's own
   // `document.fullscreenElement` is synchronous too. One blocking call at
   // startup is what buys the seam an honest signature.
   ipcMain.on('fullscreen:get', (event) => {
     event.returnValue = windowFor(event.sender)?.isFullScreen() ?? false
+  })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE SECOND WINDOW (#330)
+//
+// `platform.openWindow` is SYNCHRONOUS on the seam — a boolean, not a promise —
+// because the browser's answer (`window.open`) is, and the caller is bound to
+// the click's user gesture. So this is a `sendSync`, the app's second blocking
+// channel: main creates the window in the same turn and answers with
+// what it did. It has to be main: a BrowserWindow can only be made here, and
+// the renderer is sandboxed with no Node.
+//
+// WHY IPC AT ALL, WHEN #211 SAYS WEB API FIRST. `window.open` WAS tried first,
+// with `webPlatform.openWindow` delegated whole; the smoke run measured the
+// host vetoing it. This process denies renderer-opened windows on purpose (the
+// `setWindowOpenHandler` in createWindow — the renderer never opens windows),
+// so `window.open` answers null and no retry changes that. A web answer the
+// host refuses is not an answer, and the refusal is a deliberate door, not an
+// accident to route around; main opens the window instead.
+//
+// NAMED, AND THE NAME IS THE DOOR: a live window under the same name is focused
+// — not reloaded, and not doubled — what `window.open(path, name)` gives the web
+// answer, and what the seam's contract promises callers (#267's re-land rule).
+// Focused rather than reloaded on purpose: a re-press lands the professor on
+// the screen that is already there, whatever it was showing, rather than
+// tearing it down mid-talk. Placement is deliberately not decided here; #197
+// owns that.
+// ─────────────────────────────────────────────────────────────────────────────
+const namedWindows = new Map<string, BrowserWindow>()
+
+function openNamedWindow(path: string, name: string): boolean {
+  const existing = namedWindows.get(name)
+  if (existing && !existing.isDestroyed()) {
+    existing.focus()
+    return true
+  }
+  // The path comes from our own renderer, but it is resolved and checked
+  // against the same origin allow-list the navigation guard uses — a bug up
+  // there must not be able to point a second window somewhere else.
+  let url: URL
+  try {
+    url = new URL(path, START)
+  } catch {
+    return false
+  }
+  if (!isAllowed(url.toString())) return false
+
+  const win = createWindow(url.toString())
+  namedWindows.set(name, win)
+  win.on('closed', () => {
+    if (namedWindows.get(name) === win) namedWindows.delete(name)
+  })
+  return true
+}
+
+function wireWindowIpc(): void {
+  ipcMain.on('window:open', (event, path: unknown, name: unknown) => {
+    event.returnValue =
+      typeof path === 'string' && typeof name === 'string' ? openNamedWindow(path, name) : false
   })
 }
 
@@ -187,6 +249,7 @@ app.setAppUserModelId('com.knowledgenetwork.thesisdemo')
 void app.whenReady().then(() => {
   if (USE_DIST) protocol.handle('app', serveFromDist)
   wireFullscreenIpc()
+  wireWindowIpc()
   createWindow()
 
   // macOS keeps the process alive with no windows; clicking the dock icon is
