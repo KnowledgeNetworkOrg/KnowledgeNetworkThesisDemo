@@ -13,7 +13,7 @@
 
 import { describe, expect, test } from 'vitest'
 
-import { WALK_ARROW_DEFAULTS, walkArrow } from '@/ds'
+import { WALK_ARROW_DEFAULTS, walkArrow } from '@/ds/values'
 
 import { BOW_CLOSE_DEG, BOW_LENGTH_RATIO, BOW_MAX_PX, bowFor, bowSignAt, bowedPoint, outwardAngleGap, walkArrowBetween } from './walkarrow'
 import type { XY } from './derive'

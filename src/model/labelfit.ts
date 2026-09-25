@@ -16,7 +16,7 @@
 import { chordAt, regionChordAt } from './nested'
 import type { Territory } from './nested'
 import type { XY } from './derive'
-import { clipToRoom, LabelCut, textWidth } from '@/ds'
+import { clipToRoom, LabelCut, textWidth } from '@/ds/values'
 
 const CHAR_W = 0.58 // ≈ average glyph width / font-size of the UI sans
 const FIT = 0.88 // fraction of the chord a line may fill

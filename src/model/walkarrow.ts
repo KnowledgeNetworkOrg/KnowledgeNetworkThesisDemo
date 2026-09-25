@@ -9,7 +9,7 @@
 // coordinates, which is the only frame in which "do these two lines run together"
 // is a real question.
 
-import { WALK_ARROW_DEFAULTS, walkArrow } from '@/ds'
+import { WALK_ARROW_DEFAULTS, walkArrow } from '@/ds/values'
 
 import type { XY } from './derive'
 
