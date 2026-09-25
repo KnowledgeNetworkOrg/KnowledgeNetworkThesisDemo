@@ -93,8 +93,9 @@ const PREV = new Set(['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'])
 export function usePresentationKeys(active: boolean, handlers: PresentationKeyHandlers): void {
   // A ref mirror so the listener can be bound ONCE and still call the current
   // handlers, which close over a cursor that changes every step. Mirrored in an
-  // effect rather than during render (react-hooks/refs) — the same shape
-  // FloatingPanel.tsx uses for its drag handlers.
+  // effect rather than during render (react-hooks/refs) — the same shape any
+  // window-level gesture handler needs: bound once, but calling the latest
+  // handlers.
   const ref = useRef(handlers)
   useEffect(() => {
     ref.current = handlers

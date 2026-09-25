@@ -209,7 +209,7 @@ describe('DS TreeRow — a switched-off border side needs longhands, not a short
 
 // ─── rule 4 ──────────────────────────────────────────────────────────────────
 // OB-062 (design-sync.md), assertion 1: "No hand-assembled palette token. Walk
-// src/instruments, src/studio, src/ui and fail on any string matching --hue-,
+// src/instruments, src/studio and fail on any string matching --hue-,
 // --domain- or --edge- outside src/ds. var() on an undefined property is
 // TRANSPARENT, so a typo in one of these draws nothing and reports nothing —
 // this is the fault class edgeHue() was rewritten to remove, and the test is
@@ -221,8 +221,8 @@ describe('DS TreeRow — a switched-off border side needs longhands, not a short
 // string. Currently empty by construction; the value is catching the day
 // someone reaches past the resolver for a one-off swatch.
 describe('OB-062 — the data palette is never a raw token outside src/ds', () => {
-  it('no view under src/instruments, src/studio or src/ui names --hue-/--domain-/--edge- directly', () => {
-    const hits = scan(tsxUnder('src/instruments', 'src/studio', 'src/ui'), (line) => {
+  it('no view under src/instruments or src/studio names --hue-/--domain-/--edge- directly', () => {
+    const hits = scan(tsxUnder('src/instruments', 'src/studio'), (line) => {
       const m = line.match(/--(?:hue|domain|edge)-[a-z][a-z0-9-]*/i)
       return m ? m[0] : null
     })
@@ -395,7 +395,7 @@ describe('our DS ports document what the DS documents', () => {
 // capitalised (`PillButton`, `PaneHeader`). So the scan walks back from each
 // `title=` to the `<` that opens its tag.
 describe('DS IconButton — every tooltip on a DOM element is folded', () => {
-  const TREES = ['src/ds', 'src/instruments', 'src/studio', 'src/ui']
+  const TREES = ['src/ds', 'src/instruments', 'src/studio']
 
   /** the JSX tag whose attribute list contains index `i` */
   function tagAt(src: string, i: number): string | null {

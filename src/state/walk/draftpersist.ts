@@ -3,9 +3,8 @@
 // The Walk·Desk draft has been session-local since #21: the stores in
 // authordraft.ts are module-level, which makes them SHARED, not DURABLE. Reload
 // and the plan you were writing is gone. This file is the durable half — one
-// namespaced key, `pkt.walkdesk.draft`, following the convention
-// src/ui/floatingPanelRect.ts established for the only other stored thing in the
-// app.
+// namespaced key, `pkt.walkdesk.draft`, under the `pkt.` prefix every stored key
+// shares.
 //
 // Two decisions make it more than JSON.stringify:
 //
