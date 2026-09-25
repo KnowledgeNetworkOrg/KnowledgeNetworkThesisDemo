@@ -1,5 +1,9 @@
 # FloatingPanel interaction spike (#76)
 
+2026-09-24 — the component, its rect core and this spike's harness/driver were
+removed by #377 (no merge sha yet): nothing has mounted the panel since #144, so
+there is no spike left to run. The findings below stand as history.
+
 Proves the parts of `src/ui/FloatingPanel.tsx` that the unit tests in
 `src/ui/floatingPanelRect.test.ts` structurally cannot reach: the **seam**
 between real pointer input and the pure geometry core. The core math
