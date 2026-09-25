@@ -17,9 +17,10 @@
 // the prefix sweep exists to reach. Sweeping the shared `pkt.` prefix is what
 // reaches those.
 //
-// WHY THE PAYLOADS CANNOT SAY WHAT THEY ARE. None of the three carries a version
-// or schema field — a stored draft is the bare `DraftSnapshot` shape, a stored
-// walk list is a bare array. So when a payload's shape and the reader's
+// WHY THE PAYLOADS CANNOT SAY WHAT THEY ARE. The draft and the walk list carry
+// no version or schema field — a stored draft is the bare `DraftSnapshot` shape,
+// a stored walk list is a bare array (lecture notes put a version in the key
+// name, `.v1`, so they are the exception). So when a payload's shape and the
 // expectations drift apart, the reader cannot tell "written by an older build"
 // from "corrupt", and both readers already had to pick a silent answer:
 // draftpersist repairs what it can and falls back to the seed on structural
