@@ -25,7 +25,8 @@ export interface NodeChainProps {
   reorderable?: boolean
   /** hand each child its position as `index` — the chain renumbers on reorder */
   number?: boolean
-  /** the parent's own number, so a nested chain numbers 2.1, 2.2 under "2." */
+  /** the parent's own number, so a nested chain numbers 2.1., 2.2. under "2." — "2" and "2."
+   *  number the same; every step ends in the dot (OB-245) */
   prefix?: string
   /** positions, not ids: the slot the node came from and the slot it landed on.
    *  Pass this and the caller owns the order; omit it and the chain keeps its own */
@@ -106,9 +107,14 @@ export function NodeChain({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [own, keys.join('\x00')])
 
-  const base = prefix ? String(prefix).replace(/\.$/, '') + '.' : ''
-  const dotted = prefix ? String(prefix).trim().endsWith('.') : true
-  const stepOf = (i: number) => base + (i + 1) + (dotted ? '.' : '')
+  /* A STEP NUMBER ALWAYS ENDS IN A DOT, whatever the prefix was spelt like (DS OB-245,
+     2026-09-21). The dot used to be inherited from the prefix — `prefix="2."` gave `2.1.`,
+     `prefix="2"` gave `2.1` — which put the caller's typing in charge of a notation the reader
+     compares across a whole card: a `VersionedGroup` head reading `2` over chips reading `2.1.`
+     is one level in two schemes, the fault the local-numbering default exists to remove. Both
+     spellings now draw `2.1.`. */
+  const base = prefix ? String(prefix).trim().replace(/\.$/, '') + '.' : ''
+  const stepOf = (i: number) => base + (i + 1) + '.'
 
   const startDrag = (at: number) => (e: React.PointerEvent<HTMLDivElement>) => {
     if (!reorderable || e.button !== 0) return

@@ -170,6 +170,9 @@ const roadSpec = (s: Stop, outline: string, width: number, slotH: number, chosen
     // a stand-in, never called: groupSpec() only checks onDescribe's presence, to derive
     // `describable` — every open card here IS editable, matching the real onDescribe below
     onDescribe: () => {},
+    // the same stand-in for `closable` (OB-222): every card here IS given onClose, open and
+    // folded, so its head's right slot reserves three buttons, not two
+    onClose: () => {},
     versions: s.variants.map((v, i) => ({ id: v.id, name: v.label, label: versionCode(i) })),
     versionNamePlaceholder: VERSION_UNNAMED,
     activeId: s.variants[chosen]?.id ?? '',

@@ -11,6 +11,11 @@
 //   and, OB-160 (1): with edit mode open, picking another version from the picker shows THAT
 //   version's name in the field, and a commit writes it to that version, not to the one that
 //   was showing before.
+// Two later items on the same head ride along, read on the seeded card before anything moves:
+//   OB-245: the head's number ends in the dot the pills inside it end in ("2." over "1." "2.");
+//   OB-222: the tally and the receding controls share one slot — flush right at rest, a
+//   cross-fade on waking with nothing moving sideways — and the pressed pencil wears the
+//   editing wash rather than the inert grey.
 // Every reading is off the DOM: how many `contenteditable` lines the card holds, which one
 // has the focus, and what the card's text reads after each gesture.
 //
@@ -123,6 +128,55 @@ try {
   }
 
   ok('the walk editor is on the desk', (await road().count()) === 1)
+
+  // ── OB-245 + OB-222: THE HEAD OF A VERSIONED CARD, read on the seeded one ─────────────────
+  // (OB-245) one notation per card: the head's number and the pills inside it all end in a dot,
+  // while the road still hands the head its dot-less outline "2" — the dot is the component's.
+  // (OB-222) the tally and the receding controls share ONE right-hand slot: at rest the count
+  // sits flush against the head row's right edge, and waking the card fades the buttons in over
+  // that same space and the count out, with nothing in the head moving sideways.
+  {
+    const seed = road().locator('[data-rstage="seed-net"]')
+    await seed.scrollIntoViewIfNeeded()
+    await page.mouse.move(4, 4)
+    await page.waitForTimeout(900) // the recede clock (500ms) and the fade (250ms), with room
+    const headIndex = (await seed.locator('[data-grab] > span').first().innerText()).trim()
+    const pillNumber = async (node) => ((await chip(node).innerText()).match(/\d+(?:\.\d+)*\.?/) || [''])[0]
+    const pills = [await pillNumber('stk-ip-routing'), await pillNumber('stk-tcp-udp')]
+    ok('OB-245: the card head reads "2." though the road still hands it "2"', headIndex === '2.', JSON.stringify(headIndex))
+    ok('and the pills inside it read "1." "2." — one notation on one card', pills[0] === '1.' && pills[1] === '2.', JSON.stringify(pills))
+
+    const head = () => seed.evaluate((card) => {
+      const tally = card.querySelector('span[title$="inside this version"]')
+      const row = tally.closest('[data-grab]')
+      const edges = (el) => { const b = el.getBoundingClientRect(); return { l: b.left, r: b.right } }
+      const button = (label) => card.querySelector(`button[aria-label="${label}"]`)
+      return {
+        tally: edges(tally), row: edges(row), wrap: edges(row.parentElement),
+        tallyOpacity: getComputedStyle(tally.parentElement).opacity,
+        ctlOpacity: getComputedStyle(button('edit').parentElement).opacity,
+        index: edges(row.querySelector(':scope > span')),
+        title: edges(row.querySelector(':scope > span[data-grab]')),
+        edit: edges(button('edit')), fold: edges(button('minimize')), ungroup: edges(button('ungroup nodes')),
+      }
+    })
+    const rest = await head()
+    ok('OB-222: at rest the tally shows and the controls do not', rest.tallyOpacity === '1' && rest.ctlOpacity === '0', `tally ${rest.tallyOpacity}, controls ${rest.ctlOpacity}`)
+    ok('OB-222: at rest the tally sits flush against the head row\'s right edge — no reserved strip beside it, only the row\'s own 2px',
+      Math.abs(rest.row.r - rest.tally.r) < 0.5 && Math.abs(rest.wrap.r - rest.tally.r - 2) < 0.5,
+      `${(rest.row.r - rest.tally.r).toFixed(2)}px to the row's edge, ${(rest.wrap.r - rest.tally.r).toFixed(2)}px to the card's inner edge`)
+    const sb = await seed.boundingBox()
+    await page.mouse.move(sb.x + 30, sb.y + 10)
+    await page.waitForTimeout(450)
+    const live = await head()
+    ok('OB-222: waking the card fades the controls in and the tally out', live.tallyOpacity === '0' && live.ctlOpacity === '1', `tally ${live.tallyOpacity}, controls ${live.ctlOpacity}`)
+    const moved = ['index', 'title', 'edit', 'fold', 'ungroup'].filter((k) => Math.abs(live[k].l - rest[k].l) > 0.5 || Math.abs(live[k].r - rest[k].r) > 0.5)
+    ok('with no horizontal movement of the index, the title or the buttons between the two states', moved.length === 0, moved.join(', ') || 'none moved')
+    ok('and the buttons end where the figure did — one slot, two occupants', Math.abs(live.ungroup.r - rest.tally.r) < 0.5, `${live.ungroup.r.toFixed(2)} vs ${rest.tally.r.toFixed(2)}`)
+    await page.mouse.move(4, 4)
+    await page.waitForTimeout(200)
+  }
+
   await chip('web-sockets-apis').click({ modifiers: ['Control'] })
   await chip('app-authentication-authorization').click({ modifiers: ['Control'] })
   await page.waitForTimeout(200)
@@ -149,6 +203,35 @@ try {
   await pencil()
   ok('the pencil opens all three lines together', (await openCount()) === 3, `${await openCount()} open`)
   ok('with the caret on the title again', await focusedIs(0))
+
+  // OB-222 clause 6: the pencil's ON face is the EDITING pair — the wash, edge and ink the three
+  // open lines wear — never the inert --surface-sunken-2 grey. Read twice: with the pointer still
+  // on the pencil, and again after it has left, because leaving is what re-sets IconButton's
+  // `border` shorthand and would wipe a `borderColor` set on its own (the local ★ on this face).
+  {
+    const want = await page.evaluate(() => {
+      const probe = document.createElement('i')
+      probe.style.cssText = 'color: var(--state-editing); background-color: var(--state-editing-wash); outline-color: var(--surface-sunken-2)'
+      document.body.appendChild(probe)
+      const cs = getComputedStyle(probe)
+      const out = { ink: cs.color, face: cs.backgroundColor, grey: cs.outlineColor }
+      probe.remove()
+      return out
+    })
+    const face = () => card().getByLabel('done editing', { exact: true }).evaluate((b) => {
+      const cs = getComputedStyle(b)
+      return { ink: cs.color, face: cs.backgroundColor, edges: [cs.borderTopColor, cs.borderRightColor, cs.borderBottomColor, cs.borderLeftColor] }
+    })
+    const isEditing = (f) => f.ink === want.ink && f.face === want.face && f.edges.every((c) => c === want.ink)
+    await page.waitForTimeout(200) // the wash's own 140ms
+    const onIt = await face()
+    ok('OB-222 (6): with edit mode on, the pencil wears --state-editing-wash with a --state-editing edge and ink', isEditing(onIt), JSON.stringify({ got: onIt, want }))
+    await wakeHead() // the pointer leaves the pencil for the title, inside the card
+    await page.waitForTimeout(200)
+    const offIt = await face()
+    ok('and keeps that face once the pointer has left it — the edge is not wiped by the hover reset', isEditing(offIt), JSON.stringify(offIt))
+    ok('no --surface-sunken-2 on the pressed pencil in either state', onIt.face !== want.grey && offIt.face !== want.grey)
+  }
 
   // (4) Escape reverts every line
   await open().nth(1).click()

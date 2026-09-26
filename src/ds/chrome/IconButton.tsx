@@ -239,7 +239,16 @@ export function usePresence(
 
 /** The clock as a pair of handlers, for a control revealed by its OWN hover or
  *  focus rather than by presence in a container — a chip's ✕.
- *  `const [shown, show, hide] = useRecede()`, then `reveal={shown}`. */
+ *  `const [shown, show, hide] = useRecede()`, then `reveal={shown}`.
+ *
+ *  NEVER DRIVE A HOVER WASH FROM THIS, and never share one state between a wash and a
+ *  receding control (DS OB-206, 2026-09-17). The two want opposite things: a wash follows the
+ *  pointer, so it must be instant in both directions, while a receding control has to wait out
+ *  the grace period so it does not vanish under the cursor's heels on the way to it.
+ *  `VersionedGroup`'s menu row drove both from one `hot` and stayed lit for the full 500ms
+ *  after the pointer left — reported as a delayed hover a day after the CSS transition had been
+ *  taken off that row, because the transition was never the big half of it. Two states, one
+ *  gesture. */
 export function useRecede(): [boolean, () => void, () => void] {
   const [shown, setShown] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)

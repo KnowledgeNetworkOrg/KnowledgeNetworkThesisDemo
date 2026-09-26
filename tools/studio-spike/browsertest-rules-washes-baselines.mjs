@@ -9,6 +9,10 @@
 //   - OB-204: a highlight that tracks the pointer down an open list does not animate. The version
 //     dropdown's rows, the stop finder's rows and the note-category popover's rows compute
 //     `transition-property: none`; the version picker's TRIGGER still washes.
+//   - OB-206: and it does not WAIT either. A version row's wash and its delete ✕ are two states
+//     of one gesture: on leave the background is clear while the ✕ is still up and tabbable,
+//     and the ✕ recedes on the shared clock after that. Asserted as an ORDER, never as a
+//     wall-clock 500 — a throttled frame stretches every timer.
 //   - OB-201: a round close control draws the ✕ as an svg, centred on the button by construction.
 //   - OB-195: a relationship card draws its rule on the TOP edge only — no card carries a bottom
 //     border, so two adjacent cards share one hairline.
@@ -178,6 +182,39 @@ try {
         litNow !== 'rgba(0, 0, 0, 0)' && after === 'rgba(0, 0, 0, 0)', `${litNow} -> ${after}`)
     }
     void options
+    await page.keyboard.press('Escape')
+  }
+
+  // ── OB-206: the row's wash and its ✕ are two states ────────────────────────
+  // On the seeded FORK, the one card whose menu rows carry a delete ✕ (it holds two versions).
+  const forked = page.locator('[data-road-root] [data-rstage="seed-sec"]')
+  if (ok('OB-206: the seeded two-version card is on the road', (await forked.count()) === 1)) {
+    await forked.scrollIntoViewIfNeeded()
+    const trigger = forked.locator('[role="button"]').filter({ hasText: /v\d/ }).first()
+    const tb = await trigger.boundingBox()
+    await page.mouse.click(tb.x + 6, tb.y + tb.height / 2)
+    await page.waitForTimeout(400)
+    // the menu's FIRST row, so leaving upward always leaves the menu, whichever way it opened
+    const rowState = () => page.evaluate(() => {
+      const opt = document.querySelector('[role="listbox"] button[role="option"]')
+      const x = opt && opt.parentElement.querySelector('button[aria-label="delete this version"]')
+      return x ? { wash: getComputedStyle(opt).backgroundColor, x: getComputedStyle(x).opacity, tab: x.tabIndex } : null
+    })
+    if (ok('OB-206: the open menu\'s rows carry a delete ✕', !!(await rowState()))) {
+      const rb = await page.locator('[role="listbox"] button[role="option"]').first().boundingBox()
+      await page.mouse.move(rb.x + rb.width / 2, rb.y + rb.height / 2, { steps: 4 })
+      await page.waitForTimeout(400) // the ✕'s own 250ms fade in
+      const hovered = await rowState()
+      ok('OB-206: hovering a row lights its wash and brings up its ✕', hovered.wash !== 'rgba(0, 0, 0, 0)' && hovered.x === '1' && hovered.tab === 0, JSON.stringify(hovered))
+      await page.mouse.move(rb.x + rb.width / 2, rb.y - 400, { steps: 2 })
+      await page.waitForTimeout(20)
+      const left = await rowState()
+      ok('OB-206: on leave the background is clear at once while the ✕ is still up and still tabbable — the wash does not wait on the ✕\'s clock',
+        left.wash === 'rgba(0, 0, 0, 0)' && left.x === '1' && left.tab === 0, JSON.stringify(left))
+      await page.waitForTimeout(1500) // the recede clock (500ms) and the fade (250ms), with room for a slow timer
+      const gone = await rowState()
+      ok('OB-206: and the ✕ goes after that, on the recede clock — faded out and out of the tab order', gone.x === '0' && gone.tab === -1, JSON.stringify(gone))
+    }
     await page.keyboard.press('Escape')
   }
 

@@ -230,7 +230,9 @@ function OpenCase({ c }: { c: (typeof OPEN_CASES)[number] }) {
   // OB-050: ASKED, not told — `slotHeight`, matching the `slotHeight={slotH}` prop this case
   // actually renders below, never `bodyHeight` (a told height takes no ceiling, which is not
   // what this case is: it asks, and the `tall` row below is what proves the cap still bites).
-  const pred = GroupGeometry.openHeight({ width: OPEN_W, title: c.title, index: '3', description: c.desc, descPlaceholder: 'enter description', versionName: c.name, versionLabel: 'v1', count, countLabel: 'nodes', narrow: false, slotHeight: slotH, bodyMaxHeight: null })
+  // OB-222: `closable`, because the card below is given `onClose` — a hand-built spec has to say
+  // so, or the head's right slot is reserved at two buttons' width while it draws three
+  const pred = GroupGeometry.openHeight({ width: OPEN_W, title: c.title, index: '3', description: c.desc, descPlaceholder: 'enter description', versionName: c.name, versionLabel: 'v1', count, countLabel: 'nodes', narrow: false, closable: true, slotHeight: slotH, bodyMaxHeight: null })
   return (
     <div data-cal-open={c.k} data-ds-host="" data-cal-depth={c.depth ?? 0} data-pred-h={pred.height} data-pred-bodytop={pred.bodyTop} data-pred-measured={String(pred.measured)}
       data-slot={slot ? `${slot.left},${slot.top},${slot.width},${slot.height}` : ''}>
@@ -296,14 +298,15 @@ createRoot(document.getElementById('root')!).render(
         </div>
         {CALIBRATE.map((t, i) => (
           <div key={i} data-cal={i} data-cal-title={t} data-ds-host=""
-            data-pred-h={GroupGeometry.foldedSize({ width: NODEW, foldedMinWidth: FOLD_MIN_W, title: t, index: String(i + 1), count: i + 1, countLabel: 'nodes', narrow: true }).height}
-            data-pred-w={GroupGeometry.foldedSize({ width: NODEW, foldedMinWidth: FOLD_MIN_W, title: t, index: String(i + 1), count: i + 1, countLabel: 'nodes', narrow: true }).width}>
+            data-pred-h={GroupGeometry.foldedSize({ width: NODEW, foldedMinWidth: FOLD_MIN_W, title: t, index: String(i + 1), count: i + 1, countLabel: 'nodes', narrow: true, closable: true }).height}
+            data-pred-w={GroupGeometry.foldedSize({ width: NODEW, foldedMinWidth: FOLD_MIN_W, title: t, index: String(i + 1), count: i + 1, countLabel: 'nodes', narrow: true, closable: true }).width}>
             <VersionedGroup folded title={t} index={String(i + 1)} count={i + 1} countLabel="nodes"
               versions={versions} activeId="0" resizable={false} movable={false} narrow
               width={NODEW} foldedMinWidth={FOLD_MIN_W}
-              // as the road passes them: the head's control cluster reserves the
-              // width of BOTH buttons even while receded, and the title's room —
-              // so where it wraps — depends on that
+              // as the road passes them: the head's right slot reserves the width of
+              // all THREE buttons even while receded (OB-222 — `closable` in the spec
+              // above, from this `onClose`), and the title's room — so where it
+              // wraps — depends on that
               onToggleFold={() => {}} onClose={() => {}} />
           </div>
         ))}
