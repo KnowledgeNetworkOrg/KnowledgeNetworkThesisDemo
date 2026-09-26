@@ -10,9 +10,11 @@
 // on the map, the eye brings the drawing back at the CURRENT position, and the eye wears
 // its slash and no moss wash (the slash is the whole state).
 //
-// WHAT COUNTS AS "the drawing". The whole walk layer is one `<g data-routepath>`
-// gated by the flag (OB-122 put pins AND arrows inside it), so "hidden" is that
-// element being absent, and "shown" is it being present. A walk activated from the
+// WHAT COUNTS AS "the drawing". The walk's line and arrows are one `<g data-routepath>`
+// gated by the flag, and its pins are `<g data-routepins>` under the SAME gate — their
+// own group since OB-221, painted last so a focus border cannot bury them. So "hidden"
+// is the walk layer being absent, and "shown" is it being present; the pins are
+// counted separately below. A walk activated from the
 // Trail publishes only its played prefix — one stop — which is still one pin and
 // therefore still a drawing; nothing here needs a seek.
 //

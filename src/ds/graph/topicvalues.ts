@@ -28,17 +28,29 @@ const ROLE_LC: Record<'mark' | 'ink' | 'stroke' | 'wash' | 'washRaised', readonl
 /** the anchor fallback (`--swatch-anchor-fallback`, slate) as numbers, for the same reason */
 const FALLBACK_LCH: OklchValue = { l: 0.55, c: 0.04, h: 255, css: 'oklch(0.55 0.04 255)' }
 
+/** THE GHOST ROLE'S TWO NUMBERS, one place (DS OB-223, travelling with `topicPaint().ghost`).
+ *  CHOSEN, not derived, against the family fills this system already ships: `nestedFamilyPaint`
+ *  spans L 0.720–0.900, so one tone below that band stays visible over the lightest child and
+ *  never goes darker than the darkest. Deliberately NOT a token and not anybody's `ink`: a ghost
+ *  heading is not a label, the ink roles are computed to hold 4.5:1, which is the opposite of
+ *  what this needs, and a per-hue ghost token would be sixteen tokens for one role. */
+export const GHOST_L = 0.640
+export const GHOST_C = 0.110
+
 /** ★ LOCAL — THE JS-RESOLVED TWIN OF `topicPaint()`, for the places a `var()` cannot go
  *  (OB-153 clause 9; measured in `receipts/9fbc05a.md`): a topic's colour handed to an SVG
  *  `fill`/`stroke` PRESENTATION ATTRIBUTE — the map's anchors, the neighbourhood wheel, the
- *  unfold views — where `var()` computes to `none` and the shape renders black. Same five
+ *  unfold views — where `var()` computes to `none` and the shape renders black. Same six
  *  fields as `topicPaint`, each an `OklchValue` rather than a token name, plus `deg`, the
- *  ring degree the arc grading in `src/model/color.ts` anchors on. An unknown or absent topic
- *  resolves to the anchor fallback in every role, never to nothing. */
-export function topicPaintValues(topic?: string | null): { hue: string | null; deg: number | null; mark: OklchValue; ink: OklchValue; stroke: OklchValue; wash: OklchValue; washRaised: OklchValue } {
+ *  ring degree the arc grading in `src/model/color.ts` anchors on. Five are pinned to tokens;
+ *  `ghost` (DS OB-223) has none by design and is pinned to `GHOST_L`/`GHOST_C`. An unknown or
+ *  absent topic resolves to the anchor fallback in every role, never to nothing. */
+export function topicPaintValues(topic?: string | null): { hue: string | null; deg: number | null; mark: OklchValue; ink: OklchValue; stroke: OklchValue; wash: OklchValue; washRaised: OklchValue; ghost: OklchValue } {
   const hue = topic != null && Object.prototype.hasOwnProperty.call(HUE_DEGREES, topic) ? topic : null
-  if (!hue) return { hue: null, deg: null, mark: FALLBACK_LCH, ink: FALLBACK_LCH, stroke: FALLBACK_LCH, wash: FALLBACK_LCH, washRaised: FALLBACK_LCH }
+  if (!hue) return { hue: null, deg: null, mark: FALLBACK_LCH, ink: FALLBACK_LCH, stroke: FALLBACK_LCH, wash: FALLBACK_LCH, washRaised: FALLBACK_LCH, ghost: FALLBACK_LCH }
   const deg = HUE_DEGREES[hue]
   const role = (k: keyof typeof ROLE_LC): OklchValue => ({ l: ROLE_LC[k][0], c: ROLE_LC[k][1], h: deg, css: `oklch(${ROLE_LC[k][0]} ${ROLE_LC[k][1]} ${deg})` })
-  return { hue, deg, mark: role('mark'), ink: role('ink'), stroke: role('stroke'), wash: role('wash'), washRaised: role('washRaised') }
+  /* the ghost has no token (see `GHOST_L`): the same string `topicPaint().ghost` writes */
+  const ghost: OklchValue = { l: GHOST_L, c: GHOST_C, h: deg, css: `oklch(${GHOST_L.toFixed(3)} ${GHOST_C.toFixed(3)} ${deg.toFixed(1)})` }
+  return { hue, deg, mark: role('mark'), ink: role('ink'), stroke: role('stroke'), wash: role('wash'), washRaised: role('washRaised'), ghost }
 }

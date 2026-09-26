@@ -12,7 +12,8 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { HUE_DEGREES, topicPaintValues } from './topicvalues'
+import { topicPaint } from './hueslots'
+import { GHOST_C, GHOST_L, HUE_DEGREES, topicPaintValues } from './topicvalues'
 
 const TOKENS = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'tokens')
 const css = readFileSync(join(TOKENS, 'colors.css'), 'utf8')
@@ -57,6 +58,24 @@ describe('topicPaintValues — the JS-resolved twin of topicPaint, pinned to tok
       expect(v.deg).toBe(tokens.get(`--hue-${hue}`)!.h)
     }
     expect(checked).toBe(80)
+  })
+
+  // DS OB-223 — the ghost role has NO token, by design (a per-hue ghost token would be sixteen
+  // tokens for one role), so it is pinned to its own two numbers instead: one resolved oklch per
+  // hue, and the same string from both the token-form resolver and its JS-resolved twin.
+  it('the ghost is one opaque oklch per hue — L 0.640, C 0.110 — and the two resolvers agree on it', () => {
+    expect(GHOST_L).toBe(0.64)
+    expect(GHOST_C).toBe(0.11)
+    for (const hue of hues) {
+      const g = topicPaintValues(hue).ghost
+      expect(g.l).toBe(0.64)
+      expect(g.c).toBe(0.11)
+      expect(g.h).toBe(HUE_DEGREES[hue])
+      expect(g.css).toBe(`oklch(0.640 0.110 ${HUE_DEGREES[hue].toFixed(1)})`)
+      expect(topicPaint(hue).ghost).toBe(g.css)
+      expect(tokens.has(`--hue-${hue}-ghost`)).toBe(false)
+    }
+    expect(topicPaint('not-a-hue').ghost).toBe('var(--swatch-anchor-fallback)')
   })
 
   it('an unknown or absent topic resolves to the anchor fallback, never to nothing', () => {

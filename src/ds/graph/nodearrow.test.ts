@@ -16,7 +16,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { createElement } from 'react'
 import { describe, expect, test } from 'vitest'
 
-import { ARROW_METRICS, headFor, headForSet, NodeArrow, shaftTailOffset } from './NodeArrow'
+import { ARROW_BOW_MAX_DEG, ARROW_METRICS, ARROW_MIN_SHAFT_HEADS, capBow, extendToMin, headFor, headForSet, minShaft, NodeArrow, shaftTailOffset } from './NodeArrow'
 import type { NodeArrowProps } from './NodeArrow'
 
 const draw = (props: NodeArrowProps) => renderToStaticMarkup(createElement(NodeArrow, props))
@@ -54,6 +54,9 @@ describe('shaftTailOffset tracks where NodeArrow really puts the shaft', () => {
     ['bowed - cased', { direction: 'right', length: 60, bow: -9, casing: true }],
     ['lighter join', { direction: 'right', length: 60, joins: 'border-2', casing: true }],
     ['borderless join', { direction: 'right', length: 60, joins: 0, bow: -6, casing: true }],
+    // a NEGATIVE bow past the 20° cap: the render draws the capped bow, and the helper — told
+    // the same length — must place the tail against that, not against the bow as asked
+    ['bowed - past the cap', { direction: 'right', length: 30, bow: -9, casing: true }],
   ]
   for (const [name, props] of cases) {
     test(name, () => {
@@ -74,14 +77,26 @@ describe('bow', () => {
   })
 
   test('a bow turns the shaft into a curve and moves its midpoint by the bow', () => {
-    const svg = draw({ direction: 'right', length: 40, bow: 8 })
+    // 6 on a 40 chord is inside the 20° cap (7.28), so it is drawn as asked
+    const svg = draw({ direction: 'right', length: 40, bow: 6 })
     expect(svg).not.toContain('<line')
     const [, , ctrlY] = svg.match(/Q([-\d.]+) ([-\d.]+)/)!
     const tail = shaftTailIn(svg)
     // the CONTROL point sits a full bow off the axis; the drawn curve passes
     // half of it, which is the quadratic's own arithmetic and is what
     // walkarrow.bowedPoint models on the map's side
-    expect(Number(ctrlY) + padOf(svg)[1] - tail.across).toBeCloseTo(8, 6)
+    expect(Number(ctrlY) + padOf(svg)[1] - tail.across).toBeCloseTo(6, 6)
+  })
+
+  test('a bow past 20° of head rotation is CAPPED before anything reads it (DS OB-197)', () => {
+    // 30 asked on a 20 chord: uncapped, the head would sit atan(60/20) = 72° off the line
+    const svg = draw({ direction: 'right', length: 20, bow: 30 })
+    const [, , ctrlY] = svg.match(/Q([-\d.]+) ([-\d.]+)/)!
+    const tail = shaftTailIn(svg)
+    const drawn = Number(ctrlY) + padOf(svg)[1] - tail.across
+    expect(drawn).toBeCloseTo(capBow({ length: 20, bow: 30 }), 6)
+    // and the head points along the CAPPED curve: its rotation is atan(2·bow/length) = 20°
+    expect((Math.atan((2 * drawn) / 20) * 180) / Math.PI).toBeCloseTo(ARROW_BOW_MAX_DEG, 1)
   })
 
   test('the head follows the curve, not the axis — a bowed arrow does not point straight', () => {
@@ -292,8 +307,9 @@ describe('walked — the split shaft and the travelling head (OB-132, adopted up
   })
 
   test('on a bowed shaft the head travels along the CURVE — off the chord, pointing along it', () => {
-    const rest = draw({ direction: 'right', length: 100, bow: 20 })
-    const mid = draw({ direction: 'right', length: 100, bow: 20, walked: 0.5 })
+    // 16 on a 100 chord is inside the 20° cap (18.2), so the curve is the one asked for
+    const rest = draw({ direction: 'right', length: 100, bow: 16 })
+    const mid = draw({ direction: 'right', length: 100, bow: 16, walked: 0.5 })
     const tip = (svg: string) => svg.match(/L([-\d.]+) ([-\d.]+) L/)!.slice(1).map(Number)
     const [rx] = tip(rest)
     const [mx, my] = tip(mid)
@@ -301,9 +317,63 @@ describe('walked — the split shaft and the travelling head (OB-132, adopted up
     // half way along a symmetric bow the head is at the curve's own midpoint — the
     // control point's half — and points straight along the axis
     const tail = shaftTailIn(mid)
-    expect(my - tail.across).toBeCloseTo(10, 0)
+    expect(my - tail.across).toBeCloseTo(8, 0)
     const [p1x, p1y, , , p3x, p3y] = mid.match(/<path d="M([-\d.]+) ([-\d.]+) L([-\d.]+) ([-\d.]+) L([-\d.]+) ([-\d.]+) Z" fill="var/)!.slice(1).map(Number)
     expect(p1x).toBeCloseTo(p3x, 1)
     expect(Math.abs(p1y - p3y)).toBeCloseTo(2 * ARROW_METRICS.halfWidth, 1)
+  })
+})
+
+describe('a short relation is lengthened past the exact boundary, and its bow is capped (DS OB-197)', () => {
+  test('the floor is three HEAD-LENGTHS, a ratio of the head actually drawn — never a px constant', () => {
+    expect(ARROW_MIN_SHAFT_HEADS).toBe(3)
+    expect(minShaft()).toBe(3 * headFor().head)
+    // a view that sizes its own head (the map, in world units) gets a floor in those units
+    expect(minShaft({ headSize: { head: 9, halfWidth: 5 } })).toBe(27)
+    expect(minShaft({ headSize: { head: 4.5, halfWidth: 2.5 } })).toBe(13.5)
+    expect(minShaft({ minHeads: 2 })).toBe(2 * headFor().head)
+  })
+
+  test('a stub between two adjacent cells grows SYMMETRICALLY to the floor — its midpoint does not move', () => {
+    const headSize = { head: 9, halfWidth: 5 }
+    const from = { x: 10, y: 20 }
+    const to = { x: 16, y: 28 } // 10 long, against a floor of 27
+    const r = extendToMin({ from, to, headSize })
+    expect(r.grew).toBe(true)
+    expect(r.length).toBe(27)
+    expect(Math.hypot(r.to.x - r.from.x, r.to.y - r.from.y)).toBeCloseTo(27, 6)
+    expect((r.from.x + r.to.x) / 2).toBeCloseTo((from.x + to.x) / 2, 9)
+    expect((r.from.y + r.to.y) / 2).toBeCloseTo((from.y + to.y) / 2, 9)
+    // both ends moved back along the SAME line, each by half the shortfall
+    expect(Math.hypot(r.from.x - from.x, r.from.y - from.y)).toBeCloseTo(8.5, 6)
+    expect(Math.hypot(r.to.x - to.x, r.to.y - to.y)).toBeCloseTo(8.5, 6)
+  })
+
+  test('a line already past the floor is drawn at its own length — nothing moves', () => {
+    const from = { x: 0, y: 0 }
+    const to = { x: 30, y: 40 }
+    const r = extendToMin({ from, to, headSize: { head: 9, halfWidth: 5 } })
+    expect(r.grew).toBe(false)
+    expect(r.from).toBe(from)
+    expect(r.to).toBe(to)
+    expect(r.length).toBe(50)
+  })
+
+  test('two coincident points have no direction to extend along, so they come back as given', () => {
+    const p = { x: 3, y: 3 }
+    expect(extendToMin({ from: p, to: p }).grew).toBe(false)
+    expect(extendToMin({ from: { x: 0, y: 0 }, to: { x: 1, y: 0 }, min: 0 }).grew).toBe(false)
+  })
+
+  test('capBow caps at 20° of head rotation, keeps the sign, and leaves a bow inside the cap untouched', () => {
+    expect(ARROW_BOW_MAX_DEG).toBe(20)
+    const max = Math.tan((20 * Math.PI) / 180) * (27 / 2)
+    expect(capBow({ length: 27, bow: 14 })).toBeCloseTo(max, 2)
+    expect(capBow({ length: 27, bow: -14 })).toBeCloseTo(-max, 2)
+    expect(capBow({ length: 200, bow: 14 })).toBe(14)
+    expect(capBow({ length: 27, bow: 0 })).toBe(0)
+    // no chord to scale against: the bow as asked, never a guess
+    expect(capBow({ bow: 14 })).toBe(14)
+    expect(capBow({ length: 0, bow: 14 })).toBe(14)
   })
 })

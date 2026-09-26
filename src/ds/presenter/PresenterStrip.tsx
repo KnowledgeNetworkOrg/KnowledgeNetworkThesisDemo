@@ -14,7 +14,8 @@ import { walkBand } from '../map/WalkDock'
 /* Typed port of the DS components/presenter/PresenterStrip.jsx (contract: PresenterStrip.d.ts),
    part 3 of the presenter-mode split — OB-137 / #267, on the 2026-09-04 source with both of that
    day's amendments (the box-bounded fill, the carry, the settle ladder, the peeks, the one-pitch
-   slide). */
+   slide), and the 2026-09-21 spread open row (OB-246: `pitch` is a floor, the window spans the
+   row, `fillBounds` takes slots, the marker asks the window, the centre is re-clamped). */
 
 const HOLD_MS_DEFAULT = 600
 
@@ -43,6 +44,10 @@ export const PRESENTER_STRIP_METRICS = {
   closedRoaming: sum('padTop', 'row', 'railGapRoaming', 'railRoaming', 'padBottom', 'border'),     /* 81 */
   open: sum('padTop', 'row', 'rowGap', 'dots', 'labelGap', 'labels', 'padBottom', 'border'),        /* 107 */
   openRoaming: sum('padTop', 'row', 'rowGapRoaming', 'dots', 'labelGap', 'labelsRoaming', 'padBottom', 'border'), /* 130 */
+  /* `pitch` IS A FLOOR, NOT THE SPACING (DS OB-246, 2026-09-21). It answers "how many stops can
+     this row label without crowding them", and the open row then spreads exactly that many across
+     the width it has — so the drawn pitch is >= this number and the row fills the pane the way the
+     closed rail always has. 68 is CHOSEN against the 66px label. */
   pitch: 68, stopDot: 18, ring: 13, ringOpen: 18, knob: 14,
   peekOpacity: 0.4,
   railInset: 9, railSpan: 18,
@@ -60,12 +65,15 @@ export function presenterStripHeight({ open = false, roaming = false }: { open?:
  *  the DOT window (±half around centre), so a segment whose two dots were both outside that window
  *  was skipped even where it crossed the visible line, leaving a grey stub at the left end of a
  *  fully walked walk (owner, 2026-09-04). The line spans the box; the dots are a window; the two
- *  are different spans. Returns `[first, last)` over segment indices. */
-export function fillBounds(center: number, centerX: number, width: number, pitch: number, count: number): [number, number] {
-  return [
-    Math.max(0, Math.floor(center - centerX / pitch) - 1),
-    Math.min(count - 1, Math.ceil(center + (width - centerX) / pitch) + 1),
-  ]
+ *  are different spans.
+ *
+ *  TAKES THE DRAWN SLOTS, NOT A PITCH AND A CENTRE (DS OB-246, 2026-09-21). The row spreads its
+ *  window across the width it is given rather than stepping a constant pitch from the middle, so
+ *  "how far past the last dot can the line still be inside the box" is no longer a pixel sum — it
+ *  is one slot either side of the drawn span, exactly. `slotLo`/`slotHi` are the outermost slots
+ *  the row lays out, peeks included. Returns `[first, last)` over segment indices. */
+export function fillBounds(slotLo: number, slotHi: number, count: number): [number, number] {
+  return [Math.max(0, slotLo - 1), Math.min(count - 1, slotHi + 1)]
 }
 /** The capitalised way in for a card or a rig — the same function objects, not copies. */
 export const PresenterStripMath = { height: presenterStripHeight, fillBounds }
@@ -323,17 +331,52 @@ function OpenRow({ steps, activeStop, roamingStop, flags, isDone, walked, holdMs
   const [hotStop, setHotStop] = useState<number | null>(null)
   const boxRef = useRef<HTMLDivElement | null>(null)
   const M = PRESENTER_STRIP_METRICS
-  const PITCH = M.pitch
   const N = steps.length
   const roaming = roamingStop != null
   const centerX = width / 2
-  const xOf = (i: number) => centerX + (i - center) * PITCH
-  /* the inverse of `xOf`, so the carried record lands on the stop under the pointer */
+  /* THE OPEN ROW SPANS THE ROW, LIKE THE CLOSED RAIL DOES (DS OB-246; owner, 2026-09-21: opening
+     the strip left "the same walk stops squashed a lot more compared to [the closed rail] where it
+     spans the entire pane"). The row used to place dots at the CONSTANT `M.pitch` either side of
+     centre, so its drawn span was a function of the stop COUNT and the row's spare width went
+     unused: a walk that fits whole huddled in the middle, and a window clamped at either end left
+     most of a pitch of bare line past its last dot.
+     NOW `M.pitch` IS A FLOOR, NOT THE SPACING. The parent still counts how many stops fit AT that
+     floor (`half`); this row spreads exactly that many across the usable span, so the pitch is
+     `usable / (slotHi - slotLo)` and can only ever be >= the floor. */
+  const all = N <= 2 * half + 1
+  /* THE WINDOW IS CLAMPED TO THE WALK HERE, NOT ONLY WHERE `center` IS SET. `center` is state and
+     `half` is a reading of the width: the row mounts at the 600px default, the opening effect picks
+     a centre legal at THAT half, and `settleRead` then widens the row — whose clamp ceiling is
+     lower. With a constant pitch a window past the end was invisible; with a SPREAD row it reserves
+     slots for stops that do not exist. A row that lays itself out cannot trust a number set when
+     the row was a different width: it clamps what it draws, keeping the span. */
+  const spanMax = Math.min(N - 1, 2 * half)
+  let lo = all ? 0 : center - half
+  let hi = all ? N - 1 : center + half
+  if (hi > N - 1) { hi = N - 1; lo = Math.max(0, hi - spanMax) }
+  if (lo < 0) { lo = 0; hi = Math.min(N - 1, lo + spanMax) }
+  /* WHAT EACH END OF THE ROW HOLDS decides where the spread starts. A labelled end stop is inset by
+     the outermost LABEL's half-width (`SIDE_PAD`), or its label hangs over the strip's border; a
+     PEEK end holds an unlabelled dot, so it is inset by the dot's own radius and the walk reaches
+     almost the whole row. Reserving a peek slot where no peek exists is the dead space at the ends
+     this row is not allowed to draw, so the two ends are asked separately. */
+  const hasPeekLo = lo > 0
+  const hasPeekHi = hi < N - 1
+  const x0 = hasPeekLo ? M.stopDot / 2 : SIDE_PAD
+  const x1 = width - (hasPeekHi ? M.stopDot / 2 : SIDE_PAD)
+  const slotLo = hasPeekLo ? lo - 1 : lo
+  const slotHi = hasPeekHi ? hi + 1 : hi
+  const spread = slotHi > slotLo && x1 > x0
+  const PITCH = spread ? (x1 - x0) / (slotHi - slotLo) : Math.max(1, width - SIDE_PAD * 2)
+  const xOf = (i: number) => (spread ? x0 + (i - slotLo) * PITCH : centerX)
+  /* the inverse of `xOf`, so the carried record lands on the stop under the pointer: the row's
+     geometry is the window's left edge plus the derived pitch, which is all either direction needs */
   const indexAt = (clientX: number) => {
     const el = boxRef.current
     if (!el) return null
     const r = el.getBoundingClientRect()
-    return Math.max(0, Math.min(N - 1, Math.round(center + (clientX - r.left - centerX) / PITCH)))
+    if (!spread) return lo
+    return Math.max(0, Math.min(N - 1, slotLo + Math.round((clientX - r.left - x0) / PITCH)))
   }
   const [carryTo, startCarry, carried] = useCarry(indexAt, onMakeActive)
   const shownActive = carryTo != null ? carryTo : activeStop
@@ -345,9 +388,6 @@ function OpenRow({ steps, activeStop, roamingStop, flags, isDone, walked, holdMs
   const [ready, setReady] = useState(false)
   useEffect(() => { const id = requestAnimationFrame(() => setReady(true)); return () => cancelAnimationFrame(id) }, [])
   const slide = ready ? 'left var(--dur-move) var(--ease-soft), width var(--dur-move) var(--ease-soft)' : 'none'
-  const all = N <= 2 * half + 1
-  const lo = all ? 0 : center - half
-  const hi = all ? N - 1 : center + half
   const dots: ReactNode[] = []
   const labels: ReactNode[] = []
   /* THE ROOM AT EACH END IS NOT EMPTY — IT SHOWS THE NEXT STOP, FADED (clause 11): the real stop,
@@ -392,17 +432,22 @@ function OpenRow({ steps, activeStop, roamingStop, flags, isDone, walked, holdMs
       </div>
     )
   }
-  const activeX = xOf(activeStop)
-  const offLeft = activeX < PITCH / 2
-  const offRight = activeX > width - PITCH / 2
+  /* THE MARKER ASKS WHETHER THE RECORD IS IN THE WINDOW, NOT WHERE ITS PIXEL LANDS. This was
+     `activeX < PITCH / 2`, which is true of the row's FIRST DOT the moment the pitch grows past
+     twice the inset — the spread row would have pinned a "back to the active node" pill beside a
+     stop the reader can see. The window's own bounds answer it exactly, at any pitch. */
+  const offLeft = activeStop < lo
+  const offRight = activeStop > hi
   /* the drawn line runs between the walk's REAL ends, clipped to the strip; the fill is per segment,
      the same rule as the closed rail — a skipped stretch is a gap, never orange */
   const lineStart = Math.max(0, xOf(0))
   const lineEnd = Math.min(width, xOf(N - 1))
   const segs: ReactNode[] = []
   /* THE FILL IS BOUNDED BY THE PIXELS, NOT BY THE DOTS (clause 5) — `fillBounds`, published so the
-     arithmetic is testable rather than retyped. */
-  const [first, last] = fillBounds(center, centerX, width, PITCH, N)
+     arithmetic is testable rather than retyped. It takes the row's OUTERMOST SLOTS, peeks included,
+     and extends one segment past each: with the window spread across the width there is no
+     pitch-and-centre sum left to get wrong. */
+  const [first, last] = fillBounds(slotLo, slotHi, N)
   for (let i = first; i < last; i++) {
     if (!walked(i)) continue
     const a = Math.max(0, xOf(i))
@@ -541,12 +586,15 @@ export function PresenterStrip({
   const roaming = roamingStop != null
   const shown = roaming ? roamingStop : activeStop
   const width = Math.max(200, rowWidth - 26)
-  /* the row shows one dot fewer per side than would fit, so the outermost 66px label stays inside
-     the strip's own padding instead of overhanging its border */
+  /* HOW MANY STOPS THE ROW CAN LABEL, at the `pitch` FLOOR and no tighter. The row itself then
+     spreads that many across the width (see `OpenRow`), so this number decides density and the
+     width decides spacing — two questions that used to be one. One slot per side is held back for
+     the peek dot and for the outermost label's overhang. */
   const half = Math.max(1, Math.floor(Math.max(1, Math.ceil((width - SIDE_PAD * 2) / M.pitch)) / 2) - 1)
   /* THE ROW IS A WINDOW, NOT A SPOTLIGHT: it re-centres only when the shown stop reaches its edge.
-     THE WINDOW NEVER SHOWS DEAD SPACE: its centre is clamped so the first and last stops sit at
-     its edges, and a walk that fits whole is simply centred. */
+     THE WINDOW NEVER SHOWS DEAD SPACE: its centre is clamped so the first and last stops sit at its
+     edges, a walk that fits whole is spread across the row, and the window itself is spread whether
+     or not it is clamped. */
   const all = N <= 2 * half + 1
   const clampCenter = (c: number) => (all ? LAST / 2 : Math.max(half, Math.min(LAST - half, c)))
   const [center, setCenter] = useState(() => clampCenter(shown))
@@ -562,6 +610,16 @@ export function PresenterStrip({
     // the DS's deps: the shown stop and the window's half-width, deliberately not `center`
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shown, half])
+  /* AND THE STATE IS RE-CLAMPED WHEN THE READING CHANGES (DS OB-246). `half` is derived from a width
+     that arrives after the first paint, so a centre legal at the mount width can be illegal a frame
+     later; the step effect above returns early whenever the shown stop is inside the window, so
+     nothing else ever corrects it. `OpenRow` clamps what it DRAWS regardless — this keeps the
+     stored centre honest as well, so a later step starts from a legal number. */
+  useEffect(() => {
+    setCenter((c) => clampCenter(c))
+    // the DS's deps: the reading and the walk's length — `clampCenter` is derived from both
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [half, N])
   /* OPENING KEEPS THE SHOWN STOP WHERE THE CLOSED RAIL HAD IT — the same horizontal fraction of the
      row — so the ring does not leap to the middle as the row grows around it. A LAYOUT effect, so
      the first paint is already in place. */
@@ -570,7 +628,12 @@ export function PresenterStrip({
     const frac = N > 1 ? shown / LAST : 0.5
     const x = SIDE_PAD + frac * (width - SIDE_PAD * 2)
     const lim = Math.max(0, half - 1)
-    const offset = Math.max(-lim, Math.min(lim, Math.round((x - width / 2) / M.pitch)))
+    /* the DRAWN pitch, not the floor: the row spreads its slots across the width, so a pixel
+       distance converts to slots at `(width - dot) / slots` — the 68 floor here would over-count
+       the offset by whatever slack the spread took up and land the ring a stop or two from where
+       the rail had it. */
+    const drawnPitch = Math.max(1, (width - M.stopDot) / (2 * half + 2))
+    const offset = Math.max(-lim, Math.min(lim, Math.round((x - width / 2) / drawnPitch)))
     setCenter(clampCenter(shown - offset))
     // the DS's deps: the open flag alone — the row's first paint, not every re-render
     // eslint-disable-next-line react-hooks/exhaustive-deps

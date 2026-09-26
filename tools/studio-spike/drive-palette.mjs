@@ -233,6 +233,130 @@ const reduced = await durationOf()
 ok('prefers-reduced-motion still collapses it to 1ms, now from motion.css', allAre(reduced, '0.001s'), reduced)
 await page.emulateMedia({ reducedMotion: 'no-preference' })
 
+// ── 7. OB-218: a press during the flight is never thrown away ───────────────
+// Every check above presses ONCE and waits, which is why they all passed with
+// the bug in place. The fault only exists BETWEEN presses: the 400ms unmount
+// timer was never cancelled, so close-then-reopen closed the palette by itself a
+// moment later; and the toggle read `showPalette`, which stays true for the whole
+// closing flight, so a second press repeated the close. The rule the fix keeps is
+// "never drop a press, only drop an animation": a press that reverses a flight
+// CUTS to the new state in one frame, and the button is never disabled or
+// debounced to get there.
+//
+// Presses go through the DOM rather than `locator.click`, so two presses 80ms
+// apart are 80ms apart and not padded by a click's own actionability waits.
+const press = () => page.evaluate((sel) => document.querySelector(sel).click(), HOOK)
+const twoFrames = () => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
+const paneState = () =>
+  page.evaluate(() => {
+    const side = document.querySelector('[aria-label="studio-sidebar"]')
+    if (!side) return null
+    const cs = getComputedStyle(side.parentElement)
+    return { transform: cs.transform, opacity: cs.opacity, marginRight: cs.marginRight }
+  })
+const atRestNow = (s) => !!s && (s.transform === 'none' || s.transform === 'matrix(1, 0, 0, 1, 0, 0)') && s.opacity === '1' && s.marginRight === '0px'
+const title = () => page.locator(HOOK).getAttribute('title')
+/** put the palette open or closed, at rest, before a check that assumes one */
+const ensure = async (open) => {
+  await settle()
+  if (((await sidebars()) === 1) !== open) { await press(); await settle() }
+}
+
+await settle()
+ok('7: the palette starts open, at rest', (await sidebars()) === 1 && atRestNow(await paneState()))
+
+// the button's pressed state follows what the palette is BECOMING, not what is still mounted
+await press()
+await page.waitForTimeout(50)
+const midClose = { mounted: await sidebars(), title: await title() }
+ok(
+  '7: mid-close the pane is still mounted, and the toggle already reads "show" — its state stops lying during a close',
+  midClose.mounted === 1 && midClose.title === 'show the palette',
+  JSON.stringify(midClose),
+)
+
+// (a) clause 1 — the timer is held and cleared
+await ensure(true)
+await press()
+await page.waitForTimeout(150)
+await press()
+await page.waitForTimeout(600)
+ok('7a: close, press again at 150ms, wait 600ms — the palette is OPEN, not closed by the old timer', (await sidebars()) === 1)
+ok('7a: and the toggle reads "hide"', (await title()) === 'hide the palette')
+
+// (b) clause 3 — a press that reverses a flight CUTS: at rest at once, no second flight
+await ensure(true)
+await press()
+await page.waitForTimeout(150)
+const flying = await paneState()
+await press()
+await twoFrames()
+const cutAt = await paneState()
+await page.waitForTimeout(100)
+const cutLater = await paneState()
+ok('7b: 150ms into a close the pane really is mid-flight', !!flying && !atRestNow(flying), JSON.stringify(flying))
+ok('7b: the reversing press puts it AT REST within two frames — no transform, full opacity, its column back', atRestNow(cutAt), JSON.stringify(cutAt))
+ok('7b: and it stays at rest — it does not fly back from where the close had got to', atRestNow(cutLater), JSON.stringify(cutLater))
+
+// the reverse direction: a close that interrupts an OPEN cuts to closed
+await ensure(false)
+ok('7b: (closed, for the reverse case)', (await sidebars()) === 0)
+await press()
+await page.waitForTimeout(150)
+await press()
+await twoFrames()
+ok('7b: a press 150ms into an OPEN cuts it closed — unmounted in the same beat', (await sidebars()) === 0)
+await press()
+await settle()
+
+// (c) clauses 2 and 3 — N presses 80ms apart land as N presses
+for (const n of [5, 6, 7]) {
+  await settle()
+  const before = await sidebars()
+  for (let i = 0; i < n; i++) {
+    await press()
+    await page.waitForTimeout(80)
+  }
+  await settle()
+  const expectOpen = n % 2 === 0 ? before === 1 : before === 0
+  const got = await sidebars()
+  ok(
+    `7c: ${n} presses at 80ms from ${before ? 'open' : 'closed'} end ${expectOpen ? 'open' : 'closed'} — no press swallowed`,
+    got === (expectOpen ? 1 : 0) && (await title()) === (expectOpen ? 'hide the palette' : 'show the palette'),
+    `mounted ${got}`,
+  )
+  if (expectOpen) ok(`7c: and after ${n} presses the open pane is at rest`, atRestNow(await paneState()), JSON.stringify(await paneState()))
+}
+// and a close that follows a cut still FLIES — the cut turns the transition off for one commit only
+await ensure(true)
+await press()
+await page.waitForTimeout(80)
+await press()
+await twoFrames()
+await press()
+await page.waitForTimeout(120)
+const afterCut = await paneState()
+ok('7c: a close pressed after a cut is a real flight again, not a cut', !!afterCut && !atRestNow(afterCut), JSON.stringify(afterCut))
+await settle()
+
+// clause 7 — the cursor flicker is not ours to see headless, but the candidate the item names
+// is: a long main-thread task inside the click. Reported, not asserted.
+await ensure(true)
+const longTasks = await page.evaluate(async (sel) => {
+  const seen = []
+  const po = new PerformanceObserver((l) => { for (const e of l.getEntries()) seen.push(Math.round(e.duration)) })
+  po.observe({ type: 'longtask', buffered: false })
+  const btn = document.querySelector(sel)
+  for (let i = 0; i < 10; i++) {
+    btn.click()
+    await new Promise((r) => setTimeout(r, 500))
+  }
+  po.disconnect()
+  return seen
+}, HOOK)
+console.log(`OB-218 clause 7: long tasks (>50ms) across 10 toggles: ${longTasks.length ? longTasks.join(', ') + 'ms' : 'none'}`)
+await settle()
+
 await page.evaluate(() => localStorage.clear())
 await browser.close()
 vite.kill()

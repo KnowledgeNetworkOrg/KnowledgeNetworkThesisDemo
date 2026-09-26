@@ -10,6 +10,8 @@ import { settleRead } from '../chrome/MeasureBox'
    of the presenter-mode split — OB-136 / #267. */
 
 const ASPECT = 630 / 1120 // every slide, whole neighbours included, is this shape
+/** one frame at 60Hz — the shortest travel frame that can be SEEN as a move (see `play`) */
+const FRAME_MS = 1000 / 60
 
 /** THE FLAG BUTTON, published (2026-09-04) so the notes pane can wear the SAME control on the
  *  prepared column's head — one drawing of "flag this stop", not two. Filled acorn when set, an
@@ -167,16 +169,20 @@ function Mirror({ width, content, cornerLabel, live, projecting = true, dim, fla
  *  is for a professor scanning the roll left to right, without waiting to notice the
  *  dimmed card itself is clickable. Both point at the same `onNavigate` a neighbour
  *  card already carries, so there is exactly one way each direction actually moves. */
-function EdgeChevron({ dir, onClick, roomHot }: { dir: -1 | 1; onClick: () => void; roomHot: boolean }) {
+function EdgeChevron({ dir, onClick, roomHot, traveling }: { dir: -1 | 1; onClick: () => void; roomHot: boolean; traveling: boolean }) {
   const [hot, setHot] = useState(false)
   const side: CSSProperties = dir < 0 ? { left: 6 } : { right: 6 }
   return (
-    <button type="button" title={wrapTip(dir < 0 ? 'previous stop' : 'next stop')} aria-label={dir < 0 ? 'previous stop' : 'next stop'}
+    <button type="button" data-filmroll-chevron={dir < 0 ? 'prev' : 'next'} title={wrapTip(dir < 0 ? 'previous stop' : 'next stop')} aria-label={dir < 0 ? 'previous stop' : 'next stop'}
       onClick={(e) => { e.stopPropagation(); onClick() }}
       onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)} style={{
-        position: 'absolute', ...side, top: '50%', transform: 'translateY(-50%)',
+        /* THE NUDGE IS THE CHEVRON'S HALF OF THE TRAVEL (DS OB-203): while the roll slides, the
+           chevron for THAT direction goes full weight and leans 3px the way it is sending you, so
+           the direction is readable from the control you actually pressed as well as from the cards */
+        position: 'absolute', ...side, top: '50%', transform: 'translateY(-50%) translateX(' + (traveling ? dir * 3 : 0) + 'px)',
         width: 30, height: 60, zIndex: 4, border: 'none', background: 'transparent', color: 'var(--bark-500)',
-        opacity: hot ? 0.85 : (roomHot ? 0.6 : 0.4), cursor: 'pointer', display: 'grid', placeItems: 'center', transition: 'var(--transition-wash)',
+        opacity: traveling ? 1 : (hot ? 0.85 : (roomHot ? 0.6 : 0.4)), cursor: 'pointer', display: 'grid', placeItems: 'center',
+        transition: 'var(--transition-wash), opacity var(--dur-hover) var(--ease-soft), transform var(--dur-move) var(--ease-settle)',
       }}>
       <svg width="20" height="40" viewBox="0 0 30 60" aria-hidden="true">
         <path d={dir < 0 ? 'M22 6 L8 30 L22 54' : 'M8 6 L22 30 L8 54'} fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
@@ -207,6 +213,13 @@ export interface FilmRollLive {
    *  divider, shown ALWAYS while present — independent of `flagged`. The HOST owns resetting it
    *  to zero when the live stop changes — this component just displays whatever string it's given */
   elapsed?: string
+  /** the live stop's position in the walk, whose CHANGE OF SIGN is the travel frame's whole input.
+   *  With it the roll slides on EVERY route into a new stop — the keyboard arrows, the strip, the
+   *  finder, a jump of several stops — and its own click-driven path switches off, so a chevron
+   *  click never plays the slide twice. Without it the roll sees only its own two clicks and a
+   *  keyboard advance plays nothing: partial, not broken. Pass the stop actually ON THE WALL,
+   *  roaming included — the ACTIVE stop would leave a roam silent */
+  stopIndex?: number
 }
 
 /** The presenter film roll: the live slide with its two whole neighbours.
@@ -223,6 +236,22 @@ export interface FilmRollLive {
  *  always matches whatever width it's given, clamped to `minScale`/`maxScale`. The scale is
  *  READ on a settle ladder and then observed (an observer's first callback arrives before layout
  *  is final, and a box that settles once gets no second one — DS, 2026-09-04).
+ *
+ *  THE TRAVEL FRAME (owner, 2026-09-16; DS OB-203). Advancing used to be a cut: the three cards
+ *  swapped their contents between two frames and nothing said which way the lecture had gone. Now
+ *  every stop CHANGE plays one short slide — the ROW of cards (never the chevrons, which are the
+ *  roll's fixed furniture) starts one step displaced on the side it came FROM, at 0.5 opacity, and
+ *  settles to rest over `--dur-move` / `--ease-settle`: forward reads as content moving left,
+ *  back as content moving right. The step is DERIVED — half the live card, the gap, half the
+ *  neighbour it trades places with — and it is a CUE, not a filmstrip: the cards already hold
+ *  their new contents when the slide begins.
+ *  THE MOVE IS ONE `Element.animate()` CALL AND NOTHING ELSE HOLDS A POSITION. A CSS transition
+ *  started in the commit that introduces it arrived after the row was home (measured on the DS
+ *  side: displaced from 0-210ms, then a snap), and a rAF/timer pair raced in a backgrounded
+ *  window. The row's own style is STATIC, so a remount, a cancel, or an environment without
+ *  `animate()` rests. A frame-starved window CAN hold the first keyframe until frames resume —
+ *  where nothing is being drawn anyway — but no React state ever holds the displacement.
+ *  `--dur-move` is 1ms under `prefers-reduced-motion`, which turns the slide back into the cut.
  *
  *  PROJECTING OR NOT (owner, 2026-09-03). `projecting={false}` is a PREVIEW of the presenter
  *  layout with nothing on the projector. The live card's label defaults to "Not on the projector",
@@ -266,6 +295,15 @@ export function FilmRoll({
   prev, current, next, onToggleFlag, onExpand, minScale = 0.55, maxScale = 1.6,
 }: FilmRollProps) {
   const label = liveLabel != null ? liveLabel : projecting ? 'On the projector now' : 'Not on the projector'
+  /* TRAVEL. The only STATE is which chevron leans — the row's movement lives entirely in a Web
+     Animations animation on the row itself, so React never holds a displaced position and a
+     dropped frame cannot leave one on screen. */
+  const [travelDir, setTravelDir] = useState<-1 | 0 | 1>(0)
+  const rowRef = useRef<HTMLDivElement | null>(null)
+  const anim = useRef<Animation | null>(null)
+  const stopIndex = current && typeof current.stopIndex === 'number' ? current.stopIndex : null
+  const lastIndex = useRef<number | null>(stopIndex)
+  useEffect(() => () => { if (anim.current) anim.current.cancel() }, [])
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const [scale, setScale] = useState(1)
   // brightens the edge chevrons a step above their resting dim the moment the pointer is
@@ -297,6 +335,53 @@ export function FilmRoll({
     return () => { stop(); if (ro) ro.disconnect() }
   }, [liveWidth, neighborWidth, minScale, maxScale])
   const sLive = Math.round(liveWidth * scale)
+  /* the distance the live card actually moves when the roll advances one stop: half of it, the
+     gap, and half of the neighbour it trades places with. Derived, not chosen, and the same for
+     both directions. */
+  const step = Math.round(((liveWidth + neighborWidth) / 2 + gap) * scale)
+  const play = (dir: -1 | 1) => {
+    const row = rowRef.current
+    if (!row || typeof row.animate !== 'function') return
+    /* READ THE DURATION AND THE CURVE OFF THE COMPUTED STYLE, never a literal: `--dur-move` is 1ms
+       under `prefers-reduced-motion`, so honouring the setting is free and a hard-coded duration
+       would drop it silently (the lesson `--dur-flight`'s comment in tokens/motion.css records).
+       A token that cannot be read is the cut this roll always was — never a guessed duration. */
+    const cs = getComputedStyle(row)
+    const raw = cs.getPropertyValue('--dur-move').trim()
+    const duration = raw.endsWith('ms') ? parseFloat(raw) : raw.endsWith('s') ? parseFloat(raw) * 1000 : NaN
+    /* A MOVE SHORTER THAN ONE FRAME IS A CUT, AND IS PLAYED AS ONE. `--dur-move` is 1ms under
+       `prefers-reduced-motion`, but an animation that is still PENDING applies its first keyframe,
+       so a 1ms slide painted one frame of the row displaced at half opacity — measured on the
+       running presenter, 592px at the first sampled frame. Nothing shorter than a frame can be seen
+       as movement, only as that flash, so it does not start at all: the token still decides, this
+       only refuses to draw a move nobody can watch. */
+    if (!(duration >= FRAME_MS)) return
+    const easing = cs.getPropertyValue('--ease-settle').trim() || 'ease-out'
+    if (anim.current) anim.current.cancel()
+    setTravelDir(dir)
+    const a = row.animate(
+      [{ transform: 'translateX(' + dir * step + 'px)', opacity: 0.5 }, { transform: 'translateX(0px)', opacity: 1 }],
+      { duration, easing, fill: 'none' },
+    )
+    anim.current = a
+    /* the chevron's lean is released by the ANIMATION's own end, not by a second clock — two timers
+       can land in either order. `finished` rejects on cancel; swallow that. */
+    const done = () => { if (anim.current === a) { anim.current = null; setTravelDir(0) } }
+    a.finished.then(done, () => {})
+  }
+  /* THE NUMBER IS THE AUTHORITY when the host passes one; the roll's own clicks are the fallback for
+     a host that does not, and are SUPPRESSED when it does, so a click never plays the cue twice. */
+  useEffect(() => {
+    const from = lastIndex.current
+    lastIndex.current = stopIndex
+    if (stopIndex == null || from == null || stopIndex === from) return
+    // a CHANGE of the host's index is the event: the lean it sets is released by the
+    // animation's own `finished`, so it is not derivable from any prop at render time
+    play(stopIndex > from ? 1 : -1)
+    // the index is the only trigger; `play` reads the step of the render it runs in
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stopIndex])
+  const navigate = (dir: -1 | 1, fn: () => void) => () => { if (stopIndex == null) play(dir); fn() }
   const sNeighbor = Math.round(neighborWidth * scale)
   const sHeight = Math.round(height * scale)
   const sGap = Math.round(gap * scale)
@@ -306,19 +391,26 @@ export function FilmRoll({
       background: 'var(--bark-100)', border: '1px solid var(--border-frame)', borderRadius: 'var(--radius-md)',
       overflow: 'hidden', boxSizing: 'border-box', padding: '0 ' + chevronPad + 'px', userSelect: 'none',
     }}>
-      {prev ? (
-        <Mirror width={sNeighbor} content={prev.content} cornerLabel={'← ' + prev.stopLabel} dim
-          flagged={prev.flagged} onToggleFlag={onToggleFlag && (() => onToggleFlag('prev'))} onNavigate={prev.onNavigate} />
-      ) : <div style={{ width: sNeighbor, flexShrink: 0 }} />}
-      <Mirror width={sLive} content={current && current.content} cornerLabel={label} live projecting={projecting}
-        flagged={current ? current.flagged : undefined} elapsed={projecting ? (current ? current.elapsed : undefined) : undefined}
-        onToggleFlag={onToggleFlag && (() => onToggleFlag('current'))} onExpand={onExpand} />
-      {next ? (
-        <Mirror width={sNeighbor} content={next.content} cornerLabel={next.stopLabel + ' →'} dim
-          flagged={next.flagged} onToggleFlag={onToggleFlag && (() => onToggleFlag('next'))} onNavigate={next.onNavigate} />
-      ) : <div style={{ width: sNeighbor, flexShrink: 0 }} />}
-      {prev && prev.onNavigate ? <EdgeChevron dir={-1} onClick={prev.onNavigate} roomHot={roomHot} /> : null}
-      {next && next.onNavigate ? <EdgeChevron dir={1} onClick={next.onNavigate} roomHot={roomHot} /> : null}
+      {/* THE CARDS TRAVEL AS ONE ROW, the chevrons do not — they are the fixed furniture of the
+         roll and stay put while what they point at moves. The row's own style is STATIC: the
+         movement is an animation on this element, so a frame that never runs leaves it at rest. */}
+      <div ref={rowRef} data-filmroll-row style={{ display: 'flex', alignItems: 'center', gap: sGap, willChange: 'transform' }}>
+        {prev ? (
+          <Mirror width={sNeighbor} content={prev.content} cornerLabel={'← ' + prev.stopLabel} dim
+            flagged={prev.flagged} onToggleFlag={onToggleFlag && (() => onToggleFlag('prev'))}
+            onNavigate={prev.onNavigate && navigate(-1, prev.onNavigate)} />
+        ) : <div style={{ width: sNeighbor, flexShrink: 0 }} />}
+        <Mirror width={sLive} content={current && current.content} cornerLabel={label} live projecting={projecting}
+          flagged={current ? current.flagged : undefined} elapsed={projecting ? (current ? current.elapsed : undefined) : undefined}
+          onToggleFlag={onToggleFlag && (() => onToggleFlag('current'))} onExpand={onExpand} />
+        {next ? (
+          <Mirror width={sNeighbor} content={next.content} cornerLabel={next.stopLabel + ' →'} dim
+            flagged={next.flagged} onToggleFlag={onToggleFlag && (() => onToggleFlag('next'))}
+            onNavigate={next.onNavigate && navigate(1, next.onNavigate)} />
+        ) : <div style={{ width: sNeighbor, flexShrink: 0 }} />}
+      </div>
+      {prev && prev.onNavigate ? <EdgeChevron dir={-1} onClick={navigate(-1, prev.onNavigate)} roomHot={roomHot} traveling={travelDir === -1} /> : null}
+      {next && next.onNavigate ? <EdgeChevron dir={1} onClick={navigate(1, next.onNavigate)} roomHot={roomHot} traveling={travelDir === 1} /> : null}
     </div>
   )
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { familySlots } from '@/ds/values'
 import { domainIds, topicHueOf } from '../corpus/graph'
 import { provinceRings, territories } from './nested'
-import { familyOf, hexToOklch, inkOf, labelInkOf, territoryFillOf, territoryNeighboursOf, territorySlotOf } from './color'
+import { colorOf, familyOf, ghostOf, hexToOklch, inkOf, inkStrongOf, labelInkOf, selectedLabelInkOf, SELECTION_WASH, territoryFillOf, territoryNeighboursOf, territorySlotOf, washedFillOf, washedLabelInkOf } from './color'
 
 /* OB-119 (#250) — the map's territory fill, re-measured the way the item asks: every fill's
  * nearest ring stop IS its own family's hue; no two touching regions of one family share a slot;
@@ -173,5 +173,58 @@ describe('OB-162 — the province tier constrains every edge', () => {
     expect(digPrc).toBeGreaterThanOrEqual(0.09)
     expect(ds.filter((d) => d < 0.02).length).toBe(0)
     expect(slotsInUse).toBeLessThanOrEqual(5)
+  })
+})
+
+/* DS OB-223 clause 3 — a SELECTED cell is not its base fill. The map lays the cell's anchor over it
+ * twice (the blurred glow, then the body tint), and a label that held 4.5:1 at rest fell to 3.17:1
+ * under that wash on the owner's crop. The paper case covers the glyph strokes; between the letters
+ * the eye still reads the fill, so the selected name's ink is checked against the WASHED colour. The
+ * compositing is restated here (SVG source-over, per channel in encoded sRGB) so the test cannot
+ * pass by reading the thing it checks. */
+describe('OB-223 — a selected name holds 4.5:1 against the colour actually under it', () => {
+  const over = (base: string, top: string, a: number) => {
+    const B = parseInt(base.slice(1), 16)
+    const T = parseInt(top.slice(1), 16)
+    const ch = (n: number, s: number) => (n >> s) & 255
+    return '#' + [16, 8, 0].map((s) => Math.round(ch(B, s) + (ch(T, s) - ch(B, s)) * a).toString(16).padStart(2, '0')).join('')
+  }
+
+  it('washedFillOf is the territory fill under the glow, then the body tint, of its own anchor', () => {
+    for (const id of [...domainIds, ...regions]) {
+      const expected = over(over(territoryFillOf(id), colorOf(id), SELECTION_WASH.glow), colorOf(id), SELECTION_WASH.body)
+      expect(washedFillOf(id), id).toBe(expected)
+    }
+  })
+
+  it('the selected name clears 4.5:1 on its washed fill everywhere, and keeps inkStrongOf wherever that already does', () => {
+    let worst = Infinity
+    let stepped = 0
+    for (const id of [...domainIds, ...regions]) {
+      const r = contrast(selectedLabelInkOf(id), washedFillOf(id))
+      worst = Math.min(worst, r)
+      expect(r, id).toBeGreaterThanOrEqual(4.5)
+      if (contrast(inkStrongOf(id), washedFillOf(id)) >= 4.5) expect(selectedLabelInkOf(id), id).toBe(inkStrongOf(id))
+      else stepped++
+      // and a province's name at level 1, which keeps the label register, holds it too
+      expect(contrast(washedLabelInkOf(id), washedFillOf(id)), id).toBeGreaterThanOrEqual(4.5)
+    }
+    console.log(`OB-223 selected ink over ${domains.size + regions.length} washed fills: worst ${worst.toFixed(2)} | stepped past inkStrongOf ${stepped}`)
+  })
+
+  it('the ghost heading is ONE opaque tone per family hue, whatever node it names', () => {
+    const byHue = new Map<string, Set<string>>()
+    for (const id of [...domainIds, ...regions]) {
+      const hue = topicHueOf(id)
+      if (!hue) continue
+      if (!byHue.has(hue)) byHue.set(hue, new Set())
+      byHue.get(hue)!.add(ghostOf(id))
+      const { l, c, h } = hexToOklch(ghostOf(id))
+      expect(l, id).toBeCloseTo(0.64, 2)
+      expect(c, id).toBeGreaterThan(0.09)
+      expect(circ(h, RING_DEGREES[hue]), id).toBeLessThan(2)
+    }
+    expect(byHue.size).toBeGreaterThan(0)
+    for (const [hue, tones] of byHue) expect(tones.size, hue).toBe(1)
   })
 })

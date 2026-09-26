@@ -5,7 +5,7 @@
 // renders from here and re-exports every name, so the barrel and every importer
 // see one home.
 
-import { HUE_DEGREES } from './topicvalues'
+import { GHOST_C, GHOST_L, HUE_DEGREES } from './topicvalues'
 
 
 /** THE RING, IN HUE ORDER. Sixteen hue names, matching `--hue-<name>` in
@@ -100,7 +100,7 @@ export function domainToken(domain?: string | null): string {
 }
 
 /** THE PAINT FOR A TOPIC — every value a caller needs, so no call site
- *  chooses a role. Returns `{ hue, mark, ink, stroke, wash, washRaised }`.
+ *  chooses a role. Returns `{ hue, mark, ink, stroke, wash, washRaised, ghost }`.
  *  `hue` is the resolved ring name, or null for an unknown topic (whose
  *  values are all the anchor fallback, so it draws as a grey mark rather
  *  than as nothing).
@@ -108,11 +108,23 @@ export function domainToken(domain?: string | null): string {
  *  `stroke` is included deliberately even though a topic does not normally
  *  draw one: a topic's own hairline (a rail's rung, a tree's guide) is the
  *  one case, and leaving it out would send a caller back to assembling a
- *  token name by hand. */
-export function topicPaint(topic?: string | null): { hue: string | null; mark: string; ink: string; stroke: string; wash: string; washRaised: string } {
+ *  token name by hand.
+ *
+ *  `ghost` IS AN OPAQUE COLOUR AND THAT IS THE WHOLE POINT (DS OB-223). It is
+ *  the role for a group's name written ACROSS its children — the map's region
+ *  heading behind the cells that belong to it. Drawn the obvious way, as the
+ *  hue at some alpha over whatever is beneath, it composites differently over
+ *  every child and changes value mid-word; the owner's reading of that: "i dont
+ *  like how the background text has different shades across different nodes,
+ *  that looks weird and it attracts attention to something that should be in
+ *  the background" (2026-09-18). So this is ONE resolved value per hue
+ *  (`GHOST_L`/`GHOST_C`), painted ABOVE every fill and every selection wash,
+ *  never composited through them. A cell name must not depend on it being
+ *  light: a name crossing it survives on its paper case (`LabelCut.case`). */
+export function topicPaint(topic?: string | null): { hue: string | null; mark: string; ink: string; stroke: string; wash: string; washRaised: string; ghost: string } {
   const hue = topic != null && HUE_RING.includes(topic) ? topic : null
-  if (!hue) return { hue: null, mark: 'var(--swatch-anchor-fallback)', ink: 'var(--swatch-ink-fallback)', stroke: 'var(--swatch-anchor-fallback)', wash: 'var(--swatch-fill-fallback)', washRaised: 'var(--swatch-fill-fallback)' }
-  return { hue, mark: `var(--hue-${hue})`, ink: `var(--hue-${hue}-ink)`, stroke: `var(--hue-${hue}-stroke)`, wash: `var(--hue-${hue}-wash)`, washRaised: `var(--hue-${hue}-wash-raised)` }
+  if (!hue) return { hue: null, mark: 'var(--swatch-anchor-fallback)', ink: 'var(--swatch-ink-fallback)', stroke: 'var(--swatch-anchor-fallback)', wash: 'var(--swatch-fill-fallback)', washRaised: 'var(--swatch-fill-fallback)', ghost: 'var(--swatch-anchor-fallback)' }
+  return { hue, mark: `var(--hue-${hue})`, ink: `var(--hue-${hue}-ink)`, stroke: `var(--hue-${hue}-stroke)`, wash: `var(--hue-${hue}-wash)`, washRaised: `var(--hue-${hue}-wash-raised)`, ghost: `oklch(${GHOST_L.toFixed(3)} ${GHOST_C.toFixed(3)} ${HUE_DEGREES[hue].toFixed(1)})` }
 }
 
 /* the ring's degrees live in ./topicvalues (a plain module, so the token-pinning test can be a

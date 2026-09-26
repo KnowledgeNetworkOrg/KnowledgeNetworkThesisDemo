@@ -366,6 +366,60 @@ for (const [id, fill] of territoryFillMap) {
   labelInkMap.set(id, chosen)
 }
 
+// ── A selected cell: the colour ACTUALLY under its name (DS OB-223) ─────────
+// OB-102's rule — a label holds 4.5:1 against the cell it sits on — was checked
+// against the BASE fill, and a selected cell is not its base fill: the map lays
+// the cell's own anchor over it twice (the blurred glow, then the body tint). The
+// DS measured the result off the owner's crop: the selected fill reads #b8b4ea
+// where the resting one reads #dfdafd, and a label that passed at rest fell to
+// 3.17:1. The paper case (`LabelCut.case`) covers the glyph strokes, but between
+// the letters the eye still reads the fill, so the ink is resolved against the
+// WASHED colour as well. The case and this are not alternatives.
+
+/** THE SELECTION WASH, as the map paints it — the cell's anchor (`colorOf`) laid over its
+ *  territory fill at these two fill opacities, glow first, body second. MapView reads both
+ *  numbers from here, so the colour the ink is checked against and the colour the map paints
+ *  are one pair of numbers, not two that can drift. */
+export const SELECTION_WASH = { glow: 0.16, body: 0.22 } as const
+
+/** one colour laid over another at an opacity, the way SVG composites: per channel, in the
+ *  gamma-encoded sRGB the map's fills and its glow filter (`colorInterpolationFilters="sRGB"`)
+ *  both work in */
+function over(base: string, top: string, a: number): string {
+  const B = parseInt(base.slice(1), 16)
+  const T = parseInt(top.slice(1), 16)
+  const ch = (n: number, s: number) => (n >> s) & 255
+  const mix = (s: number) => Math.round(ch(B, s) + (ch(T, s) - ch(B, s)) * a)
+  return '#' + ((mix(16) << 16) | (mix(8) << 8) | mix(0)).toString(16).padStart(6, '0')
+}
+
+/** the lightest ink on one ladder that holds 4.5:1 on `fill`. The ladder is OB-102's —
+ *  `inkOf`'s register (0) to `inkStrongOf`'s (1) — continued past it (to 2) toward a near-black
+ *  that keeps a trace of the hue, for the one case the published register does not reach.
+ *  `start` is where on it a caller begins: a label keeps the lightest ink its fill allows, the
+ *  selected name keeps the emphasis ink it was designed with unless its fill refuses that too. */
+function inkOn(hue: number, fill: string, start: number): string {
+  const at = (t: number) => (t <= 1 ? oklchToHex(lerp(0.42, 0.3, t), lerp(0.1, 0.04, t), hue) : oklchToHex(lerp(0.3, 0.16, t - 1), lerp(0.04, 0.02, t - 1), hue))
+  for (let step = Math.round(start * INK_STEPS); step <= 2 * INK_STEPS; step++) {
+    const cand = at(step / INK_STEPS)
+    if (contrastRatio(cand, fill) >= LABEL_MIN_CONTRAST) return cand
+  }
+  return at(2)
+}
+
+const washedFillMap = new Map<string, string>()
+const washedLabelInkMap = new Map<string, string>()
+const selectedLabelInkMap = new Map<string, string>()
+for (const [id, fill] of territoryFillMap) {
+  const anchor = anchorMap.get(id) ?? FALLBACK.anchor
+  const washed = over(over(fill, anchor, SELECTION_WASH.glow), anchor, SELECTION_WASH.body)
+  washedFillMap.set(id, washed)
+  const s = slot.get(id)
+  if (!s) continue
+  washedLabelInkMap.set(id, inkOn(s.hue, washed, 0))
+  selectedLabelInkMap.set(id, inkOn(s.hue, washed, 1))
+}
+
 /** saturated identity anchor — borders, capitals, chips */
 export const colorOf = (id: string): string => anchorMap.get(id) ?? FALLBACK.anchor
 /** pale country fill — active-level territory paint */
@@ -393,5 +447,23 @@ export const inkOf = (id: string): string => inkMap.get(id) ?? FALLBACK.ink
 export const labelInkOf = (id: string): string => labelInkMap.get(id) ?? inkMap.get(id) ?? FALLBACK.ink
 /** crisp near-black emphasis ink — selected/focused labels (see header) */
 export const inkStrongOf = (id: string): string => inkStrongMap.get(id) ?? FALLBACK.inkStrong
+/** a MAP territory's fill as it is actually painted while the cell is SELECTED — its territory
+ *  fill under the `SELECTION_WASH` (DS OB-223). What the selected name's ink is checked against. */
+export const washedFillOf = (id: string): string => washedFillMap.get(id) ?? territoryFillOf(id)
+/** `labelInkOf`'s rule (OB-102, the lightest ink on the ladder that holds 4.5:1) run against
+ *  `washedFillOf` — the ink for a name whose cell is selected and whose level draws it in the
+ *  label register (a province at level 1). */
+export const washedLabelInkOf = (id: string): string => washedLabelInkMap.get(id) ?? labelInkOf(id)
+/** the SELECTED cell's name at the nested levels: `inkStrongOf`'s calm near-black, unchanged
+ *  wherever it already holds 4.5:1 against `washedFillOf`, and stepped darker only where it does
+ *  not (DS OB-223 clause 3). */
+export const selectedLabelInkOf = (id: string): string => selectedLabelInkMap.get(id) ?? inkStrongOf(id)
+/** the region heading written ACROSS a node's children — its family's `topicPaint().ghost`, one
+ *  opaque tone per hue (DS OB-223 clause 2), as a hex for an SVG presentation attribute. The same
+ *  colour over every child it spans, because it is painted above them, never through them. */
+export const ghostOf = (id: string): string => {
+  const g = topicPaintValues(topicHueOf(id)).ghost
+  return topicHueOf(id) ? oklchToHex(g.l, g.c, g.h) : FALLBACK.anchor
+}
 /** the assigned hue in degrees, for anything that derives its own swatch */
 export const hueOf = (id: string): number | null => slot.get(id)?.hue ?? null

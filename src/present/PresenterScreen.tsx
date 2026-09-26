@@ -366,7 +366,14 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
             <div style={{ flex: 'none' }}>
               <FilmRoll height={286} projecting={projecting}
                 prev={shown > 0 ? nav(shown - 1) : null}
-                current={{ content: wall(shown), flagged: flags.indexOf(shown) >= 0, elapsed: roaming || !projecting ? undefined : mmss(onStopS) }}
+                current={{
+                  content: wall(shown), flagged: flags.indexOf(shown) >= 0, elapsed: roaming || !projecting ? undefined : mmss(onStopS),
+                  /* the stop ON THE WALL, roaming included — the same index `wall()` draws from — so
+                     every route into a new stop (arrows, the strip, the finder, a roam) plays the
+                     roll's travel frame in its own direction (DS OB-203). The ACTIVE stop here
+                     would leave a roam silent. */
+                  stopIndex: shown,
+                }}
                 next={shown < N - 1 ? nav(shown + 1) : null}
                 onToggleFlag={(which) => toggleFlag(which === 'prev' ? shown - 1 : which === 'next' ? shown + 1 : shown)}
                 onExpand={() => setExpanded(true)} />

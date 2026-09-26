@@ -4,7 +4,11 @@ import { Caret, CARET_FIRST_LINE_INSET } from '../nav/TreeRow'
 import { RESIZE_TIP, useRecede, wrapTip } from '../chrome/IconButton'
 import { CloseMark } from '../chrome/CloseMark'
 import { fitLines } from './textFit'
-import { canMeasure, linesOf, measure } from './textMeasure'
+import { canMeasure, linesOf, measure, WRAP_SAFETY_PX } from './textMeasure'
+/* PUBLISHED FROM HERE (DS OB-217) because this is the file whose predictions depend on it, and a
+   number that crosses the boundary is exported rather than retyped. It is DECLARED once, in
+   `textMeasure`, and spent twice: this file's one-line width and that file's wrap decision. */
+export { WRAP_SAFETY_PX }
 
 /** WHAT EACH FORM'S BORDER WEIGHS, published because A CONNECTOR IS DRAWN AT THE BORDER
  *  WEIGHT OF WHAT IT CONNECTS AND NEVER ABOVE IT. The nodes are the objects; a line
@@ -466,8 +470,11 @@ function mentionContentWidth(totalWidth: number): number {
  *  and the real second line is clipped by the shell's `overflow: hidden`, invisible in
  *  Chromium because its two subsystems happen to agree there. Padding the reserved width by
  *  this much costs nothing visible (the extra column is sub-pixel against a chip's own
- *  rounding) and is cheap insurance against a gap that is real but not worth chasing tighter. */
-const WRAP_SAFETY_PX = 1
+ *  rounding) and is cheap insurance against a gap that is real but not worth chasing tighter.
+ *  THE CONSTANT ITSELF LIVES IN `textMeasure` (DS OB-217), because the wrap decision there spends
+ *  the same pixel for the same reason: this width padding is discarded the moment `chipSize()`
+ *  clamps to `maxWidth`, which is exactly when the column is tight enough for the line count to
+ *  come back one short in Firefox. */
 
 /** what a chip is going to be, given what it will be handed. The props named
  *  here are the ones that MOVE the box; everything else a chip takes (hue, lit,
@@ -581,12 +588,12 @@ export function chipSize(spec?: ChipSpec): ChipSize {
     + (optional && quiet ? measure(' (optional)', fwIndex, fsText, 'ui') : 0)
   /* read LAST of the measurements above, so the canvas has been settled by the call */
   const measured = canMeasure()
-  /* + WRAP_SAFETY_PX: see its own docblock. Padding here, not inside linesOf()'s fit test,
-     because titleColumn is deliberately sized to just barely hold oneLine (the ceiling
-     rounds up by less than 1px, sometimes far less) — margin subtracted from linesOf()'s
-     comparison instead fights that same tolerance and flips single-line titles as readily
-     as the boundary case it was meant to fix. Padding the reservation itself gives every
-     downstream fit test real slack without touching the arithmetic that reads it. */
+  /* + WRAP_SAFETY_PX: see its own docblock. The reservation is padded by the SAME pixel
+     `linesOf()` now narrows its column by (DS OB-217), so the two cancel exactly for an
+     unclamped chip: the column is at least `oneLine + WRAP_SAFETY_PX`, the wrap test compares
+     against `oneLine` or more, and a one-line title still predicts one line. Where the width
+     clamps to `maxWidth` the padding is gone and the narrowed wrap test is what keeps Firefox
+     from reserving a line too few. */
   const width = Math.max(minW, Math.min(maxW, Math.ceil(chrome + oneLine + WRAP_SAFETY_PX)))
   const titleColumn = Math.max(1, width - chrome)
 

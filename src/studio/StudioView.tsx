@@ -98,6 +98,29 @@ export default function StudioView() {
   const [showPalette, setShowPalette] = useState(true)
   const paletteWrapRef = useRef<HTMLDivElement | null>(null)
   const [paletteAnim, setPaletteAnim] = useState<PaletteAnim | null>(null)
+  /* THE FLIGHT'S ONE CLOCK, AND IT IS HELD (DS OB-218). Closing unmounts the pane
+     `PALETTE_ANIM_MS` after the press; opening marks the flight over after the same
+     time. The close timer used to be fire-and-forget — close, re-open inside 400ms, and
+     the OLD timer still fired `setShowPalette(false)`: the palette closed itself a
+     moment after the user asked for it open. Every press clears it first, and so does
+     unmounting. */
+  const flightTimer = useRef<number | null>(null)
+  const clearFlight = () => {
+    if (flightTimer.current != null) window.clearTimeout(flightTimer.current)
+    flightTimer.current = null
+  }
+  useEffect(() => () => { if (flightTimer.current != null) window.clearTimeout(flightTimer.current) }, [])
+  /* a press that REVERSED a flight lands in one frame, so for that commit the pane's
+     transitions are off — otherwise the CSS would fly it back from wherever the
+     interrupted flight had got to, which is the second flight clause 3 forbids */
+  const [paletteCut, setPaletteCut] = useState(false)
+  /* WHAT THE PALETTE IS BECOMING, NOT WHAT IS STILL MOUNTED. `showPalette` stays
+     true for the whole closing flight because the unmount is deferred, so a toggle
+     that read it repeated the close on a second press — nothing visible changed, a
+     second timer queued, and the user waited out the rest of the animation for a
+     press that did nothing. The toggle decides from this, and the toolbar button's
+     pressed state shows it, so the button stops lying during a close. */
+  const paletteOpen = showPalette && paletteAnim?.dir !== 'closing'
 
   /** WHERE THE PANE IS FLYING TO, MEASURED LIVE — not a fixed corner. The icon's
    *  x moves with the toolbar's own content, so a constant was wrong on the DS's
@@ -106,7 +129,16 @@ export default function StudioView() {
    *  The button is found by its `data-toolbar-hook` (OB-124). It used to be found
    *  by its tooltip, through a whole module of matching machinery, because the DS
    *  `Toolbar` had no stable handle to offer; it does now, so the machinery is
-   *  gone rather than repaired. */
+   *  gone rather than repaired.
+   *
+   *  NEVER CALL THIS WHILE THE PANE IS FLYING (DS OB-218 clause 4) — only with
+   *  `paletteAnim` null, or on the `measuring` hop, which exists precisely to
+   *  read the pane mounted at rest. `getBoundingClientRect` returns the box AS
+   *  TRANSFORMED, so mid-flight it is the `scale(0.06)`, translated box, and a delta
+   *  read then aims the pane at a point computed from a box that is already
+   *  flying. This is the "measure THEN animate" rule below, from the other side:
+   *  a press that interrupts a flight CUTS instead of measuring (`closePalette` /
+   *  `openPalette`), which is what keeps every call here at rest. */
   const paletteDelta = () => {
     const wrap = paletteWrapRef.current
     const icon = document.querySelector(PALETTE_HOOK_SELECTOR)
@@ -118,23 +150,57 @@ export default function StudioView() {
       dy: ir.top + ir.height / 2 - (pr.top + pr.height / 2),
     }
   }
+  /* NEVER DROP A PRESS, ONLY DROP AN ANIMATION (DS OB-218). State tracks presses
+     one for one. A press that REVERSES a flight in progress means the opposite of
+     what is playing, and it must not start a second flight from a pane that is
+     already mid-air: it clears the clock, drops `paletteAnim`, and sets the new
+     state in the same commit — one frame, no animation. What an interrupting press
+     gives up is its own flourish, never its effect.
+     AND NEVER FIX ANY OF THIS BY DISABLING THE BUTTON, debouncing it, or gating it
+     on a busy flag: a toggle that stops answering for 400ms IS the delay that was
+     reported, made permanent. The DS's `ViewMorph.run` carries the same
+     prohibition for the same reason. */
   const closePalette = () => {
+    // already on its way out: a repeated close (the ✕ beside a toggle) is not a reversal
+    if (paletteAnim && paletteAnim.dir === 'closing') return
+    clearFlight()
+    if (paletteAnim) {
+      setPaletteAnim(null)
+      setShowPalette(false)
+      setPaletteCut(true)
+      return
+    }
+    setPaletteCut(false)
     setPaletteAnim({ dir: 'closing', phase: 'go', ...paletteDelta() })
-    window.setTimeout(() => {
+    flightTimer.current = window.setTimeout(() => {
+      flightTimer.current = null
       setShowPalette(false)
       setPaletteAnim(null)
     }, PALETTE_ANIM_MS)
   }
   const openPalette = () => {
+    if (paletteAnim && paletteAnim.dir === 'opening') return
+    clearFlight()
+    if (paletteAnim) {
+      setPaletteAnim(null)
+      setShowPalette(true)
+      setPaletteCut(true)
+      return
+    }
+    setPaletteCut(false)
     setShowPalette(true)
     setPaletteAnim({ dir: 'opening', phase: 'measuring', dx: 0, dy: 0 })
   }
+  const togglePalette = () => (paletteOpen ? closePalette() : openPalette())
   // FLIP, in two hops. Opening cannot animate from a box that does not exist yet,
   // so the pane MOUNTS AT REST and is measured before paint (`useLayoutEffect`),
   // then jumped to the shrunk-at-icon start with transitions OFF, then — one
   // frame later — given its transition back and released to rest. Two renders
   // collapsed into one paint; without the transitions-off hop the browser
-  // interpolates the jump too and the pane flies the wrong way first.
+  // interpolates the jump too and the pane flies the wrong way first. The `grow`
+  // hop starts the flight's clock, and when it runs out the pane is at rest and
+  // `paletteAnim` goes back to null — so "is it flying" is one question with one
+  // answer, and a later close measures a pane that is not.
   useLayoutEffect(() => {
     if (paletteAnim && paletteAnim.dir === 'opening' && paletteAnim.phase === 'measuring') {
       setPaletteAnim({ dir: 'opening', phase: 'shrink', ...paletteDelta() })
@@ -142,7 +208,14 @@ export default function StudioView() {
   }, [paletteAnim])
   useEffect(() => {
     if (paletteAnim && paletteAnim.dir === 'opening' && paletteAnim.phase === 'shrink') {
-      const id = requestAnimationFrame(() => setPaletteAnim((a) => (a && a.phase === 'shrink' ? { ...a, phase: 'grow' } : a)))
+      const id = requestAnimationFrame(() => {
+        setPaletteAnim((a) => (a && a.phase === 'shrink' ? { ...a, phase: 'grow' } : a))
+        if (flightTimer.current != null) window.clearTimeout(flightTimer.current)
+        flightTimer.current = window.setTimeout(() => {
+          flightTimer.current = null
+          setPaletteAnim((a) => (a && a.dir === 'opening' ? null : a))
+        }, PALETTE_ANIM_MS)
+      })
       return () => cancelAnimationFrame(id)
     }
   }, [paletteAnim])
@@ -175,7 +248,7 @@ export default function StudioView() {
     transform: paletteAnim && !paletteAtRest ? `translate(${paletteAnim.dx}px,${paletteAnim.dy}px) scale(0.06)` : 'translate(0,0) scale(1)',
     opacity: paletteAtRest ? 1 : 0,
     transition:
-      paletteAnim && paletteAnim.phase === 'shrink'
+      paletteCut || (paletteAnim && paletteAnim.phase === 'shrink')
         ? 'none'
         : 'transform var(--dur-flight) var(--ease-settle), opacity var(--dur-flight) var(--ease-settle), margin-right var(--dur-flight) var(--ease-settle)',
   }
@@ -406,7 +479,7 @@ export default function StudioView() {
       </div>
 
       {/* #55: app-level operations, pinned directly under the app header */}
-      <AppToolbar present={{ state: presentState, onClick: pressPresent }} palette={{ on: showPalette, onToggle: () => (showPalette ? closePalette() : openPalette()) }} />
+      <AppToolbar present={{ state: presentState, onClick: pressPresent }} palette={{ on: paletteOpen, onToggle: togglePalette }} />
       </>
       )}
 
@@ -446,7 +519,7 @@ export default function StudioView() {
                       active={presetId === p.id}
                       onClick={() => {
                         applyPreset(p)
-                        if (showPalette) closePalette()
+                        if (paletteOpen) closePalette()
                       }}
                     />
                   </div>

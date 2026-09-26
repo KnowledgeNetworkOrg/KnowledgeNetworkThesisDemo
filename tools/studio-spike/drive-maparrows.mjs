@@ -445,6 +445,112 @@ ok(
   `${await page.evaluate(() => document.querySelectorAll('[data-seledge] [data-selhead]').length)} heads`,
 )
 
+// ── DS OB-197: a relation between two ADJACENT cells is lengthened, and its bow capped ──
+// A road clipped to the boundary two neighbouring cells share was a stub a few units long whose
+// whole drawing was its head, and the fixed px(14) bulge turned that head up to 70° off its own
+// road — "two heads overlapped". The map now clips, then `extendToMin` (three of this set's heads),
+// then `capBow` (20° of head rotation) against the length that came back. Read off the DRAWN
+// path, in the scene's own units: the chord, the control point, the head.
+const roadGeom = () => page.evaluate(() => {
+  const heads = [...document.querySelectorAll('[data-seledge] [data-selhead]')]
+  const hm = heads.length ? /M0,0 L(-?[\d.e]+),/.exec(heads[0].getAttribute('d')) : null
+  const head = hm ? Math.abs(Number(hm[1])) : null
+  const inside = (id, x, y) => {
+    const el = document.querySelector(`[data-terr="${id}"], [data-region="${id}"]`)
+    return el ? el.isPointInFill(new DOMPoint(x, y)) : null
+  }
+  return { head, roads: [...document.querySelectorAll('[data-seledge]')].map((g) => {
+    const m = /M([-\d.e]+),([-\d.e]+) Q([-\d.e]+),([-\d.e]+) ([-\d.e]+),([-\d.e]+)/.exec(g.querySelector('path').getAttribute('d'))
+    const [ax, ay, cx, cy, bx, by] = m.slice(1).map(Number)
+    const [src, tgt] = g.getAttribute('data-seledge').split('>')
+    const t = g.querySelector('text')
+    return {
+      key: g.getAttribute('data-seledge'), grew: g.getAttribute('data-grew') === '1', hasHead: !!g.querySelector('[data-selhead]'),
+      ax, ay, cx, cy, bx, by, label: t ? { x: Number(t.getAttribute('x')), y: Number(t.getAttribute('y')) } : null,
+      aInTgt: inside(tgt, ax, ay), bInSrc: inside(src, bx, by),
+    }
+  }) }
+})
+const deg = (r) => {
+  // the head points along the curve's END tangent (b - c); the road runs a → b
+  const t = Math.atan2(r.by - r.cy, r.bx - r.cx)
+  const c = Math.atan2(r.by - r.ay, r.bx - r.ax)
+  let d = Math.abs(t - c) * 180 / Math.PI
+  if (d > 180) d = 360 - d
+  return d
+}
+const allRoads = []
+let headLen = null
+const paneBox = await page.locator('[aria-label="map-view"]').boundingBox()
+for (const fy of [0.35, 0.5, 0.65]) {
+  for (const fx of [0.3, 0.42, 0.5, 0.58, 0.7]) {
+    await page.keyboard.press('Escape')
+    await page.mouse.click(paneBox.x + paneBox.width * fx, paneBox.y + paneBox.height * fy)
+    await page.waitForTimeout(350)
+    const g = await roadGeom()
+    if (g.head) headLen = g.head
+    allRoads.push(...g.roads.map((r) => ({ ...r, at: { fx, fy } })))
+  }
+}
+const floor = headLen === null ? null : 3 * headLen
+const grew = allRoads.filter((r) => r.grew)
+const len = (r) => Math.hypot(r.bx - r.ax, r.by - r.ay)
+console.log(`OB-197 over ${allRoads.length} roads from 15 selections: ${grew.length} lengthened (adjacent cells), head ${headLen?.toFixed(2)} units, floor ${floor?.toFixed(2)}`)
+ok('OB-197: the sweep drew relation roads, and at least one between two ADJACENT cells', allRoads.length > 0 && grew.length > 0, `${allRoads.length} roads, ${grew.length} lengthened`)
+ok(
+  'OB-197 (3): every road is at least three of the set\'s heads long — the stub is gone',
+  floor !== null && allRoads.every((r) => len(r) >= floor - 0.01),
+  floor === null ? 'no head' : `shortest ${Math.min(...allRoads.map(len)).toFixed(2)} against ${floor.toFixed(2)}`,
+)
+ok(
+  'OB-197 (4): a road already past the floor was left at its own length — only the short ones grew',
+  allRoads.filter((r) => !r.grew).every((r) => len(r) > floor - 0.01) && grew.every((r) => Math.abs(len(r) - floor) < 0.01),
+  `lengthened roads at ${[...new Set(grew.map((r) => len(r).toFixed(2)))].join(', ')}`,
+)
+ok(
+  'OB-197 (3): a lengthened road CROSSES the shared boundary — its tail is not inside the target, its head not inside the source',
+  grew.every((r) => r.aInTgt === false && r.bInSrc === false),
+  grew.map((r) => `${r.key} tail-in-target ${r.aInTgt} head-in-source ${r.bInSrc}`).slice(0, 4).join('; '),
+)
+const worstDeg = Math.max(...allRoads.filter((r) => r.hasHead).map(deg))
+ok('OB-197 (10): no arrowhead points more than 20° off its own road', worstDeg <= 20.05, `worst ${worstDeg.toFixed(2)}°`)
+const counted = allRoads.filter((r) => r.label)
+if (counted.length) {
+  ok(
+    'OB-197 (9): the ×n count sits on the CAPPED curve\'s own midpoint',
+    counted.every((r) => Math.abs(r.label.x - (0.25 * r.ax + 0.5 * r.cx + 0.25 * r.bx)) < 0.01),
+    `${counted.length} counts checked`,
+  )
+} else {
+  console.log('OB-197 (9): no road in this sweep carries a ×n count — not checked here (the count reads the same capped control point as the head)')
+}
+if (grew.length) {
+  // a close-up of one lengthened stub, for the eye
+  const r = grew[0]
+  await page.keyboard.press('Escape')
+  await page.mouse.click(paneBox.x + paneBox.width * r.at.fx, paneBox.y + paneBox.height * r.at.fy)
+  await page.waitForTimeout(450)
+  const box = await page.evaluate(({ key }) => {
+    const g = document.querySelector(`[data-seledge="${key}"]`)
+    if (!g) return null
+    const b = g.getBoundingClientRect()
+    return { x: b.x, y: b.y, w: b.width, h: b.height }
+  }, { key: r.key })
+  if (box) {
+    await page.mouse.move(4, 4)
+    await page.waitForTimeout(250)
+    await page.screenshot({ path: OUT + '/ob197-short-road.png', clip: { x: Math.max(0, box.x - 60), y: Math.max(0, box.y - 60), width: box.w + 120, height: box.h + 120 } })
+  }
+}
+
+// back to one selection for the shots below
+await page.keyboard.press('Escape')
+for (const fx of [0.5, 0.42, 0.58, 0.34, 0.66]) {
+  await page.mouse.click(pane.x + pane.width * fx, pane.y + pane.height * 0.5)
+  await page.waitForTimeout(450)
+  if ((await page.locator('[data-seloverlay]').count()) === 1) break
+}
+
 await page.mouse.move(4, 4)
 await page.waitForTimeout(250)
 await page.screenshot({ path: OUT + '/map-arrows-receded.png' })
