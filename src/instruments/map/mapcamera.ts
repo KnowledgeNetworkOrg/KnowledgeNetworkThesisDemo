@@ -89,6 +89,12 @@ export function useMapCamera({
   // (deps []) reads it synchronously between notches
   const viewRef = useRef(view)
   const levelRef = useRef(level)
+  // `playing` is a PROP, but the wheel listener is created once (deps []) — the value
+  // it would close over is the mount render's. The ref is kept current every render
+  // and read at gesture time, so a wheel step during playback raises pannedRef like
+  // every other level step (OB-179: a level step during playback is the room's own move).
+  const playingRef = useRef(playing)
+  useEffect(() => { playingRef.current = playing })
 
   const sceneRef = useRef<SVGGElement | null>(null)
   const paintCamera = (v: View) => sceneRef.current?.setAttribute('transform', `translate(${v.tx} ${v.ty}) scale(${v.s})`)
@@ -161,7 +167,7 @@ export function useMapCamera({
    * `about` (user coords) fixed under the cursor. Always a USER gesture (wheel
    * step, double-click, level button). */
   const flyToLevel = (l: number, about?: XY) => {
-    if (playing) pannedRef.current = true // a user's own gesture — the walk's look stands aside once (OB-179)
+    if (playingRef.current) pannedRef.current = true // a user's own gesture — the walk's look stands aside once (OB-179)
     showLevel(l)
     // OB-193: level -1 (the root, one region) shares level 0's camera framing exactly — it is
     // the same six-territory extent, just drawn as one shape instead of six, not a further
@@ -251,7 +257,7 @@ export function useMapCamera({
     const next = { ...viewRef.current, tx: viewRef.current.tx + dx, ty: viewRef.current.ty + dy }
     viewRef.current = next
     paintCamera(next)
-    if (Math.hypot(next.tx - view.tx, next.ty - view.ty) / next.s >= PAN_COMMIT) { if (playing) pannedRef.current = true; setView(next) }
+    if (Math.hypot(next.tx - view.tx, next.ty - view.ty) / next.s >= PAN_COMMIT) { if (playingRef.current) pannedRef.current = true; setView(next) }
     return Math.hypot(dx, dy)
   }
 
