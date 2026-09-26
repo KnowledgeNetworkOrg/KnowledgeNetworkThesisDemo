@@ -20,10 +20,10 @@ const common = {
   bundle: true,
   format: 'cjs',
   platform: 'node',
-  // node20 rather than this machine's node22: `.github/workflows/code-verify.yml`
-  // pins setup-node@20, and a desktop build that only compiles on the newer local
-  // runtime is a trap waiting for whoever builds it in CI.
-  target: 'node20',
+  // node22: the line `.github/workflows/code-verify.yml` pins with setup-node and
+  // both packages' `engines` name, so CI and this machine agree on one runtime.
+  // (It was node20 while CI pinned 20; #332 moved CI, and this follows it.)
+  target: 'node22',
   external: ['electron'],
   sourcemap: true,
   logLevel: 'info',

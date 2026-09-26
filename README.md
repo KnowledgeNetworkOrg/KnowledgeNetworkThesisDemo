@@ -74,6 +74,15 @@ npm run lint
 npm run verify
 ```
 
+`verify` also typechecks the Electron host in `desktop/`, which is its own npm
+package with its own lockfile. Install its packages once first:
+
+```powershell
+npm ci --prefix desktop
+```
+
+Without them, `verify` stops at `Cannot find module 'electron'`.
+
 ## License
 
 BSD-2-Clause - see [LICENSE](LICENSE).

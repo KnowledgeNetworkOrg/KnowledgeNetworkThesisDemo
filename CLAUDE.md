@@ -90,6 +90,9 @@ authors in its own project and marks binding work under `## OBLIGATIONS` in its
 
 - The app code (`src/`) and the spike tooling under `tools/`.
 - Agents open PRs here.
-- Verification is self-contained: `npm run verify` runs typecheck, lint, and
-  tests, and reaches outside this repository for nothing.
+- Verification is self-contained: `npm run verify` builds (typecheck and
+  `vite build`), typechecks `desktop/` against the app's platform contract,
+  lints, and tests, and reaches outside this repository for nothing. The
+  desktop step needs `desktop/`'s own packages, installed once with
+  `npm ci --prefix desktop`.
 - The import rule between the folders is written in `src/layering.test.ts`.
