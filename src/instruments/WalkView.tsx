@@ -58,7 +58,10 @@ const typeChips = (types: [EdgeType, number][]) => (
   </span>
 )
 
-export default function WalkView({ bus }: { bus: Bus }) {
+/** the slice of the bus the edge-follower reads and writes */
+type WalkViewBus = Pick<Bus, 'route' | 'setRoute'>
+
+export default function WalkView({ bus }: { bus: WalkViewBus }) {
   const { route, setRoute } = bus
   const scroller = useRef<HTMLDivElement>(null)
 
