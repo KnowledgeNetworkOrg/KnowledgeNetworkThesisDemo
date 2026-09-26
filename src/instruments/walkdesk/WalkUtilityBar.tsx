@@ -19,7 +19,7 @@
 import { useState, useSyncExternalStore } from 'react'
 
 import { saveDraftAsWalk, useAuthorDraft, usePreviewOpen, useRoad } from '../../state/walk/authordraft'
-import { listWalks, subscribeWalks } from '../../model/walkstore'
+import { listWalks, subscribeWalks } from '../../state/walkstore'
 import { IconButton, Toolbar, wrapTip } from '@/ds'
 import type { ToolbarItemSpec } from '@/ds'
 

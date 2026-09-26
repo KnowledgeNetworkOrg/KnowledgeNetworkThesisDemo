@@ -14,12 +14,12 @@
 // no drag/resize/auto-hide of its own to carry.
 
 import { AddNodeMark, NewWalkMark, OptionalMark, PaneActionBar } from '@/ds'
-import { clearStoredData, listStoredData } from '../../model/storeddata'
+import { clearStoredData, listStoredData } from '../../state/storeddata'
 import { parsePath, stopAt, useAuthorDraft, useRoad } from '../../state/walk/authordraft'
 import { chosenIdx, isFork } from '../../state/walk/mockwalk'
 
 // TEMPORARY (2026-08-22) — the "Reset data" pill below, and this function with
-// it. Both go when the stale-payload question is closed; src/model/storeddata.ts
+// it. Both go when the stale-payload question is closed; src/state/storeddata.ts
 // carries the same marker and the reasoning.
 //
 // Reports BEFORE it clears, because the bytes are the diagnosis and clearing

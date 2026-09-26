@@ -95,6 +95,11 @@ const electronPlatform: Platform = {
   // promise, so main must answer in the same turn — one `sendSync`, the
   // app's second blocking channel after `fullscreen:get`.
   openWindow: (path, name) => ipcRenderer.sendSync('window:open', path, name) === true,
+
+  // ANSWERED BY THE WEB IMPLEMENTATION, DELIBERATELY — the renderer is Chromium
+  // and has `localStorage`, so `webPlatform.storage` is already this host's real
+  // answer. A real-file answer is #209's, not this seam's.
+  storage: webPlatform.storage,
 }
 
 contextBridge.exposeInMainWorld('knPlatform', electronPlatform)

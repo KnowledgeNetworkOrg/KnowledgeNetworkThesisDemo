@@ -43,8 +43,77 @@ function toScreenInfo(s: ScreenDetailedish): ScreenInfo {
   }
 }
 
+// ── storage (#338 step 5) ────────────────────────────────────────────────────
+// The weak answer is a Map that forgets on reload. It is used when there is NO
+// localStorage at all (undefined or null): `set` then returns true, because the
+// value really is kept for this session. When localStorage EXISTS but a call
+// throws, the weak answer is the honest one instead — `get` returns null, `set`
+// returns false and keeps nothing, `remove` does nothing, `keys` returns [] —
+// and the Map is NOT written, because a later `get` that succeeded would read
+// localStorage and never see it. "Refused, so lost" is exactly today's behaviour.
+//
+// `globalThis.localStorage` is looked up on EVERY call, never cached at module
+// load: the tests install and remove a fake per case with vi.stubGlobal after
+// this module has already been imported, so a cached copy would keep the stale
+// one.
+const memoryStore = new Map<string, string>()
+
 export const webPlatform: Platform = {
   name: 'web',
+
+  storage: {
+    get(key) {
+      const ls = globalThis.localStorage as Storage | undefined
+      if (!ls) return memoryStore.get(key) ?? null
+      try {
+        return ls.getItem(key)
+      } catch {
+        return null
+      }
+    },
+    set(key, value) {
+      const ls = globalThis.localStorage as Storage | undefined
+      if (!ls) {
+        memoryStore.set(key, value)
+        return true
+      }
+      try {
+        ls.setItem(key, value)
+        return true
+      } catch {
+        return false
+      }
+    },
+    remove(key) {
+      const ls = globalThis.localStorage as Storage | undefined
+      if (!ls) {
+        memoryStore.delete(key)
+        return
+      }
+      try {
+        ls.removeItem(key)
+      } catch {
+        // unavailable or blocked — the key stays
+      }
+    },
+    keys(prefix) {
+      const ls = globalThis.localStorage as Storage | undefined
+      const out: string[] = []
+      if (!ls) {
+        for (const k of memoryStore.keys()) if (k.startsWith(prefix)) out.push(k)
+        return out.sort()
+      }
+      try {
+        for (let i = 0; i < ls.length; i++) {
+          const k = ls.key(i)
+          if (k !== null && k.startsWith(prefix)) out.push(k)
+        }
+      } catch {
+        return []
+      }
+      return out.sort()
+    },
+  },
 
   async enterFullscreen() {
     // requestFullscreen REJECTS (rather than resolving false) when it is refused:

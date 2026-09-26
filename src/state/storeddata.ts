@@ -55,6 +55,8 @@
 // file's real job is `listStoredData`, not `clearStoredData`: seeing the bytes is
 // the diagnosis, clearing them is only the escape hatch.
 
+import { platform } from '../platform'
+
 /** every key this app writes starts with one of these — `pkt.` is the app's own
  * namespace, `kn-connections_` is the Connections pane's (see the note above) */
 const STORED_PREFIXES = ['pkt.', 'kn-connections_']
@@ -82,19 +84,15 @@ const PREVIEW_CHARS = 400
  * white-screens the app it is diagnosing is worse than no diagnostic. */
 export function listStoredData(): StoredEntry[] {
   const out: StoredEntry[] = []
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key === null || !under(STORED_PREFIXES, key)) continue
-      const raw = localStorage.getItem(key) ?? ''
+  for (const prefix of STORED_PREFIXES) {
+    for (const key of platform.storage.keys(prefix)) {
+      const raw = platform.storage.get(key) ?? ''
       out.push({
         key,
         bytes: raw.length,
         preview: raw.length > PREVIEW_CHARS ? raw.slice(0, PREVIEW_CHARS) + '…' : raw,
       })
     }
-  } catch {
-    return []
   }
   return out.sort((a, b) => a.key.localeCompare(b.key))
 }
@@ -104,8 +102,8 @@ export function listStoredData(): StoredEntry[] {
  * forgotten.
  *
  * THE CALLER MUST RELOAD. The stores this clears are read ONCE, at module load —
- * authordraft.ts calls loadDraft() at line 102 to seed its module-level store,
- * walkstore.ts calls read() at line 101 for the same reason. Clearing the keys
+ * authordraft.ts calls loadDraft() at line 140 to seed its module-level store,
+ * walkstore.ts calls read() at line 97 for the same reason. Clearing the keys
  * therefore changes nothing on screen by itself: the live stores still hold what
  * they parsed at boot, and the next edit persists it straight back, which reads
  * as the reset having silently failed. Reloading is what makes the cleared state
@@ -114,11 +112,6 @@ export function clearStoredData(): string[] {
   const keys = listStoredData()
     .map((e) => e.key)
     .filter((key) => under(RESET_PREFIXES, key))
-  try {
-    for (const key of keys) localStorage.removeItem(key)
-  } catch {
-    // unavailable or blocked — nothing was cleared, and the caller's reload will
-    // simply come back on the same payload
-  }
+  for (const key of keys) platform.storage.remove(key)
   return keys
 }

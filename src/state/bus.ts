@@ -19,7 +19,7 @@
 import { useCallback, useMemo, useState } from 'react'
 
 import { byId } from '../corpus/graph'
-import { walkById } from '../model/walkstore'
+import { walkById } from './walkstore'
 import { curriculum } from '../model/lens'
 import { HISTORY_EMPTY, mark, step, visit } from '../model/nav'
 import { routeLeafIds, routeOfIds } from '../model/route'

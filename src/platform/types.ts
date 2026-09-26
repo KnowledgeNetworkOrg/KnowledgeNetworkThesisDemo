@@ -79,6 +79,22 @@ export interface ScreenInfo {
   readonly height: number
 }
 
+/** SMALL KEY-VALUE STORAGE that outlives a reload. Synchronous, because every
+ *  reader seeds a module-level store at import time and cannot await. The weak
+ *  answer is a store that forgets on reload — in memory — and it is a real
+ *  answer: a private-mode browser must open the desk on a seed, not on a stack
+ *  trace. Never throws. Keys are the caller's; the `pkt.` prefix is a convention
+ *  this seam does not know about. */
+export interface KeyValueStore {
+  /** the stored text, or null when there is none or the store cannot be read */
+  get(key: string): string | null
+  /** true when the value is now stored; false when the host refused (quota, unavailable) */
+  set(key: string, value: string): boolean
+  remove(key: string): void
+  /** every stored key beginning with `prefix`, sorted */
+  keys(prefix: string): string[]
+}
+
 export interface Platform {
   /** which implementation answered. A readout for humans and for drivers — never
    *  a thing to branch on: if a caller needs to know, the interface is wrong.
@@ -139,4 +155,10 @@ export interface Platform {
    *  a `BrowserWindow`, placed on a chosen display (#197's second row — the one
    *  thing Chromium cannot do). Where the window lands is never decided here. */
   openWindow(path: string, name: string): boolean
+
+  /** Small key-value storage that outlives a reload — see KeyValueStore. The one
+   *  seam member every host answers with the same primitive: the browser host's
+   *  answer IS this host's, because the renderer is Chromium and already has
+   *  `localStorage`. A real-file answer is #209's, not this seam's. */
+  readonly storage: KeyValueStore
 }

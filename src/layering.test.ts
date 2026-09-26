@@ -172,13 +172,7 @@ const edgeKeys = edges.map((e) => `${e.from} -> ${e.to}`)
 
 const ALLOWED_FOR_NOW: Record<string, string> = {}
 
-const STORAGE_REASON = 'step 5 puts storage under the platform seam'
-const STORAGE_WRITERS_FOR_NOW: Record<string, string> = {
-  'model/walkstore.ts': STORAGE_REASON,
-  'model/storeddata.ts': STORAGE_REASON,
-  'present/lecturenotes.ts': STORAGE_REASON,
-  'state/walk/draftpersist.ts': STORAGE_REASON,
-}
+const STORAGE_WRITERS_FOR_NOW: Record<string, string> = {}
 
 // ── the checks ──────────────────────────────────────────────────────────────
 
