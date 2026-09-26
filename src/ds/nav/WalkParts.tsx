@@ -11,9 +11,9 @@ import { wrapTip } from '../chrome/IconButton'
  *  stay the host's (the strip's 26px transport and `--fs-micro` titles, the dock's 20px and 10px)
  *  because those are the host's density decisions, not the rule.
  *
- *  Typed port of the DS WalkParts.jsx (contract: WalkParts.d.ts), OB-133 + OB-140, and OB-196's
- *  replay state (`REPLAY_PATH`, `walkComplete`, `PlayToggle.completed`). NOT PORTED: OB-216's
- *  italic optional name in `StopTitle` — a separate obligation, not this one's. */
+ *  Typed port of the DS WalkParts.jsx (contract: WalkParts.d.ts), OB-133 + OB-140, OB-196's
+ *  replay state (`REPLAY_PATH`, `walkComplete`, `PlayToggle.completed`), and OB-216's italic
+ *  optional name in `StopTitle` (as amended 2026-09-17: the name keeps the cursor's weight). */
 
 export type StopState = 'done' | 'current' | 'ahead'
 
@@ -125,7 +125,14 @@ export function walkLeadStop(mark: WalkMark, cursor: number): number {
 
 /** THE ONE WORD FOR A STEP THE WALK MAY SKIP — fixed at " (optional)", italic at regular weight,
  *  `--text-3`, inline after the name with a single space (owner, 2026-08-23) — the same word and
- *  the same styling `NodeChip`'s own optional label uses. Never its own line, never a colour. */
+ *  the same styling `NodeChip`'s own optional label uses. Never its own line, never a colour.
+ *
+ *  SINCE 2026-09-17 THE NAME BESIDE IT IS ITALIC TOO (DS OB-216), so italic is no longer what
+ *  SEPARATES this word from the name — the parentheses and `--text-3` are. Do not drop one of them
+ *  as redundant, or the word has nothing left distinguishing it from the title it follows. Weight
+ *  is a third separator on a CURRENT optional stop: the name is semibold italic and this word
+ *  stays REGULAR, deliberately — it is furniture after the name, and a semibold suffix reads as a
+ *  second title. Do not make it follow the name's weight. */
 export function OptionalSuffix({ style }: { style?: CSSProperties }) {
   return <span style={{ fontStyle: 'italic', fontWeight: 'var(--fw-regular)', color: 'var(--text-3)', ...style }}> (optional)</span>
 }
@@ -133,7 +140,7 @@ export function OptionalSuffix({ style }: { style?: CSSProperties }) {
 export interface StopTitleProps {
   /** the step's name */
   title: string
-  /** appends `OptionalSuffix` and gives the clamp one more line for it */
+  /** italicises the name, appends `OptionalSuffix` and gives the clamp one more line for it */
   optional?: boolean
   /** picks the weight (semibold only on `current`) and the ink (`stopInk`) */
   state?: StopState
@@ -154,12 +161,26 @@ export interface StopTitleProps {
  *  strip, 2026-08-23: line-clamp cuts whatever overflows its OWN box, and the suffix is what
  *  overflows first). A host whose row height is derived from this budgets `lines + 1` lines.
  *  `fontSize`/`lineHeight` are the host's density; `style` places the box (width, margin,
- *  padding) and never restyles the type. */
+ *  padding) and never restyles the type.
+ *
+ *  AN OPTIONAL STOP'S NAME IS ITSELF ITALIC (DS OB-216, owner, 2026-09-17: "can we make the title
+ *  and number step inside italic too") — the whole name, not just the suffix after it, so the stop
+ *  reads as skippable from the type rather than from a word at the end of a clamped line that may
+ *  have been cut. `StepDot` slants the numeral the same turn (`StepDotMath.oblique`).
+ *
+ *  AND IT KEEPS THE CURSOR'S SEMIBOLD (the item's amendment, same day — owner: "we should have bold
+ *  italic as it's weird if the bold is dropped"). The weight is picked by `state` ALONE, with no
+ *  branch on `optional`: an optional CURRENT stop is semibold italic. That is real type, not a
+ *  synthesised slant, only because `tokens/fonts.css` loads Nunito's VARIABLE italic at 400-800 —
+ *  the italic declared at 400 alone would have rendered this as a fake bold. The widths move +1.4%
+ *  at semibold italic; nothing here predicts a box (the clamp is a line count), so nothing is
+ *  under-reserved. */
 export function StopTitle({ title, optional = false, state = 'ahead', lines = 2, fontSize = 'var(--fs-micro)', lineHeight = 'var(--lh-snug)', style }: StopTitleProps) {
   return (
     <span style={{
       overflow: 'hidden', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: optional ? lines + 1 : lines,
       textAlign: 'center', textWrap: 'pretty', fontFamily: 'var(--font-ui)', fontSize, lineHeight,
+      fontStyle: optional ? 'italic' : undefined,
       fontWeight: state === 'current' ? 'var(--fw-semibold)' : 'var(--fw-regular)', color: stopInk(state),
       ...style,
     } as CSSProperties}>{title}{optional ? <OptionalSuffix /> : null}</span>

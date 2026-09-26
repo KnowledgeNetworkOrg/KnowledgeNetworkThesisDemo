@@ -74,6 +74,7 @@ import { hoverMarks } from '../model/maphover'
 import { wallArrowShown, wallPinState } from '../model/walkwall'
 import type { WallView } from '../model/walkwall'
 import { PIN_NO_POSITION, pinPosition, walkPins } from '../model/walkpins'
+import { routeOptionals } from '../model/route'
 import { toggleWalkHidden, walkDrawn, walkKeyOf } from '../model/walkvisibility'
 import type { Bundle } from '../model/atlas'
 import { fitLabel, fitRegionLabel, labelBox } from '../model/labelfit'
@@ -803,12 +804,18 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   // pins themselves are rebuilt only when the walk, the level or the zoom
   // changes — never per frame, which is what lets a played walk redraw at the
   // frame rate without re-laying-out its pins every time.
+  //
+  // WHICH STOPS THE WALK MAY SKIP (DS OB-214 clauses 2-3) come from the same place `bus.route`
+  // does — `bus.routeSteps`, whose leaves carry the flag — as a list indexed like the route. The
+  // pins take it beside the route; only stage 2's merge reads it. A BYPASSED optional is not in
+  // the route at all (the desk resolved it away before publishing), so there is no ghost pin.
+  const routeOptional = useMemo(() => routeOptionals(bus.routeSteps), [bus.routeSteps])
   const routeStops = useMemo(
-    () => walkPins({ route: bus.route, level, px, labelBoxes }),
+    () => walkPins({ route: bus.route, optional: routeOptional, level, px, labelBoxes }),
     // px closes over f/view.s, both already deps; a fresh px reference every
     // render would otherwise recompute this memo every render regardless
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bus.route, level, f, view.s, labelBoxes],
+    [bus.route, routeOptional, level, f, view.s, labelBoxes],
   )
   /* ONE MARK PER PIN, built ONCE. A pin stands for stops `step`..`stepEnd` — 1-BASED, the pin
      model's convention (and the drivers' `data-step`) — while the DS's `WalkMark`, `walkProgress`
@@ -1742,8 +1749,12 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                   <foreignObject x={-s.size / 2} y={-s.size / 2} width={s.size} height={s.size} style={{ overflow: 'visible' }}>
                     {/* the wash (OB-187 clause 3): how much of this pin's run is behind the walk,
                         `walkProgress` on the same mark the card reads — a merged pin washes a stop
-                        at a time as the class works through it. The wall is a still picture. */}
-                    <StepDot n={mark.label} state={wall ? wallPinState(s, wall) : b.behind ? 'done' : 'ahead'} arrival={wall ? undefined : b.active} progress={wall ? undefined : walkProgress(mark, play.position)} variant="pin" size={s.size} />
+                        at a time as the class works through it. The wall is a still picture.
+                        `optional` (DS OB-214 clauses 3-4) dashes the ring and slants the numeral
+                        for a pin whose every stop may be skipped — never special-cased for the lit
+                        pin: the dash rides with the current look, and mid-crossing it neither
+                        thickens nor fades, because StepDot keys geometry on the discrete state. */}
+                    <StepDot n={mark.label} state={wall ? wallPinState(s, wall) : b.behind ? 'done' : 'ahead'} arrival={wall ? undefined : b.active} progress={wall ? undefined : walkProgress(mark, play.position)} variant="pin" size={s.size} optional={s.optional} />
                   </foreignObject>
                 </g>
                 )

@@ -16,7 +16,7 @@ import { CORPUS_NAME, topicIds } from '../../corpus/graph'
 import { mintId, saveWalk, walkById } from '../walkstore'
 import type { Walk } from '../walkstore'
 import { loadDraft, nextIds, saveDraft } from './draftpersist'
-import { isBox, isFork, isLeaf, leafStops, resolveRoad } from './mockwalk'
+import { isBox, isFork, isLeaf, leafStops, leavesIn, optionalReading, resolveRoad, withOptional } from './mockwalk'
 import type { Stop, Variant } from './mockwalk'
 
 export type Path = number[]
@@ -379,6 +379,30 @@ export function gatherIntoGroup(list: Stop[], indices: number[], wrap: (steps: S
   return [...list.slice(0, first), wrap(members), ...list.slice(first + 1).filter((_, k) => !chosen.has(first + 1 + k))]
 }
 
+/** THE OPTIONAL BUTTON'S READING (DS OB-215 clause 3): the flag over every leaf under
+ *  the selected blocks — a selected leaf is itself, a selected group or fork is every
+ *  leaf in every one of its versions. `true` all optional, `false` none, `'mixed'`
+ *  some; `null` when the selection holds no leaf at all, which is the one case the
+ *  button has nothing to act on. Pure, so the rule can be asked directly. */
+export function optionalOf(stops: Stop[], paths: readonly Path[]): boolean | 'mixed' | null {
+  const blocks = paths.map((p) => stopAt(stops, p))
+  if (blocks.length === 0 || blocks.some((s) => s === undefined)) return null
+  return optionalReading(leavesIn(blocks as Stop[]))
+}
+
+/** THE OPTIONAL BUTTON'S PRESS (DS OB-215 clauses 2 and 4): from `true` it clears
+ *  every leaf under the selection, from `false` OR `'mixed'` it sets every one — the
+ *  tri-state checkbox convention, owner-ruled. One rebuilt tree, so the caller commits
+ *  it as ONE undo step whichever way it went. A group gains no field: only its leaves
+ *  change (`withOptional`). Paths are not moved by this (no stop is added or removed),
+ *  so selecting a group AND a leaf inside it is harmless — the leaf is set twice to
+ *  the same value. */
+export function setOptionalAt(stops: Stop[], paths: readonly Path[], on: boolean): Stop[] {
+  let next = stops
+  for (const p of paths) next = mapStopAt(next, p, (s) => withOptional(s, on))
+  return next
+}
+
 export interface AuthorState {
   stops: Stop[]
   selected: ReadonlySet<string>
@@ -432,7 +456,10 @@ export interface AuthorState {
   extractVariant(forkPath: Path, idx: number, to: Path): void
   /** bind a corpus node to an unset placeholder leaf at `path` */
   bindNode(path: Path, node: string): void
-  /** flip the optional flag on every selected leaf / plain group (not a fork) */
+  /** the Optional button: set every leaf under the selection optional, or — when every
+   *  one already is — clear them all. A selected group or fork acts through its leaves
+   *  and gains no flag of its own (DS OB-215). One undo step either way, and the
+   *  selection stays (no stop moved), so the button reads the result and can undo it. */
   toggleOptionalSelection(): void
   /** Tab — move the single selected block into the container right above it */
   indentSelection(): void
@@ -444,10 +471,12 @@ export interface AuthorState {
   addVariant(key: string): string
   relabelVariant(key: string, idx: number, label: string): void
   canGroup: boolean
+  /** the selection holds at least one leaf — a group or a fork counts through its leaves */
   canOptional: boolean
-  /** every selected block is ALREADY optional — the "make optional" toggle's
-   * on-state, so the toolbox button reads as pressed when it would un-flip. */
-  optionalActive: boolean
+  /** the Optional button's state over the selection (`optionalOf`): `true` every leaf
+   *  under it optional, so a press clears them; `'mixed'` some; `false` none (and
+   *  nothing selected). The button draws all three. */
+  optionalOn: boolean | 'mixed'
   canIndent: boolean
   /** step the stops tree back / forward through edit history (#34) */
   undo(): void
@@ -472,7 +501,8 @@ export function useAuthorDraft(): AuthorState {
 
   const siblings = siblingSelection(selected)
 
-  const selectedStops = [...selected].map((k) => stopAt(stops, parsePath(k)))
+  const selectedPaths = [...selected].map(parsePath)
+  const optional = optionalOf(stops, selectedPaths)
 
   const single = selected.size === 1 ? parsePath([...selected][0]) : null
   const prevSibling =
@@ -582,11 +612,13 @@ export function useAuthorDraft(): AuthorState {
       commitStops(mapStopAt(stops, path, (s) => (isLeaf(s) ? { ...s, node, unset: undefined } : s)))
     },
     toggleOptionalSelection: () => {
-      if (selected.size === 0) return
-      let next = stops
-      for (const k of selected)
-        next = mapStopAt(next, parsePath(k), (s) => (isFork(s) ? s : { ...s, optional: !s.optional }))
-      commit(next)
+      if (optional === null) return
+      // from mixed the press SETS every leaf (OB-215 clause 4); only a fully-on reading clears.
+      // `commitStops`, not `commit`: a flag moves no stop, so every selected path still names
+      // the same block — keeping the selection is what lets the button show the new state and
+      // a second press clear it ("pressing again clears every leaf inside it", clause 2)
+      // without re-selecting the group first. Still one undo step.
+      commitStops(setOptionalAt(stops, selectedPaths, optional !== true))
     },
     indentSelection: () => {
       if (!single || !prevSibling || !isBox(prevSibling)) return
@@ -613,8 +645,8 @@ export function useAuthorDraft(): AuthorState {
       commitStops(mapBox(stops, key, (s) => ({ ...s, variants: s.variants.map((vr, k) => (k === idx ? { ...vr, label } : vr)) })), 'label:' + key + ':' + idx)
     },
     canGroup: !!siblings,
-    canOptional: selected.size > 0 && selectedStops.every((s) => s !== undefined && !isFork(s)),
-    optionalActive: selected.size > 0 && selectedStops.every((s) => s !== undefined && s.optional === true),
+    canOptional: optional !== null,
+    optionalOn: optional ?? false,
     canIndent: !!prevSibling && isBox(prevSibling),
     undo: undoDraft,
     redo: redoDraft,

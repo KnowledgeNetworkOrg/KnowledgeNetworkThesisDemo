@@ -28,7 +28,7 @@
 
 import { byId } from '../../corpus/graph'
 import { platform } from '../../platform'
-import { forEachStop, isBox } from './mockwalk'
+import { forEachStop, isBox, withOptional } from './mockwalk'
 import type { Stop, Variant } from './mockwalk'
 
 const KEY = 'pkt.walkdesk.draft'
@@ -59,6 +59,7 @@ function readStop(v: unknown): Stop | null {
   if (!Array.isArray(v.variants)) return null
 
   const note = typeof v.note === 'string' ? v.note : undefined
+  // a leaf's flag; on a container it is an older draft's group flag, pushed down below
   const optional = v.optional === true ? true : undefined
 
   if (v.variants.length === 0) {
@@ -81,14 +82,19 @@ function readStop(v: unknown): Stop | null {
     if (!steps) return null
     variants.push({ id: raw.id, label: raw.label, steps })
   }
-  return {
+  const box: Stop = {
     key: v.key,
     title: v.title,
     description: typeof v.description === 'string' ? v.description : undefined,
     note,
-    optional,
     variants,
   }
+  // A CONTAINER NO LONGER CARRIES `optional` (DS OB-215): only leaves do, and "this group is
+  // optional" is read off them. A draft saved before that ruling may still hold the flag on a
+  // group, meaning "the road may skip all of this" — so it is PUSHED DOWN onto every leaf under
+  // the group, in every version, and not kept on the group. What the author meant survives, and
+  // no stored field is left that nothing honours.
+  return optional ? withOptional(box, true) : box
 }
 
 /** rebuild a sibling list, or null if any member's shape is unusable */

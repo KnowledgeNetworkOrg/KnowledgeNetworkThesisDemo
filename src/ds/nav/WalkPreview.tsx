@@ -5,6 +5,7 @@ import { portalInto } from '../chrome/portal'
    file that exists because the dock's copy of this had already lost it). No cycle: `WalkParts`
    imports nothing from here — `WalkDock` is the file that imports both. */
 import { OptionalSuffix } from './WalkParts'
+import { StepDotMath } from './StepDot'
 
 /** THE PREVIEW POPUP'S ONE GEOMETRY, published so three surfaces share it: how far above its
  *  anchor the card floats. A number in prose gets retyped; `WalkStrip` carried `top - 12` inline
@@ -142,8 +143,8 @@ export interface StopCardProps {
   /** the stop's node title */
   title: string
   /** draws the shared " (optional)" suffix after the name — the same `OptionalSuffix` every other
-   *  walk surface uses, never a second wording. ★ LOCAL: the DS's card also italicises the name and
-   *  slants the address for it; that is OB-216, a separate obligation this port did not take. */
+   *  walk surface uses, never a second wording — italicises the name, and slants the address in
+   *  front of it by `StepDotMath.oblique.angle` (DS OB-216 clause 3). */
   optional?: boolean
   /** where the stop sits, one line, clipped: "Core Computer Science › Digital Logic". The host
    *  composes it from its own tree — a breadcrumb string, not a list of nodes. */
@@ -203,9 +204,17 @@ export function StopCard({ address, title, optional = false, ancestry, note, bod
       fontFamily: 'var(--font-ui)', textAlign: 'left', ...style,
     }}>
       <div style={{ padding: '8px 11px 0' }}>
-        <div data-stop-card-head="" style={{ fontSize: 'var(--fs-body)', lineHeight: 'var(--lh-snug)', fontWeight: 'var(--fw-semibold)', color: 'var(--text-1)', ...stopClamp(2) }}>
+        {/* AN OPTIONAL STOP'S NAME IS ITALIC HERE TOO (DS OB-216 clause 3), on the same terms as
+            `WalkParts.StopTitle`: the whole name, AND THE CARD KEEPS ITS HEADING WEIGHT (the item's
+            2026-09-17 amendment — the variable italic loads at 400-800, so semibold italic is real
+            type). No `fontWeight` branch on `optional`. */}
+        <div data-stop-card-head="" style={{ fontSize: 'var(--fs-body)', lineHeight: 'var(--lh-snug)', fontStyle: optional ? 'italic' : undefined, fontWeight: 'var(--fw-semibold)', color: 'var(--text-1)', ...stopClamp(2) }}>
           {address == null || address === '' ? null : (
-            <span style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'var(--tnum)', color: 'var(--text-2)' }}>{address + ' · '}</span>
+            /* the address takes the SAME OBLIQUE the pin's numeral takes, AND NOT THE NUDGE that goes
+               with it: `StepDotMath.oblique.nudgeEm` puts a slanted numeral back on the centre of a
+               circle, and this one sits inline in a run of text with no centring to restore —
+               translating it here would push it off its own baseline run. */
+            <span style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'var(--tnum)', color: 'var(--text-2)', fontStyle: optional ? `oblique ${StepDotMath.oblique.angle}deg` : undefined }}>{address + ' · '}</span>
           )}
           {title}
           {optional ? <OptionalSuffix /> : null}

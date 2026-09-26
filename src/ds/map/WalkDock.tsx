@@ -14,9 +14,8 @@ import type { WalkStep } from '../nav/WalkStrip'
  *  `walkAdvance`) are published here as the DS publishes them, for OB-132 to consume. NOT
  *  PORTED: `WalkMath`, the capital-initial bundle the DS exports so its own cards can reach the
  *  band through `window.<Namespace>` — its `.d.ts` says "nothing here is required in `src/ds`",
- *  and OB-130 clause (8) says do not add it to the barrel and do not import it. Nor OB-216's
- *  italic name on the closed rail: that is a separate obligation, and this port took OB-196's
- *  replay and name hover only. */
+ *  and OB-130 clause (8) says do not add it to the barrel and do not import it. OB-216's italic
+ *  name on the closed rail is ported (clause 4, as amended: it keeps the row's semibold). */
 
 import { walkBand, WALK_PLAYBACK_DEFAULTS } from './walkrecipes'
 import type { WalkBand } from './walkrecipes'
@@ -534,7 +533,15 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
             onToggle={complete && !playing ? restart : () => { cancelRestart(); onPlayToggle() }} />
         ) : null}
         <span ref={nameRef} data-walk-dock-name="" onMouseEnter={nameEnter} onMouseLeave={nameLeave} style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 12, fontWeight: 'var(--fw-semibold)', color: 'var(--text-walk)' }}>
-          {step ? step.title : ''}
+          {/* THE NAME ITSELF IS ITALIC ON AN OPTIONAL STOP (DS OB-216 clause 4), on the same terms
+              as `WalkParts.StopTitle` and `WalkPreview.StopCard`: the whole name, AND IT KEEPS THE
+              ROW'S SEMIBOLD (the item's 2026-09-17 amendment). THIS IS THE THIRD DRAWING OF A
+              STOP'S NAME — the closed rail draws it ITSELF rather than through `StopTitle`, so it
+              inherits nothing from a change made there; it had already lost the "(optional)" suffix
+              once for exactly that reason. IN ITS OWN SPAN, NOT ON THE ROW: the row also holds the
+              suffix and the territory note, and an italic there would slant the note too — a
+              territory is not a thing that can be optional. */}
+          {step ? <span data-walk-dock-name-title="" style={{ fontStyle: step.optional ? 'italic' : undefined }}>{step.title}</span> : ''}
           {/* THE SAME SUFFIX THE OPEN ROW AND THE STRIP DRAW (owner, 2026-09-01) — the closed rail's
               name is the one place a stop is named while the dock is at rest, so it says
               optional the same way. Before the note, since the note is the territory. */}

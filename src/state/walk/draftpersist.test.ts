@@ -93,6 +93,39 @@ describe('parseDraft — a payload the app did not write this session', () => {
   })
 })
 
+describe('a group\'s own optional flag, from a draft saved before DS OB-215', () => {
+  // The ruling: only leaves carry `optional`. A stored group-level flag meant "the road may skip
+  // all of this", so it is PUSHED DOWN onto the leaves — every version, every depth — and the
+  // group keeps no field that nothing would honour.
+  it('is pushed down onto every leaf under the group and removed from the group itself', () => {
+    const legacy = {
+      key: 'draft-0',
+      title: 'a stage',
+      optional: true,
+      variants: [
+        { id: 'v0', label: '', steps: [leaf(A), group('draft-1', 'v1', [leaf(B)])] },
+        { id: 'v2', label: 'the other way', steps: [leaf(B)] },
+      ],
+    }
+    const got = parseDraft(snap([legacy as unknown as Stop, leaf(A)]))!
+    const box = got.stops[0]
+    expect(box).not.toHaveProperty('optional')
+    const inner = box.variants[0].steps[1]
+    expect(inner).not.toHaveProperty('optional')
+    expect(box.variants[0].steps[0].optional).toBe(true)
+    expect(inner.variants[0].steps[0].optional).toBe(true)
+    expect(box.variants[1].steps[0].optional).toBe(true)
+    // a sibling outside the group is untouched
+    expect(got.stops[1].optional).toBeUndefined()
+  })
+
+  it('a group without the flag reads exactly as before', () => {
+    const got = parseDraft(snap([group('draft-0', 'v0', [leaf(A), { node: B, optional: true, variants: [] }])]))!
+    const box = got.stops[0]
+    expect(box.variants[0].steps.map((s) => s.optional)).toEqual([undefined, true])
+  })
+})
+
 describe('nextIds — the counters resume past what the restored tree already uses', () => {
   it('resumes past the highest minted key and variant id', () => {
     const stops = [group('draft-0', 'v0', [group('draft-7', 'v2', [])]), group('draft-3', 'va', [])]

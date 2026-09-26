@@ -191,7 +191,9 @@ ok('still without moving the map', sameBox(before, afterClose), JSON.stringify({
   await page.waitForTimeout(400)
   const washed = await dock().locator('[data-walk-dock-stop]').evaluateAll((els) => els.map((e) => !!e.querySelector('[data-stepdot-wash]')))
   ok('OB-187 (2)+(4): at stop 3, the two dots behind the cursor carry the wash, the CURRENT dot does NOT (white on --accent-walk stays readable), and none ahead does', washed[0] && washed[1] && !washed[2] && !washed[3] && !washed[4], washed.map((w) => (w ? 'washed' : 'bare')).join(' '))
-  const curInk = await dock().locator('[data-walk-dock-stop="2"] button > span').evaluate((el) => getComputedStyle(el).color)
+  // the NUMBER is the dot's last span: since OB-214 (#344) a pill's face is an SVG in a wrapper
+  // span of its own, so `button > span` alone would match the wrapper too
+  const curInk = await dock().locator('[data-walk-dock-stop="2"] button > span:last-child').evaluate((el) => getComputedStyle(el).color)
   ok('the current dot\'s number is still the inverse ink', /25[0-5], 25[0-5], 25[0-5]|253, 252, 250/.test(curInk), curInk)
   await page.keyboard.press('Home')
   await page.waitForTimeout(300)

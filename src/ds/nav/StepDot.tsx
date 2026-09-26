@@ -1,4 +1,5 @@
 import { Fragment, useId } from 'react'
+import type { CSSProperties } from 'react'
 
 import { wrapTip } from '../chrome/IconButton'
 
@@ -11,7 +12,11 @@ import { wrapTip } from '../chrome/IconButton'
  *  small label rather than a filled badge competing with the map's own ink.
  *  Typed port of the DS StepDot.jsx (contract: StepDot.d.ts) — RE-PORTED WHOLE
  *  2026-09-16 against the 2026-09-15 source (DS OB-187): `progress` and its
- *  `useId` clip path, and the rail's `current` face gate on the wash.
+ *  `useId` clip path, and the rail's `current` face gate on the wash. RE-PORTED
+ *  WHOLE AGAIN 2026-09-26 against the 2026-09-17 source (DS OB-214 clause 1, OB-216
+ *  clause 1): the PILL's face is one SVG too and honours `optional`, the dash array
+ *  is pre-compensated for its round cap (`StepDotMath.dash`), and an optional
+ *  stop's numeral slants (`StepDotMath.oblique`).
  *
  *  THE WHOLE FACE IS ONE SVG (ported 2026-08-26, DS OB-088). Fill, ring and the
  *  optional dash all live in the same coordinate system and the same rendering
@@ -27,8 +32,10 @@ export interface StepDotProps {
    *  (`"1.1–1.3"`, and the older flat-index `"1-3"`) when one map pin stands for several
    *  adjacent walk steps that share a node/territory. A range's `state` is the caller's to
    *  derive from its member steps (done if all are behind the cursor, current if the cursor is
-   *  inside it, else ahead) — StepDot only draws the label it's given. A range draws as an
-   *  auto-width PILL rather than a circle, the plain CSS way; see the `isRange` branch.
+   *  inside it, else ahead) — StepDot only draws the label it's given. A STRING OVER ONE
+   *  CHARACTER draws as an auto-width PILL rather than a circle — so every ADDRESSED mark is a
+   *  pill, not only a merged one: the map's pins and the dock's dots all went pill-shaped with
+   *  OB-188, which is how the pill branch came to need `optional` (see the `isPill` branch).
    *
    *  A RANGE IS A STRING OVER ONE CHARACTER. A NUMBER IS NEVER A RANGE: 10, 25 and 60
    *  are circles exactly like 1–9. Until the DS fixed it (2026-09-01) the test read
@@ -110,11 +117,34 @@ export interface StepDotProps {
   /** px, both dimensions. Default 24 (the rail's size); a map pin usually wants larger. A
    *  range `n` keeps this as its HEIGHT and MINIMUM width only — it grows wider as needed. */
   size?: number
-  /** dashes the ring — never a different colour — for a step the walk may skip. Same
-   *  rule as `NodeChip`'s own `optional`: state and hue are separate channels. Drawn as
-   *  an SVG `stroke-dasharray` on the same circle that draws the ring, since a browser's
-   *  dashed rendering on a circle this small reads as barely-there. Never passed
-   *  together with a range `n` — a range is a pill and has no dash. */
+  /** dashes the ring AND slants the numeral — never a different colour — for a step the walk
+   *  may skip. Same rule as `NodeChip`'s own `optional`: state and hue are separate channels.
+   *
+   *  TWO CHANNELS SINCE 2026-09-17, NOT ONE (DS OB-216, owner: "can we make the title and number
+   *  step inside italic too"). The ring dashes, and the NUMBER INSIDE takes
+   *  `StepDotMath.oblique` — an 11-degree OBLIQUE (never `italic`: the mono's own italic is drawn
+   *  at 9.05deg, a different, measured slant) plus a -0.071em nudge that puts the sheared numeral
+   *  back on its mark's centre. `WalkParts.StopTitle` italicises the stop's NAME the same turn, and
+   *  `WalkPreview.StopCard` does both on the hover card.
+   *
+   *  IT WORKS ON A PILL TOO, SINCE 2026-09-17 (DS OB-214 clause 1). Every map pin and every dock
+   *  dot prints a two-number address ("1.4"), a string over one character, so all of them are
+   *  pills — and the pill used to be CSS-drawn and dashless, documented as a shape `optional`
+   *  never reached. The dock's open row had been passing `optional` into it since the address
+   *  landed; the prop was read, the dash never drawn, and nothing errored. The pill's face is
+   *  one SVG now, like the circle's. ITS DASH STROKES IN `ink` IN EVERY STATE, where the circle's
+   *  `current` dash strokes in `bd` — that swap exists only because the circle SHRINKS its fill
+   *  and repaints the band behind the dash, and a pill's fill does not shrink.
+   *
+   *  A MERGED PIN IS HOMOGENEOUS BY CONSTRUCTION — a rule about the CALLER (DS OB-214 clause 5,
+   *  policy C): a run never merges across an optionality boundary (`model/walkpins.ts`, stage 2),
+   *  so `optional` on a merged pin means every stop under it is skippable.
+   *
+   *  THE DASH ARRAY IS PRE-COMPENSATED FOR ITS OWN ROUND CAP — `StepDotMath.dash(size,
+   *  strokeWidth).array`. Passing the authored `max(1.5, size*0.1) max(1.5, size*0.08)` straight
+   *  through painted gap 0.26 at size 22, 0.00 at the 16px crowding floor and -0.49 at `current`
+   *  weight, where the ring closed. Do not simplify it back to the two authored numbers, and do
+   *  not substitute butt caps (a saw at 16px). */
   optional?: boolean
   /** the stop's authored note */
   title?: string
@@ -129,10 +159,62 @@ export interface StepDotProps {
  *  `.jsx`, which inlines the same 1.5. */
 export const PIN_RING_WIDTH = 1.5
 
+/** THE MARK'S TWO PUBLISHED MEASUREMENTS, handed back as numbers rather than as rules — the
+ *  dashed ring and the slanted numeral are the two channels `optional` gets, and the arithmetic
+ *  behind each is not guessable from looking at the result. Typed port of the DS's `StepDotMath`
+ *  (StepDot.jsx / StepDot.d.ts, 2026-09-17).
+ *
+ *  `dash(size, strokeWidth)` answers for a mark of height/diameter `size` stroked at `strokeWidth`:
+ *  `ink`/`gap` are the authored intent, `max(1.5, size*0.1)` and `max(1.5, size*0.08)` — CHOSEN, a
+ *  look tuned at 1:1 on the map's three pin sizes; `array` is what to pass to `stroke-dasharray`,
+ *  PRE-COMPENSATED for the round cap's overhang (a round cap adds strokeWidth/2 of ink past each
+ *  end of every dash, so an array `d g` at width `w` paints ink `d + w` and gap `g - w`) — DERIVED,
+ *  `(ink - w) (gap + w)`; `period` is `ink + gap`, unchanged by the compensation, so the cycle
+ *  count round a ring is what the old arithmetic promised. When `ink` is at or under the stroke
+ *  width the dash degrades to a round DOT — the honest small-size form, not a failure.
+ *
+ *  `oblique` is the numeral's slant, `{ angle: 11, nudgeEm: -0.071 }`. `angle` is degrees and
+ *  CHOSEN: 11 is the angle this mark was approved at, NOT JetBrains Mono's own italic angle (its
+ *  real face is measured at 9.05deg) — do not "correct" it to 9. Apply it as `font-style: oblique
+ *  <angle>deg`, never `italic`. `nudgeEm` is DERIVED and only for a numeral CENTRED IN SOMETHING:
+ *  a synthetic oblique shears about the baseline, so a mono figure's optical centre at 0.365em
+ *  moves +0.365 x tan(11deg) = +0.0710em — 0.78px of a 16px face at `--fs-micro`, a numeral that
+ *  reads as drifted — and translating by `nudgeEm` restores it. An INLINE slanted numeral must NOT
+ *  take the nudge (`WalkPreview.StopCard`'s address): there is no centring to restore. The shear
+ *  leaves advance widths alone, so `--tnum` still holds and a pill's width is unchanged.
+ *
+ *  A caller that stitches its own dashed ring onto a walk mark should read this rather than retype
+ *  `size * 0.1`: the retyped version is the bug the DS shipped. */
+export const StepDotMath = {
+  oblique: { angle: 11, nudgeEm: -0.071 },
+  dash(size: number, strokeWidth: number): { ink: number; gap: number; period: number; array: string } {
+    const ink = Math.max(1.5, size * 0.1)
+    const gap = Math.max(1.5, size * 0.08)
+    return {
+      ink, gap, period: ink + gap,
+      array: Math.max(0.01, ink - strokeWidth) + ' ' + (gap + strokeWidth),
+    }
+  },
+}
+
+/** the numeral's own style — slanted and re-centred on an optional stop, untouched otherwise.
+ *  `inline-block` only when slanted: a transform does not apply to a non-replaced INLINE element,
+ *  so the nudge would silently do nothing on a plain span. Both branches use it. */
+const numeralStyle = (optional: boolean | undefined): CSSProperties => ({
+  position: 'relative',
+  display: optional ? 'inline-block' : undefined,
+  fontStyle: optional ? `oblique ${StepDotMath.oblique.angle}deg` : undefined,
+  transform: optional ? `translateX(${StepDotMath.oblique.nudgeEm}em)` : undefined,
+})
+
 export function StepDot({ n, state = 'ahead', variant = 'rail', size = 24, arrival, progress, optional, onClick, title }: StepDotProps) {
-  /* A RANGE IS A STRING ("1-3", "1.1–1.3"), never a number — see `n`. `String(n).length > 1`
-     made every two-digit stop NUMBER take the pill branch, so stops 10+ drew flattened. */
-  const isRange = typeof n === 'string' && n.length > 1
+  /* A RANGE IS A STRING ("1-3"), never a number — see `n`. `String(n).length > 1` made every
+     two-digit stop NUMBER take the pill branch, so stops 10+ drew flattened. AND IT IS A PILL, NOT
+     ONLY A RANGE: since OB-188 a lone map pin and a lone dock dot print a two-number ADDRESS
+     ("1.4"), which is a string too. This flag was called `isRange` until the DS's 2026-09-17
+     source, which is why the pill branch spent a fortnight documented as a shape no `optional`
+     caller could reach. */
+  const isPill = typeof n === 'string' && n.length > 1
   /* PROGRESS THROUGH THE STOP, washing LEFT TO RIGHT across the face (owner, 2026-09-09) — see
      the prop for the axis rule and the every-stop rule. */
   const prog = progress === undefined ? 0 : Math.max(0, Math.min(1, progress))
@@ -187,11 +269,20 @@ export function StepDot({ n, state = 'ahead', variant = 'rail', size = 24, arriv
      map's pin). */
   const washable = prog > 0 && (variant === 'pin' || (state !== 'current' && a <= 0))
 
-  /* A RANGE ("1-3") IS A PILL, drawn the plain CSS way (border-radius/border/background)
-     — SVG can draw a circle but not this component's variable-width auto rounded pill
-     without measuring text first, and no caller passes a range AND `optional` together,
-     so the pill never needs the dash the rest of this file exists to get right. */
-  if (isRange) {
+  /* A RANGE OR AN ADDRESS ("1-3", "1.4", "1.1–1.3") IS A PILL, AND ITS FACE IS ONE SVG TOO (DS
+     OB-214 clause 1, 2026-09-17). It used to be drawn the plain CSS way — border-radius, border,
+     background — on the reasoning that SVG cannot size a variable-width pill without measuring the
+     text first, and that no caller passes a range AND `optional` together. The second half was
+     falsified the day OB-188 landed: every map pin and every dock dot prints an address and comes
+     down this branch, and `WalkDock` passes `optional` into it — read, never drawn.
+     THE FIRST HALF NEVER NEEDED MEASURING. An `<svg>` with no `viewBox` makes one user unit one CSS
+     px, so a `<rect width="100%" height="100%">` inside it is exactly the pill the text's own width
+     made. `rx` is the only number and it is known — `(size - ringW) / 2`, a pill's end being a
+     semicircle of its height. The stroke straddles the rect's edge, so its outer half lands on the
+     button's own edge, where `--lift-1` already sits: one renderer for fill, wash, ring and dash,
+     the rule the circle branch below follows for the same reason. */
+  if (isPill) {
+    const rx = (size - ringW) / 2
     return (
       <button
         type="button"
@@ -208,8 +299,13 @@ export function StepDot({ n, state = 'ahead', variant = 'rail', size = 24, arriv
           padding: `0 ${Math.max(4, size * 0.18)}px`,
           whiteSpace: 'nowrap',
           borderRadius: 'var(--radius-pill)',
-          border: `${ringW}px solid ${skin.bd}`,
-          background: skin.bg,
+          /* the same native-chrome reset the circle branch carries, and for the same reason: the
+             button draws nothing of its own now, so `appearance: auto`'s outset border and grey
+             background are no longer overridden by a `border`/`background` this branch sets. */
+          appearance: 'none',
+          WebkitAppearance: 'none',
+          border: 'none',
+          background: 'none',
           color: skin.ink,
           boxShadow: variant === 'pin' ? 'var(--lift-1)' : 'none',
           fontFamily: 'var(--font-mono)',
@@ -218,11 +314,34 @@ export function StepDot({ n, state = 'ahead', variant = 'rail', size = 24, arriv
           fontVariantNumeric: 'var(--tnum)',
           cursor: onClick ? 'pointer' : 'default',
           transition: 'var(--transition-wash)',
-          overflow: 'hidden',
         }}
       >
-        {washable ? <span aria-hidden="true" data-stepdot-wash="" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${prog * 100}%`, background: 'var(--acorn-100)' }} /> : null}
-        <span style={{ position: 'relative' }}>{n}</span>
+        {/* THE INSET IS THE WRAPPER'S, NOT THE SVG'S. An `<svg>` given four CSS offsets and no
+            width/height still sizes itself as a replaced element with no intrinsic ratio — the
+            default 300x150. A plain absolutely positioned wrapper resolves its own width from the
+            offsets, and the SVG fills it at 100%/100%. */}
+        <span aria-hidden="true" style={{ position: 'absolute', left: ringW / 2, top: ringW / 2, right: ringW / 2, bottom: ringW / 2 }}>
+          <svg width="100%" height="100%" style={{ display: 'block', overflow: 'visible' }}>
+            <rect x="0" y="0" width="100%" height="100%" rx={rx} fill={skin.bg} stroke={optional ? 'none' : skin.bd} strokeWidth={ringW} />
+            {washable ? (
+              <Fragment>
+                <clipPath id={washId}><rect x="0" y="0" width="100%" height="100%" rx={rx} /></clipPath>
+                <rect data-stepdot-wash="" x="0" y="0" width={`${prog * 100}%`} height="100%" fill="var(--acorn-100)" clipPath={`url(#${washId})`} />
+              </Fragment>
+            ) : null}
+            {optional ? (
+              /* STROKED IN `ink` IN EVERY STATE, where the circle's `current` dash strokes in `bd`:
+                 the circle's fill SHRANK and left a light band behind the dash; a pill's fill does
+                 not shrink, so `bd` would be a dash the colour of the ring it replaces. WHAT THIS
+                 COSTS, as the DS states it: a RAIL pill at `current` is the one dark face in the
+                 system, and white dashes on it read as texture rather than as a dashed edge. */
+              <rect data-stepdot-dash="" x="0" y="0" width="100%" height="100%" rx={rx} fill="none"
+                stroke={skin.ink} strokeWidth={dashW} strokeLinecap="round"
+                strokeDasharray={StepDotMath.dash(size, dashW).array} />
+            ) : null}
+          </svg>
+        </span>
+        <span style={numeralStyle(optional)}>{n}</span>
       </button>
     )
   }
@@ -312,8 +431,10 @@ export function StepDot({ n, state = 'ahead', variant = 'rail', size = 24, arriv
              `optional` follows. Drawn as `stroke-dasharray` rather than a CSS dashed
              border: a browser's dashed rendering on a circle this small (24-28px)
              computes illegibly short, faint dashes. SAME RADIUS `r` as the fill/ring
-             circle above — no separate inset to get wrong, no margin to tune. */
+             circle above — no separate inset to get wrong, no margin to tune. The array
+             is `StepDotMath.dash`'s cap-compensated one, never the two authored numbers. */
           <circle
+            data-stepdot-dash=""
             cx={size / 2}
             cy={size / 2}
             r={r}
@@ -321,11 +442,11 @@ export function StepDot({ n, state = 'ahead', variant = 'rail', size = 24, arriv
             stroke={dashStroke}
             strokeWidth={dashW}
             strokeLinecap="round"
-            strokeDasharray={`${Math.max(1.5, size * 0.1)} ${Math.max(1.5, size * 0.08)}`}
+            strokeDasharray={StepDotMath.dash(size, dashW).array}
           />
         ) : null}
       </svg>
-      <span style={{ position: 'relative' }}>{n}</span>
+      <span style={numeralStyle(optional)}>{n}</span>
     </button>
   )
 }

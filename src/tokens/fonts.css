@@ -6,9 +6,10 @@
    Quicksand  — geometric, fully rounded terminals. Display + pane titles.
    Nunito     — rounded humanist, very legible at 11-13px. Everything else.
    JetBrains Mono — ids, counts, code. Softer than Menlo, still monospaced.
-                    LOADED AT 400 AND 500 ONLY — a mono numeral asked for 600 or
+                    LOADED AT 400 AND 500 ONLY, UPRIGHT ONLY — a mono numeral asked for 600 or
                     700 renders at 500, so weight steps on counts must be
-                    regular → medium, never medium → semibold. */
+                    regular → medium, never medium → semibold. A real italic exists and is
+                    deliberately not loaded; see THE ITALIC INVENTORY below. */
 /* ── THE INK SITS LOW IN EVERY BOX, AND THE FONT IS WHY (2026-09-16, owner, on the
    connections pane's filter). Measured, not theorised: in a 27.5px `TextInput` there was
    9.10px of room above the text's ink and 6.10px below it, while the ✕ beside it — centred
@@ -55,6 +56,51 @@
    in here, and it is a choice: centring cap-to-baseline instead would ride about 0.1em
    higher and is the convention for all-caps furniture, which this system has none of.
 
+   THE ITALIC INVENTORY, RE-MEASURED 2026-09-17 AFTER THE FIRST READING PROVED TO BE A READING OF
+   THIS FILE RATHER THAN OF THE FONTS (`guidelines/italic-weight-probe.html`, then
+   `guidelines/italic-fetch-probe.html`). Read this before writing `font-style` anywhere:
+
+     Nunito          REAL ITALIC AT 400-800, loaded above. The variable italic axis answers
+                     genuinely: "Read the RFC" at 40px measures 245.93px at italic 400, 249.49 at
+                     600 (+3.56) and 253.73 at 700 (+7.80), `font-synthesis: none`. AN ITALIC
+                     STRING IN THIS SYSTEM MAY BE SEMIBOLD, and `WalkParts.StopTitle` keeps the
+                     cursor's weight on an optional stop because of it.
+     Quicksand       no italic face at all. Unchanged, and Google publishes none.
+     JetBrains Mono  A REAL ITALIC EXISTS at 100-800 and WE DELIBERATELY DO NOT LOAD IT, on a
+                     MEASURED reading rather than caution (`guidelines/mono-italic-angle.html`,
+                     2026-09-17, after the owner asked for the swap if nothing shifts). THE ANGLE IS
+                     THE REASON: the face's own designed angle is 9.05deg against the 11 the numeral
+                     is drawn at, a 1.95deg gap past the 1deg gate. Controls: the unsheared upright
+                     reads 0.00deg, a known 11deg canvas shear reads 11.02deg. Corroborating it, the
+                     face's ink centre lands 0.619px from where the synthetic slant puts it at
+                     `--fs-micro` — a true italic is a different letterform, not a sheared upright.
+                     Re-deriving `StepDotMath.oblique.nudgeEm` (0.365 x tan(angle)) at 9.05deg moves
+                     the numeral 0.141px, which is INSIDE the 0.25px gate and is NOT a breach; do
+                     not quote it as one. The numeral keeps `oblique 11deg`. The two src URLs are on
+                     `guidelines/italic-fetch-probe.html` if this is ever revisited.
+
+   HOW THE FIRST READING WENT WRONG, because the method matters more than the numbers. The original
+   probe asked for italic 700 through THIS file, which declared the italic at `font-weight: 400`;
+   with `font-synthesis: none` that renders 400 whether or not the file has a weight axis, so a
+   capped declaration and a single-weight file are indistinguishable. Its verdict line even named
+   the remedy ("widen the declaration to 400 800") while being unable to detect the case. The
+   discriminating test declares ONE src URL under TWO private family names, capped and widened, and
+   compares: the old `XRXK...` italic held at 245.93px under both, so it really was a single face —
+   the file above is a different one. And the mono's reading was wrong in the other direction: its
+   advance cannot move, because a MONOSPACED italic advances exactly as its upright does by design.
+   72.00px three times said nothing; the ink box shifts 4.00px at 40px, and the face is real.
+   **A CHANNEL THAT CANNOT MOVE IS NOT EVIDENCE OF ABSENCE.**
+
+   The italic's advance widths match the upright's to +0.01% at 13px across a seven-string spread,
+   so nothing that predicts a box from `textMeasure.measure()` needs a style slot — and that is a
+   measured fact about THESE files at REGULAR weight, not a property of italics. A semibold italic
+   is now reachable and runs +1.4% wider at 600; `chipSize()` does not predict stop titles, so
+   nothing is under-reserved today, but re-measure if a semibold italic is ever put inside a chip.
+
+   THE DURABLE FIX FOR THE REMAINING TWO IS THE SAME ONE the URLs paragraph below names: self-host
+   the woff2 files in `assets/`. That is now a FRAGILITY fix rather than a capability fix — the
+   bold italic arrived by pointing at the right Google file, not by self-hosting.
+
    THE URLS ARE VERSIONED (v32 / v37 / v24) AND THAT IS THE ONE FRAGILITY. Google keeps old
    versions served, but if one ever 404s the family falls through to `ui-rounded` rather than
    to the import above — a visible failure, not a silent one. The durable fix is to self-host
@@ -64,8 +110,8 @@
    way to centre one (see `CloseMark`). */
 @font-face{font-family:'Nunito';font-style:normal;font-weight:400 800;font-display:swap;ascent-override:94.69%;descent-override:41.56%;line-gap-override:0%;src:url(https://fonts.gstatic.com/s/nunito/v32/XRXV3I6Li01BKofINeaB.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 @font-face{font-family:'Nunito';font-style:normal;font-weight:400 800;font-display:swap;ascent-override:94.69%;descent-override:41.56%;line-gap-override:0%;src:url(https://fonts.gstatic.com/s/nunito/v32/XRXV3I6Li01BKofIO-aBXso.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
-@font-face{font-family:'Nunito';font-style:italic;font-weight:400;font-display:swap;ascent-override:94.69%;descent-override:41.56%;line-gap-override:0%;src:url(https://fonts.gstatic.com/s/nunito/v32/XRXK3I6Li01BKofIMPyPbj8d7IEAGXNirXAHjaba.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
-@font-face{font-family:'Nunito';font-style:italic;font-weight:400;font-display:swap;ascent-override:94.69%;descent-override:41.56%;line-gap-override:0%;src:url(https://fonts.gstatic.com/s/nunito/v32/XRXK3I6Li01BKofIMPyPbj8d7IEAGXNirXAHg6babWk.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'Nunito';font-style:italic;font-weight:400 800;font-display:swap;ascent-override:94.69%;descent-override:41.56%;line-gap-override:0%;src:url(https://fonts.gstatic.com/s/nunito/v32/XRXX3I6Li01BKofIMNaDRs4.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Nunito';font-style:italic;font-weight:400 800;font-display:swap;ascent-override:94.69%;descent-override:41.56%;line-gap-override:0%;src:url(https://fonts.gstatic.com/s/nunito/v32/XRXX3I6Li01BKofIMNaNRs71cA.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
 @font-face{font-family:'Quicksand';font-style:normal;font-weight:400 700;font-display:swap;ascent-override:89.85%;descent-override:35.15%;line-gap-override:0%;src:url(https://fonts.gstatic.com/s/quicksand/v37/6xKtdSZaM9iE8KbpRA_hK1QN.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 @font-face{font-family:'Quicksand';font-style:normal;font-weight:400 700;font-display:swap;ascent-override:89.85%;descent-override:35.15%;line-gap-override:0%;src:url(https://fonts.gstatic.com/s/quicksand/v37/6xKtdSZaM9iE8KbpRA_hJVQNcOM.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
 @font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:400 500;font-display:swap;ascent-override:93.35%;descent-override:38.65%;line-gap-override:0%;src:url(https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxDcwg.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
