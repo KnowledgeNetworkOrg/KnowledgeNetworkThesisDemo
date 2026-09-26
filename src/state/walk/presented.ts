@@ -29,6 +29,9 @@ export function usePresentedRoad(): Stop[] {
   return useMemo(() => resolveRoad(stops, choices, withOptionals), [stops, choices, withOptionals])
 }
 
+/** the slice of the bus the presented-route writer uses */
+export type PublishedRouteBus = Pick<Bus, 'setRouteSteps'>
+
 /** Publishes the presented road onto the bus — WITH ITS GROUPS (#228, DS
  * OB-114): `bus.routeSteps` carries the tree, and `bus.route` is its flat
  * projection, so Map/Connections highlight it as before (#14, closed) and the
@@ -43,9 +46,6 @@ export function usePresentedRoad(): Stop[] {
  * bus.clearRoute(), which also nulls activeWalk — that is why closing the
  * walk editor used to kill an active saved walk. Real clears now only come
  * from an explicit action: activateWalk, deactivateWalk, clearRoute. */
-/** the slice of the bus the presented-route writer uses */
-export type PublishedRouteBus = Pick<Bus, 'setRouteSteps'>
-
 export function usePublishPresentedRoute(bus: PublishedRouteBus, road: Stop[] | null): void {
   useEffect(() => {
     if (road === null) return

@@ -259,6 +259,13 @@ interface Spoke {
   dir: 'out' | 'in' | 'both'
 }
 
+/** the slice of the bus the relation star publishes its cross-pane hover to */
+type RelationStarBus = Pick<Bus, 'setHover' | 'endHover'>
+/** the slice of the bus the pane-header back/forward pair reads and writes */
+type ConnectionsPaneActionsBus = Pick<Bus, 'canBack' | 'back' | 'canForward' | 'forward'>
+/** the slice of the bus the pane reads and writes, plus what it hands the relation star */
+type ConnectionsPaneBus = Pick<Bus, 'history' | 'focus' | 'hover' | 'setFocus' | 'peekAt'> & RelationStarBus
+
 /** THE PANE'S REAL GRAPH — the typed relation star, counterparts ringed at their TRUE map
  *  bearings with one line per typed edge and an arrowhead for direction. It is the app's
  *  own drawing, wired to the design system's `ConnectionsGraphApi`:
@@ -277,14 +284,6 @@ interface Spoke {
  *  mirroring it onto the bus from here lights the map's territory for every one of them from
  *  a single place. An effect is the right shape for that: it is the sanctioned "update an
  *  external system with the latest state from React", and the bus is exactly that. */
-
-/** the slice of the bus the relation star publishes its cross-pane hover to */
-type RelationStarBus = Pick<Bus, 'setHover' | 'endHover'>
-/** the slice of the bus the pane-header back/forward pair reads and writes */
-type ConnectionsPaneActionsBus = Pick<Bus, 'canBack' | 'back' | 'canForward' | 'forward'>
-/** the slice of the bus the pane reads and writes, plus what it hands the relation star */
-type ConnectionsPaneBus = Pick<Bus, 'history' | 'focus' | 'hover' | 'setFocus' | 'peekAt'> & RelationStarBus
-
 function RelationStar({ api, bus }: { api: ConnectionsGraphApi; bus: RelationStarBus }) {
   const { highlightId } = api
   useEffect(() => {

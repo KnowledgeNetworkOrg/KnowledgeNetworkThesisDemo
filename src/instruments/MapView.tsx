@@ -206,14 +206,14 @@ const GHOST_CASE = { stroke: '#ffffff', strokeWidth: 3.2, strokeOpacity: 0.75 }
  *  measures for it (#369), which is a width at this weight, so the two cannot drift. */
 const DOMAIN_NAME_WEIGHT = 800
 
-/** `wall` (#267, DS OB-139 rule 4): the map as the room sees it when the professor holds it up.
- *  A still picture — every stop of the lecture a pin, the covered stops and the lit stop joined
- *  by the walk line, that stop lit, NO recency band, no dock, no floating chrome, no pin hover.
- *  Everything else the map does (territories, labels, the camera) is unchanged. */
 /** the slice of the bus the map reads and writes — its own members plus what playback needs,
  *  since `useWalkPlayback` writes the cursor and the focus. */
 export type MapViewBus = Pick<Bus, 'focus' | 'hover' | 'hoverStep' | 'peek' | 'matches' | 'route' | 'history' | 'trail' | 'clearFocus' | 'setHover' | 'endHover'> & PlaybackBus
 
+/** `wall` (#267, DS OB-139 rule 4): the map as the room sees it when the professor holds it up.
+ *  A still picture — every stop of the lecture a pin, the covered stops and the lit stop joined
+ *  by the walk line, that stop lit, NO recency band, no dock, no floating chrome, no pin hover.
+ *  Everything else the map does (territories, labels, the camera) is unchanged. */
 export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallView }) {
   const onFocus = (id: string) => bus.setFocus(id, 'map')
 
