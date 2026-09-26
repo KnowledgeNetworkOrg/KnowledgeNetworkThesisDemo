@@ -8,5 +8,5 @@ export { familySlots, nestedFamilyPaint, nextTopicSlot, topicSlots, topicHue, HU
 export { topicPaintValues } from './graph/topicvalues'
 export type { OklchValue } from './graph/topicvalues'
 export { clipToRoom, LabelCut, textWidth } from './graph/textFit'
-export { WALK_ARROW_DEFAULTS, walkArrow } from './map/walkrecipes'
-export type { WalkArrowGeom, WalkBand } from './map/walkrecipes'
+export { WALK_ARROW_DEFAULTS, walkArrow, walkBand } from './map/walkrecipes'
+export type { WalkArrowGeom, WalkBand, WalkBandReading } from './map/walkrecipes'
