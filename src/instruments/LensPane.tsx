@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
-import { LEGEND_INSET } from '@/ds'
+import { LEGEND_INSET, scrollerPadRight } from '@/ds'
 
 import { byId, domainOf, EDGE_COLOR, EDGE_LABEL } from '../corpus/graph'
 import { colorOf } from '../model/color'
@@ -384,7 +384,7 @@ export default function LensPane({ bus, type }: LensPaneProps) {
         </div>
       </header>
 
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto bg-[var(--surface-paper)]">{body}</div>
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto bg-[var(--surface-paper)]" style={{ paddingRight: scrollerPadRight() /* DS OB-210 */ }}>{body}</div>
     </div>
   )
 }

@@ -94,7 +94,7 @@ export { IconButton, RECEDE_LEAVE_MS, RESIZE_TIP, recedeMs, subscribePresence, u
 export type { IconButtonProps, PresenceOptions } from './chrome/IconButton'
 export { Grip } from './chrome/Grip'
 export type { GripProps } from './chrome/Grip'
-export { Pane, PaneCanvas, PaneScroller, SCROLLER_INSET, FIRST_ROW_PAD } from './chrome/Pane'
+export { Pane, PaneCanvas, PaneScroller, SCROLLER_INSET, FIRST_ROW_PAD, SCROLLBAR_ROOM, scrollerPadRight } from './chrome/Pane'
 export type { PaneProps, PaneCanvasProps, PaneScrollerProps } from './chrome/Pane'
 export { PaneFrameContext } from './chrome/PaneHeader'
 export { PaneHeader } from './chrome/PaneHeader'

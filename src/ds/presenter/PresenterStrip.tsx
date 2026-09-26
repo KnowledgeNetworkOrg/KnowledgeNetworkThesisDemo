@@ -624,13 +624,11 @@ export function PresenterStrip({
      this keeps the stored centre honest as well, so a later step starts from a legal number. */
   /* the DS's own effect: one reaction to the width reading or the stop count changing, never a
      cascade per render */
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setCenter((c) => clampCenter(c))
     // the DS's deps: the reading and the count, deliberately not the closure over them
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [half, N])
-  /* eslint-enable react-hooks/set-state-in-effect */
   /* OPENING KEEPS THE SHOWN STOP WHERE THE CLOSED RAIL HAD IT — the same horizontal fraction of the
      row — so the ring does not leap to the middle as the row grows around it. A LAYOUT effect, so
      the first paint is already in place. */

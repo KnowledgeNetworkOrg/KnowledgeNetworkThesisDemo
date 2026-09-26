@@ -865,7 +865,7 @@ export function LectureNotes({
            words opting back in inside `Entry`. */
         userSelect: 'none', WebkitUserSelect: 'none' }} style={{ flex: 1, minHeight: 0, userSelect: 'none', WebkitUserSelect: 'none', ...style }}>
         <Head title={duringLabel} trailing={<Tally tally={tally} entries={shownList.length} />} />
-        <PaneScroller style={{ paddingRight: 6 }}>{list}</PaneScroller>
+        <PaneScroller>{list}</PaneScroller>
       </Pane>
     )
   }
@@ -998,7 +998,7 @@ export function LectureNotes({
              an in-place editor whose outline needs the room. The list is an ordinary top-down
              column, newest first, with no spacer and no `minHeight`, and the composer stays at the
              foot STRUCTURALLY: this scroller is `flex: 1` and the composer follows it outside. */}
-          <PaneScroller style={{ paddingRight: 6, marginTop: 0, marginBottom: 0 }}>{list}</PaneScroller>
+          <PaneScroller style={{ marginTop: 0, marginBottom: 0 }}>{list}</PaneScroller>
           <div style={{ flexShrink: 0, paddingTop: 6 }}>
             <Composer categories={categories} category={category} onCategoryChange={onCategoryChange}
               draft={draft} onDraftChange={onDraftChange} onSave={onSave ? (n) => onSave(stop != null ? { ...n, stop } : n) : undefined} onAddCategory={onAddCategory || onNewCategory}
