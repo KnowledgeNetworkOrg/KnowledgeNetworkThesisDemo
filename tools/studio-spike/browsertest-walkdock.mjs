@@ -70,6 +70,35 @@ await page.goto(`http://localhost:${PORT}/`)
 await page.evaluate(() => localStorage.clear())
 await page.reload()
 await page.waitForTimeout(800)
+// THE PAGE SETTLES BEFORE ANYTHING IS MEASURED (#365). The three webfaces (tokens/fonts.css)
+// come over the network with `font-display: swap`: text draws first in the platform fallback
+// and is redrawn when its face lands, and the fallback's line boxes are not the real face's
+// height. A face landing after the fixed 800ms moved the map's box partway through section B —
+// top edge 1px up, box 1px taller, bottom edge where it was — and the box STAYED moved after the
+// dock closed again, which a nudge from the dock would not do. `probe-walkdockbox.mjs` forces
+// that late landing, and opens and closes the dock on a settled page to ask whether the dock
+// moves the map at all.
+// So: every face in, then the map's box still for 10 frames running — the second half also
+// covers any late layout that is not a font. Capped, so a page that never settles fails a
+// check here instead of hanging the run.
+const settled = await page.evaluate(() => new Promise((res) => {
+  const t0 = performance.now()
+  let last = null
+  let still = 0
+  const f = () => {
+    const svg = document.querySelector('[aria-label="map-view"] svg')
+    const r = svg ? svg.getBoundingClientRect() : null
+    const box = r ? `${r.x},${r.y},${r.width},${r.height}` : null
+    const fontsIn = document.fonts.status === 'loaded'
+    still = fontsIn && box !== null && box === last ? still + 1 : 0
+    last = box
+    const ms = Math.round(performance.now() - t0)
+    if (still >= 10 || ms > 10000) res({ still, ms, fonts: document.fonts.status, box })
+    else requestAnimationFrame(f)
+  }
+  requestAnimationFrame(f)
+}))
+ok('the page has SETTLED before anything is measured: every webface in, and the map\'s box still for 10 frames', settled.still >= 10, JSON.stringify(settled))
 
 const map = page.locator('[aria-label="map-view"]')
 const viewer = page.locator('[aria-label="walk-viewer"]')
@@ -108,12 +137,16 @@ await page.waitForTimeout(450)
 ok('the chevron opens the dock', (await dock().getAttribute('data-walk-dock')) === 'open')
 const openBox = await dock().boundingBox()
 ok('open, it is WALK_DOCK_METRICS.open (113) tall', !!openBox && Math.abs(openBox.height - 113) <= 1, `${openBox?.height}`)
-ok('THE MAP DID NOT MOVE: the SVG\'s box is identical before and after', sameBox(before, await svgBox()), JSON.stringify({ before, after: await svgBox() }))
+// one reading, compared AND printed: two calls could disagree, and the message would then show a
+// box the check never saw
+const after = await svgBox()
+ok('THE MAP DID NOT MOVE: the SVG\'s box is identical before and after', sameBox(before, after), JSON.stringify({ before, after }))
 ok('the open row shows the optional stop as "(optional)" too', (await dock().getByText('(optional)').count()) >= 1)
 await map.getByLabel('hide the stops').click()
 await page.waitForTimeout(450)
 ok('and closes again', (await dock().getAttribute('data-walk-dock')) === 'closed')
-ok('still without moving the map', sameBox(before, await svgBox()))
+const afterClose = await svgBox()
+ok('still without moving the map', sameBox(before, afterClose), JSON.stringify({ before, after: afterClose }))
 
 // ── B2. OB-188 / OB-190 / OB-187 ON THE OPEN ROW ────────────────────────────────────
 // The seed draft is a NESTED walk — its step 2 is a group holding two stops — which is the one
