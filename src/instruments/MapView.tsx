@@ -55,29 +55,31 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
-import type { OpenMap, WalkMark } from '@/ds'
-import { ARROW_METRICS, Breadcrumb, containsSummary, ExplorerRail, ExplorerRailCorner, findTreePath, FIRST_ROW_PAD, headForSet, LabelCut, walkAddresses, walkArrival, walkLeadStop, walkLook, walkMarkLabel, walkProgress, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, NodePreviewLayer, OpenForVisible, OpenOnSelect, PaneCanvas, PIN_RING_WIDTH, previewAnchor, shaftTailOffset, StepDot, usePaneWidth, VisibilityMark, WALK_ARROW_DEFAULTS, WALK_DOCK_METRICS, walkBand, WalkDock, WalkPreview, ZoomControl } from '@/ds'
-import { byId, domainIds, domainOf, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT_ID } from '../corpus/graph'
+import type { OpenMap } from '@/ds'
+import { Breadcrumb, capBow, containsSummary, ExplorerRail, ExplorerRailCorner, extendToMin, findTreePath, FIRST_ROW_PAD, headForSet, LabelCut, minShaft, walkArrival, walkLeadStop, walkLook, LevelPicker, MapFloatingButton, MapTooltip, NodePreviewLayer, OpenForVisible, OpenOnSelect, PaneCanvas, topicPaintValues, usePaneWidth, VisibilityMark, WALK_DOCK_METRICS, WalkDock, WalkPreview, ZoomControl } from '@/ds'
+import { byId, domainIds, domainOf, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT_ID, topicHueOf } from '../corpus/graph'
 import { L_MAX, LEVEL_S, U_CX, U_CY, VB_H, VB_W, VB_X, VB_Y } from './map/camera'
 import type { View } from './map/camera'
 import { useWallFit, WALL_LEVEL, WALL_VIEW } from './map/wallfit'
+import { WalkArrows } from './map/WalkArrows'
+import { WalkPins } from './map/WalkPins'
+import type { PinHover } from './map/WalkPins'
 import { DT } from '../state/walk/authordnd'
 import { routeIsWalk, useWalkPlayback } from '../state/walk/playback'
+import type { PlaybackBus } from '../state/walk/playback'
 import { renderStopPreview } from '../state/walk/stoppreview'
 import { leafPos, provinceIds } from '../model/flat'
 import type { XY } from '../model/derive'
-import { colorOf, inkStrongOf, labelInkOf, territoryFillOf } from '../model/color'
+import { colorOf, labelInkOf, SELECTION_WASH, selectedInkOf, territoryFillOf } from '../model/color'
 import { countryPath, countryRings, provincePath, provinceRings, rootPath, rootRings, territories } from '../model/nested'
 import { countryLabels, endpointAtTier, flightTargetOf, outlineOf, provinceLabels, ringsCrossT, roadsFor, rootLabel } from '../model/atlas'
-import { bowFor, bowSignAt, walkArrowBetween } from '../model/walkarrow'
 import { hoverMarks } from '../model/maphover'
-import { wallArrowShown, wallPinState } from '../model/walkwall'
 import type { WallView } from '../model/walkwall'
-import { PIN_NO_POSITION, pinPosition, walkPins } from '../model/walkpins'
+import { pinPosition, walkPins } from '../model/walkpins'
 import { routeOptionals } from '../model/route'
 import { toggleWalkHidden, walkDrawn, walkKeyOf } from '../model/walkvisibility'
 import type { Bundle } from '../model/atlas'
-import { fitLabel, fitRegionLabel, labelBox } from '../model/labelfit'
+import { fitLabel, fitRegionLabel, keepClearOfEarlier, labelBox, regionLabelBox } from '../model/labelfit'
 import type { FitLine, LabelBox, LabelFit } from '../model/labelfit'
 import { descendantCount, parentOf } from '../model/nav'
 import type { Bus } from '../state/bus'
@@ -182,7 +184,13 @@ const FADE = 'fill-opacity 350ms, stroke-opacity 350ms'
 const PARENT_BORDER_W = 2.6
 const PARENT_LABEL_PX = 26
 const ancBorderO = (d: number) => (d === 1 ? 0.6 : 0)
-const ancLabelO = (d: number) => (d === 1 ? 0.32 : 0)
+/** THE GHOST HEADING IS DRAWN AT FULL OPACITY INSIDE THE WINDOW (OB-223) — it was 0.32. The quiet
+ *  now lives in the COLOUR, one opaque mid-tone per hue (`topicPaintValues().ghost`), because a hue
+ *  at 0.32 alpha composited through whatever lay beneath it took a different value over every child
+ *  and changed shade mid-word: "a background layer reporting what is under it". Outside the window
+ *  it is still 0. The one exception is unchanged and lives in `ancLabelOAt`: the ghost the cursor
+ *  is standing inside steps aside. */
+const ancLabelO = (d: number) => (d === 1 ? 1 : 0)
 /** THE PARENT LAYER'S NAME GETS A CASE OF ITS OWN, and it is that — not the
  *  opacity alone — that makes the ghost legible (owner, 2026-08-28: the parent
  *  headings are too faint, make them more visible).
@@ -199,14 +207,26 @@ const ancLabelO = (d: number) => (d === 1 ? 0.32 : 0)
  *  far enough to compete with the names on the level you are actually on. The
  *  element's own `opacity` still multiplies fill and case together, so the hover
  *  fade to 0.03 keeps working untouched — the ghost you are standing inside
- *  still steps aside. */
+ *  still steps aside.
+ *
+ *  OB-223: the ghost's FILL is no longer the region's hue at 0.32 alpha but one opaque tone per hue
+ *  (`ghostOf`, below), drawn at full opacity and above every fill and every wash — this case is
+ *  unchanged and still rides on top of that tone. */
 const GHOST_CASE = { stroke: '#ffffff', strokeWidth: 3.2, strokeOpacity: 0.75 }
+
+/** the weight a domain name is drawn at — read by the `<text>` AND by the box `labelFit`
+ *  measures for it (#369), which is a width at this weight, so the two cannot drift. */
+const DOMAIN_NAME_WEIGHT = 800
+
+/** the slice of the bus the map reads and writes — its own members plus what playback needs,
+ *  since `useWalkPlayback` writes the cursor and the focus. */
+export type MapViewBus = Pick<Bus, 'focus' | 'hover' | 'hoverStep' | 'peek' | 'matches' | 'route' | 'routeSteps' | 'history' | 'trail' | 'clearFocus' | 'setHover' | 'endHover'> & PlaybackBus
 
 /** `wall` (#267, DS OB-139 rule 4): the map as the room sees it when the professor holds it up.
  *  A still picture — every stop of the lecture a pin, the covered stops and the lit stop joined
  *  by the walk line, that stop lit, NO recency band, no dock, no floating chrome, no pin hover.
  *  Everything else the map does (territories, labels, the camera) is unchanged. */
-export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
+export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallView }) {
   const onFocus = (id: string) => bus.setFocus(id, 'map')
 
   const svgRef = useRef<SVGSVGElement>(null)
@@ -221,11 +241,14 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   // is a fact about territory. The rail owns its filter, tree and chrome; this pane owns the
   // four things the DS's contract leaves to the host: the selection, the open set, the hover
   // pair, and the measured width.
-  /* CLOSED AT FIRST, and that is a measured decision rather than a taste: opening the rail
+  /* CLOSED AT FIRST, which began as a measured decision rather than a taste: opening the rail
      narrows the canvas, and at the explore preset's width the map's own L0 label boxes then
-     meet by ~3px (`sys`/`cs`, 1750x950) — a map-side fit gap that does not know about
-     label-vs-label collisions, surfaced by the narrower pane. Raised as its own finding rather
-     than papered over here.
+     met by ~3px (`sys`/`cs`, 1750x950) — a map-side fit gap that did not know about
+     label-vs-label collisions, surfaced by the narrower pane. That gap is closed (#369:
+     `labelFit` now drops the later of two colliding domain names), so the default is no longer
+     forced by it; whether the rail should START open, as the idea sheet draws it, is a
+     separate call (it is one boolean here, but browsertest-explorerrail.mjs asserts the
+     closed start).
      THE UPPER ROW IS NOT THE RAIL'S FOOTPRINT — it is the approved drawing's (OB-241/243): the
      map pane's own row, where the selection sits and where the closed control lives. It draws
      open or closed, and it takes its ~44px of canvas either way; closing gives back the canvas
@@ -325,7 +348,7 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   const selDrawn = walkDroveFocus ? null : sel
   /** a pin's own hover: the stop index, the card's anchor, and — for a MERGED pin — the mark it
    *  stands for (OB-184 clause 3), which `renderStopPreview` turns into a card naming every stop */
-  const [pinHover, setPinHover] = useState<{ i: number; x: number; top: number; mark?: WalkMark } | null>(null)
+  const [pinHover, setPinHover] = useState<PinHover | null>(null)
   // THE LOOK FLIGHT'S INSET (DS OB-130: "the host insets its auto-fit by
   // WALK_DOCK_METRICS.closed"). This map has no auto-fit — its camera is level-
   // driven, and the only move that centres a point is the LOOK flight below — so
@@ -720,20 +743,33 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
     // the L0/L1 names go through the same wrap-into-the-cell mechanic as the
     // deep tiers now, against the honest region chord — with fitRegionLabel's
     // shrink instead of a drop, because they are the only names their level
-    // has. Computed one level past their visibility window so the 350ms
-    // opacity fades keep an element to fade.
+    // has (the one drop is below: an L0 domain name that would collide with an
+    // earlier one). Computed one level past their visibility window so the
+    // 350ms opacity fades keep an element to fade.
     const region = new Map<string, { lines: FitLine[]; fs: number }>()
     // OB-193: level -1 (the root) draws through its own small, separate block below — none of
     // this memo's tier machinery applies to it, and LEVEL_S has no entry at -1 to index.
     if (level < 0) return { active, ghost, region, box }
     const world = (v: number) => (v * f) / LEVEL_S[level]
-    if (level <= 2)
-      for (const c of countryLabels) {
-        const size = level === 0 ? 24 : PARENT_LABEL_PX
-        const fit = fitRegionLabel(c.label, countryRings[c.key], c.x, c.y, world(size))
+    if (level <= 2) {
+      const size = level === 0 ? 24 : PARENT_LABEL_PX
+      const fitted = countryLabels.map((c) => ({ c, fit: fitRegionLabel(c.label, countryRings[c.key], c.x, c.y, world(size)) }))
+      // #369: each name fits ITS OWN region, and nothing asked whether two names run into each
+      // other. At L0 the domain names are the ACTIVE grain — the level being read — so a name
+      // that would collide with an earlier one is left out (the hover tooltip still names it),
+      // and only the survivors are stored below, which also keeps a walk pin from steering
+      // around a name that is not drawn. At L1 and beyond they are the parent's watermark, which
+      // stays named for orientation, so they are not gated.
+      const keep =
+        level === 0
+          ? keepClearOfEarlier(fitted.map(({ fit }) => regionLabelBox(fit.lines, world(size * fit.shrink), DOMAIN_NAME_WEIGHT)))
+          : fitted.map(() => true)
+      fitted.forEach(({ c, fit }, i) => {
+        if (!keep[i]) return
         region.set(c.key, { lines: fit.lines, fs: size * fit.shrink })
         noteBox(c.key, fit.lines, world(size * fit.shrink))
-      }
+      })
+    }
     if (level <= 3)
       for (const m of provinceLabels) {
         const size = level <= 1 ? 15 : PARENT_LABEL_PX
@@ -817,22 +853,6 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [bus.route, routeOptional, level, f, view.s, labelBoxes],
   )
-  /* ONE MARK PER PIN, built ONCE. A pin stands for stops `step`..`stepEnd` — 1-BASED, the pin
-     model's convention (and the drivers' `data-step`) — while the DS's `WalkMark`, `walkProgress`
-     and `walkLeadStop` read a mark 0-BASED. That conversion is the seam the DS's own
-     `walkMarkLabel` got wrong (receipt 0ac3465), so it happens HERE and nowhere else: the dot's
-     printed address, its wash and the hover card all take this one object. THE ADDRESS EVERY PIN
-     PRINTS (DS OB-188) is `walkAddresses` over the same steps the dock reads, capped at two
-     numbers, en-dashed across a merged run — so the two surfaces cannot disagree. */
-  const pinMarks = useMemo(() => {
-    const addresses = walkAddresses(play.steps)
-    return new Map(routeStops.map((s) => {
-      const from = s.step - 1, to = s.stepEnd - 1
-      /* `label` is optional on the DS's mark; a map pin always prints one */
-      const mark: WalkMark & { label: string } = { from, to, label: walkMarkLabel(play.steps, { from, to }), steps: play.steps.slice(from, to + 1), addresses: addresses.slice(from, to + 1) }
-      return [s.key, mark] as const
-    }))
-  }, [routeStops, play.steps])
   // ── OB-132: WHERE THE WALK IS, IN PINS. The DS's band (`walkBand`) fades every
   // mark by its distance from the played position — full on the stop, five
   // stops of trail behind, two of lead ahead, nothing beyond — and pops the mark
@@ -898,73 +918,6 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [arrival])
 
-
-  // ── OB-126: ONE HEAD FOR THE WHOLE WALK, NOT ONE PER ARROW ──────────────
-  // `headFor`'s length cap is written for a LONE line — it stops one long shaft
-  // growing a spearhead. Applied per-arrow across a SET it makes head size a
-  // function of length, which the line already draws, and a reader takes a bigger
-  // head as EMPHASIS: hops under ~267px would take the published 8px head and hops
-  // over ~427px the full 12.8px, 2.5× the triangle's area, on arrows that mean the
-  // same thing. So every hop is measured first and the set is asked ONCE for the
-  // smallest head all of them can carry.
-  //
-  // ONE PASS, AND IT IS EXACT WHEREVER IT MATTERS. A length is the pin-to-pin
-  // distance minus the head, so the two depend on each other — but the cap only
-  // lifts the head above 8 once the SHORTEST hop passes ~267px, and `headForSet`
-  // takes the minimum. Any walk with one short hop in it resolves to exactly 8,
-  // which is what this map already drew, with no circularity at all. The provisional
-  // lengths below therefore use the published head, and differ from the final ones
-  // only in the all-long case, by at most the few px the head grew.
-  const walkArrowHead = useMemo(() => {
-    const lengths: number[] = []
-    for (let i = 1; i < routeStops.length; i++) {
-      const from = routeStops[i - 1]
-      const to = routeStops[i]
-      const worldDist = Math.hypot(to.c.x - from.c.x, to.c.y - from.c.y) || 1
-      const dist = (worldDist * view.s) / f
-      if (dist < 1) continue
-      lengths.push(Math.max(1, dist - (from.size / 2 + WALK_ARROW_DEFAULTS.clearTail) - (to.size / 2 + WALK_ARROW_DEFAULTS.clearHead) - ARROW_METRICS.head))
-    }
-    return headForSet({ joins: PIN_RING_WIDTH, lengths })
-  }, [routeStops, view.s, f])
-
-  // ── OB-107: WHICH WALK LINES BOW, AND WHICH WAY ────────────────────────────
-  // OB-090 point 1 pulled the arrows' shared ANCHOR apart — every line now
-  // leaves and meets a pin at its own edge rather than at one shared centre.
-  // What survived it is two lines that still run near-parallel for most of
-  // their LENGTH and read as one doubled shaft right up to the head. `bow`
-  // curves a shaft away from its own axis; this decides who gets one.
-  //
-  // THE DS LEAVES BOTH CALLS TO US (its `done when` says so, the same split as
-  // OB-090 point 2): which lines count as "close", and how far to bow them.
-  //
-  // WHICH: a walk is a PATH, so a stop has exactly two lines at it — the one
-  // arriving and the one leaving. They run close when the walk DOUBLES BACK:
-  // both the previous stop and the next lie in nearly the same direction from
-  // this one, so the two shafts share a corridor. Under BOW_CLOSE_DEG apart,
-  // measured outward from the shared pin, is that case. (Two lines can also run
-  // close WITHOUT sharing a pin; the DS's checkable is the shared-pin case and
-  // that is what this covers. Named here so the next reader knows it was a
-  // scope decision, not an oversight.)
-  //
-  // WHICH WAY: the DS proposed alternating the sign between the pair. That is
-  // right for two lines both POINTING AT a pin, and wrong here, because a
-  // path's two lines travel in OPPOSITE directions through it — so ONE sign,
-  // taken by both, sends them to opposite sides of the corridor. Which sign
-  // that is depends on whether the next stop lies clockwise or anticlockwise of
-  // the previous one from this pin; `bowSignAt` reads it off the geometry, and
-  // getting it backwards curves the two TOWARD each other. Measured on the
-  // drawn curves in `walkarrow.test.ts`, both arrangements, rather than argued.
-  const routeBowSign = useMemo(() => {
-    const signs = new Array<number>(Math.max(0, routeStops.length - 1)).fill(0)
-    for (let p = 1; p < routeStops.length - 1; p++) {
-      const sign = bowSignAt(routeStops[p].c, routeStops[p - 1].c, routeStops[p + 1].c)
-      if (sign === 0) continue
-      signs[p - 1] = sign
-      signs[p] = sign
-    }
-    return signs
-  }, [routeStops])
 
   // OB-117 — the walk recedes while a node's relationships are on screen. The
   // relation arrows are drawn by the `sel` overlay and by nothing else, so the
@@ -1116,6 +1069,51 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   const litRoad = hoverId && bundles.length ? endpointAtTier(hoverId, selTier) : null
   const anyRoadLit = litRoad != null && bundles.some((b) => b.src === litRoad || b.tgt === litRoad)
 
+  // ── OB-197: A RELATION BETWEEN TWO ADJACENT TERRITORIES GETS A LINE YOU CAN READ ─────────
+  // A road is clipped to the borders of the selected grain, so a relation between two
+  // territories that SHARE a border leaves a shaft a few units long — and at this map's weight
+  // the head is then most of the drawing (owner, 2026-09-16: "the head is way too big, also when
+  // the arrow is so short its really hard to read the arrow at all ... it doesn't have to land on
+  // the absolute edge of either node's territories"). RULED: lengthen the line, past the exact
+  // boundary. A head cap on the map was considered and rejected — it would take the head off every
+  // 14px chain and road arrow elsewhere, where the head IS the arrow — so none is added here.
+  //
+  // THE FLOOR IS THE DS'S, IN THE DS'S UNITS. `minShaft` is three head-lengths of the head one
+  // whole SET of arrows shares (`headForSet`, called once over every road drawn, never a per-arrow
+  // head: a floor that follows each arrow's own head draws arrows that mean the same thing at
+  // several lengths for no reason a reader can see). It is a count of SCREEN px, so it goes
+  // through `px()` before it meets these world-unit endpoints — a px floor typed here would be a
+  // different arrow at every zoom. The roads are hand-drawn triangles rather than `NodeArrow`, so
+  // it is the shared head sizing and not a drawn head that the set is asked about.
+  /** the two points a road is CLIPPED to — where it leaves its source cell and lands in its
+   *  target's, each a `dip` past the border so the arrow points INTO the territory, in world units */
+  const clipRoad = (bd: Bundle) => {
+    const a = bd.a
+    const b = bd.b
+    const dx = b.x - a.x
+    const dy = b.y - a.y
+    const len = Math.hypot(dx, dy) || 1
+    // trim to the BORDERS of the SELECTED grain: the tail starts just inside the source
+    // region, the head lands just over the target's border — nothing converges on the capitals
+    const dip = px(11) / len
+    const exitT = ringsCrossT(a, b, bd.srcRings, 'min') ?? px(6) / len
+    const entryT = ringsCrossT(a, b, bd.tgtRings, 'max') ?? 1 - px(9) / len
+    const t0 = Math.max(0, exitT - dip)
+    const t1 = Math.min(1, entryT + dip)
+    return { from: { x: a.x + dx * t0, y: a.y + dy * t0 }, to: { x: a.x + dx * t1, y: a.y + dy * t1 } }
+  }
+  const roadFloor =
+    sel && !wall && bundles.length > 0
+      ? px(minShaft({
+          headSize: headForSet({
+            lengths: bundles.map((bd) => {
+              const c = clipRoad(bd)
+              return Math.hypot(c.to.x - c.from.x, c.to.y - c.from.y) / px(1)
+            }),
+          }),
+        }))
+      : 0
+
   // ── item 10: "labels blocking when zoomed in" ────────────────────────────
   // The watermark never blocked a CLICK — every label layer is pointerEvents:
   // none. What it blocked was READING: 26px of parent name lying across the
@@ -1128,6 +1126,19 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   // — true at every level, so countries, provinces and deep ghosts share it.
   const ghostUnderCursor = hover ? parentOf(hover) : null
   const ancLabelOAt = (d: number, id: string) => (id === ghostUnderCursor ? 0.03 : ancLabelO(d))
+  /** THE GHOST HEADING'S ONE TONE (OB-223): the region's hue as a single resolved, OPAQUE `oklch()`
+   *  from `topicPaintValues().ghost` — the JS-resolved twin of `topicPaint().ghost`, because a
+   *  `var()` in an SVG presentation attribute is not something this map trusts (an unknown hue
+   *  would otherwise draw nothing). One value per hue, so a heading reads the SAME colour over every
+   *  child it spans, selected or not; what the cell beneath it is doing is none of its business. */
+  const ghostOf = (id: string) => topicPaintValues(topicHueOf(id)).ghost.css
+  /** the cells a selection's roads reach, other than the selection itself — each gets a wash of its
+   *  own colour ("what is this connected to" reads from the fills, not just the arrows). Read by
+   *  BOTH halves of that drawing: the tint, which sits under the labels, and the outline, which
+   *  sits over them (OB-223), so the two can never disagree about which cells they are. */
+  const neighbourhood: string[] = sel && !wall
+    ? [...new Set(bundles.flatMap((bd) => [bd.src, bd.tgt]))].filter((id) => id !== sel && id !== endpointAtTier(sel, selTier))
+    : []
 
   const canvas = (
     <PaneCanvas aria-label="map-view" face="none" style={{ background: MAP_WATER }}>
@@ -1410,6 +1421,36 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
               ))}
           </g>
 
+          {/* ── OB-223: THE TINTS OF HOVER, SPOTLIGHT AND SELECTION, UNDER THE LABELS.
+              A ghost heading is now ONE opaque tone and has to be painted above every
+              fill AND every wash — an alpha'd hue composited through a wash takes a
+              different shade over the selected child than over its siblings, which is
+              the fault. So each of those drawings is split in two along the line it
+              always had: its TINT (a fill, pointer-transparent, no stroke) lives here,
+              below the label layer; its OUTLINE (a stroke) stays where it was, above
+              the labels, the walk and the roads, so nothing about how a boundary reads
+              moves. Each half is the same shape from the same outline, so they cannot
+              drift. Fill first, stroke second is the order the single path drew in;
+              it is only the labels that now sit between them. ──────────────────── */}
+          <g data-washes pointerEvents="none">
+            {hoverOutline && <path d={hoverOutline} fill={colorOf(hover!)} fillOpacity={0.1} />}
+            {spotOutline && <path d={spotOutline} fill={colorOf(spotId!)} fillOpacity={0.25} />}
+            {neighbourhood.map((cp) => {
+              const o = outlineOf(cp)
+              if (!o) return null
+              // follows the roads' hover dim, exactly as its outline does
+              const dim = anyRoadLit && litRoad !== cp
+              return <path key={cp} d={o} fill={colorOf(cp)} fillOpacity={0.1} opacity={dim ? 0.25 : 1} style={{ transition: 'opacity 120ms' }} />
+            })}
+            {sel && !wall && selOutline && (
+              <>
+                {/* the glow's own blurred tint and the body wash, back to front, as they drew before */}
+                <path d={selOutline} fill={colorOf(sel)} fillOpacity={SELECTION_WASH.glow} strokeLinejoin="round" filter="url(#sel-glow)" />
+                <path d={selOutline} fill={colorOf(sel)} fillOpacity={SELECTION_WASH.body} />
+              </>
+            )}
+          </g>
+
           {/* ── labels: the active grain in full ink, ONE ghost above it.
               No capital dots (2026-07-13) — the fill, border and name already
               say "a node lives here"; the wrapped name IS the place marker. */}
@@ -1449,8 +1490,11 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                   data-regionlabel={c.key}
                   textAnchor="middle"
                   fontSize={px(fit.fs)}
-                  fontWeight={800}
-                  fill={colorOf(c.key)}
+                  fontWeight={DOMAIN_NAME_WEIGHT}
+                  /* at its own level the domain name is the ACTIVE grain (its anchor at a
+                     watermark's weight); at every other level it is a GHOST heading, in the one
+                     opaque tone for its hue (OB-223) */
+                  fill={level === 0 ? colorOf(c.key) : ghostOf(c.key)}
                   opacity={level === 0 ? 0.55 : ancLabelOAt(level, c.key)}
                   {...ghostCase(level !== 0)}
                   style={{ userSelect: 'none', transition: 'opacity 350ms' }}
@@ -1473,9 +1517,13 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                   textAnchor="middle"
                   fontSize={px(fit.fs)}
                   fontWeight={level === 1 ? 700 : 800}
-                  fill={level === 1 ? labelInkOf(m.key) : colorOf(m.key)}
+                  /* at level 1 a province name is a CELL NAME — it wears the paper case like every
+                     other (OB-223), because the domain's ghost heading crosses it here; its ink is
+                     resolved against the cell AS WASHED once the cell is selected. At every other
+                     level it is the GHOST heading, in the one opaque tone for its hue */
+                  fill={level === 1 ? (sel === m.key ? selectedInkOf(m.key) : labelInkOf(m.key)) : ghostOf(m.key)}
                   opacity={level === 1 ? 0.9 : ancLabelOAt(level - 1, m.key)}
-                  {...ghostCase(level !== 1)}
+                  {...(level === 1 ? LabelCut.case(px(LabelCut.casePx)) : ghostCase(true))}
                   style={{ userSelect: 'none', transition: 'opacity 350ms' }}
                 >
                   {fit.lines.map((ln, i) => (
@@ -1497,7 +1545,7 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                     textAnchor="middle"
                     fontSize={worldFsToPx(labelFit.ghost.get(t.id)!.fs)}
                     fontWeight={800}
-                    fill={colorOf(t.id)}
+                    fill={ghostOf(t.id)}
                     opacity={ancLabelOAt(1, t.id)}
                     {...ghostCase(true)}
                     style={{ userSelect: 'none', transition: 'opacity 200ms' }}
@@ -1518,10 +1566,20 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                 .map((t) => {
                   // The selected cell's name is CALMED, not shouted (the glow
                   // and heavy border already mark the cell): a crisp near-black
-                  // emphasis ink instead of the muddy dark tint, weight 700, and
-                  // a THIN soft white case rather than a fat opaque one — clean
-                  // type over an outlined-sticker look. Full opacity keeps it the
-                  // clearest label even as the glow tints the body beneath it.
+                  // emphasis ink instead of the muddy dark tint, weight 700 —
+                  // clean type over an outlined-sticker look. Full opacity keeps
+                  // it the clearest label even as the glow tints the body beneath.
+                  //
+                  // EVERY CELL NAME WEARS THE PAPER CASE, SELECTED OR NOT (OB-223, owner
+                  // 2026-09-18): `LabelCut.case` — `paintOrder: 'stroke'` so the stroke
+                  // is drawn first and the letterform keeps its exact weight — spread
+                  // whole, never retyped, and sized through `px` so it tracks zoom like
+                  // every other hairline here. A case that arrived on selection would make
+                  // the label's own drawing a second selection channel, blinking as the
+                  // user clicks. Worn always, no name on the map depends on what is behind
+                  // it being light, which is what lets the ghost heading be an opaque tone.
+                  // AND THE INK IS RESOLVED AGAINST THE COLOUR ACTUALLY PAINTED: a selected
+                  // cell is washed, so its name takes `selectedInkOf`, not the pre-wash ink.
                   const isSel = t.id === sel
                   return (
                     <text
@@ -1530,11 +1588,8 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                       textAnchor="middle"
                       fontSize={worldFsToPx(labelFit.active.get(t.id)!.fs)}
                       fontWeight={isSel ? 700 : 600}
-                      fill={isSel ? inkStrongOf(t.id) : labelInkOf(t.id)}
-                      stroke="#ffffff"
-                      strokeWidth={px(isSel ? 2.2 : 2.4)}
-                      strokeOpacity={isSel ? 0.7 : 0.85}
-                      paintOrder="stroke"
+                      fill={isSel ? selectedInkOf(t.id) : labelInkOf(t.id)}
+                      {...LabelCut.case(px(LabelCut.casePx))}
                       opacity={isSel ? 1 : isMuted(t) ? 0.7 : 0.92}
                       style={{ userSelect: 'none' }}
                     >
@@ -1574,208 +1629,33 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
             </g>
           )}
 
-          {/* ── ROUTE PATH (#26): the walk's resolved order drawn over the territory,
-              on the shared vocabulary instead of a hand-drawn circle+number+line
-              (OB-069) — StepDot for "step N of the walk", NodeArrow for the line
-              between two steps, the same two marks a chain or the road itself
-              draws with. Deep stops still roll up to their visible ancestor
-              (routeVis); routeStops turns that into what actually gets a pin — a
-              contiguous run collapses into one range pin, a later return to an
-              already-pinned territory offsets clear of it rather than drawing a
-              second number into the same mark.
+          {/* ── THE WALK'S ARROWS (#26). The whole drawing — the shared head (OB-126),
+              the bow signs (OB-107), every arrow's distance, angle, tail anchor and
+              length, and the counter-scale that makes the DS's real-px numbers work
+              under this camera — is `map/WalkArrows.tsx` over `model/walkdraw.ts` now
+              (#324 seam 2). The PINS are the other half, painted LAST at the end of the
+              scene (OB-221), which is why the walk is two groups and not one: a line
+              may pass under a boundary, but a pin carries the only copy of its address.
+              Both are gated by the same `walkVisible`, so the eye still hides the walk.
+              ─────────────────────────────────────────────────────────────────────── */}
+          <WalkArrows bus={bus} pins={routeStops} pinPos={pinPos} f={f} viewS={view.s} px={px} wall={wall} visible={walkVisible} receded={walkReceded} />
 
-              Both StepDot and NodeArrow are built assuming 1 unit is 1 real
-              screen px — true for the road's authoring board, false here, where
-              `view.s` is a live pan/zoom the rest of this map counter-scales
-              away per-element via `px()`. Neither component takes a pre-scaled
-              prop for that, so the correction moves to the wrapping transform
-              instead: `scale(f / view.s)` cancels the ambient `scale(view.s)`
-              this whole layer sits inside (see the outer <g> a few hundred
-              lines up), leaving raw numbers inside behave exactly like real
-              CSS px — which is what both components already assume.
-
-              pointer-events none on the group so a pin or an arrow never
-              intercepts a click meant for the cell fill below it. ──────── */}
-          {walkVisible && routeStops.length > 0 && (
-            <g data-routepath data-step-count={bus.route.length} pointerEvents="none">
-              {/* OB-117, WIDENED BY OB-122 — the whole walk recedes now, arrows
-                  AND pins. OB-117 scoped it to the shaft and the head, because
-                  that is what its `done when` named and the DS's side-by-side mock
-                  (guidelines/map-walk-relations-declutter-options.html) drew lines
-                  with no step marks at all. That left the pins as the loudest thing
-                  on the map once the arrows dimmed — the owner's call, answering
-                  receipts/3107899.md question (a).
-
-                  One wrapper per layer rather than one around both: they recede
-                  together but they are not one drawing, and `data-routearrows` is
-                  already the handle the OB-117 driver reads. Tone alone leaves the
-                  mark at full strength, which is why the arrows carry opacity too. */}
-              <g data-routearrows data-receded={walkReceded ? 1 : 0} opacity={walkReceded ? 0.6 : 1} style={{ transition: 'opacity 120ms' }}>
-              {routeStops.slice(1).map((to, i) => {
-                const from = routeStops[i]
-                const dx = to.c.x - from.c.x
-                const dy = to.c.y - from.c.y
-                const worldDist = Math.hypot(dx, dy) || 1
-                const dist = (worldDist * view.s) / f // world units -> real px
-                if (dist < 1) return null
-                const angle = (Math.atan2(dy, dx) * 180) / Math.PI
-                // OB-132 — THE ARROW IS A READING OF THE BAND, not a description of
-                // two pins: its opacity, the walked/quiet split, where its head sits
-                // and BOTH its clearances come from the DS's `walkArrow` recipe (through
-                // `walkArrowBetween`, which reads it at this map's two pin sizes),
-                // against the SCALED pins. The tail used to clip at the RESTING edge
-                // (OB-090); a pin popped to 1.36× as the walk arrives would swallow
-                // it at the one moment the eye is there. `length` handed to the
-                // recipe is centre to centre less the head, so `hidden` means the two
-                // clearances have eaten the whole shaft (two crowded stops, or two
-                // popped pins) and there is nothing to draw.
-                const wa = walkArrowBetween(i, pinPos, from.size / 2, to.size / 2, dist - walkArrowHead.head)
-                if (wa.hidden) return null
-                // THE WALL'S LINE joins the covered stops and the lit one, and nothing else
-                if (wall && !wallArrowShown(from, to, wall)) return null
-                // OB-090 — the TAIL is anchored at the source pin's own edge (toward
-                // the target), not its centre: a centred tail is the SAME point for
-                // every arrow leaving a pin, however many attach there. The band's
-                // `tailClear` is that edge plus its gap, at the pin's drawn scale.
-                const tailOffset = px(wa.tailClear)
-                const tailX = from.c.x + (dx / worldDist) * tailOffset
-                const tailY = from.c.y + (dy / worldDist) * tailOffset
-                const length = Math.max(1, dist - wa.tailClear - wa.headClear - walkArrowHead.head)
-                // OB-107 — magnitude is proportional to the shaft, capped: a bow
-                // is meant to open a gap between two lines, and a fixed px offset
-                // that reads as a gentle curve on a long line is a semicircle on a
-                // short one. Sign comes from the policy above, and 0 draws the
-                // straight <line> exactly as before.
-                const bow = bowFor(routeBowSign[i], length)
-                // THE DRAWING'S ORIGIN IS NOT THE SHAFT'S TAIL. NodeArrow puts the
-                // shaft at `across / 2` down its own box, and `casing`'s pad and
-                // `bow`'s sign move it again — so placing the <svg> at the pin
-                // leaves the LINE beside the two pins it joins. Cancelling the
-                // offset here is what makes bowing +b and -b symmetric about the
-                // real pin-to-pin line, which the alternating sign depends on.
-                const tail = shaftTailOffset({ joins: PIN_RING_WIDTH, bow, casing: true, headSize: walkArrowHead })
-                return (
-                  <g key={`ra-${to.key}`} data-routearrow={i} data-bow={bow.toFixed(2)} opacity={wall ? 1 : wa.opacity} transform={`translate(${tailX} ${tailY}) rotate(${angle}) scale(${f / view.s})`}>
-                    <g transform={`translate(${-tail.along} ${-tail.across})`}>
-                      {/* OB-116 — `casing` on EVERY walk arrow, long and short,
-                          quiet and current: a halo behind shaft and head so the
-                          line reads over a territory fill instead of competing
-                          with it. Not a bigger head — that does not scale to a map
-                          with many arrows, which is the map this is. */}
-                      <NodeArrow
-                        direction="right"
-                        length={length}
-                        joins={PIN_RING_WIDTH}
-                        headSize={walkArrowHead}
-                        bow={bow}
-                        casing
-                        tone={walkReceded ? 'hint' : 'quiet'}
-                        /* AN ARROW THE WALK HAS NOT ENTERED PASSES NO `walked` AT ALL (DS
-                           OB-159). `walkArrow` returns `walked: 0` for every arrow ahead of the
-                           walk AND at rest, but 0 does not mean "unwalked" to `NodeArrow`: it
-                           means the walk is standing at this arrow's TAIL, so the head is drawn
-                           down at the tail in acorn. Passing it straight through put an acorn
-                           head on the tail of every arrow the walk had not reached yet.
-                           `headAcorn` is the recipe's OWN published test for "has the walk
-                           entered this arrow" (`walked > 0`), so it is the gate rather than a
-                           comparison retyped here. */
-                        walked={wall ? 1 : wa.headAcorn ? wa.walked : undefined}
-                        walkedTone={walkReceded ? 'hint' : 'walk'}
-                        aheadOpacity={wall ? 1 : wa.opacity > 0 ? wa.aheadOpacity / wa.opacity : 1}
-                      />
-                    </g>
-                  </g>
-                )
-              })}
-              </g>
-              {/* OB-122 — the pins recede on the SAME condition and the same
-                  120ms as the arrows above.
-
-                  OPACITY IS THE WHOLE OF IT HERE, and that is a limit of the
-                  component, not a shortcut. The item asks for "the same
-                  --bark-300-equivalent tone AND ~0.6 opacity as the arrows", but
-                  `NodeArrow` takes a `tone` prop and `StepDot` takes none — its
-                  props are `{ n, state, variant, size, optional, onClick, title }`
-                  and its colour comes from `state`, which is what tells current
-                  from done from ahead. Painting every pin bark-300 would collapse
-                  those three into one, so the tone half needs a receded treatment
-                  the DS owns, not a filter forced on it from out here. Asked in
-                  the receipt; opacity ships now because it is the half that is
-                  ours to give. */}
-              <g data-routepins data-receded={walkReceded ? 1 : 0} opacity={walkReceded ? 0.6 : 1} style={{ transition: 'opacity 120ms' }}>
-              {routeStops.map((s, k) => {
-                const mark = pinMarks.get(s.key)!
-                /* OB-132 — EVERY PIN IS A READING OF THE BAND: its opacity is
-                   `pinOpacity`, its scale `pinScale` (the pop, 1.36× as the walk
-                   arrives), and its FACE is direction plus arrival — `state` says
-                   which side of the position it is on and `arrival` how far it is
-                   into looking current, so fill, ring and number cross continuously
-                   with no jump at the stop boundary. Never a rounded 'current': at
-                   the stop `arrival` is 1 and both directions reach the identical
-                   look, so the flip is invisible (StepDot's own docblock). A pin
-                   outside the band draws nothing at all — the owner's ruling. */
-                const b = pinPos === null ? PIN_NO_POSITION : walkBand(k, pinPos)
-                if (b.pinOpacity <= 0) return null
-                return (
-                /* #246: A PIN'S OWN HOVER AND CLICK. The pins' wrapper is pointer-transparent so
-                   the cells under the walk keep their hover; each pin opts back in. Hover shows
-                   the same preview card the dock and the strip show, anchored on the pin's box
-                   (DS OB-131's bare-`<g>` recipe: bind enter/leave on the `<g>` and render
-                   `WalkPreview` from `previewAnchor(getBoundingClientRect())`), never during a
-                   drag. Entering a pin leaves the cell under it, so the cell's MapTooltip goes
-                   as this card comes — one card at a time. A click falls through to the cell
-                   the pin stands on, so a pin is still a way to select its region. `s.step` is
-                   1-based; `play.steps` is the walk `bus.route` is a prefix of. `data-pin` is
-                   the pin's index in walk order — what an arrow's `data-routearrow` joins. */
-                <g
-                  key={s.key}
-                  data-routestop={s.visId}
-                  data-step={s.step}
-                  data-step-end={s.stepEnd}
-                  data-pin={k}
-                  opacity={b.pinOpacity}
-                  transform={`translate(${s.c.x} ${s.c.y}) scale(${(f / view.s) * b.pinScale})`}
-                  pointerEvents={dockShown ? 'all' : 'none'}
-                  style={dockShown ? { cursor: 'pointer' } : undefined}
-                  onPointerEnter={(e) => {
-                    if (dragging || !dockShown) return
-                    /* THE MARK IS THE HOST'S TO BUILD (OB-184) — `pinMarks`, the one built above;
-                       the card names ONE of its stops plus a count (OB-186), by its numbering */
-                    setPinHover({ i: mark.from, mark, ...previewAnchor(e.currentTarget.getBoundingClientRect()) })
-                  }}
-                  onPointerLeave={() => setPinHover(null)}
-                  onClick={() => regionClick(s.visId)}
-                >
-                  <foreignObject x={-s.size / 2} y={-s.size / 2} width={s.size} height={s.size} style={{ overflow: 'visible' }}>
-                    {/* the wash (OB-187 clause 3): how much of this pin's run is behind the walk,
-                        `walkProgress` on the same mark the card reads — a merged pin washes a stop
-                        at a time as the class works through it. The wall is a still picture.
-                        `optional` (DS OB-214 clauses 3-4) dashes the ring and slants the numeral
-                        for a pin whose every stop may be skipped — never special-cased for the lit
-                        pin: the dash rides with the current look, and mid-crossing it neither
-                        thickens nor fades, because StepDot keys geometry on the discrete state. */}
-                    <StepDot n={mark.label} state={wall ? wallPinState(s, wall) : b.behind ? 'done' : 'ahead'} arrival={wall ? undefined : b.active} progress={wall ? undefined : walkProgress(mark, play.position)} variant="pin" size={s.size} optional={s.optional} />
-                  </foreignObject>
-                </g>
-                )
-              })}
-              </g>
-            </g>
-          )}
-
-          {/* ── HOVER PRESELECTION: outline + light tint on the cell a click
-              would pick — kills the "which region am I over?" guess ─────── */}
+          {/* ── HOVER PRESELECTION: the cell a click would pick — kills the "which
+              region am I over?" guess. Its OUTLINE is here, above the labels and the
+              walk; its light TINT is the `data-washes` group below the label layer
+              (OB-223), the same outline path. ────────────────────────────── */}
           {hoverOutline && (
             <g data-hover={hover} pointerEvents="none">
-              <path d={hoverOutline} fill={colorOf(hover!)} fillOpacity={0.1} stroke="#ffffff" strokeWidth={px(3)} strokeOpacity={0.9} />
+              <path d={hoverOutline} fill="none" stroke="#ffffff" strokeWidth={px(3)} strokeOpacity={0.9} />
               <path d={hoverOutline} fill="none" stroke={colorOf(hover!)} strokeWidth={px(1.5)} strokeOpacity={0.9} strokeDasharray={`${px(5)} ${px(3)}`} />
             </g>
           )}
 
-          {/* ── SPOTLIGHT: something hovered in ANOTHER pane lives here ──── */}
+          {/* ── SPOTLIGHT: something hovered in ANOTHER pane lives here. Outline
+              here; its tint is in `data-washes` (OB-223). ─────────────────── */}
           {spotOutline && (
             <g data-spot={spotId} pointerEvents="none">
-              <path d={spotOutline} fill={colorOf(spotId!)} fillOpacity={0.25} stroke="#ffffff" strokeWidth={px(4.5)} strokeOpacity={0.95} />
+              <path d={spotOutline} fill="none" stroke="#ffffff" strokeWidth={px(4.5)} strokeOpacity={0.95} />
               <path d={spotOutline} fill="none" stroke={colorOf(spotId!)} strokeWidth={px(2.4)} strokeOpacity={0.95} />
             </g>
           )}
@@ -1795,16 +1675,17 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                   (0.1 vs 0.2 fill, hairline vs 3px border), and painted FIRST
                   so the primary stays the loudest thing in the overlay. It
                   follows the roads' hover dim, so pointing at one counterpart
-                  recedes the rest of the neighbourhood with its roads. */}
-              {[...new Set(bundles.flatMap((bd) => [bd.src, bd.tgt]))]
-                .filter((id) => id !== sel && id !== endpointAtTier(sel, selTier))
-                .map((cp) => {
+                  recedes the rest of the neighbourhood with its roads.
+                  THE TINT IS NOT HERE ANY MORE (OB-223): it is in `data-washes`,
+                  under the label layer, from the same `neighbourhood` list. What
+                  stays is the OUTLINE, and `data-selconn` with it. */}
+              {neighbourhood.map((cp) => {
                   const o = outlineOf(cp)
                   if (!o) return null
                   const dim = anyRoadLit && litRoad !== cp
                   return (
                     <g key={cp} data-selconn={cp} opacity={dim ? 0.25 : 1} style={{ transition: 'opacity 120ms' }}>
-                      <path d={o} fill={colorOf(cp)} fillOpacity={0.1} stroke="#ffffff" strokeWidth={px(2.5)} strokeOpacity={0.9} />
+                      <path d={o} fill="none" stroke="#ffffff" strokeWidth={px(2.5)} strokeOpacity={0.9} />
                       <path d={o} fill="none" stroke={colorOf(cp)} strokeWidth={px(1.3)} strokeOpacity={0.6} />
                     </g>
                   )
@@ -1817,11 +1698,14 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                   white separator that also tints the cell body, and a crisp
                   heavy border. The glow lives in the luminance channel the flat
                   fills never touch, so it reads as "lit" even next to a same-hue
-                  sibling — a haloed cell among pale ones is selected at a glance. */}
+                  sibling — a haloed cell among pale ones is selected at a glance.
+                  THE TINTS OF THE FIRST TWO ARE IN `data-washes` NOW (OB-223), under
+                  the label layer, so the ghost heading can be one opaque tone above
+                  every wash; the glow's blur and the white separator stay here. */}
               {selOutline && (
                 <>
-                  <path d={selOutline} fill={colorOf(sel)} fillOpacity={0.16} stroke={colorOf(sel)} strokeWidth={px(7)} strokeOpacity={0.5} strokeLinejoin="round" filter="url(#sel-glow)" />
-                  <path d={selOutline} fill={colorOf(sel)} fillOpacity={0.22} stroke="#ffffff" strokeWidth={px(6)} strokeOpacity={0.98} strokeLinejoin="round" />
+                  <path d={selOutline} fill="none" stroke={colorOf(sel)} strokeWidth={px(7)} strokeOpacity={0.5} strokeLinejoin="round" filter="url(#sel-glow)" />
+                  <path d={selOutline} fill="none" stroke="#ffffff" strokeWidth={px(6)} strokeOpacity={0.98} strokeLinejoin="round" />
                   <path data-seloutline d={selOutline} fill="none" stroke={colorOf(sel)} strokeWidth={px(4)} strokeLinejoin="round" />
                 </>
               )}
@@ -1833,25 +1717,38 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                 const len = Math.hypot(dx, dy) || 1
                 const nx = -dy / len
                 const ny = dx / len
-                // trim to the BORDERS of the SELECTED grain: the tail starts
-                // just inside the source region, the head lands just over the
-                // target's border — nothing converges on the capitals
-                const dip = px(11) / len
-                const exitT = ringsCrossT(a, b, bd.srcRings, 'min') ?? px(6) / len
-                const entryT = ringsCrossT(a, b, bd.tgtRings, 'max') ?? 1 - px(9) / len
-                const t0 = Math.max(0, exitT - dip)
-                const t1 = Math.min(1, entryT + dip)
-                // one line per pair now, so the bow no longer has to fan
-                // parallels apart — it only keeps the road off the dead-straight
-                // centroid axis. Sign is pair-deterministic, so it never flips.
-                const bulge = (bd.src < bd.tgt ? 1 : -1) * px(14)
-                const ax = a.x + dx * t0
-                const ay = a.y + dy * t0
-                const bx = a.x + dx * t1
-                const by = a.y + dy * t1
+                // OB-197 — THE ORDER IS THE CONTRACT: clip to the cells' edges, THEN lengthen,
+                // THEN cap the bow against the length that came back. Capping against the stub
+                // chord caps against a chord the drawing no longer has.
+                //   1. clip: where the road leaves its cell and lands in the next (`clipRoad`)
+                //   2. lengthen: a road already past the floor comes back untouched (`grew`
+                //      false, nothing moves); a stub is pushed back along its own line by HALF the
+                //      shortfall at EACH end — into both territories, never one — so its midpoint,
+                //      where the ×n count sits, does not shift
+                const clipped = clipRoad(bd)
+                const grown = extendToMin({ from: clipped.from, to: clipped.to, min: roadFloor })
+                const ax = grown.from.x
+                const ay = grown.from.y
+                const bx = grown.to.x
+                const by = grown.to.y
+                //   3. bow: one line per pair now, so the bow no longer has to fan parallels
+                //      apart — it only keeps the road off the dead-straight centroid axis. Sign is
+                //      pair-deterministic, so it never flips. The bow is a CAP on how far the head
+                //      may point off its own line, not a length to draw at: the same px(14)
+                //      sagitta is a gentle curve at chord 64 and a hairpin at chord 10, and a stub
+                //      whose whole drawing is a head pointing sideways is the "two arrowheads
+                //      overlapped" the owner reported.
+                const bulge = capBow({ length: grown.length, bow: (bd.src < bd.tgt ? 1 : -1) * px(14) })
+                //   4. everything below — the head's angle and the count's position — is derived
+                //      from the CAPPED control point: one derivation, so the head cannot point
+                //      off a curve the shaft is not drawing.
                 const cx = (ax + bx) / 2 + nx * bulge
                 const cy = (ay + by) / 2 + ny * bulge
                 const ang = (Math.atan2(by - cy, bx - cx) * 180) / Math.PI
+                // test hooks, in SCREEN px and degrees: the drawn chord, whether it was lengthened,
+                // and how far the head points off its own chord (attributes only)
+                const chordPx = grown.length / px(1)
+                const headOff = Math.abs((((Math.atan2(by - cy, bx - cx) - Math.atan2(by - ay, bx - ax)) * 180) / Math.PI + 540) % 360 - 180)
                 const d = `M${ax},${ay} Q${cx},${cy} ${bx},${by}`
                 // the curve's midpoint (t = 0.5 on the quadratic) — where the
                 // traffic count sits
@@ -1867,6 +1764,9 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                     data-seledge={`${bd.src}>${bd.tgt}`}
                     data-en={bd.n}
                     data-dir={bd.dir}
+                    data-rlen={chordPx.toFixed(2)}
+                    data-rgrew={grown.grew ? 1 : 0}
+                    data-rhead={headOff.toFixed(1)}
                     data-elit={lit ? 1 : 0}
                     opacity={dim ? 0.22 : 1}
                     // OB-096 — MapTooltip's relation shape, on hover. `stroke`
@@ -1924,6 +1824,67 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
               })}
             </g>
           )}
+
+          {/* ── THE WALK'S PINS — PAINTED LAST (OB-221). THE RULE IS "THE PINS ARE
+              PAINTED LAST", NOT "THE PINS SIT AT LINE N": write any later insertion
+              ABOVE this group, never after it.
+
+              THE FAULT WAS PAINT ORDER, NOT A STYLE, and `z-index` is not the lever.
+              Inside an SVG the later sibling wins, and this group used to sit inside
+              `data-routepath`, ahead of the hover pre-selection, the spotlight and the
+              selection overlay — so every cell-state treatment painted OVER the pins.
+              What buried a pin standing on a focused cell was the selection's middle
+              stroke: an opaque white casing, 6 screen px at 0.98 opacity, under a 4px
+              stroke in the cell's own hue — ten pixels of ink centred on the boundary,
+              five of it inside the cell, against a 22px pin whose own lift cannot raise
+              it out. The pin carries the ONLY copy of its stop's address, so it read as a
+              clipped "5" where the label was "1.5". Nothing errored and every prop was
+              right.
+
+              IT MOVED; IT WAS NOT REWRITTEN. `data-receded`, the opacity and its 120ms
+              transition, the `foreignObject` per pin, `walkPins` and every coordinate are
+              exactly as they were, and it is still inside the same camera transform (this
+              scene group), so the pins land where they always landed. It is gated by the
+              same `walkVisible` flag as the arrows, so the eye still hides the whole walk.
+
+              THE PIN ONLY. `data-routepath` (the arrows) STAYS where it is: a pin carries
+              content, while a line passing under a boundary reads as passing behind it,
+              which is true and loses nothing. Moving all three would hide boundaries for
+              nothing.
+
+              NO GESTURE CHANGES. Every group the pins moved past is `pointerEvents=none`,
+              and each pin sets its own below, so the pin's hover (the `WalkPreview` card)
+              and the cell's tooltip behave exactly as before.
+
+              OB-122 — the pins recede on the SAME condition and the same 120ms as the
+              arrows.
+
+              OPACITY IS THE WHOLE OF IT HERE, and that is a limit of the component, not a
+              shortcut. The item asks for "the same --bark-300-equivalent tone AND ~0.6
+              opacity as the arrows", but `NodeArrow` takes a `tone` prop and `StepDot`
+              takes none — its props are `{ n, state, variant, size, optional, onClick,
+              title }` and its colour comes from `state`, which is what tells current from
+              done from ahead. Painting every pin bark-300 would collapse those three into
+              one, so the tone half needs a receded treatment the DS owns, not a filter
+              forced on it from out here. Asked in the receipt; opacity ships now because
+              it is the half that is ours to give. ───────────────────────────── */}
+          {/* the drawing itself — the marks memo, the band per pin, the DS dot and
+              each pin's own gestures — is `map/WalkPins.tsx` over `model/walkdraw.ts`
+              now (#324 seam 2). Its POSITION is the point: last child of the scene. */}
+          <WalkPins
+            pins={routeStops}
+            pinPos={pinPos}
+            play={play}
+            f={f}
+            viewS={view.s}
+            wall={wall}
+            visible={walkVisible}
+            receded={walkReceded}
+            dockShown={dockShown}
+            dragging={dragging}
+            onPinHover={setPinHover}
+            onRegionClick={regionClick}
+          />
         </g>
       </svg>
 

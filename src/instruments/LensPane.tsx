@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
-import { LEGEND_INSET } from '@/ds'
+import { LEGEND_INSET, scrollerPadRight } from '@/ds'
 
 import { byId, domainOf, EDGE_COLOR, EDGE_LABEL } from '../corpus/graph'
 import { colorOf } from '../model/color'
@@ -27,8 +27,11 @@ import { lensModel } from '../model/lens'
 import type { ConeSide, LensModel } from '../model/lens'
 import type { Bus } from '../state/bus'
 
+/** the slice of the bus a lens reads and writes */
+export type LensPaneBus = Pick<Bus, 'focus' | 'setFocus'>
+
 export interface LensPaneProps {
-  bus: Bus
+  bus: LensPaneBus
   /** which relation this lens is about — CONFIG, not bus state. It is what makes
    * one component into four panes, and it is why the registry can generate a
    * lens per edge type instead of anyone hand-writing them. */
@@ -381,7 +384,7 @@ export default function LensPane({ bus, type }: LensPaneProps) {
         </div>
       </header>
 
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto bg-[var(--surface-paper)]">{body}</div>
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto bg-[var(--surface-paper)]" style={{ paddingRight: scrollerPadRight() /* DS OB-210 */ }}>{body}</div>
     </div>
   )
 }

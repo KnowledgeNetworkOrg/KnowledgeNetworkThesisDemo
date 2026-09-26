@@ -18,6 +18,18 @@ export const HUE_DEGREES: Record<string, number> = { rose: 350, brick: 20, clay:
 /** one resolved OKLCH colour: the three numbers, and the same value as a CSS string */
 export interface OklchValue { l: number; c: number; h: number; css: string }
 
+/** THE GHOST ROLE'S TWO NUMBERS, one place (OB-223). CHOSEN, not derived — see `topicPaint`'s
+ *  docblock for why they sit below the family-fill band (`nestedFamilyPaint`, L 0.720–0.900): one
+ *  tone under that band stays visible over the lightest child and never goes darker than the
+ *  darkest. Read by `topicPaint().ghost` and by `topicPaintValues().ghost`, so the token twin and
+ *  the JS-resolved twin cannot disagree; pinned by topicpaint.test.ts. */
+export const GHOST_L = 0.640
+export const GHOST_C = 0.110
+
+/** the ghost as the string both twins hand out — a RESOLVED `oklch()` with no alpha, one value per
+ *  hue. Three-place lightness and chroma and a one-place hue, exactly as the DS writes it. */
+export const ghostCss = (deg: number): string => `oklch(${GHOST_L.toFixed(3)} ${GHOST_C.toFixed(3)} ${deg.toFixed(1)})`
+
 /** THE FIVE ROLES' LIGHTNESS AND CHROMA, one row per role — the numbers `tokens/colors.css`
  *  writes for every `--hue-<name>[-role]`, restated here for ONE reason: an SVG presentation
  *  attribute cannot take a `var()`. Pinned to the token file by topicpaint.test.ts, which reads
@@ -35,10 +47,14 @@ const FALLBACK_LCH: OklchValue = { l: 0.55, c: 0.04, h: 255, css: 'oklch(0.55 0.
  *  fields as `topicPaint`, each an `OklchValue` rather than a token name, plus `deg`, the
  *  ring degree the arc grading in `src/model/color.ts` anchors on. An unknown or absent topic
  *  resolves to the anchor fallback in every role, never to nothing. */
-export function topicPaintValues(topic?: string | null): { hue: string | null; deg: number | null; mark: OklchValue; ink: OklchValue; stroke: OklchValue; wash: OklchValue; washRaised: OklchValue } {
+export function topicPaintValues(topic?: string | null): { hue: string | null; deg: number | null; mark: OklchValue; ink: OklchValue; stroke: OklchValue; wash: OklchValue; washRaised: OklchValue; ghost: OklchValue } {
   const hue = topic != null && Object.prototype.hasOwnProperty.call(HUE_DEGREES, topic) ? topic : null
-  if (!hue) return { hue: null, deg: null, mark: FALLBACK_LCH, ink: FALLBACK_LCH, stroke: FALLBACK_LCH, wash: FALLBACK_LCH, washRaised: FALLBACK_LCH }
+  if (!hue) return { hue: null, deg: null, mark: FALLBACK_LCH, ink: FALLBACK_LCH, stroke: FALLBACK_LCH, wash: FALLBACK_LCH, washRaised: FALLBACK_LCH, ghost: FALLBACK_LCH }
   const deg = HUE_DEGREES[hue]
   const role = (k: keyof typeof ROLE_LC): OklchValue => ({ l: ROLE_LC[k][0], c: ROLE_LC[k][1], h: deg, css: `oklch(${ROLE_LC[k][0]} ${ROLE_LC[k][1]} ${deg})` })
-  return { hue, deg, mark: role('mark'), ink: role('ink'), stroke: role('stroke'), wash: role('wash'), washRaised: role('washRaised') }
+  /* THE GHOST ROLE (OB-223): the tone a group's name is written in ACROSS its children — one opaque
+     value per hue, never the hue at some alpha composited through whatever is beneath. Not any
+     role's `ink`: a ghost heading is not a label. */
+  const ghost: OklchValue = { l: GHOST_L, c: GHOST_C, h: deg, css: ghostCss(deg) }
+  return { hue, deg, mark: role('mark'), ink: role('ink'), stroke: role('stroke'), wash: role('wash'), washRaised: role('washRaised'), ghost }
 }

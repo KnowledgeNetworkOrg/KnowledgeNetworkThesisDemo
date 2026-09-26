@@ -233,7 +233,10 @@ const positionNow = () => clock.position
 
 // ── the hook ────────────────────────────────────────────────────────────────
 
-export function useWalkPlayback(bus: Bus): Playback {
+/** the slice of the bus playback reads and writes */
+export type PlaybackBus = Pick<Bus, 'activeWalk' | 'draftCursor' | 'activateWalk' | 'setDraftCursor' | 'setFocus'>
+
+export function useWalkPlayback(bus: PlaybackBus): Playback {
   const road = usePresentedRoad()
   const saved = bus.activeWalk ? (walkById(bus.activeWalk.walkId) ?? null) : null
 

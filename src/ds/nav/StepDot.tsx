@@ -190,9 +190,14 @@ export const StepDotMath = {
   dash(size: number, strokeWidth: number): { ink: number; gap: number; period: number; array: string } {
     const ink = Math.max(1.5, size * 0.1)
     const gap = Math.max(1.5, size * 0.08)
+    /* the gap is what is LEFT of the period once the dash is taken, not `gap + strokeWidth`
+       on its own: the two agree until the dash floors at 0.01 (a stroke at or over `ink` —
+       the lit pin's 2.25 ring at 22px), where the old sum grew the period and the cycle
+       count round the ring drifted from the one promised above. ★ LOCAL — the DS sums. */
+    const drawn = Math.max(0.01, ink - strokeWidth)
     return {
       ink, gap, period: ink + gap,
-      array: Math.max(0.01, ink - strokeWidth) + ' ' + (gap + strokeWidth),
+      array: drawn + ' ' + (ink + gap - drawn),
     }
   },
 }

@@ -39,16 +39,21 @@ import { useEffect } from 'react'
 import AuthorRoad from './AuthorRoad'
 import { redoDraft, undoDraft, useAuthorDraft, usePreviewOpen, useRoad } from '../../state/walk/authordraft'
 import { usePresentedRoad, usePublishPresentedRoute } from '../../state/walk/presented'
+import type { PublishedRouteBus } from '../../state/walk/presented'
 import WalkChapters from './WalkChapters'
 import { useHover } from '../../state/bus'
-import type { Bus } from '../../state/bus'
+import type { Bus, HoverBus } from '../../state/bus'
 import { IconButton } from '@/ds'
 
 /** the slide-in preview pane (0005 D9). It OVERLAYS the road rather than splitting
  *  the pane, so it takes no width from the layout and the road never reflows. */
 const PREVIEW_W = 344
 
-export default function WalkEditorView({ bus }: { bus: Bus }) {
+/** the slice of the bus the editor reads and writes: hover, the presented-route publish, the
+ *  desk's focus write, and the stop-hover channel the road's pills publish. */
+type WalkEditorViewBus = Pick<Bus, 'setFocus' | 'setHoverStep' | 'endHoverStep'> & HoverBus & PublishedRouteBus
+
+export default function WalkEditorView({ bus }: { bus: WalkEditorViewBus }) {
   const sync = useHover(bus)
   const state = useAuthorDraft()
   const { choices, pickBranch, withOptionals } = useRoad()
