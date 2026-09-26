@@ -1,21 +1,46 @@
 // Everything this app has written to localStorage, as one list — and one way to
-// clear it.
+// clear the plans and the layout in it, never what a presenter typed.
 //
 // TEMPORARY (2026-08-22): built to answer "why did my persisted state break?"
 // and to get out of a browser that is already holding a payload the current code
 // cannot use. The button that calls it is marked the same way in
 // src/instruments/walkdesk/WalkActionBar.tsx. Delete both together.
 //
-// WHY A PREFIX SWEEP AND NOT THREE NAMED KEYS. Three modules persist things —
-// draftpersist.ts (`pkt.walkdesk.draft`), walkstore.ts (`pkt.walks.saved`) and
-// lecturenotes.ts (`pkt.lecture.*`). Importing each module's key would clear
+// WHAT IS STORED, AND WHO WRITES IT.
+//
+//   pkt.walkdesk.draft           the walk being built on the desk — draftpersist.ts
+//   pkt.walks.saved              every saved walk — walkstore.ts
+//   pkt.lecture.notes.v1:<walk>  a presenter's notes for one walk, and their lectern
+//                                corrections to its stops' prepared notes — lecturenotes.ts
+//   pkt.lecture.categories.v1    the note categories a presenter minted — lecturenotes.ts
+//   pkt.lecture.habits.v1        the presenter's deck and notes-pane layout — lecturenotes.ts
+//   kn-connections_leftWidth     the Connections pane's divider and its collapse.
+//   kn-connections_collapsed     ConnectionsPane.tsx hands `kn-connections` to the DS's
+//                                ConnectionsSplitPane, which appends these suffixes (and
+//                                `_narrow` in its narrow layout) and writes them itself
+//
+// plus one key with no writer left: `pkt.floating-panel.<id>`, the rect
+// WalkToolbox's FloatingPanel last saved before #144 retired both.
+//
+// WHAT RESET CLEARS — RESET_PREFIXES below, and nothing else: the draft, the
+// saved walks, and panel layout (the orphaned floating-panel rects and the
+// Connections pane's divider). NOT the three `pkt.lecture.` keys. They hold what
+// a presenter wrote, and a temporary debugging pill must not be the one way this
+// app can lose a person's writing (#331). The sweep used to take every `pkt.`
+// key, which on 2026-08-22 meant exactly the draft, the walks and the panel
+// rects; presenter mode (#267) then saved its notes under the same namespace,
+// and the sweep took them in without anyone deciding it should. So the list is
+// OPT-IN: a key a future feature writes survives Reset unless someone adds its
+// prefix here on purpose.
+//
+// WHY PREFIXES AND NOT NAMED KEYS. Importing each module's key would clear
 // exactly the keys the CURRENT code knows the names of, which is the one set
 // that is guaranteed not to include the problem: a key goes ORPHAN the moment
-// the feature that wrote it is retired, and nothing then names it. #144 retired
-// WalkToolbox and its FloatingPanel with it, so the `pkt.floating-panel.<id>`
-// keys that panel last wrote now have no writer at all — exactly the orphan case
-// the prefix sweep exists to reach. Sweeping the shared `pkt.` prefix is what
-// reaches those.
+// the feature that wrote it is retired, and nothing then names it. The
+// floating-panel rects are that case, and a prefix is what still reaches them.
+// The listing is by prefix for the same reason, and it covers every key the app
+// writes, not only the ones Reset clears — the console should show what was kept
+// as well as what went.
 //
 // WHY THE PAYLOADS CANNOT SAY WHAT THEY ARE. The draft and the walk list carry
 // no version or schema field — a stored draft is the bare `DraftSnapshot` shape,
@@ -30,9 +55,15 @@
 // file's real job is `listStoredData`, not `clearStoredData`: seeing the bytes is
 // the diagnosis, clearing them is only the escape hatch.
 
-/** the namespace every key this app writes shares — see the note above on why
- * the sweep is by prefix rather than by the three known names */
-const STORE_PREFIX = 'pkt.'
+/** every key this app writes starts with one of these — `pkt.` is the app's own
+ * namespace, `kn-connections_` is the Connections pane's (see the note above) */
+const STORED_PREFIXES = ['pkt.', 'kn-connections_']
+
+/** what Reset clears, and all it clears: the draft, the saved walks, and panel
+ * layout. The `pkt.lecture.` keys are left out on purpose — see the note above */
+const RESET_PREFIXES = ['pkt.walkdesk.', 'pkt.walks.', 'pkt.floating-panel.', 'kn-connections_']
+
+const under = (prefixes: string[], key: string) => prefixes.some((p) => key.startsWith(p))
 
 /** one stored key as it actually sits in the browser. `preview` is the raw text,
  * cut — the point is to see the SHAPE (is `stops` there? do containers still
@@ -45,7 +76,8 @@ export interface StoredEntry {
 
 const PREVIEW_CHARS = 400
 
-/** every `pkt.` key currently in localStorage, smallest key name first. Never
+/** every key this app has written that is currently in localStorage — the ones
+ * Reset keeps as well as the ones it clears — smallest key name first. Never
  * throws: storage can be unavailable (private mode), and a diagnostic that
  * white-screens the app it is diagnosing is worse than no diagnostic. */
 export function listStoredData(): StoredEntry[] {
@@ -53,7 +85,7 @@ export function listStoredData(): StoredEntry[] {
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i)
-      if (key === null || !key.startsWith(STORE_PREFIX)) continue
+      if (key === null || !under(STORED_PREFIXES, key)) continue
       const raw = localStorage.getItem(key) ?? ''
       out.push({
         key,
@@ -67,7 +99,9 @@ export function listStoredData(): StoredEntry[] {
   return out.sort((a, b) => a.key.localeCompare(b.key))
 }
 
-/** forget every `pkt.` key, and report which ones were forgotten.
+/** forget every key under RESET_PREFIXES — the draft, the saved walks and panel
+ * layout, never a presenter's lecture notes — and report which ones were
+ * forgotten.
  *
  * THE CALLER MUST RELOAD. The stores this clears are read ONCE, at module load —
  * authordraft.ts calls loadDraft() at line 102 to seed its module-level store,
@@ -77,7 +111,9 @@ export function listStoredData(): StoredEntry[] {
  * as the reset having silently failed. Reloading is what makes the cleared state
  * the state the app boots from. */
 export function clearStoredData(): string[] {
-  const keys = listStoredData().map((e) => e.key)
+  const keys = listStoredData()
+    .map((e) => e.key)
+    .filter((key) => under(RESET_PREFIXES, key))
   try {
     for (const key of keys) localStorage.removeItem(key)
   } catch {
