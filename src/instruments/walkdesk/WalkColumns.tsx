@@ -14,7 +14,7 @@ import { OptionalMark, PaneScroller } from '@/ds'
 import { byId, domainOf } from '../../corpus/graph'
 import { colorOf } from '../../model/color'
 import { columnsFor } from './columns'
-import { isBox, isLeaf, visitCount } from '../../state/walk/mockwalk'
+import { isBox, isLeaf, skippableBox, visitCount } from '../../state/walk/mockwalk'
 import type { Stop } from '../../state/walk/mockwalk'
 import type { HoverBinding } from '../../state/bus'
 
@@ -114,7 +114,8 @@ export default function WalkColumns({
                     onClick={() => pick(k, s)}
                     className={[
                       'absolute rounded-lg border-2 px-2 text-left text-[10.5px] font-bold leading-tight',
-                      s.optional ? 'border-dashed' : '',
+                      // a container has no flag of its own (DS OB-215) — dashed when every leaf is
+                      skippableBox(s, {}) ? 'border-dashed' : '',
                       picked ? 'border-amber-500 bg-amber-400/90 text-white shadow-sm' : 'border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100',
                     ].join(' ')}
                     style={{ left: boxX(k), top: boxY(i), width: COLW, height: BOXH }}

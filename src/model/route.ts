@@ -37,6 +37,11 @@ export interface RouteStep {
   steps?: RouteStep[]
   /** the group's authored name, for anything that names it */
   title?: string
+  /** a LEAF step the walk may skip (DS OB-214 clause 2). Only a leaf carries it — a group has no
+   *  optionality of its own (DS OB-215) — and it is present only when true. It survives the
+   *  flattening where a group's numbering does not, because it is a fact about one leaf: read it
+   *  flat, aligned with `routeLeafIds`, through `routeOptionals`. */
+  optional?: boolean
 }
 
 export const routeStepIsGroup = (s: RouteStep): s is RouteStep & { steps: RouteStep[] } => Array.isArray(s.steps)
@@ -48,6 +53,20 @@ export function routeLeafIds(steps: readonly RouteStep[]): string[] {
   for (const s of steps) {
     if (routeStepIsGroup(s)) out.push(...routeLeafIds(s.steps))
     else if (s.node) out.push(s.node)
+  }
+  return out
+}
+
+/** which landed-on nodes the walk may skip — one boolean per entry of `routeLeafIds`, in the
+ *  same order, so `routeOptionals(s)[i]` is the flag of `routeLeafIds(s)[i]`. A PARALLEL LIST
+ *  rather than objects on `bus.route` (DS OB-214 clause 2 left the shape to us): every reader of
+ *  the flat route keeps its `string[]`, and the one reader that needs the flag — the map's pin
+ *  layout — takes the two side by side. Walks the tree exactly as `routeLeafIds` does. */
+export function routeOptionals(steps: readonly RouteStep[]): boolean[] {
+  const out: boolean[] = []
+  for (const s of steps) {
+    if (routeStepIsGroup(s)) out.push(...routeOptionals(s.steps))
+    else if (s.node) out.push(s.optional === true)
   }
   return out
 }

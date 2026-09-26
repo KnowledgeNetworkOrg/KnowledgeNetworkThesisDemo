@@ -234,8 +234,10 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
     count: N,
     mapUp: mapUp && !ended,
     ids: steps.map((st) => st.id),
+    // the lecture's stops are `play.steps` one for one, so the flags line up with `ids` (OB-214)
+    optional: play.steps.map((st) => st.optional === true),
     covered,
-  }), [projecting, ended, steps, shown, N, mapUp, covered])
+  }), [projecting, ended, steps, play.steps, shown, N, mapUp, covered])
   useProjectorSender(projected)
 
   /* ── WHAT THE LECTURE WRITES DOWN (parts 6-8) ────────────────────────────────────────────────

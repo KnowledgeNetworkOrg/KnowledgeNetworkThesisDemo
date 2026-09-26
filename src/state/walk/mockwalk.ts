@@ -36,7 +36,13 @@ export interface Stop {
   /** the corpus topic a LEAF lands on ('' only while an unset placeholder) */
   node?: string
   note?: string
-  /** an optional stop: on the road by default, but the road can bypass it */
+  /** an optional stop: on the road by default, but the road can bypass it. A LEAF'S FIELD
+   *  ONLY — a container never carries one (DS OB-215, owner-ruled 2026-09-17). "This group is
+   *  optional" is a DERIVED reading, every leaf under it optional (`skippableBox`), computed for
+   *  display and stored nowhere, so a container and its contents can never disagree. The walk
+   *  editor's Optional button sets or clears the leaves under a selected group together
+   *  (`withOptional`); a stored group-level flag from an older draft is pushed down onto its
+   *  leaves on load (draftpersist.ts). */
   optional?: boolean
   /** a placeholder leaf with no node bound yet — shows a "pick a node" chip and
    * is DROPPED from the projection, so downstream never sees a hole */
@@ -176,7 +182,9 @@ export const leafIds = (stops: Stop[]): string[] => leafStops(stops).map((s) => 
  * rather than `Stop` itself: the bus must not depend on this file's spike data. */
 export function routeStepsOf(stops: Stop[]): RouteStep[] {
   return stops.map((s) => (isLeaf(s)
-    ? { node: s.node }
+    // the leaf's optional flag rides on its step (DS OB-214 clause 2) — present only when set,
+    // so a required step is the same `{ node }` it always was
+    ? (s.optional ? { node: s.node, optional: true } : { node: s.node })
     : { title: s.title, steps: routeStepsOf(s.variants[0]?.steps ?? []) }))
 }
 
@@ -187,6 +195,13 @@ export function routeStepsOf(stops: Stop[]): RouteStep[] {
 // surviving variant), rather than splicing its steps inline (#19) — everything
 // downstream renders a container the same way whether it began as a group or a
 // fork.
+//
+// A CONTAINER IS SKIPPED WHOLE WHEN EVERYTHING THE ROAD WOULD TAKE THROUGH IT IS
+// (DS OB-215). A container has no flag of its own any more, so bypassing
+// optionals drops its optional leaves one by one — and a container whose every
+// leaf went would otherwise stay on the road as an EMPTY group, which still takes
+// a step number (`routeNumbers`: a group takes one number whether or not it holds
+// a node) and shifts every stop after it by one. `skippableBox` is that reading.
 
 export function resolveRoad(stops: Stop[], choices: Record<string, string>, withOptionals: boolean): Stop[] {
   const out: Stop[] = []
@@ -196,7 +211,7 @@ export function resolveRoad(stops: Stop[], choices: Record<string, string>, with
       if (s.optional && !withOptionals) continue
       out.push(s)
     } else {
-      if (s.optional && !withOptionals) continue
+      if (!withOptionals && skippableBox(s, choices)) continue
       const chosen = s.variants[chosenIdx(s, choices)]
       out.push({
         ...s,
@@ -225,6 +240,75 @@ export function forEachStop(stops: Stop[], visit: (s: Stop) => void): void {
 export function visitCount(s: Stop): number {
   if (isLeaf(s)) return s.unset ? 0 : 1
   return Math.max(0, ...s.variants.map((vr) => vr.steps.reduce((a, c) => a + visitCount(c), 0)))
+}
+
+// ── Optionality lives on leaves (DS OB-215) ─────────────────────────────────
+// The owner's ruling (2026-09-17): a versioned group "cannot be made optional,
+// but all its containing nodes could be optional, which would make the versioned
+// group effectively optional". So only a leaf carries `optional`, and everything
+// a container says about optionality is read off its leaves here. There is no
+// inherited flag and no OR down the ancestors — the DS withdrew that rule the
+// same day, because with no flag on a container there is nothing to OR with.
+
+/** every leaf under `stops`, in EVERY version of every container (both roads of a
+ *  fork, not just the chosen one) — what the Optional button reads and writes. A
+ *  press on a fork sets the leaves of the versions not on screen too, so switching
+ *  versions afterwards cannot reveal a road the press did not reach. Unset
+ *  placeholders count: they are leaves, and binding one keeps its flag. */
+export function leavesIn(stops: Stop[]): Stop[] {
+  const out: Stop[] = []
+  forEachStop(stops, (s) => {
+    if (isLeaf(s)) out.push(s)
+  })
+  return out
+}
+
+/** the optional flag over a set of leaves, as the button shows it: `true` when every
+ *  one is optional, `false` when none is, `'mixed'` between — the Toolbar's own
+ *  three rungs (DS OB-215 clause 3). `null` when there are no leaves at all, which
+ *  is a group with nothing in it for the button to act on. */
+export function optionalReading(leaves: readonly Stop[]): boolean | 'mixed' | null {
+  if (leaves.length === 0) return null
+  const on = leaves.filter((l) => l.optional === true).length
+  return on === 0 ? false : on === leaves.length ? true : 'mixed'
+}
+
+/** the stop with `optional` set (`on`) or cleared on itself when it is a leaf, and
+ *  on every leaf under it when it is a container — the container itself is copied
+ *  through untouched and gains no field. Cleared means ABSENT rather than `false`,
+ *  the same shape a leaf that was never marked has. */
+export function withOptional(s: Stop, on: boolean): Stop {
+  if (isLeaf(s)) {
+    const next: Stop = { ...s }
+    if (on) next.optional = true
+    else delete next.optional
+    return next
+  }
+  return { ...s, variants: s.variants.map((vr) => ({ ...vr, steps: vr.steps.map((c) => withOptional(c, on)) })) }
+}
+
+/** the bound leaves the road would take through `stops` — the chosen version of
+ *  every container, placeholders left out, exactly as `resolveRoad` walks it */
+function roadLeaves(stops: Stop[], choices: Record<string, string>): Stop[] {
+  const out: Stop[] = []
+  for (const s of stops) {
+    if (isLeaf(s)) {
+      if (!s.unset) out.push(s)
+    } else out.push(...roadLeaves(chosenSteps(s, choices), choices))
+  }
+  return out
+}
+
+/** A CONTAINER THE ROAD MAY SKIP WHOLE — the derived "this group is optional": it
+ *  holds at least one bound leaf on its chosen road, and every one of them is
+ *  optional. A leaf answers false (its own flag is the answer there). An empty
+ *  group is not skippable: it has nothing to skip and stays where it was put.
+ *  Read by `resolveRoad` to drop the container when optionals are bypassed, and
+ *  by the editor's road and columns to draw it dashed. */
+export function skippableBox(s: Stop, choices: Record<string, string>): boolean {
+  if (isLeaf(s)) return false
+  const leaves = roadLeaves(chosenSteps(s, choices), choices)
+  return leaves.length > 0 && leaves.every((l) => l.optional === true)
 }
 
 // ── Module-load guard — the walks.ts idiom: throw at load, not at render ────
