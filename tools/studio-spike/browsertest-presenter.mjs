@@ -441,13 +441,26 @@ try {
   const camera = () => wallMap().locator('svg').first().evaluate((svg) => svg.querySelector('defs + g').getAttribute('transform'))
   const boxesOf = (sel) => liveCard().locator(sel).evaluateAll((els) => els.map((e) => { const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height } }))
   const inside = (b, r) => b.x >= r.x && b.y >= r.y && b.x + b.w <= r.x + r.w && b.y + b.h <= r.y + r.h
-  const overlaps = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+  /** how deep two boxes intersect, 0 or less when they do not — the caption's box ends on the
+   *  line box's descender edge, so a fit that is right to the pixel can still graze it by a
+   *  fraction; the check below allows 1px of this and nothing more */
+  const overlapDepth = (a, b) => Math.min(Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y))
   const svgBox = (await boxesOf('[data-projected-map] svg'))[0]
+  // THE VISIBLE CARD, not the svg's own box (what a pin must lie inside — the room cannot see
+  // an svg that runs past the card). `inside` wants w/h; boundingBox gives width/height.
+  const cardRect = await liveCard().boundingBox()
+  const cardBox = { x: cardRect.x, y: cardRect.y, w: cardRect.width, h: cardRect.height }
   const pinsUp = await boxesOf('[data-routestop]')
   const capBox = (await boxesOf('[data-projected-caption]'))[0]
   const wallFoot = (await boxesOf('[data-projected-map-foot]'))[0]
-  ok('OB-163 (1): with the map up, the frame already contains EVERY stop\'s pin', pinsUp.length >= 3 && pinsUp.every((b) => inside(b, svgBox)), `${pinsUp.filter((b) => !inside(b, svgBox)).length} of ${pinsUp.length} pins outside the ${Math.round(svgBox.w)}×${Math.round(svgBox.h)} frame`)
-  ok('clear of the caption and the foot', !!capBox && !!wallFoot && pinsUp.every((b) => !overlaps(b, capBox) && !overlaps(b, wallFoot)))
+  // THE MAP'S DRAWING BOX IS THE SLOT ABOVE THE FOOT, measured on screen. It used to be the
+  // svg's own 1440:960 viewBox ratio — 686×457 in a 686×365 slot — so the wall fit believed it
+  // had 92px more room than the card shows and stop 7's pin drew under the foot and off the
+  // card while every check here still passed: they measured the svg's box, not the card's.
+  const slotH = wallFoot ? wallFoot.y - svgBox.y : 0
+  ok('OB-163 (1): the map is sized to its slot above the foot, not to the viewBox\'s own 3:2 ratio', svgBox.h <= slotH + 1, `svg ${Math.round(svgBox.h)} tall in a ${Math.round(slotH)} tall slot`)
+  ok('OB-163 (1): with the map up, the VISIBLE card already contains EVERY stop\'s pin', pinsUp.length >= 3 && pinsUp.every((b) => inside(b, cardBox)), `${pinsUp.filter((b) => !inside(b, cardBox)).length} of ${pinsUp.length} pins outside the ${Math.round(cardBox.w)}×${Math.round(cardBox.h)} card`)
+  ok('clear of the caption and clear ABOVE the foot band — a pin below the foot is off the card, not clear of it', !!capBox && !!wallFoot && pinsUp.every((b) => overlapDepth(b, capBox) <= 1 && b.y + b.h <= wallFoot.y + 0.5), `${pinsUp.filter((b) => overlapDepth(b, capBox) > 1).length} pins overlap the caption, ${pinsUp.filter((b) => b.y + b.h > wallFoot.y + 0.5).length} dip below the foot`)
   const cx = pinsUp.map((b) => b.x + b.w / 2), cy = pinsUp.map((b) => b.y + b.h / 2)
   const extW = Math.max(...cx) - Math.min(...cx), extH = Math.max(...cy) - Math.min(...cy)
   ok('and the walk FILLS the wall rather than sitting in a corner: the pins\' extent spans at least 60% of the frame on one axis', extW / svgBox.w >= 0.6 || extH / svgBox.h >= 0.6, `extent ${Math.round(extW)}×${Math.round(extH)} in ${Math.round(svgBox.w)}×${Math.round(svgBox.h)}`)
@@ -456,7 +469,11 @@ try {
    *  library), skipping the masks — rects in CSS px relative to the slot */
   const maskedDiff = async (a, b, masks) => {
     const slot = (await boxesOf('[data-projected-map]'))[0]
-    const rel = masks.map((m) => ({ x: m.x - slot.x - 6, y: m.y - slot.y - 6, w: m.w + 12, h: m.h + 12 })) // padded: a stroke and a shadow draw outside a <g>'s geometric box
+    // PADDED: a stroke and a shadow draw outside a <g>'s geometric box. 10, not 6 — on the
+    // corrected wall box (the pin's box is now the real 22px at the fitted camera) the lit
+    // pin's own pill edge, changing face as the walk advances, lands up to 7px outside the
+    // box, and a 6px pad counted that allowed change as camera movement.
+    const rel = masks.map((m) => ({ x: m.x - slot.x - 10, y: m.y - slot.y - 10, w: m.w + 20, h: m.h + 20 }))
     return page.evaluate(async ({ a, b, masks, sw }) => {
       const load = (src) => new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.src = 'data:image/png;base64,' + src })
       const [ia, ib] = await Promise.all([load(a), load(b)])
