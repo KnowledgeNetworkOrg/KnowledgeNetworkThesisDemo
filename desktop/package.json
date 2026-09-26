@@ -11,6 +11,9 @@
     "dev": "npm run build && electron .",
     "smoke": "npm run build && node smoke.mjs"
   },
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "devDependencies": {
     "@types/node": "^24.10.1",
     "electron": "^44.0.0",

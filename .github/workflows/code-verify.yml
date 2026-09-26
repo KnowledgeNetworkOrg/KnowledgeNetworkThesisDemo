@@ -14,14 +14,37 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22: the version development runs on, and the line both packages'
+          # `engines` field names. Electron 44 itself declares node >=22.12, so
+          # desktop/ is not supported on the 20 this used to pin.
+          node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
+      # desktop/ is its own package with its own lockfile (#201), and until
+      # 2026-09-25 nothing here installed or checked it. `preload.ts` implements
+      # the `Platform` type in `src/platform/types.ts`; when #267 added
+      # `openWindow` to that type, the root typecheck passed (it never compiles
+      # desktop/) and the desktop build passed (esbuild does not typecheck), and
+      # the contract stayed broken for eleven days (#330, #332).
+      #
+      # The typecheck needs Electron's type definitions, which ship in the npm
+      # package. The ~100 MB Electron binary is NOT fetched here: electron 44's
+      # package has no install script, and downloads the binary the first time
+      # `require('electron')` runs, which a typecheck never does.
+      - name: Install desktop dependencies
+        run: npm ci --prefix desktop
+
       - name: Build
         run: npm run build
+
+      - name: Typecheck desktop
+        run: npm run typecheck:desktop
 
       - name: Lint
         run: npm run lint
