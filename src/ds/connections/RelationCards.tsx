@@ -203,17 +203,21 @@ function groupViaBySource(rows: readonly ViaRelation[] | null | undefined) {
    The label is wrapped in a bare `<span>` for one reason: a raw text node in a flex container
    becomes an anonymous flex item, which is layout-identical but cannot be measured or read back.
    Both runs are elements now, so a driver reads its own baselines out of the DOM instead of
-   asserting them from the source. `data-rel-group-header` is a test hook only. */
-function RelGroupHeader({ label, count, open, onClick }: { label: string; count: number; open?: boolean; onClick?: () => void }) {
+   asserting them from the source. `data-rel-group-header` is a test hook only (it carries the
+   stable group WORD, 'direct' / 'via children', while the visible text is a sentence — OB-242).
+   THE HEADER IS NOW A SENTENCE (OB-242): "1 direct relationship", not "DIRECT 1". The count
+   leads, in its own mono face, and the noun — already pluralised by the caller — follows; both
+   sit on one baseline, the same rule OB-182 wrote for the label-and-count pair. */
+function RelGroupHeader({ label, noun, count, open, onClick }: { label: string; noun: string; count: number; open?: boolean; onClick?: () => void }) {
   return (
     <div onClick={onClick} data-rel-group-header={label} style={{
-      fontSize: 11, fontWeight: 'var(--fw-bold)', color: 'var(--text-3)', textTransform: 'uppercase',
-      letterSpacing: '.04em', padding: '12px 2px 4px', display: 'flex', alignItems: 'baseline', gap: 5,
+      fontSize: 11, fontWeight: 'var(--fw-bold)', color: 'var(--text-3)',
+      padding: '12px 2px 4px', display: 'flex', alignItems: 'baseline', gap: 5,
       cursor: onClick ? 'pointer' : 'default', userSelect: 'none',
     }}>
       {onClick ? <span style={{ display: 'inline-flex', alignSelf: 'center', alignItems: 'center', justifyContent: 'center', width: 14, height: 14, flexShrink: 0, marginTop: 1 }}><Caret open={open} /></span> : null}
-      <span>{label}</span>
-      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-3)', fontWeight: 'var(--fw-medium)' }}>{count}</span>
+      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 'var(--fw-medium)' }}>{count}</span>
+      <span>{noun}</span>
     </div>
   )
 }
@@ -270,9 +274,10 @@ function RelRowPlain({ leftLabel, leftDomain, rightLabel, rightDomain, kindLabel
  *  reads as one neighbour reached three ways instead of three neighbours. Direction and colour
  *  stay per-relationship, on the arrows; only the PILL is shared.
  *
- *  The bracket is a grouping cue, not a boundary: a half-opacity hairline, absent on a
- *  one-relationship group — it marks RELATIONSHIPS, so it appears whenever there are several,
- *  including several into one target.
+ *  The bracket is a grouping cue, not a boundary: a half-opacity hairline that marks the split
+ *  between this source and its SEVERAL TARGETS (OB-224). It keys off the TARGET count, not the
+ *  relationship count, so several arrows fanning into ONE target draw no source bracket — the
+ *  spine on the right already collects those arrows.
  *
  *  HOVER SEMANTICS DIFFER BY SIZE, deliberately, and the size that decides is the number of
  *  TARGETS and not of relationships: a block is one hover target (`onHoverTarget` reports a NODE
@@ -339,9 +344,9 @@ export function RelSourceGroup({ sourceLabel, sourcePathParts, sourceDomain, ite
       >
         <NodeChip mark="border-2" title={sourceLabel} path={sourcePathParts} domain={sourceDomain} focus width={leftWidth} maxLines={Math.max(2, Math.min(4, items.length + 1))} />
       </div>
-      {/* the bracket, and the empty 1px column that reserves its place on a one-relationship
-          group — so a card with one relationship and a card with three line up */}
-      {items.length > 1
+      {/* the bracket, and the empty 1px column that reserves its place on a one-TARGET group
+          (OB-224) — so a card with one target and a card with three still line up */}
+      {targets.length > 1
         ? <div style={{ width: 1, background: 'var(--border-hair)', opacity: 0.45, flexShrink: 0, margin: '4px 1px' }} />
         : <div style={{ width: 1, flexShrink: 0 }} />}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: M.blockGap }}>
@@ -485,7 +490,7 @@ export function RelationCards({ source, direct = [], via = [], filterTargetId = 
     >
       {directRows.length ? (
         <Fragment>
-          <RelGroupHeader label="direct" count={directRows.length} open={groupOpen.direct} onClick={() => toggleGroup('direct')} />
+          <RelGroupHeader label="direct" noun={directRows.length === 1 ? 'direct relationship' : 'direct relationships'} count={directRows.length} open={groupOpen.direct} onClick={() => toggleGroup('direct')} />
           {groupOpen.direct ? (plainRows
             ? directRows.map((r) => {
                 const it = itemOf(r, onSelect, r.id)
@@ -502,7 +507,7 @@ export function RelationCards({ source, direct = [], via = [], filterTargetId = 
       ) : null}
       {viaRows.length ? (
         <Fragment>
-          <RelGroupHeader label="via children" count={viaRows.length} open={groupOpen.via} onClick={() => toggleGroup('via')} />
+          <RelGroupHeader label="via children" noun={viaRows.length === 1 ? 'relationship via children' : 'relationships via children'} count={viaRows.length} open={groupOpen.via} onClick={() => toggleGroup('via')} />
           {groupOpen.via ? (plainRows
             ? viaRows.map((vc, i) => {
                 const it = itemOf(vc.rel, onSelect, vc.rel.id + '-' + i)

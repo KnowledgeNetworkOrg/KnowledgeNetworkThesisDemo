@@ -3,10 +3,10 @@
 // hosts read the same tree now, and two copies are how the two ends of the dissolution would
 // drift. This is instruments-layer (it imports the DS for the `ContainNode` type it builds and
 // the corpus for the data it reads), so it belongs to no single instrument.
-import type { ContainNode } from '@/ds'
+import type { ContainNode, Relation } from '@/ds'
 
 import { DOC_BODY } from '../corpus/docs'
-import { byId, childrenOf, ROOT_ID, topicHueOf } from '../corpus/graph'
+import { byId, childrenOf, EDGE_LABEL, edges, ROOT_ID, topicHueOf } from '../corpus/graph'
 
 /** the whole corpus as the tree the Explorer draws. Built once: the corpus is static, and
  *  rebuilding it per render would remount `ContainTree` (it keys on the root's id) and drop
@@ -41,4 +41,39 @@ export function summaryOfNode(id: string): string | undefined {
   if (!body) return undefined
   const stop = body.indexOf('. ')
   return stop > 40 ? body.slice(0, stop + 1) : body.slice(0, 180)
+}
+
+/** THE CORPUS ADAPTER THE RELATIONS RAIL READS — a node's relationships, one entry per
+ *  target and kind, moved out of `ConnectionsPane` when the relations rail mounted on the
+ *  document (#342, OB-229): two hosts read the same index now, and two copies are how the two
+ *  ends of the dissolution would drift. Module-scope identity is still load-bearing rather
+ *  than tidy — `ConnectionsSplitPane` memoises its answers on the function's identity, and a
+ *  fresh closure per render would recompute the via-children roll-up on every filter keystroke.
+ *
+ *  An authored edge is a fact about a PAIR, so it appears twice here, once from each end, with
+ *  `direction` told from that end's point of view — nothing downstream has to know which way
+ *  round the corpus authored it. `see_also` is the one kind this corpus authors as symmetric,
+ *  and it reads 'both' from either end. `kindLabel` is the corpus's OWN wording ("builds on"),
+ *  not the palette's example. */
+const RELATIONS: Map<string, Relation[]> = (() => {
+  const m = new Map<string, Relation[]>()
+  const push = (from: string, to: string, e: (typeof edges)[number], direction: Relation['direction']) => {
+    const other = byId.get(to)!
+    const list = m.get(from) ?? []
+    list.push({
+      id: e.id, targetId: to, targetTitle: other.title, targetDomain: topicHueOf(to),
+      kind: e.type, kindLabel: EDGE_LABEL[e.type], direction,
+    })
+    m.set(from, list)
+  }
+  for (const e of edges) {
+    const both = e.type === 'see_also'
+    push(e.source, e.target, e, both ? 'both' : 'out')
+    push(e.target, e.source, e, both ? 'both' : 'in')
+  }
+  return m
+})()
+const NO_RELATIONS: Relation[] = []
+export function relationsOfNode(id: string): Relation[] {
+  return RELATIONS.get(id) ?? NO_RELATIONS
 }

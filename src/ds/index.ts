@@ -183,3 +183,5 @@ export { RailFrame, RailOpenButton, RailCorner, RailMath, PANE_RAIL_METRICS, rai
 export type { RailFrameProps, RailOpenButtonProps, RailCornerProps, RailMetrics } from './connections/RailFrame'
 export { ExplorerRail, ExplorerRailCorner, explorerRailWidth, ExplorerRailMath } from './connections/ExplorerRail'
 export type { ExplorerRailProps, ExplorerRailCornerProps } from './connections/ExplorerRail'
+export { RelationsRail, RelationsRailCorner, relationsRailWidth, RelationsRailMath } from './connections/RelationsRail'
+export type { RelationsRailProps, RelationsRailCornerProps } from './connections/RelationsRail'

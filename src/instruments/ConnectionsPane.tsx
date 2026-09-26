@@ -59,52 +59,21 @@ import { useEffect, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 
 import { CONNECTIONS_BODY_STYLE, ConnectionsSplitPane, IconButton, OpenAncestors, PaneCanvas } from '@/ds'
-import type { ConnectionsGraphApi, OpenMap, Relation } from '@/ds'
+import type { ConnectionsGraphApi, OpenMap } from '@/ds'
 
-import { byId, childrenOf, domainOf, EDGE_COLOR, EDGE_LABEL, edges, ROOT_ID, topicHueOf } from '../corpus/graph'
+import { byId, childrenOf, domainOf, EDGE_COLOR, EDGE_LABEL, ROOT_ID, topicHueOf } from '../corpus/graph'
 import { colorOf, fillOf } from '../model/color'
 import { regionStarFor, starFor } from '../model/star'
 import type { Bus } from '../state/bus'
-import { CORPUS_TREE, summaryOfNode } from './corpustree'
+import { CORPUS_TREE, relationsOfNode, summaryOfNode } from './corpustree'
 
 export { CONNECTIONS_BODY_STYLE }
 
 // ── corpus adapters ─────────────────────────────────────────────────────────
-// The tree and the preview summary MOVED to `./corpustree` when the Explorer rail mounted on
-// the map (#341, OB-238) — two hosts read the same tree now. `relationsOf` stays here: it is
-// MODULE SCOPE and that is load-bearing rather than tidy — the pane memoises its answers on
-// the function's identity, and a fresh closure per render would recompute the whole
-// via-children roll-up — one call per descendant of the selection — on every keystroke in the
-// filter box.
-
-/** ONE ENTRY PER TARGET AND KIND, decomposed — the shape the cards and the graph both
- *  read. An authored edge is a fact about a PAIR, so it appears twice in this index,
- *  once from each end, with `direction` told from that end's point of view; nothing
- *  downstream then has to know which way round the corpus authored it. `see_also` is
- *  the one kind this corpus authors as symmetric, and it reads 'both' from either end.
- *  `kindLabel` is the corpus's OWN wording ("builds on"), not the palette's example. */
-const RELATIONS: Map<string, Relation[]> = (() => {
-  const m = new Map<string, Relation[]>()
-  const push = (from: string, to: string, e: (typeof edges)[number], direction: Relation['direction']) => {
-    const other = byId.get(to)!
-    const list = m.get(from) ?? []
-    list.push({
-      id: e.id, targetId: to, targetTitle: other.title, targetDomain: topicHueOf(to),
-      kind: e.type, kindLabel: EDGE_LABEL[e.type], direction,
-    })
-    m.set(from, list)
-  }
-  for (const e of edges) {
-    const both = e.type === 'see_also'
-    push(e.source, e.target, e, both ? 'both' : 'out')
-    push(e.target, e.source, e, both ? 'both' : 'in')
-  }
-  return m
-})()
-const NO_RELATIONS: Relation[] = []
-function relationsOfNode(id: string): Relation[] {
-  return RELATIONS.get(id) ?? NO_RELATIONS
-}
+// The tree, the preview summary AND the relations index all MOVED to `./corpustree` as the
+// rails mounted — the Explorer rail on the map (#341, OB-238), the relations rail on the
+// document (#342, OB-229) — because two hosts now read each of them, and two copies are how
+// the two ends of the dissolution would drift.
 
 // ── the graph slot: this app's real relation star ───────────────────────────
 // half viewBox — wider than tall, because English titles are wide: labels near the

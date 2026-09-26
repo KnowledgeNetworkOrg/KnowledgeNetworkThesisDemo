@@ -245,6 +245,10 @@ const VIEWS = [
     label: 'Document',
     family: 'reading',
     slot: 'column',
+    // #342 (OB-229): the relations rail owns its own scroller beside the document's, so the pane
+    // BODY must not scroll (the map and connections panes set this for the same reason — a
+    // document body wrapped in a second scroller would put the rail inside it, not beside it).
+    body: 'none',
     render: (bus) => <DocumentPanel bus={bus} />,
   },
   {
