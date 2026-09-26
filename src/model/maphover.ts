@@ -32,6 +32,12 @@ export type HoverCard =
 export type HoverMarks = {
   /** The cell drawn with the solid spotlight: lit, and never carrying a card. */
   spotlightId: string | null
+  /** THE SELECTED CELL, LIT BECAUSE ANOTHER PANE ASKED FOR THE CENTRE (DS OB-230) — or null.
+   *  A second light rather than a second answer for `spotlightId`, because the two can be
+   *  wanted at once and mean different things: the spotlight is "the thing pointed at over
+   *  there lives HERE", this is "the thing the pane over there is ABOUT is this one". Drawn
+   *  ABOVE the selection's own treatment — under it, it would not show — and never a card. */
+  centreId: string | null
   /** What `MapTooltip` reports, or null for no card at all. */
   card: HoverCard | null
 }
@@ -63,6 +69,12 @@ export type HoverSources = {
    *  consequence. The spotlight is untouched: a pin hover is the weakest channel on the pane,
    *  transient, undone on leave, and never what the app reads as the current node. */
   walkPinHovered?: boolean
+  /** ANOTHER PANE IS LIGHTING THE CENTRE (DS OB-230, the bus's `hoverCenter`): the document's
+   *  Relations figure has its pointer on the hub, the node the document is about. It is its
+   *  OWN channel on purpose — see `centreId`. Writing the selection's id into `publishedCell`
+   *  instead would light every road around it, since the map reads a published hover as "a
+   *  neighbour of the selection" and lights the road to it. */
+  centerLit?: boolean
 }
 
 /**
@@ -70,7 +82,7 @@ export type HoverSources = {
  * a card. They take different inputs on purpose — see the note at the top.
  */
 export function hoverMarks(from: HoverSources): HoverMarks {
-  const { cursorCell, selectedCell, publishedCell, lookedAtCell, walkStopCell, onRelation, walkPinHovered } = from
+  const { cursorCell, selectedCell, publishedCell, lookedAtCell, walkStopCell, onRelation, walkPinHovered, centerLit } = from
 
   // A published hover that is only our own cell echoing back is dropped: that cell
   // already carries the dashed preselect, and two outlines on one cell read as a
@@ -106,5 +118,11 @@ export function hoverMarks(from: HoverSources): HoverMarks {
         ? { kind: 'node', id: cursorCell }
         : null
 
-  return { spotlightId, card }
+  // THE CENTRE'S LIGHT IS THE SELECTION'S AND NOTHING ELSE'S. With nothing selected there is no
+  // centre on this map to light, so the signal lights nothing rather than guessing a cell. It
+  // does not touch the spotlight or the card: the two channels are separate precisely so that
+  // neither one's light can be read as the other's.
+  const centreId = centerLit && selectedCell ? selectedCell : null
+
+  return { spotlightId, centreId, card }
 }

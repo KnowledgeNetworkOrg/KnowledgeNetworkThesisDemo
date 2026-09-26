@@ -1051,9 +1051,15 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
     walkStopCell: walkDroveFocus ? sel : null,
     onRelation: hoverEdge !== null,
     walkPinHovered: pinHover !== null,
+    centerLit: bus.hoverCenter,
   })
   const spotId = marks.spotlightId
   const spotOutline = spotId ? outlineOf(spotId) : undefined
+  // THE CENTRE'S OWN LIGHT (DS OB-230): the document's Relations figure is pointing at the node
+  // it is about, which is this map's selection. Its own channel, so it lights THIS cell and no
+  // road — see `centreId` in `maphover.ts`.
+  const centreId = marks.centreId
+  const centreOutline = centreId ? outlineOf(centreId) : undefined
 
   // THE CELL THE CARD IS ABOUT — our own cursor's, and now only ever our own. It
   // feeds MapTooltip's immediate title readout rather than the native <title>,
@@ -1814,6 +1820,16 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                   <path data-seloutline d={selOutline} fill="none" stroke={colorOf(sel)} strokeWidth={px(4)} strokeLinejoin="round" />
                 </>
               )}
+              {/* THE CENTRE'S LIGHT (DS OB-230) — the document's Relations figure is pointing at
+                  its hub, the node this selection IS. The spotlight's own fill wash, and only its
+                  fill: drawn OVER the selection so it shows (the spotlight above is painted
+                  under this overlay and would be hidden), UNDER the roads so no arrow is tinted,
+                  and with no stroke of its own so the selection's border stays exactly as it
+                  is. The DS's shell has no picture of this — its map's selected ring wins over
+                  its lit ring on the same node — so the recipe is this map's own. */}
+              {centreOutline && (
+                <path data-centre-lit={centreId!} d={centreOutline} fill={colorOf(centreId!)} fillOpacity={0.25} pointerEvents="none" />
+              )}
               {bundles.map((bd) => {
                 const a = bd.a
                 const b = bd.b
@@ -2102,8 +2118,11 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
           <ExplorerRail
             root={CORPUS_TREE} selectedId={bus.focus} deselectable
             /* ONE SELECTION (OB-227 clause 1): the rail's clicks move the same focus the map's
-               cells move, and clearing passes NULL so the pill and the map's ring both go out
-               while the document keeps reading the node. */
+               cells move, and clearing passes NULL so the pill and the map's ring both go out.
+               The document then shows its "Nothing chosen" placeholder rather than keeping the
+               node (DS OB-209 clause 4, owner-ruled: "just de-selected" and "just opened" are
+               one state). OB-240's contrary line — the document keeps reading — was flagged on
+               the #342 receipt; OB-209 is the item that owns this behaviour. */
             onSelect={(n) => { if (n) { if (byId.has(n.id)) bus.setFocus(n.id, 'tree') } else busClearFocus() }}
             open={userOpen} onOpenUpdate={setUserOpen} paneW={paneW}
             width={railW} onWidthChange={setRailW}

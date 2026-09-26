@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { Bullet, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, ExplorerRail, ExplorerRailCorner, ExplorerRailMath, explorerRailWidth, FindMark, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_DIVIDER_METRICS, PaneDivider, paneFit, clampDesk, deskBounds, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, REPLAY_PATH, STOP_CARD_METRICS, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkComplete, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
+import { Bullet, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, ExplorerRail, ExplorerRailCorner, ExplorerRailMath, explorerRailWidth, FindMark, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_DIVIDER_METRICS, PaneDivider, paneFit, clampDesk, deskBounds, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, REPLAY_PATH, STOP_CARD_METRICS, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkComplete, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle, RelationOrbit, RelationStats, ORBIT_METRICS, orbitWedge, orbitMarks, orbitKinds, OrbitMath, StatsMath, relationStats, statKindRows, RELATION_STATS_METRICS, RelationsRailMath, PANE_PLACEHOLDER_METRICS, PREVIEW_BANNER_METRICS } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -223,13 +223,14 @@ describe('ported but not adopted DS components', () => {
     expect(typeof walkEase).toBe('function')
   })
 
-  // #340 (OB-225, 234, 237, 239, 241, 243) — the dissolution's shared chrome, ported into
-  // src/ds and deliberately NOT adopted yet: the two rails that render it are #341's (the
-  // map's Explorer rail) and #342's (the document's Relations rail), and the panes they mount
-  // in are rewired there. Listed so mounting one is a deliberate edit here, not an audit miss.
-  // `FIRST_ROW_PAD` is read by RailFrame itself; it crosses the barrel for #358, which
-  // completes OB-249.
-  it('RailFrame / RailOpenButton / RailCorner / OutlineMark / RelationsMark — waiting on #341 and #342 to mount the rails', () => {
+  // #340 (OB-225, 234, 237, 239, 241, 243) — the dissolution's shared chrome. BOTH RAILS ARE
+  // MOUNTED NOW — the map's Explorer rail (#341) and the document's Relations rail (#342) — and
+  // they are what render these: `ExplorerRail`/`RelationsRail` wear `RailFrame`, place the marks
+  // and hand the closed state to `RailCorner`/`RailOpenButton` through their own `…RailCorner`.
+  // So none of them has an app-code importer of its own, which is the design (OB-238 done-when
+  // 4: no pane re-implements the frame), not a wait. `FIRST_ROW_PAD` is read by RailFrame
+  // itself; it crosses the barrel for #358, which completes OB-249.
+  it('RailFrame / RailOpenButton / RailCorner / OutlineMark / RelationsMark — rendered by the two mounted rails from inside src/ds', () => {
     expect(typeof RailFrame).toBe('function')
     expect(typeof RailOpenButton).toBe('function')
     expect(typeof RailCorner).toBe('function')
@@ -273,6 +274,28 @@ describe('ported but not adopted DS components', () => {
     expect(explorerRailWidth(400, null)).toBe(railWidth('left', 400, null))
     expect(explorerRailWidth(9999, 500)).toBe(PANE_RAIL_METRICS.left.stretch)
     expect(typeof ExplorerRailMath.width).toBe('function')
+  })
+
+  // #342 (OB-229, OB-235, OB-209) — the Relations rail's two parts and the numbers published
+  // beside them. The rail is MOUNTED (the document pane imports `RelationsRail`, its corner,
+  // `orbitBox`, `ORBIT_SELF`, `PanePlaceholder` and `PreviewBanner`), and these are what it
+  // renders from inside src/ds: a host that assembled a rail from `RelationOrbit` and
+  // `RelationStats` directly is what OB-238 done-when 1 forbids. The math crosses the barrel so
+  // a legend or a second drawing can tile the circle the same way the figure does.
+  it('RelationOrbit / RelationStats and their math — rendered by RelationsRail; no direct app importer', () => {
+    expect(typeof RelationOrbit).toBe('function')
+    expect(typeof RelationStats).toBe('function')
+    expect(orbitWedge(1)).toBe(180)
+    expect(ORBIT_METRICS.minSectors).toBe(2)
+    expect(OrbitMath.wedge).toBe(orbitWedge)
+    expect(OrbitMath.marks).toBe(orbitMarks)
+    expect(OrbitMath.kinds).toBe(orbitKinds)
+    expect(StatsMath.of).toBe(relationStats)
+    expect(StatsMath.rows).toBe(statKindRows)
+    expect(RELATION_STATS_METRICS.trackShare).toBe(52)
+    expect(RelationsRailMath.orbitBox(9999, null)).toEqual({ width: PANE_RAIL_METRICS.right.max - 18, height: PANE_RAIL_METRICS.right.max + 6 })
+    expect(PANE_PLACEHOLDER_METRICS.minHeight).toBe(120)
+    expect(PREVIEW_BANNER_METRICS.height).toBe(16)
   })
 
   // `nestedFamilyPaint` / `familySlots` / `FAMILY_SLOTS` are NOT listed here because

@@ -245,6 +245,11 @@ const VIEWS = [
     label: 'Document',
     family: 'reading',
     slot: 'column',
+    // #342: the pane is a head row over TWO columns that scroll separately — the prose and
+    // the Relations rail — so it owns its body (its own `PaneScroller` for the prose; the
+    // rail's frame carries its own scroller). A second, pane-wide scroller around them would
+    // scroll the rail away with the text and leave the head behind.
+    body: 'none',
     render: (bus) => <DocumentPanel bus={bus} />,
   },
   {
