@@ -56,7 +56,8 @@ export interface PillButtonProps {
    *  tone's own face; `'mixed'` = the moss RING and ink, NO wash; `true` = ring AND wash. Never a
    *  dashed pill (the `OptionalMark` inside is already a dashed ring — two dashes saying two
    *  things), and hover on `'mixed'` takes the tone's own neutral hover, never the moss wash that
-   *  would draw it pixel-identical to `true`.
+   *  would draw it pixel-identical to `true`. Hover on `true` KEEPS the wash (the Toolbar's order,
+   *  wash before hover) — otherwise a hovered `true` loses its fill and matches a hovered `'mixed'`.
    *
    *  Passing it at all makes the button a toggle: `aria-pressed` is emitted whenever `selected` is
    *  given, `'mixed'` as ARIA's own `aria-pressed="mixed"`. Omitted, the pill is a plain action. */
@@ -80,7 +81,12 @@ export function PillButton({ tone = 'quiet', size = 'md', glyph, disabled, selec
   /* THE TWO READINGS OF `selected` ARE DIFFERENT, and a truthiness test cannot tell them apart —
      the string 'mixed' is truthy, so `selected ?` would draw it fully on (the collapse the DS's
      Toolbar names). `engaged` (wholly or partly) earns the ring and the ink; `isOn` (wholly) is
-     the only one that earns the wash. */
+     the only one that earns the wash.
+
+     THE WASH OUTRANKS HOVER, as it does in the DS's Toolbar: hover-first would swap a fully-on
+     pill's wash for the neutral hover and leave the ring and ink — exactly what a hovered 'mixed'
+     pill draws, so the two would match at the one moment the author points at the button to
+     decide whether a press will clear every leaf or set every leaf. */
   const isOn = selected === true
   const engaged = isOn || selected === 'mixed'
   return (
@@ -103,7 +109,7 @@ export function PillButton({ tone = 'quiet', size = 'md', glyph, disabled, selec
         padding: pad,
         borderRadius: 'var(--radius-pill)',
         border: '1px solid ' + (engaged ? 'var(--moss-400)' : t.bd),
-        background: hot && !disabled ? t.hoverBg : isOn ? 'var(--accent-primary-wash)' : t.bg,
+        background: isOn ? 'var(--accent-primary-wash)' : hot && !disabled ? t.hoverBg : t.bg,
         color: engaged ? 'var(--accent-primary-ink)' : t.ink,
         fontFamily: 'var(--font-ui)',
         fontSize: size === 'sm' ? 'var(--fs-caption)' : 'var(--fs-body)',
