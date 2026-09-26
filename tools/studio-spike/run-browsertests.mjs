@@ -23,9 +23,11 @@
 // 146s, no 504 Outdated-Optimize-Dep reload, no flake.
 //
 // A driver that fails is retried once, alone, after the pool has drained. If the
-// retry passes, the row says FLAKY and the suite stays green — a known intermittent
-// (#365) should not turn a pull request red for no change. A failure that survives
-// its retry is a failure.
+// retry passes, the row says FLAKY and the suite stays green — an intermittent should
+// not turn a pull request red for no change. A failure that survives its retry is a
+// failure. The intermittent this was written for (#365) was the walkdock driver
+// measuring the map before the webfaces had landed; it now waits for them, so a FLAKY
+// row is news, not a known quantity.
 //
 // It does NOT run the measurements (`probe-*`) or the screenshot scripts (`shot-*`).
 // Those are instruments, not tests: the measurements print numbers for a person to
