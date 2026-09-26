@@ -41,10 +41,11 @@ import {
 import type { NoteCategory, PresenterState, QuickAction } from '@/ds'
 
 import MapView from '../instruments/MapView'
+import type { MapViewBus } from '../instruments/MapView'
 import { useKeptWallFrame } from './wallframe'
 import { useWalkPlayback } from '../state/walk/playback'
+import type { PlaybackBus } from '../state/walk/playback'
 import { renderStopPreview } from '../state/walk/stoppreview'
-import type { Bus } from '../state/bus'
 import { BOOKED_SECONDS, clampStop, coveredBefore, lectureStart, lectureSteps, mmss } from './lecture'
 import { LectureSlide } from './LectureSlide'
 import {
@@ -70,8 +71,12 @@ const DECK_ACTIONS: QuickAction[] = [
   { id: 'end', label: 'End the lecture', dot: 'var(--state-danger)', title: 'end the lecture and show the recap' },
 ]
 
+/** the slice of the bus the presenter needs — playback's, plus the map's, because it hands its
+ *  bus to MapView. */
+export type PresenterScreenBus = PlaybackBus & MapViewBus
+
 export interface PresenterScreenProps {
-  bus: Bus
+  bus: PresenterScreenBus
   /** is the room watching — the toolbar ▶ (true) or the palette's Present (false, a preview:
    *  no clock, nothing projected). Flipping to true STARTS the lecture here and now. */
   projecting: boolean

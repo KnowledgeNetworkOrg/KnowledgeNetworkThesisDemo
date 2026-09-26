@@ -11,9 +11,9 @@ import { LEGEND_INSET } from '@/ds'
 import { useDrill, usePresentedRoad } from '../../state/walk/presented'
 import WalkColumns from './WalkColumns'
 import { useHover } from '../../state/bus'
-import type { Bus } from '../../state/bus'
+import type { HoverBus } from '../../state/bus'
 
-export default function WalkColumnsView({ bus }: { bus: Bus }) {
+export default function WalkColumnsView({ bus }: { bus: HoverBus }) {
   const sync = useHover(bus)
   const { path, pick } = useDrill()
   const road = usePresentedRoad()

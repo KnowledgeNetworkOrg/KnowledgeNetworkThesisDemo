@@ -20,11 +20,15 @@
 import { WalkStrip } from '@/ds'
 
 import { usePresentedRoad, usePublishPresentedRoute } from '../state/walk/presented'
+import type { PublishedRouteBus } from '../state/walk/presented'
 import { useWalkPlayback } from '../state/walk/playback'
+import type { PlaybackBus } from '../state/walk/playback'
 import { renderStopPreview } from '../state/walk/stoppreview'
-import type { Bus } from '../state/bus'
 
-export default function WalkViewer({ bus }: { bus: Bus }) {
+/** the slice of the bus the viewer reads and writes: playback plus the presented-route publish */
+type WalkViewerBus = PlaybackBus & PublishedRouteBus
+
+export default function WalkViewer({ bus }: { bus: WalkViewerBus }) {
   const road = usePresentedRoad()
   // The two-source branch, the step list and the cursor all live in
   // state/walk/playback.ts now (#195), because the presentation frame walks the

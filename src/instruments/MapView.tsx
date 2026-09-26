@@ -63,6 +63,7 @@ import type { View } from './map/camera'
 import { useWallFit, WALL_LEVEL, WALL_VIEW } from './map/wallfit'
 import { DT } from '../state/walk/authordnd'
 import { routeIsWalk, useWalkPlayback } from '../state/walk/playback'
+import type { PlaybackBus } from '../state/walk/playback'
 import { renderStopPreview } from '../state/walk/stoppreview'
 import { leafPos, provinceIds } from '../model/flat'
 import type { XY } from '../model/derive'
@@ -205,7 +206,11 @@ const GHOST_CASE = { stroke: '#ffffff', strokeWidth: 3.2, strokeOpacity: 0.75 }
  *  A still picture — every stop of the lecture a pin, the covered stops and the lit stop joined
  *  by the walk line, that stop lit, NO recency band, no dock, no floating chrome, no pin hover.
  *  Everything else the map does (territories, labels, the camera) is unchanged. */
-export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
+/** the slice of the bus the map reads and writes — its own members plus what playback needs,
+ *  since `useWalkPlayback` writes the cursor and the focus. */
+export type MapViewBus = Pick<Bus, 'focus' | 'hover' | 'hoverStep' | 'peek' | 'matches' | 'route' | 'history' | 'trail' | 'clearFocus' | 'setHover' | 'endHover'> & PlaybackBus
+
+export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallView }) {
   const onFocus = (id: string) => bus.setFocus(id, 'map')
 
   const svgRef = useRef<SVGSVGElement>(null)
