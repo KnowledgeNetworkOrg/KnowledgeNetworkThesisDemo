@@ -496,6 +496,28 @@ await withApp('teaching', {}, async (page) => {
   await page.waitForTimeout(450)
   ok('one click opens it again', await has(`${DOC} [data-relation-orbit]`))
 
+  /* THE FIGURE CAN VANISH UNDER A RESTING POINTER, and an unmounted mark fires no leave: the rail
+     closed from the KEYBOARD while the pointer stays on a mark must still take back the card and
+     whatever it lit on the map — the hub's centre channel and a relationship's road alike */
+  for (const key of ['@self', ...(await k.marks()).slice(0, 1)]) {
+    const p = await k.markPoint(key)
+    ok(`the mark ${key} is pointable before the keyboard close`, !!p)
+    if (!p) continue
+    await glideTo(p)
+    const on = await k.mapState()
+    ok(`pointing at ${key} opens the card and lights the map`, (await has('[data-orbit-card]')) && (key === '@self' ? on.centre === '1' : on.lit.length === 1), JSON.stringify(on))
+    await page.locator(`${DOC} [data-relations-figure]`).locator('xpath=..').locator('button').first().focus()
+    await page.keyboard.press('Enter')
+    await page.waitForTimeout(450)
+    const off = await k.mapState()
+    ok(`closing the rail from the keyboard with the pointer on ${key} takes back the card, the centre and the road`,
+      !(await has(`${DOC} [data-relations-figure]`)) && !(await has('[data-orbit-card]')) && off.centre === '0' && off.lit.length === 0 && off.dimmed === 0, JSON.stringify(off))
+    await park()
+    await page.locator(`${DOC} button[title="Show Relations"]`).first().click()
+    await page.waitForTimeout(450)
+    ok('…and one click opens it again', await has(`${DOC} [data-relation-orbit]`))
+  }
+
   // ── a CONTAINER: relationships found through its children (OB-242's other wording) ─────────────
   await k.select(pick.via.id, pick.via.title)
   ok('a container centres the rail on itself', (await attr(DOC, 'data-current')) === pick.via.id)

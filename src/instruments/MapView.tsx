@@ -1529,7 +1529,7 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
               <>
                 {/* the glow's own blurred tint and the body wash, back to front, as they drew before; the
                     glow brightens while the Document pane's hub is pointed at (`centreLit`, OB-230) */}
-                <path d={selOutline} fill={colorOf(sel)} fillOpacity={centreLit ? 0.26 : SELECTION_WASH.glow} strokeLinejoin="round" filter="url(#sel-glow)" />
+                <path d={selOutline} fill={colorOf(sel)} fillOpacity={centreLit ? SELECTION_WASH.glowLit : SELECTION_WASH.glow} strokeLinejoin="round" filter="url(#sel-glow)" />
                 <path d={selOutline} fill={colorOf(sel)} fillOpacity={SELECTION_WASH.body} />
               </>
             )}

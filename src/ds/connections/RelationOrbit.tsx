@@ -248,7 +248,7 @@ export function RelationOrbit({ width = 216, height = 240, direct, via, hot, onH
     : <path fillRule="evenodd" fill={HOP_WASH} pointerEvents="none"
         d={'M ' + (cx - rx) + ' ' + cy + ' A ' + rx + ' ' + ry + ' 0 1 0 ' + (cx + rx) + ' ' + cy + ' A ' + rx + ' ' + ry + ' 0 1 0 ' + (cx - rx) + ' ' + cy + ' Z M ' + (cx - rx * M.inner) + ' ' + cy + ' A ' + (rx * M.inner) + ' ' + (ry * M.inner) + ' 0 1 0 ' + (cx + rx * M.inner) + ' ' + cy + ' A ' + (rx * M.inner) + ' ' + (ry * M.inner) + ' 0 1 0 ' + (cx - rx * M.inner) + ' ' + cy + ' Z'} />
   return (
-    <svg data-relation-orbit="1" width={width} height={height} style={{ display: 'block' }} onPointerMove={onMove} onPointerLeave={() => { onHot?.(null); onHop?.(null) }}>
+    <svg data-relation-orbit="1" width={width} height={height} style={{ display: 'block' }} onPointerMove={onMove} onPointerLeave={() => { rectRef.current = null; onHot?.(null); onHop?.(null) }}>
       <g>
         {kind ? kinds.map((k, ki) => (k === kind ? wedgePath(k, ki) : null)) : null}
         {hopSel ? ringWash(hopSel) : (hop ? ringWash(hop) : null)}

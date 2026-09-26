@@ -36,7 +36,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 
 import {
   DocHeader, groupViaBySource, LEGEND_INSET, NodePreviewCard, NodePreviewLayer, orbitBox, ORBIT_SELF,
-  PaneScroller, PanePlaceholder, PreviewBanner, previewGutter, REL_CARD_PARTS, relationLook,
+  PaneScroller, PanePlaceholder, PreviewBanner, previewGutter, railFits, REL_CARD_PARTS, relationLook,
   RelationsRail, RelationsRailCorner, relationStats, RelSourceGroup, SectionLabel, usePaneWidth,
   viaSourceDomain, WalkCard,
 } from '@/ds'
@@ -175,6 +175,17 @@ function DocumentBody({ bus, currentId, previewId, paneW, railOpen, onRailOpenCh
     if (litRef.current) endHover(litRef.current)
     setHoverCenter(false)
   }, [endHover, setHoverCenter])
+  /* ...and the rail closing does not unmount THIS component, only the figure inside it: the close
+     button pressed from the keyboard, or the pane narrowed past the rail's floor with the pointer
+     resting on a mark. `railFits` is the very call the frame makes to hide it. */
+  const figureShown = railOpen && railFits('right', paneW)
+  useEffect(() => {
+    if (figureShown) return
+    hide()
+    if (litRef.current) endHover(litRef.current)
+    litRef.current = null
+    setHoverCenter(false)
+  }, [figureShown, hide, endHover, setHoverCenter])
 
   const previewNode = previewId && byId.get(previewId)
     ? { id: previewId, title: byId.get(previewId)!.title, domain: topicHueOf(previewId) }
