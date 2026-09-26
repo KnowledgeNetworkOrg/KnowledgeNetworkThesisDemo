@@ -319,7 +319,9 @@ try {
       step, durMove, peak, dir: Math.sign(tx[abs.indexOf(peak)]), starts,
       mid: abs.some((a) => a > 0.1 * step && a < 0.9 * step),
       opMin: Math.min(...frames.map((f) => Number(f.op))),
-      endsAtRest: matrixTx(last.row) === 0 && Number(last.op) === 1 && last.inline.indexOf('transform') < 0 && last.inline.indexOf('opacity') < 0,
+      // the row's style may carry `will-change: transform` (a hint, moves nothing), so match the
+      // PROPERTIES `transform:` / `opacity:`, not the word — `will-change: transform` contains it
+      endsAtRest: matrixTx(last.row) === 0 && Number(last.op) === 1 && !/(^|;)\s*(transform|opacity)\s*:/.test(last.inline),
       nextLean: Math.max(...frames.map((f) => matrixTx(f.next))), prevLean: Math.min(...frames.map((f) => matrixTx(f.prev))),
       nextEnds: matrixTx(last.next), prevEnds: matrixTx(last.prev),
       durations: [...new Set(frames.flatMap((f) => f.durations))],
@@ -341,6 +343,11 @@ try {
   const fwd = readSlide(await sampleRoll(() => page.keyboard.press('ArrowRight')))
   ok('OB-203: pressing → (no pointer near the roll) plays the SAME slide, in the matching direction (forward)', fwd.starts === 1 && fwd.dir === 1 && fwd.mid, explain(fwd))
   ok('and the chevron for that direction is at full weight and leans 3px outward while it runs, then is released', fwd.nextLean >= 2 && fwd.nextEnds === 0, `next chevron peak lean ${fwd.nextLean.toFixed(2)}px, ends ${fwd.nextEnds}px`)
+  // ← has to LAND on a stop that still has one behind it: the previous chevron is only drawn when a
+  // previous stop exists, and the jump above went to stop 1, so a single → then ← would come back to
+  // stop 1 where there is no chevron to lean. One more → first (unsampled), so ← lands on stop 2.
+  await page.keyboard.press('ArrowRight')
+  await page.waitForTimeout(500)
   const back = readSlide(await sampleRoll(() => page.keyboard.press('ArrowLeft')))
   ok('OB-203: pressing ← plays it the other way, and leans the OTHER chevron', back.starts === 1 && back.dir === -1 && back.mid && back.prevLean <= -2 && back.prevEnds === 0, `${explain(back)}; previous chevron lean ${back.prevLean.toFixed(2)}px`)
   ok('the chevrons are fixed furniture: they never travel with the row', fwd.nextEnds === 0 && back.prevEnds === 0)
