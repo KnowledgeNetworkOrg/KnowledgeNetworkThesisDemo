@@ -369,9 +369,13 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
         ) : (
           <>
             <div style={{ flex: 'none' }}>
+              {/* `stopIndex` IS THE STOP ACTUALLY ON THE WALL, roaming included (OB-203): the same `shown`
+                  `wall()` draws from, so a roam to another stop slides exactly like a step does — the
+                  arrows, the strip and the finder all reach the roll through this one number. Passing
+                  the ACTIVE stop instead would leave a roam silent. */}
               <FilmRoll height={286} projecting={projecting}
                 prev={shown > 0 ? nav(shown - 1) : null}
-                current={{ content: wall(shown), flagged: flags.indexOf(shown) >= 0, elapsed: roaming || !projecting ? undefined : mmss(onStopS) }}
+                current={{ content: wall(shown), flagged: flags.indexOf(shown) >= 0, elapsed: roaming || !projecting ? undefined : mmss(onStopS), stopIndex: shown }}
                 next={shown < N - 1 ? nav(shown + 1) : null}
                 onToggleFlag={(which) => toggleFlag(which === 'prev' ? shown - 1 : which === 'next' ? shown + 1 : shown)}
                 onExpand={() => setExpanded(true)} />

@@ -12,7 +12,8 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { HUE_DEGREES, topicPaintValues } from './topicvalues'
+import { nestedFamilyPaint, topicPaint } from './hueslots'
+import { GHOST_C, GHOST_L, HUE_DEGREES, topicPaintValues } from './topicvalues'
 
 const TOKENS = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'tokens')
 const css = readFileSync(join(TOKENS, 'colors.css'), 'utf8')
@@ -66,5 +67,50 @@ describe('topicPaintValues — the JS-resolved twin of topicPaint, pinned to tok
       expect(v.deg).toBeNull()
       expect(v.mark.css).toMatch(/^oklch\(/)
     }
+  })
+})
+
+// THE GHOST ROLE (OB-223, 2026-09-18) — one OPAQUE tone per hue for a group's name written across its
+// children. It is a resolved oklch() and not a token, on purpose (sixteen per-hue tokens would be
+// sixteen tokens for one role), so no stylesheet says what it is and these are the value guards: what
+// it must be, and that the two twins that hand it out cannot disagree.
+describe('topicPaint().ghost — one opaque tone per hue', () => {
+  const hues = Object.keys(HUE_DEGREES)
+
+  it('is oklch(0.640 0.110 <the ring degree>) for every hue — the DS\'s own string, character for character', () => {
+    expect(GHOST_L).toBe(0.64)
+    expect(GHOST_C).toBe(0.11)
+    for (const hue of hues) {
+      expect(topicPaint(hue).ghost, hue).toBe(`oklch(0.640 0.110 ${HUE_DEGREES[hue].toFixed(1)})`)
+    }
+  })
+
+  it('is OPAQUE — no alpha channel anywhere in it, because compositing through a fill is the fault', () => {
+    for (const hue of hues) {
+      const g = topicPaint(hue).ghost
+      expect(g, hue).toMatch(/^oklch\([\d. ]+\)$/)
+      expect(g, hue).not.toContain('/')
+    }
+  })
+
+  it('sits one tone BELOW the family-fill band, so it stays visible over the lightest child and never goes darker than the darkest', () => {
+    // slot 4 is the darkest rung of `nestedFamilyPaint`'s ladder: L 0.720
+    const darkest = Number(/^oklch\(([\d.]+)/.exec(nestedFamilyPaint('teal', { slot: 4 }).fill)![1])
+    expect(darkest).toBeCloseTo(0.72, 3)
+    expect(GHOST_L).toBeLessThan(darkest)
+  })
+
+  it('the JS-resolved twin hands out the same value the token twin does, hue for hue', () => {
+    for (const hue of hues) {
+      const v = topicPaintValues(hue).ghost
+      expect(v.css, hue).toBe(topicPaint(hue).ghost)
+      expect([v.l, v.c, v.h], hue).toEqual([GHOST_L, GHOST_C, HUE_DEGREES[hue]])
+    }
+  })
+
+  it('an unknown topic gets the anchor fallback in both twins, never nothing', () => {
+    expect(topicPaint('not-a-hue').ghost).toBe('var(--swatch-anchor-fallback)')
+    expect(topicPaint(null).ghost).toBe('var(--swatch-anchor-fallback)')
+    expect(topicPaintValues('not-a-hue').ghost.css).toMatch(/^oklch\(/)
   })
 })

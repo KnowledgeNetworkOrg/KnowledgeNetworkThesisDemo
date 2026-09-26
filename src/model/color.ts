@@ -366,6 +366,64 @@ for (const [id, fill] of territoryFillMap) {
   labelInkMap.set(id, chosen)
 }
 
+// ── Selected label ink: contrast against the cell AS WASHED (OB-223, clause 3) ─────────────────
+// The selection wash darkens the cell AND everything under it, while a label's ink is resolved
+// against the PRE-wash fill. Measured on the shipped map (2026-09-18, `Discrete Mathematics`
+// selected): 5.52:1 at rest fell to 3.17:1 selected — under OB-102's own 4.5:1 floor against the
+// cell the name actually sits on, quite apart from the ghost heading crossing it. A fix aimed only
+// at the ghost leaves the label there. The paper case (`LabelCut.case`) covers the glyph strokes;
+// between the letters the eye still reads the FILL, so the ink is resolved against that: the
+// fill after both washes, composited the way SVG paints them, in sRGB.
+//
+// SAME RULE AS ABOVE, SAME LEVER — keep the hue, slide L and C together, by the SMALLEST step that
+// reaches 4.5:1 — but from `inkStrongOf`'s register (the calm near-black the selected name wears)
+// toward a darker one, and a cell whose strong ink already passes keeps it unchanged. Measured
+// worst case over the ring's sixteen hues in all five slots: 4.30:1 before, at the darkest slot
+// under the heaviest anchor — which is the only place this darkens anything.
+/** THE SELECTED CELL'S TWO WASHES, as opacities of that cell's OWN colour (`colorOf`): the glow's
+ *  own tint, then the body wash over it. Exported so the map DRAWS them from these very numbers
+ *  and the ink below is resolved against what is actually painted — a copy of either in the map
+ *  is how the two would drift. */
+export const SELECTION_WASH = { glow: 0.16, body: 0.22 } as const
+
+const channels = (hex: string): [number, number, number] => {
+  const n = parseInt(hex.slice(1), 16)
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+}
+/** `top` at `alpha` over `under`, composited in sRGB space as an SVG paints it */
+function blendHex(top: string, alpha: number, under: string): string {
+  const t = channels(top)
+  const u = channels(under)
+  return '#' + [0, 1, 2].map((i) => Math.round(t[i] * alpha + u[i] * (1 - alpha)).toString(16).padStart(2, '0')).join('')
+}
+
+/** the colour a SELECTED cell's label actually sits on: its territory fill, the glow's tint over
+ *  it, then the body wash — the fill taken at full opacity, which is the darker (worse) reading,
+ *  so an answer that clears the floor here clears it on a half-muted leaf cell too */
+export function washedFillOf(id: string): string {
+  const fill = territoryFillMap.get(id) ?? FALLBACK.fill
+  const tint = anchorMap.get(id) ?? FALLBACK.anchor
+  return blendHex(tint, SELECTION_WASH.body, blendHex(tint, SELECTION_WASH.glow, fill))
+}
+
+const selectedInkMap = new Map<string, string>()
+for (const id of territoryFillMap.keys()) {
+  const s = slot.get(id)
+  const base = inkStrongMap.get(id) ?? FALLBACK.inkStrong
+  const washed = washedFillOf(id)
+  if (!s || contrastRatio(base, washed) >= LABEL_MIN_CONTRAST) {
+    selectedInkMap.set(id, base)
+    continue
+  }
+  let chosen = base
+  for (let step = 1; step <= INK_STEPS; step++) {
+    const t = step / INK_STEPS
+    chosen = oklchToHex(lerp(0.3, 0.12, t), lerp(0.04, 0.02, t), s.hue)
+    if (contrastRatio(chosen, washed) >= LABEL_MIN_CONTRAST) break
+  }
+  selectedInkMap.set(id, chosen)
+}
+
 /** saturated identity anchor — borders, capitals, chips */
 export const colorOf = (id: string): string => anchorMap.get(id) ?? FALLBACK.anchor
 /** pale country fill — active-level territory paint */
@@ -393,5 +451,8 @@ export const inkOf = (id: string): string => inkMap.get(id) ?? FALLBACK.ink
 export const labelInkOf = (id: string): string => labelInkMap.get(id) ?? inkMap.get(id) ?? FALLBACK.ink
 /** crisp near-black emphasis ink — selected/focused labels (see header) */
 export const inkStrongOf = (id: string): string => inkStrongMap.get(id) ?? FALLBACK.inkStrong
+/** the SELECTED cell's label ink: `inkStrongOf`, darkened only as far as 4.5:1 against the cell's
+ *  own washed fill (`washedFillOf`) requires (OB-223, see "Selected label ink" above). Map-only. */
+export const selectedInkOf = (id: string): string => selectedInkMap.get(id) ?? inkStrongMap.get(id) ?? FALLBACK.inkStrong
 /** the assigned hue in degrees, for anything that derives its own swatch */
 export const hueOf = (id: string): number | null => slot.get(id)?.hue ?? null

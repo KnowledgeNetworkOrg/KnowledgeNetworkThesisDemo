@@ -111,7 +111,14 @@ export interface NodeArrowProps {
    *  A NEGATIVE BOW ALSO MOVES THE SHAFT inside the drawing (the box grows on the side the
    *  curve bulges toward), so a host placing arrows absolutely must offset by
    *  `shaftTailOffset` or the same magnitude bowed either way will not be symmetric about
-   *  the line it is drawn on. */
+   *  the line it is drawn on.
+   *
+   *  THE BOW IS A CAP ON HOW FAR THE HEAD MAY POINT OFF ITS LINE, NOT A LENGTH TO DRAW AT
+   *  (OB-197): the value asked for is capped to `ARROW_BOW_MAX_DEG` (20 degrees of head
+   *  rotation) against this arrow's own `length` before anything reads it — see `capBow`. A
+   *  bow already inside the cap is drawn exactly as asked; a constant bow on a SHORT shaft is
+   *  what the cap answers, because the same sagitta is a gentle curve at chord 64 and a hairpin
+   *  at chord 10. `shaftTailOffset` applies the same cap when it is given the `length`. */
   bow?: number
   /** THE HALO — `--surface-raised` behind the shaft and the head, so the arrow reads against
    *  ANY fill under it and not only against this system's own paper. FOR A HOST ROUTING
@@ -329,6 +336,119 @@ export function headForSet(
   return best!
 }
 
+/** THE SHORTEST SHAFT THAT STILL READS AS AN ARROW, and it is a RATIO: `minHeads` head lengths,
+ *  not a pixel count (OB-197, owner-reported 2026-09-16 on this map). A relation between two
+ *  ADJACENT territories is clipped to their shared boundary, so the two clearances leave a stub a
+ *  few units long, and at the map's weight the head is then most of the drawing: "the head is way
+ *  too big, also when the arrow is so short its really hard to read the arrow at all".
+ *
+ *  WHY A RATIO AND NOT A NUMBER. The map draws in its own units and the room looks at it through
+ *  a zoom, so a px minimum is a different arrow at every scale — the mistake `headLengthMax` was
+ *  written as a fraction to avoid at the other end. The head's own length is the one measure
+ *  already in the drawing's own space, and it is what makes a shaft read as a shaft: below about
+ *  three head-lengths the triangle stops terminating a line and becomes the line.
+ *
+ *  CHOSEN, NOT DERIVED: 3. Judged at 1:1 against the shipped stub. At the full-rank 8px head that
+ *  is 24px; at the map's heavier head it grows with it, which is the point.
+ *
+ *  WHAT IT IS NOT: a length to draw every arrow at. It is a FLOOR. A line longer than this is
+ *  untouched, and nothing here may ever shorten one. */
+export const ARROW_MIN_SHAFT_HEADS = 3
+export function minShaft(
+  opts: { joins?: ChipForm | number; headSize?: { head: number; halfWidth: number }; minHeads?: number } = {},
+): number {
+  const { joins, headSize, minHeads } = opts
+  const head = (headSize ?? headFor({ joins })).head
+  const k = minHeads === undefined ? ARROW_MIN_SHAFT_HEADS : minHeads
+  return Math.round(head * k * 100) / 100
+}
+
+/** a point in whatever space the host draws in */
+export interface ArrowPoint { x: number; y: number }
+
+/** THE TWO ENDPOINTS, PUSHED BACK UNTIL THE SHAFT CLEARS THAT FLOOR (OB-197) — the owner's own fix
+ *  for the stub above, as arithmetic rather than as a sentence: "is it possible it could make the
+ *  arrows longer? like it doesn't have to land on the absolute edge of either node's territories?"
+ *
+ *  Give it the two points a host clipped to its regions' edges and it returns the pair to draw:
+ *  each end moved back along the line by HALF the shortfall, so the line grows symmetrically and
+ *  its midpoint — where a label sits — does not shift. `{ from, to, length, grew }`; `grew` is
+ *  false when the line was already long enough, when `min` is 0, or when the two points coincide
+ *  (there is no direction to extend along, and a host cannot be handed a guess).
+ *
+ *  WHAT IT GIVES UP, said plainly because it is the cost of the fix and not a detail: the ends no
+ *  longer touch the exact boundary between the two regions, so a reader cannot use the endpoint to
+ *  say precisely where the relation lands. That was never information a map like this could
+ *  carry — a territory is a region, not a point — and the alternative on the table (shrinking the
+ *  head on a short line) would have taken the head off every 14px chain arrow, where the head IS
+ *  the arrow deliberately.
+ *
+ *  THREE CALLER RULES this cannot enforce:
+ *   - EXTEND INTO BOTH REGIONS, never one. An asymmetric extension moves the midpoint, which moves
+ *     the kind label, which is the one part of a relation line a reader reads.
+ *   - THE OVERLAP IS ALLOWED TO CROSS INTO A NEIGHBOUR. On a small cell the shortfall is bigger
+ *     than the region it is pushed into; the line then starts inside the next cell along. Accept
+ *     it: the arrow's meaning is the PAIR it joins, which its two ends still name.
+ *   - SIZE ONE HEAD FOR THE SET (`headForSet`) BEFORE ASKING FOR THE MINIMUM. The floor follows
+ *     the head, so per-arrow heads give a per-arrow floor, and a set of arrows meaning the same
+ *     thing ends up drawn at several lengths for no reason a reader can see. */
+export function extendToMin(
+  opts: { from?: ArrowPoint; to?: ArrowPoint; joins?: ChipForm | number; headSize?: { head: number; halfWidth: number }; minHeads?: number; min?: number } = {},
+): { from: ArrowPoint; to: ArrowPoint; length: number; grew: boolean } {
+  const { from, to, joins, headSize, minHeads, min } = opts
+  const a = from ?? { x: 0, y: 0 }
+  const b = to ?? { x: 0, y: 0 }
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const length = Math.hypot(dx, dy)
+  const floor = min === undefined ? minShaft({ joins, headSize, minHeads }) : min
+  if (!length || length >= floor || floor <= 0) return { from: a, to: b, length, grew: false }
+  const k = (floor - length) / 2 / length
+  return {
+    from: { x: a.x - dx * k, y: a.y - dy * k },
+    to: { x: b.x + dx * k, y: b.y + dy * k },
+    length: floor,
+    grew: true,
+  }
+}
+
+/** HOW FAR OFF ITS OWN LINE A BOWED HEAD MAY POINT — the cap the `bow` prop never had, and the
+ *  second half of the short-relation fault the floor above fixes the first half of (OB-197,
+ *  owner-reported 2026-09-16 on this map, focusing a node: "the arrow heads look a bit weird, like
+ *  they have 2 arrow heads overlapped on top of each other").
+ *
+ *  WHY A BOW IS ONLY LEGIBLE AS A RATIO. The head's rotation on a bowed shaft is the quadratic's end
+ *  tangent, `atan(2 * bow / length)` — in THIS component (`dv = mid - ctrl`) and in the map's own
+ *  road layer (`ang = atan2(by - cy, bx - cx)`, off a control point offset by a fixed `px(14)`)
+ *  alike. Both callers pass a CONSTANT sagitta, so the same asked-for bow is a gentle 24-degree
+ *  curve on a 64-unit chord and a 70-degree hairpin on a 10-unit stub. A stub's whole drawing is
+ *  then a head pointing sideways into the fill, a head-length from the neighbouring line's head —
+ *  which is what "two heads overlapped" is a picture of: two roads, one shaft.
+ *
+ *  CHOSEN, NOT DERIVED: 20 degrees. Judged at 1:1 with the cap varied against four chord lengths
+ *  at one asked-for bow. At 30 a 10-unit stub still curls into a hook; at 12 the bow has stopped
+ *  separating anything on the medium lines it exists for (6.8 of the 14 asked for at chord 64,
+ *  against 11.65 at 20 degrees). The BOW is derived from it: `|bow| <= tan(maxDeg) * length / 2`.
+ *
+ *  A CAP, NEVER A LENGTH TO BOW AT: a bow already inside it comes back untouched, and the sign is
+ *  kept (two lines bowed opposite ways stay separated, which is the prop's whole purpose). Length 0
+ *  or unknown returns the bow as asked — there is no chord to scale against, and a caller cannot be
+ *  handed a guess. `NodeArrow` applies this to its own bowed shaft, so no caller can get it wrong;
+ *  it is exported for a host drawing its OWN quadratic between two points (the map's road layer),
+ *  where the order is `extendToMin` FIRST and this against the length that comes back — capping
+ *  against the stub chord caps against a chord the drawing no longer has. */
+export const ARROW_BOW_MAX_DEG = 20
+export function capBow(opts: { length?: number; bow?: number; maxDeg?: number } = {}): number {
+  const { length, bow, maxDeg } = opts
+  const b = bow || 0
+  if (!b) return 0
+  if (!(length !== undefined && length > 0)) return b
+  const deg = maxDeg === undefined ? ARROW_BOW_MAX_DEG : maxDeg
+  const max = Math.tan((deg * Math.PI) / 180) * (length / 2)
+  const capped = Math.min(Math.abs(b), max)
+  return Math.round((b < 0 ? -capped : capped) * 100) / 100
+}
+
 /** THE HALO (OB-116) — a caller-drawn line's own casing: `--surface-raised` behind the shaft
  *  AND the head, so the arrow reads against any fill under it rather than only against the
  *  paper this system's own cards draw on. FOR A HOST ROUTING ARBITRARY LINES OVER ARBITRARY
@@ -373,7 +493,11 @@ export function shaftTailOffset(
   const scaledHalf = (headSize ?? headFor({ joins, length })).halfWidth
   const across = scaledHalf * 2 + 3
   const pad = casing ? Math.ceil(CASING_EXTRA / 2) + 1 : 0
-  return { along: pad, across: pad + (bow >= 0 ? across / 2 : across / 2 + Math.abs(bow)) }
+  /* THE BOW THE COMPONENT WILL REALLY DRAW (OB-197): `NodeArrow` caps its bow against its own
+     chord, so a host that told this the bow it ASKED for would place a drawing whose shaft has
+     moved. With no `length` there is no chord and the bow comes back as asked, as before. */
+  const drawnBow = capBow({ length, bow })
+  return { along: pad, across: pad + (drawnBow >= 0 ? across / 2 : across / 2 + Math.abs(drawnBow)) }
 }
 
 /* the fill variant's head is a CSS triangle rather than an SVG path, and that is upstream's
@@ -494,10 +618,18 @@ export function NodeArrow({
        `bow === 0` special case: the straight shaft is a real <line>, and the DS's own cards
        read stroke-width and head bbox off exactly that element, so there is no reason to move
        the common, tested case onto a <path>. */
-    const extra = Math.abs(bow)
+    /* THE BOW IS CAPPED AGAINST ITS OWN CHORD BEFORE ANYTHING READS IT (OB-197) — see `capBow`.
+       Uncapped, `ang` below is `atan(2 * bow / length)`, so a fixed sagitta on a short shaft
+       rotated the head up to 70 degrees off the line it terminates and the stub read as a stray
+       arrowhead beside the next line's head. Capped here rather than asked of the caller: both
+       callers that pass `bow` pass a constant, which is exactly the shape of input this cannot
+       be left to. The tail offset, the control point and the head's angle all take the CAPPED
+       value; `shaftTailOffset` caps the same way, so a host placing this drawing agrees. */
+    const drawnBow = capBow({ length, bow })
+    const extra = Math.abs(drawnBow)
     const acrossB = across + extra
-    const mid = bow >= 0 ? across / 2 : across / 2 + extra
-    const ctrl = mid + bow
+    const mid = drawnBow >= 0 ? across / 2 : across / 2 + extra
+    const ctrl = mid + drawnBow
     const du = length / 2
     const dv = mid - ctrl
     /* WHERE THE HEAD SITS ON THE CURVE, and which way it points. At rest that is the curve's

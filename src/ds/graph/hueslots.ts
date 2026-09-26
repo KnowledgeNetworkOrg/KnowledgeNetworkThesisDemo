@@ -5,7 +5,7 @@
 // renders from here and re-exports every name, so the barrel and every importer
 // see one home.
 
-import { HUE_DEGREES } from './topicvalues'
+import { HUE_DEGREES, ghostCss } from './topicvalues'
 
 
 /** THE RING, IN HUE ORDER. Sixteen hue names, matching `--hue-<name>` in
@@ -100,7 +100,7 @@ export function domainToken(domain?: string | null): string {
 }
 
 /** THE PAINT FOR A TOPIC — every value a caller needs, so no call site
- *  chooses a role. Returns `{ hue, mark, ink, stroke, wash, washRaised }`.
+ *  chooses a role. Returns `{ hue, mark, ink, stroke, wash, washRaised, ghost }`.
  *  `hue` is the resolved ring name, or null for an unknown topic (whose
  *  values are all the anchor fallback, so it draws as a grey mark rather
  *  than as nothing).
@@ -108,11 +108,31 @@ export function domainToken(domain?: string | null): string {
  *  `stroke` is included deliberately even though a topic does not normally
  *  draw one: a topic's own hairline (a rail's rung, a tree's guide) is the
  *  one case, and leaving it out would send a caller back to assembling a
- *  token name by hand. */
-export function topicPaint(topic?: string | null): { hue: string | null; mark: string; ink: string; stroke: string; wash: string; washRaised: string } {
+ *  token name by hand.
+ *
+ *  `ghost` IS AN OPAQUE COLOUR AND THAT IS THE WHOLE POINT (OB-223). It is the role for a group's
+ *  name written ACROSS its children — the map's region heading behind the cells that belong to it.
+ *  Drawn the obvious way, as the hue at some alpha over whatever is beneath, it composites
+ *  differently over every child and changes value mid-word; the owner's reading of that, on the
+ *  shipped map: "i dont like how the background text has different shades across different nodes,
+ *  that looks weird and it attracts attention to something that should be in the background"
+ *  (2026-09-18). A background layer that reports what is under it is doing a foreground layer's
+ *  job. So this is one RESOLVED `oklch()` per hue — a value, not a token, deliberately: sixteen
+ *  per-hue tokens would be sixteen tokens for one role — painted ABOVE every fill and every
+ *  selection wash, never composited through them.
+ *
+ *  L 0.640 / C 0.110 are CHOSEN, not derived, and chosen against the family fills this system
+ *  already ships: `nestedFamilyPaint` spans L 0.720–0.900, so one tone below that band stays
+ *  visible over the lightest child and never goes darker than the darkest. It is deliberately not
+ *  anybody's `ink` — a ghost heading is not a label, and the ink roles are computed to hold 4.5:1,
+ *  which is the opposite of what this needs.
+ *
+ *  A CELL NAME MUST NOT DEPEND ON THIS BEING LIGHT. It is an opaque mid-tone, so a name crossing it
+ *  survives on its paper case (`LabelCut.case`), never on the ghost yielding. */
+export function topicPaint(topic?: string | null): { hue: string | null; mark: string; ink: string; stroke: string; wash: string; washRaised: string; ghost: string } {
   const hue = topic != null && HUE_RING.includes(topic) ? topic : null
-  if (!hue) return { hue: null, mark: 'var(--swatch-anchor-fallback)', ink: 'var(--swatch-ink-fallback)', stroke: 'var(--swatch-anchor-fallback)', wash: 'var(--swatch-fill-fallback)', washRaised: 'var(--swatch-fill-fallback)' }
-  return { hue, mark: `var(--hue-${hue})`, ink: `var(--hue-${hue}-ink)`, stroke: `var(--hue-${hue}-stroke)`, wash: `var(--hue-${hue}-wash)`, washRaised: `var(--hue-${hue}-wash-raised)` }
+  if (!hue) return { hue: null, mark: 'var(--swatch-anchor-fallback)', ink: 'var(--swatch-ink-fallback)', stroke: 'var(--swatch-anchor-fallback)', wash: 'var(--swatch-fill-fallback)', washRaised: 'var(--swatch-fill-fallback)', ghost: 'var(--swatch-anchor-fallback)' }
+  return { hue, mark: `var(--hue-${hue})`, ink: `var(--hue-${hue}-ink)`, stroke: `var(--hue-${hue}-stroke)`, wash: `var(--hue-${hue}-wash)`, washRaised: `var(--hue-${hue}-wash-raised)`, ghost: ghostCss(HUE_DEGREES[hue]) }
 }
 
 /* the ring's degrees live in ./topicvalues (a plain module, so the token-pinning test can be a

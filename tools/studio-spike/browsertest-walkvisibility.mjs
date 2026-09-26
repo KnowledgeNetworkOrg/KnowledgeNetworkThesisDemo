@@ -10,9 +10,12 @@
 // on the map, the eye brings the drawing back at the CURRENT position, and the eye wears
 // its slash and no moss wash (the slash is the whole state).
 //
-// WHAT COUNTS AS "the drawing". The whole walk layer is one `<g data-routepath>`
-// gated by the flag (OB-122 put pins AND arrows inside it), so "hidden" is that
-// element being absent, and "shown" is it being present. A walk activated from the
+// WHAT COUNTS AS "the drawing". The walk is TWO groups gated by the ONE flag: the
+// arrows, `<g data-routepath>`, and the pins, `<g data-routepins>` (OB-221 moved the
+// pins out to be the last thing the map paints, so a focus border cannot bury them;
+// OB-122 had put both inside `data-routepath`). "Hidden" is BOTH being absent — a
+// regression that hid only one would otherwise pass — and "shown" is EITHER being
+// present, with the first draw asserting that both are. A walk activated from the
 // Trail publishes only its played prefix — one stop — which is still one pin and
 // therefore still a drawing; nothing here needs a seek.
 //
@@ -67,7 +70,12 @@ await page.evaluate(() => localStorage.clear())
 await page.reload()
 await page.waitForTimeout(700)
 
-const drawn = () => page.evaluate(() => !!document.querySelector('svg[data-nested] [data-routepath]'))
+const layers = () => page.evaluate(() => ({
+  arrows: !!document.querySelector('svg[data-nested] [data-routepath]'),
+  pins: !!document.querySelector('svg[data-nested] [data-routepins]'),
+}))
+// true while ANY of the walk's drawing is on the map, so `!drawn()` means all of it is gone
+const drawn = async () => { const l = await layers(); return l.arrows || l.pins }
 const eyeSays = async () => {
   if (await page.getByLabel('hide the walk').count()) return 'hide the walk'
   if (await page.getByLabel('show the walk').count()) return 'show the walk'
@@ -94,6 +102,7 @@ ok('the eye names the DRAWING, not its nodes', (await eyeSays()) === 'hide the w
 await playButtons().nth(0).click()
 await page.waitForTimeout(700)
 ok('walk A activated draws on the map', await drawn())
+ok('and both halves of it are there: the arrows AND the pins (OB-221 moved the pins out of the arrows\' group)', (await layers()).arrows && (await layers()).pins, JSON.stringify(await layers()))
 const face = (label) => page.getByLabel(label, { exact: true }).evaluate((el) => getComputedStyle(el).borderColor + ' | ' + getComputedStyle(el).backgroundColor)
 const faceShown = await face('hide the walk')
 
