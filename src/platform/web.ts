@@ -51,6 +51,9 @@ function toScreenInfo(s: ScreenDetailedish): ScreenInfo {
 // returns false and keeps nothing, `remove` does nothing, `keys` returns [] —
 // and the Map is NOT written, because a later `get` that succeeded would read
 // localStorage and never see it. "Refused, so lost" is exactly today's behaviour.
+// Reaching for `localStorage` at all can throw too — a sandboxed frame without
+// `allow-same-origin`, or Chrome/Edge with site data blocked — and that is the
+// same refusal: the weak answer, and no Map write.
 //
 // `globalThis.localStorage` is looked up on EVERY call, never cached at module
 // load: the tests install and remove a fake per case with vi.stubGlobal after
@@ -58,13 +61,25 @@ function toScreenInfo(s: ScreenDetailedish): ScreenInfo {
 // one.
 const memoryStore = new Map<string, string>()
 
+// The lookup lives in a guard of its own because the property READ itself is
+// what throws in a denied-storage frame — `'blocked'` means refused, not absent,
+// so it takes the weak answer rather than the in-memory one.
+function browserStore(): Storage | 'absent' | 'blocked' {
+  try {
+    return (globalThis.localStorage as Storage | undefined) ?? 'absent'
+  } catch {
+    return 'blocked'
+  }
+}
+
 export const webPlatform: Platform = {
   name: 'web',
 
   storage: {
     get(key) {
-      const ls = globalThis.localStorage as Storage | undefined
-      if (!ls) return memoryStore.get(key) ?? null
+      const ls = browserStore()
+      if (ls === 'absent') return memoryStore.get(key) ?? null
+      if (ls === 'blocked') return null
       try {
         return ls.getItem(key)
       } catch {
@@ -72,11 +87,12 @@ export const webPlatform: Platform = {
       }
     },
     set(key, value) {
-      const ls = globalThis.localStorage as Storage | undefined
-      if (!ls) {
+      const ls = browserStore()
+      if (ls === 'absent') {
         memoryStore.set(key, value)
         return true
       }
+      if (ls === 'blocked') return false
       try {
         ls.setItem(key, value)
         return true
@@ -85,11 +101,12 @@ export const webPlatform: Platform = {
       }
     },
     remove(key) {
-      const ls = globalThis.localStorage as Storage | undefined
-      if (!ls) {
+      const ls = browserStore()
+      if (ls === 'absent') {
         memoryStore.delete(key)
         return
       }
+      if (ls === 'blocked') return
       try {
         ls.removeItem(key)
       } catch {
@@ -97,21 +114,23 @@ export const webPlatform: Platform = {
       }
     },
     keys(prefix) {
-      const ls = globalThis.localStorage as Storage | undefined
-      const out: string[] = []
-      if (!ls) {
+      const ls = browserStore()
+      if (ls === 'absent') {
+        const out: string[] = []
         for (const k of memoryStore.keys()) if (k.startsWith(prefix)) out.push(k)
         return out.sort()
       }
+      if (ls === 'blocked') return []
       try {
+        const out: string[] = []
         for (let i = 0; i < ls.length; i++) {
           const k = ls.key(i)
           if (k !== null && k.startsWith(prefix)) out.push(k)
         }
+        return out.sort()
       } catch {
         return []
       }
-      return out.sort()
     },
   },
 

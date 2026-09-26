@@ -156,9 +156,9 @@ export interface Platform {
    *  thing Chromium cannot do). Where the window lands is never decided here. */
   openWindow(path: string, name: string): boolean
 
-  /** Small key-value storage that outlives a reload — see KeyValueStore. The one
-   *  seam member every host answers with the same primitive: the browser host's
-   *  answer IS this host's, because the renderer is Chromium and already has
-   *  `localStorage`. A real-file answer is #209's, not this seam's. */
+  /** Small key-value storage that outlives a reload — see KeyValueStore. Answered
+   *  by the browser host's own implementation on every host today: the renderer
+   *  is Chromium and already has `localStorage`. A real-file answer is #209's,
+   *  not this seam's. */
   readonly storage: KeyValueStore
 }

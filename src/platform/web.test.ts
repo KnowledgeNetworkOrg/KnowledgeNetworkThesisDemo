@@ -134,7 +134,12 @@ describe('webPlatform.screens', () => {
 })
 
 describe('webPlatform.storage — small key-value storage that never throws (#338)', () => {
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    // The throwing-lookup case defines the property directly (a getter) rather
+    // than via vi.stubGlobal, so vitest has no record of it; drop it by hand.
+    delete (globalThis as unknown as { localStorage?: unknown }).localStorage
+  })
 
   it('round-trips through the in-memory fallback when there is no localStorage at all', () => {
     vi.stubGlobal('localStorage', undefined)
@@ -178,5 +183,20 @@ describe('webPlatform.storage — small key-value storage that never throws (#33
       },
     })
     expect(webPlatform.storage.get('pkt.x')).toBeNull()
+  })
+
+  it('treats a throwing LOOKUP as refused, not absent, and never throws', () => {
+    // A denied-storage frame throws on the property READ itself, before any
+    // getItem/setItem/removeItem can be called.
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new Error('SecurityError')
+      },
+    })
+    expect(webPlatform.storage.get('pkt.x')).toBeNull()
+    expect(webPlatform.storage.set('pkt.x', 'y')).toBe(false)
+    expect(webPlatform.storage.keys('pkt.')).toEqual([])
+    expect(() => webPlatform.storage.remove('pkt.x')).not.toThrow()
   })
 })
