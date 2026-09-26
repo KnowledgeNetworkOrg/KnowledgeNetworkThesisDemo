@@ -97,7 +97,12 @@ try {
   await page.waitForTimeout(700)
   await page.getByLabel('studio-preset-plan').click()
   await page.waitForTimeout(600)
-  // the strip is the fourth surface; Plan does not carry the walk viewer, so it is added
+  // the strip is the fourth surface; Plan does not carry the walk viewer, so it is added —
+  // from the palette, which a preset may leave closed (OB-218), so open it first
+  if ((await page.locator('[aria-label="studio-sidebar"]').count()) === 0) {
+    await page.locator('[data-toolbar-hook="palette-toggle"]').click()
+    await page.waitForTimeout(500)
+  }
   await page.getByLabel('studio-inst-walkviewer').click()
   await page.waitForTimeout(600)
   await page.evaluate(() => document.fonts.ready)
