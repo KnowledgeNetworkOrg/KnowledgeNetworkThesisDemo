@@ -1033,6 +1033,14 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   }, [visibleKey])
 
   const selOutline = selDrawn ? outlineOf(selDrawn) : undefined
+  /* THE CENTRE LIGHTS ON ITS OWN SIGNAL (DS OB-230 clause 2, #342): the Document pane's relations
+     rail publishes `bus.hoverCenter` when its hub is pointed at, and the answer here is a modest
+     emphasis on the selected cell — a wider glow and a heavier border, never a colour change, so
+     it stays the same object rather than becoming a second highlight. It is NOT a reading of
+     `bus.hover`: that channel carries one id and the roads below light for whatever id it holds,
+     so the centre's own id would light every road at once. Only while a cell is actually drawn
+     as selected — a walk that drives the focus draws none, and there is then nothing to light. */
+  const centreLit = bus.hoverCenter && !!selOutline
 
   /* THE HEADER ROW'S PATH (OB-241 + OB-243): the selection's ancestry, walkable back up. The
      aim keeps its resting reading after a deselect while the LIT state goes out — the same
@@ -1829,9 +1837,9 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                   sibling — a haloed cell among pale ones is selected at a glance. */}
               {selOutline && (
                 <>
-                  <path d={selOutline} fill={colorOf(sel)} fillOpacity={0.16} stroke={colorOf(sel)} strokeWidth={px(7)} strokeOpacity={0.5} strokeLinejoin="round" filter="url(#sel-glow)" />
+                  <path d={selOutline} fill={colorOf(sel)} fillOpacity={centreLit ? 0.26 : 0.16} stroke={colorOf(sel)} strokeWidth={px(centreLit ? 11 : 7)} strokeOpacity={centreLit ? 0.85 : 0.5} strokeLinejoin="round" filter="url(#sel-glow)" />
                   <path d={selOutline} fill={colorOf(sel)} fillOpacity={0.22} stroke="#ffffff" strokeWidth={px(6)} strokeOpacity={0.98} strokeLinejoin="round" />
-                  <path data-seloutline d={selOutline} fill="none" stroke={colorOf(sel)} strokeWidth={px(4)} strokeLinejoin="round" />
+                  <path data-seloutline data-sel-lit={centreLit ? 1 : 0} d={selOutline} fill="none" stroke={colorOf(sel)} strokeWidth={px(centreLit ? 5.5 : 4)} strokeLinejoin="round" />
                 </>
               )}
               {bundles.map((bd) => {

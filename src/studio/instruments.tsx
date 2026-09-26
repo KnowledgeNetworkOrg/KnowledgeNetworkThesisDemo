@@ -245,6 +245,11 @@ const VIEWS = [
     label: 'Document',
     family: 'reading',
     slot: 'column',
+    // #342 (OB-229): the pane is prose BESIDE a relations rail, so it owns its own scrolling — the
+    // prose column is a `PaneScroller` and the rail scrolls itself. Under the default `y` the Pane
+    // would wrap the whole layout in one more scroller and the rail would scroll away with the
+    // text, which is exactly what putting the header across the pane exists to prevent.
+    body: 'none',
     render: (bus) => <DocumentPanel bus={bus} />,
   },
   {

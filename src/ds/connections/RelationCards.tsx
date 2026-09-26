@@ -171,8 +171,13 @@ export function viaSourceDomain(node?: { domain?: string }, selectedDomain?: str
 
    `node` is the whole path entry, not a {id,title} copy of it: the pane builds `path` by walking
    the tree and concatenating tree NODES, so a descendant's `domain` is already present and only
-   had to be read. Copying two fields out is what hid it. */
-function groupViaBySource(rows: readonly ViaRelation[] | null | undefined) {
+   had to be read. Copying two fields out is what hid it.
+
+   ★ LOCAL — exported (the DS keeps it private). The document pane's hover card groups its
+   via-children rows by source exactly as this list does, and a second copy of a grouping rule is
+   how two surfaces come to disagree about which sources exist (the same warning
+   `groupItemsByTarget` carries). Reported on #74. */
+export function groupViaBySource(rows: readonly ViaRelation[] | null | undefined) {
   const map = new Map<string, { key: string; pathParts: string[]; node: { id: string; title: string; domain?: string }; items: ViaRelation[] }>()
   for (const vc of rows || []) {
     const key = vc.path.map((n) => n.id).join('/')
@@ -204,7 +209,34 @@ function groupViaBySource(rows: readonly ViaRelation[] | null | undefined) {
    becomes an anonymous flex item, which is layout-identical but cannot be measured or read back.
    Both runs are elements now, so a driver reads its own baselines out of the DOM instead of
    asserting them from the source. `data-rel-group-header` is a test hook only. */
-function RelGroupHeader({ label, count, open, onClick }: { label: string; count: number; open?: boolean; onClick?: () => void }) {
+/** THE SENTENCE FORM OF THE SAME HEADER, and the pluralisation is the component's (DS OB-242, owner
+ *  2026-09-20: the orbit card's header should read "1 direct relationship", not "DIRECT 1"). A
+ *  LIST header and a CARD header answer different questions: over a list of groups the eye is
+ *  scanning for a section and its size, where an all-caps word and a monospaced count is the
+ *  faster read; a hover card holds ONE group and no list to scan, so the same two facts have to
+ *  make a sentence or they read as a label with a stray digit. The wording lives here rather than
+ *  at the call site because "1 relationship" / "2 relationships" is a rule, and a rule retyped by
+ *  each caller is a rule that disagrees with itself.
+ *
+ *  "via children" is a PLACE the relationships were found, not an adjective on them, so it trails
+ *  the noun; "direct" qualifies them and leads. */
+function groupHeaderSentence(label: string, count: number): string {
+  const plural = count === 1 ? 'relationship' : 'relationships'
+  return label === 'via children' ? count + ' ' + plural + ' via children' : count + ' ' + label + ' ' + plural
+}
+
+function RelGroupHeader({ label, count, open, onClick, sentence }: { label: string; count: number; open?: boolean; onClick?: () => void; sentence?: boolean }) {
+  /* `data-rel-sentence` carries the whole sentence as one string, so a driver reads what a
+     reader reads rather than reassembling a count span and a words span */
+  if (sentence) return (
+    <div data-rel-group-header={label} data-rel-sentence={groupHeaderSentence(label, count)} style={{
+      fontSize: 11, color: 'var(--text-2)', letterSpacing: '.01em', padding: '10px 2px 4px',
+      display: 'flex', alignItems: 'baseline', gap: 4, userSelect: 'none',
+    }}>
+      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-1)', fontWeight: 'var(--fw-semibold)' }}>{count}</span>
+      <span>{groupHeaderSentence(label, count).slice(String(count).length + 1)}</span>
+    </div>
+  )
   return (
     <div onClick={onClick} data-rel-group-header={label} style={{
       fontSize: 11, fontWeight: 'var(--fw-bold)', color: 'var(--text-3)', textTransform: 'uppercase',
@@ -222,8 +254,11 @@ function RelGroupHeader({ label, count, open, onClick }: { label: string; count:
  *  baseline rule was written, because the rule lives in a module-level helper that
  *  `String(RelationCards)` cannot see — a specimen guarding the change had nothing to match. Same
  *  reason `LECTURE_NOTES_PARTS` and `PRESENTER_STRIP_PARTS` exist. `REL_CARD_PARTS.GroupHeader`
- *  IS `RelGroupHeader`: read it, do not mount it — `RelationCards` renders these itself. */
-export const REL_CARD_PARTS = { GroupHeader: RelGroupHeader, viaSourceDomain: viaSourceDomain }
+ *  IS `RelGroupHeader`: `RelationCards` renders these itself for its list (caps, count, caret),
+ *  and a HOVER CARD that holds one group mounts it with `sentence` (OB-242) — "1 direct
+ *  relationship". `groupHeaderSentence(label, count)` is the wording rule on its own: the plural
+ *  and the word order are the component's, so no call site carries a pluralisation of its own. */
+export const REL_CARD_PARTS = { GroupHeader: RelGroupHeader, groupHeaderSentence, viaSourceDomain: viaSourceDomain }
 
 /* ONE RULE PER BOUNDARY, and it governs both row forms below (DS OB-195, owner 2026-09-16: "is it
    necessary to have the two dividers between each card… it looks a bit distracting"). Every card
@@ -270,9 +305,10 @@ function RelRowPlain({ leftLabel, leftDomain, rightLabel, rightDomain, kindLabel
  *  reads as one neighbour reached three ways instead of three neighbours. Direction and colour
  *  stay per-relationship, on the arrows; only the PILL is shared.
  *
- *  The bracket is a grouping cue, not a boundary: a half-opacity hairline, absent on a
- *  one-relationship group — it marks RELATIONSHIPS, so it appears whenever there are several,
- *  including several into one target.
+ *  The bracket is a grouping cue, not a boundary: a half-opacity hairline that holds a STACK OF
+ *  BLOCKS against one source, so it follows the number of distinct TARGETS (OB-224) — absent on a
+ *  one-target group however many kinds it carries, where the right-hand spine already collects
+ *  the arrows, and taking no width when absent.
  *
  *  HOVER SEMANTICS DIFFER BY SIZE, deliberately, and the size that decides is the number of
  *  TARGETS and not of relationships: a block is one hover target (`onHoverTarget` reports a NODE
@@ -313,6 +349,24 @@ export function RelSourceGroup({ sourceLabel, sourcePathParts, sourceDomain, ite
   const [sourceHovered, setSourceHovered] = useState(false)
   const targets = groupItemsByTarget(items)
   const single = targets.length === 1
+  /* THE LEFT HAIRLINE BRACKETS A STACK OF BLOCKS AGAINST ONE SOURCE, so it is drawn when there is
+     a stack — more than one TARGET — and not merely more than one relationship (DS OB-224, owner
+     2026-09-20, on a one-target card carrying two kinds: "we don't need the divider when there's
+     multiple relationships"). It had been keyed on `items.length`, which is the same mistake the
+     hover semantics below exist to avoid: the number that decides the shape of this group is the
+     number of distinct targets, because a target is one block and one hover unit however many
+     arrows arrive at it. With one target the right-hand SPINE already holds those arrows
+     together and the pill is centred against them; a second hairline on the left then divides a
+     group that has nothing to divide, and reads as the source being fenced off from its only
+     block.
+     AND WHEN IT IS NOT DRAWN IT TAKES NO ROOM. It was first replaced with a 1px spacer so the two
+     forms had identical geometry, which sounds careful and is the wrong instinct: the spacer plus
+     the two `rowGap`s around it held 7px of the 15px between the source pill's box and the start
+     of the shaft, for a divider that is not there. The bracketed and unbracketed forms never sit
+     in one column, so there is nothing to keep aligned across them; the row closes up and the
+     width goes to the connector, the only part of the row that carries length. The right-hand
+     spine is UNCHANGED — it is per target, and keyed on that target's own relation count. */
+  const bracket = !single
   const wholeRow = single && (sourceHovered || hoveredIdx === 0)
   const enterWhole = () => { setSourceHovered(true); setHoveredIdx(0); onHoverTarget?.(targets[0]); onHoverCenter?.(!!sourceIsCenter) }
   const leaveWhole = () => { setSourceHovered(false); setHoveredIdx(null); onHoverTarget?.(null); onHoverCenter?.(false) }
@@ -339,11 +393,7 @@ export function RelSourceGroup({ sourceLabel, sourcePathParts, sourceDomain, ite
       >
         <NodeChip mark="border-2" title={sourceLabel} path={sourcePathParts} domain={sourceDomain} focus width={leftWidth} maxLines={Math.max(2, Math.min(4, items.length + 1))} />
       </div>
-      {/* the bracket, and the empty 1px column that reserves its place on a one-relationship
-          group — so a card with one relationship and a card with three line up */}
-      {items.length > 1
-        ? <div style={{ width: 1, background: 'var(--border-hair)', opacity: 0.45, flexShrink: 0, margin: '4px 1px' }} />
-        : <div style={{ width: 1, flexShrink: 0 }} />}
+      {bracket ? <div data-rel-bracket="1" style={{ width: 1, background: 'var(--border-hair)', opacity: 0.45, flexShrink: 0, margin: '4px 1px' }} /> : null}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: M.blockGap }}>
         {targets.map((t, i) => (
           <div
