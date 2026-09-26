@@ -52,14 +52,15 @@
 // walk route would reuse, and it has its own tests. What is left here is what a
 // component should be: a camera, a hover, and a paint order.
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import type { OpenMap } from '@/ds'
-import { Breadcrumb, capBow, containsSummary, ExplorerRail, ExplorerRailCorner, extendToMin, findTreePath, FIRST_ROW_PAD, headForSet, LabelCut, minShaft, walkArrival, walkLeadStop, walkLook, LevelPicker, MapFloatingButton, MapTooltip, NodePreviewLayer, OpenForVisible, OpenOnSelect, PaneCanvas, topicPaintValues, usePaneWidth, VisibilityMark, WALK_DOCK_METRICS, WalkDock, WalkPreview, ZoomControl } from '@/ds'
+import { Breadcrumb, capBow, containsSummary, ExplorerRail, ExplorerRailCorner, extendToMin, findTreePath, FIRST_ROW_PAD, headForSet, LabelCut, minShaft, walkArrival, walkLeadStop, LevelPicker, MapFloatingButton, MapTooltip, NodePreviewLayer, OpenForVisible, OpenOnSelect, PaneCanvas, topicPaintValues, usePaneWidth, VisibilityMark, WALK_DOCK_METRICS, WalkDock, WalkPreview, ZoomControl } from '@/ds'
 import { byId, domainIds, domainOf, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT_ID, topicHueOf } from '../corpus/graph'
-import { L_MAX, LEVEL_S, U_CX, U_CY, VB_H, VB_W, VB_X, VB_Y } from './map/camera'
-import type { View } from './map/camera'
+import { HOME_VIEW, L_MAX, LEVEL_S, VB_H, VB_W, VB_X, VB_Y } from './map/camera'
+import { useArrivalLook } from './map/arrivallook'
+import { useMapCamera } from './map/mapcamera'
 import { useWallFit, WALL_LEVEL, WALL_VIEW } from './map/wallfit'
 import { WalkArrows } from './map/WalkArrows'
 import { WalkPins } from './map/WalkPins'
@@ -91,21 +92,6 @@ import { CORPUS_TREE, summaryOfNode } from './corpustree'
  *  copy is the staleness this item exists to close. */
 export const MAP_WATER = '#eef4f8'
 
-/** How far the camera may drift, in WORLD units, before a pan has to re-render.
- *
- *  A pan changes nothing about the scene except one `transform` on the root <g>,
- *  so the transform is written straight to the DOM on every move and React is
- *  left out of it (#238 fix 3). The one thing that DOES depend on where the
- *  camera sits is `onScreen` culling — pan far enough and a cell that was off
- *  the edge has to mount — and culling only happens in a render. So the pan
- *  commits `view` to state whenever it has drifted this far since the last
- *  commit, and the DOM carries it the rest of the time.
- *
- *  The number is half the TIGHTEST cull margin any caller passes (60), so a
- *  cell can never be needed on screen before the render that mounts it: it has
- *  a full margin of warning and we act at half of it. Raising it past 60 would
- *  make things pop in at the edge; lowering it toward 0 just re-renders more. */
-const PAN_COMMIT = 30
 /** the LevelPicker's labels, "L0".."L{maxTier+1}" — OB-096, extended by OB-193.
  *
  *  THE DISPLAY LABEL IS NOT THE INTERNAL `level` NUMBER, and that gap is deliberate rather
@@ -120,24 +106,7 @@ const PAN_COMMIT = 30
 const LEVEL_LABELS = Array.from({ length: L_MAX + 2 }, (_, i) => `L${i}`)
 const levelToLabel = (l: number) => `L${l + 1}`
 const labelToLevel = (s: string) => Number(s.slice(1)) - 1
-const FLY_MS = 260
 
-/** the viewport in WORLD coords for a camera and a measured client box — what culls the deep
- *  tiers, and what the walk's look asks its off-screen question of (OB-179). A function, not an
- *  inline object, so an effect can ask it off refs without re-deriving it. */
-function worldRectOf(v: View, clientBox: { w: number; h: number } | null): { x: number; y: number; w: number; h: number } {
-  const f = clientBox ? Math.max(VB_W / clientBox.w, VB_H / clientBox.h) : 1
-  return {
-    x: (VB_X - (clientBox ? (clientBox.w * f - VB_W) / 2 : 0) - v.tx) / v.s,
-    y: (VB_Y - (clientBox ? (clientBox.h * f - VB_H) / 2 : 0) - v.ty) / v.s,
-    w: (clientBox ? clientBox.w * f : VB_W) / v.s,
-    h: (clientBox ? clientBox.h * f : VB_H) / v.s,
-  }
-}
-// a LOOK's flight (a Connections click) can cross the whole map AND change
-// level in one move — at the wheel-step 260ms it read as a cut, not a flight.
-// Slow enough for the eye to keep the territory; wheel steps stay snappy.
-const LOOK_FLY_MS = 750
 // The level-change cross-fade: a cell's paint and its outline arrive and leave
 // together, so a stratum swap reads as one movement instead of two.
 //
@@ -229,9 +198,6 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
   const onFocus = (id: string) => bus.setFocus(id, 'map')
 
   const svgRef = useRef<SVGSVGElement>(null)
-  const [view, setView] = useState<View>(() => (wall ? WALL_VIEW : { tx: 0, ty: 0, s: LEVEL_S[0] }))
-  const [level, setLevel] = useState(wall ? WALL_LEVEL : 0)
-  const [clientBox, setClientBox] = useState<{ w: number; h: number } | null>(null)
   /** selected region — its topics' typed edges stay drawn until click-off */
   const [sel, setSel] = useState<string | null>(null)
 
@@ -311,6 +277,23 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
   const play = useWalkPlayback(bus)
   // the wall shows the whole walk still: no dock, no band (OB-139 rule 4)
   const dockShown = !wall && routeIsWalk(bus.route, play.steps)
+
+  // ── THE CAMERA (#324 seam 3) — its live half is `map/mapcamera.ts` ─────────
+  // Called here, right after `dockShown`, so `f`/`px` exist before the label and
+  // pin memos below and so a level step or a pan knows whether playback is live
+  // (OB-179). The frame it opens at is the wall's own on the wall, else the map's home.
+  const cam = useMapCamera({
+    svgRef,
+    playing: play.playing,
+    dockShown,
+    peek: bus.peek,
+    initialView: wall ? WALL_VIEW : HOME_VIEW,
+    initialLevel: wall ? WALL_LEVEL : 0,
+  })
+  const {
+    view, level, showLevel, showView, flyToLevel, stepLevel, cancelFlight, sceneRef,
+    clientBox, f, px, worldFsToPx, onScreen, toUser, panBy, settlePan,
+  } = cam
   // THE DOCK'S OPEN STATE IS HELD HERE (OB-156), because the floating chrome has to read it:
   // rule 2b of the DS's WalkDock contract lifts every floating control by the dock's LIVE
   // height — `closed` while closed, `open` while open — never by a measured DOM height.
@@ -348,15 +331,6 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
   /** a pin's own hover: the stop index, the card's anchor, and — for a MERGED pin — the mark it
    *  stands for (OB-184 clause 3), which `renderStopPreview` turns into a card naming every stop */
   const [pinHover, setPinHover] = useState<PinHover | null>(null)
-  // THE LOOK FLIGHT'S INSET (DS OB-130: "the host insets its auto-fit by
-  // WALK_DOCK_METRICS.closed"). This map has no auto-fit — its camera is level-
-  // driven, and the only move that centres a point is the LOOK flight below — so
-  // the inset lands there: while the dock is mounted the looked-at node is centred
-  // in the map ABOVE the closed dock rather than in the whole pane, which is
-  // `closed / 2` px higher, in the SVG's units (`f` = units per px, the same
-  // formula `toUser` and the render-time `f` carry).
-  const lookInset = dockShown && clientBox ? (WALK_DOCK_METRICS.closed / 2) * Math.max(VB_W / clientBox.w, VB_H / clientBox.h) : 0
-
   // #238 — the last cursor position seen over this pane, in CLIENT coords. A ref
   // and not state, deliberately: it is written on every single pointermove and
   // must never cause a render. It exists only so the tooltip can be placed at the
@@ -393,41 +367,12 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
     setHover((h) => (h === id ? null : h))
     busEndHover(id)
   }
-  // refs mirror state for the raw wheel listener (deps []) — hoverRef feeds the
-  // level-change clear below, which must read the CURRENT local hover without
-  // re-running on every hover move
-  const viewRef = useRef(view)
-  const levelRef = useRef(level)
+  // hoverRef mirrors state for the level-change clear below, which must read the
+  // CURRENT local hover without re-running on every hover move
   const hoverRef = useRef(hover)
   useEffect(() => {
-    levelRef.current = level
     hoverRef.current = hover
   })
-
-  // ── THE CAMERA IS NOT REACT'S (#238 fix 3) ─────────────────────────────────
-  // The root <g> carries no `transform` prop; this is its only writer. Two
-  // things follow, and both are the point:
-  //
-  //   `viewRef.current` is the LIVE camera and always current, because the pan
-  //   writes it on every move. Everything that needs to know where the camera
-  //   actually is right now — flyTween, flyToLevel — already read it, and now
-  //   get a straight answer mid-drag instead of the last committed one.
-  //
-  //   `view` state is a COMMITTED SNAPSHOT, and is deliberately allowed to lag
-  //   during a pan. It exists to drive the things a render has to recompute:
-  //   `worldRect`/`onScreen` culling and `px()`. See PAN_COMMIT for how far it
-  //   is allowed to lag and why that is safe.
-  //
-  // Painting from a layout effect rather than from JSX means a render caused by
-  // something else entirely (a hover, a selection) cannot snap the camera back
-  // to the last committed position — React never holds an opinion about the
-  // transform at all, so it has nothing to snap back TO.
-  const sceneRef = useRef<SVGGElement | null>(null)
-  const paintCamera = (v: View) => sceneRef.current?.setAttribute('transform', `translate(${v.tx} ${v.ty}) scale(${v.s})`)
-  useLayoutEffect(() => {
-    viewRef.current = view
-    paintCamera(view)
-  }, [view])
 
   // a level change swaps which paths are hit targets mid-hover, so no
   // pointerleave ever fires on the old one — clear it explicitly, on the bus
@@ -438,90 +383,14 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
   useEffect(() => {
     const h = hoverRef.current
     if (h) busEndHover(h)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate (see above): the stale hover must be cleared when a level change swaps the hit targets
     setHover(null)
   }, [level, busEndHover])
 
-  useEffect(() => {
-    const svg = svgRef.current
-    if (!svg) return
-    const ro = new ResizeObserver((entries) => {
-      /* THE LAYOUT BOX, NEVER THE BOUNDING RECT (OB-163's receipt has the picture): the wall
-         mounts inside `WallTransition`'s `scale(0.3)` and grows from there, and a bounding rect
-         read at mount is a third of the truth — a transform changing fires no resize, so that
-         number stuck for the whole lecture and every label and pin on the wall was drawn 3.3×
-         too large (a 73px box for a 22px pin). `ProjectedMap` reads `offsetWidth` for the
-         same reason; an observer's `contentRect` is the same untransformed box. */
-      const c = entries[0]?.contentRect
-      const r = c && c.width > 0 ? c : svg.getBoundingClientRect()
-      // a BENCHED pane (display:none) measures 0×0 — that box carries no
-      // layout information and would drive the zoom factor to Infinity, so
-      // keep the last real one until the pane is shown again
-      if (r.width > 0 && r.height > 0) setClientBox({ w: r.width, h: r.height })
-    })
-    ro.observe(svg)
-    return () => ro.disconnect()
-  }, [])
-
-  // ── camera: level is the single source of truth, the tween just follows ───
-  const anim = useRef<number | null>(null)
-  const cancelFlight = () => {
-    if (anim.current != null) cancelAnimationFrame(anim.current)
-    anim.current = null
-  }
-  useEffect(() => cancelFlight, [])
-
-  const flyTween = (target: View, ms = FLY_MS) => {
-    cancelFlight()
-    const from = viewRef.current
-    const c0 = { x: (U_CX - from.tx) / from.s, y: (U_CY - from.ty) / from.s }
-    const c1 = { x: (U_CX - target.tx) / target.s, y: (U_CY - target.ty) / target.s }
-    const t0 = performance.now()
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - t0) / ms)
-      const e = 1 - Math.pow(1 - t, 3)
-      const sNow = from.s * Math.pow(target.s / from.s, e)
-      const cx = c0.x + (c1.x - c0.x) * e
-      const cy = c0.y + (c1.y - c0.y) * e
-      setView({ s: sNow, tx: U_CX - cx * sNow, ty: U_CY - cy * sNow })
-      anim.current = t < 1 ? requestAnimationFrame(tick) : null
-    }
-    anim.current = requestAnimationFrame(tick)
-  }
-
-  /** step to a level: set the stratum, fly to its canonical scale, keeping
-   * `about` (user coords) fixed under the cursor. Always a USER gesture (wheel
-   * step, double-click, level button). */
-  const flyToLevel = (l: number, about?: XY) => {
-    if (play.playing) pannedRef.current = true // a user's own gesture — the walk's look stands aside once (OB-179)
-    setLevel(l)
-    levelRef.current = l
-    // OB-193: level -1 (the root, one region) shares level 0's camera framing exactly — it is
-    // the same six-territory extent, just drawn as one shape instead of six, not a further
-    // zoom-out. LEVEL_S has no index for it, so the lookup floors at 0.
-    const s = LEVEL_S[Math.max(l, 0)]
-    const v = viewRef.current
-    const a = about ?? { x: U_CX, y: U_CY }
-    flyTween({ s, tx: a.x - ((a.x - v.tx) / v.s) * s, ty: a.y - ((a.y - v.ty) / v.s) * s })
-  }
-
-  // ── LOOK (SelfNotes audit): a CLICK in the Connections pane flies the camera
-  // — a hover never does, it only highlights. The pane stamps bus.peek with a
-  // fresh seq per click, so re-looking at the same node after panning away is a
-  // fresh command. The map answers by flying to the node's territory at its
-  // tier's canonical scale and KEEPING it lit (the spotlight below). No
-  // fly-home: a look is navigation, not a glance — the camera is simply the
-  // user's again the moment they grab it (drag, wheel, level buttons).
+  // ── LOOK: the Connections pane's click-to-fly is the camera's now
+  // (`map/mapcamera.ts`); what stays here is the CHANNEL — the spotlight below
+  // keeps the looked-at node lit until the next look or a focus change.
   const peek = bus.peek
-  useEffect(() => {
-    if (!peek) return
-    const t = flightTargetOf(peek.id)
-    if (!t) return
-    setLevel(t.tier)
-    levelRef.current = t.tier
-    const s = LEVEL_S[t.tier]
-    flyTween({ s, tx: U_CX - t.c.x * s, ty: U_CY - lookInset - t.c.y * s }, LOOK_FLY_MS)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [peek])
 
   // Esc clears the selection overlay without touching the camera. It also
   // clears the FOCUS — "nothing selected" has to be a real, reachable state
@@ -546,38 +415,8 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
   // but left the previously-selected PARENT outlined here (issue #7). Mirroring
   // focus is idempotent for the map's own clicks (they set focus to the same id)
   // and clears on Esc / water-click alike (focus goes null).
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate (see above): the bus focus IS this pane's selection, mirrored idempotently
   useEffect(() => setSel(bus.focus), [bus.focus])
-
-  const toUser = (clientX: number, clientY: number) => {
-    const rect = svgRef.current!.getBoundingClientRect()
-    const f = Math.max(VB_W / rect.width, VB_H / rect.height)
-    return {
-      x: VB_X + (clientX - rect.left - (rect.width - VB_W / f) / 2) * f,
-      y: VB_Y + (clientY - rect.top - (rect.height - VB_H / f) / 2) * f,
-    }
-  }
-
-  // wheel: whole-level steps, nothing else — no free zoom, no in-betweens
-  const wheelAccum = useRef(0)
-  useEffect(() => {
-    const svg = svgRef.current
-    if (!svg) return
-    const onWheel = (ev: WheelEvent) => {
-      ev.preventDefault()
-      if (anim.current != null) return // mid-flight: swallow, don't queue
-      wheelAccum.current += ev.deltaY
-      if (wheelAccum.current <= -50) {
-        wheelAccum.current = 0
-        if (levelRef.current < L_MAX) flyToLevel(levelRef.current + 1, toUser(ev.clientX, ev.clientY))
-      } else if (wheelAccum.current >= 50) {
-        wheelAccum.current = 0
-        if (levelRef.current > 0) flyToLevel(levelRef.current - 1, toUser(ev.clientX, ev.clientY))
-      }
-    }
-    svg.addEventListener('wheel', onWheel, { passive: false })
-    return () => svg.removeEventListener('wheel', onWheel)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // ── pan + the drag/click guard (same contract as the Map) ─────────────────
   const drag = useRef<{ x: number; y: number } | null>(null)
@@ -655,25 +494,8 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
   // a changed (or cleared) selection unmounts the old roads outright — no
   // pointerleave ever fires on them — so a stale hoverEdge would otherwise
   // survive pointing at a bundle object from the previous selection
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate (see above): no pointerleave can fire on roads a changed selection unmounted
   useEffect(() => setHoverEdge(null), [sel])
-
-  // viewport in world coords, for culling the deep tiers (and the look's question, below)
-  const f = clientBox ? Math.max(VB_W / clientBox.w, VB_H / clientBox.h) : 1
-  const worldRect = worldRectOf(view, clientBox)
-  const onScreen = (p: XY, margin: number) =>
-    p.x > worldRect.x - margin && p.x < worldRect.x + worldRect.w + margin && p.y > worldRect.y - margin && p.y < worldRect.y + worldRect.h + margin
-
-  /** SCREEN pixels → world units at the current zoom AND pane size, so every
-   * level renders the same authored style at its canonical scale */
-  const px = (v: number) => (v * f) / view.s
-
-  /** OB-212: `labelFit`'s fitted font sizes are in ITS OWN world-unit space (`world()`,
-   *  pinned to the level's canonical scale so line breaks don't reflow mid-flight) — this
-   *  converts one back to the CURRENT live zoom's SVG units, same conversion `px` does, so a
-   *  shrunk label's rendered size still tracks the live camera exactly as an unshrunk one
-   *  does (`world(v) * LEVEL_S[level] / view.s === px(v)` when the camera is at rest, and
-   *  tracks smoothly through a fly-to since only `view.s` moves). */
-  const worldFsToPx = (worldFs: number) => (worldFs * LEVEL_S[level]) / view.s
 
   /** the parent layer's case, applied ONLY where a name is acting as a ghost.
    *  A domain name at L0 and a module name at L1 are the ACTIVE grain, not
@@ -841,10 +663,10 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
   // frame rate without re-laying-out its pins every time.
   const routeStops = useMemo(
     () => walkPins({ route: bus.route, level, px, labelBoxes }),
-    // px closes over f/view.s, both already deps; a fresh px reference every
-    // render would otherwise recompute this memo every render regardless
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bus.route, level, f, view.s, labelBoxes],
+    // `px` is STABLE (mapcamera's useCallback on f/view.s, its old deps), so listing it
+    // re-runs this memo exactly when either of those moves. The fresh-reference warning
+    // this used to suppress is gone with the fresh reference.
+    [bus.route, level, px, labelBoxes],
   )
   // ── OB-132: WHERE THE WALK IS, IN PINS. The DS's band (`walkBand`) fades every
   // mark by its distance from the played position — full on the stop, five
@@ -857,59 +679,14 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
 
   // ── OB-163: THE WALL FITS THE WHOLE WALK ONCE, THEN NEVER MOVES ──────────────
   // The fit, its two passes and the frame the host keeps are `map/wallfit.ts` (#324). The fit
-  // IS a camera move, made from a box a render cannot know, so it is handed this camera's own
-  // two setters — the level's ref kept in step, as every level change here keeps it.
-  const showLevel = useCallback((l: number) => {
-    setLevel(l)
-    levelRef.current = l
-  }, [])
-  useWallFit({ wall, clientBox, route: bus.route, pins: routeStops, level, showLevel, showView: setView })
+  // IS a camera move, made from a box a render cannot know, so it is handed the camera's own
+  // two setters — the level's ref kept in step, as the camera keeps it for every level change.
+  useWallFit({ wall, clientBox, route: bus.route, pins: routeStops, level, showLevel, showView })
 
   // ── OB-179: PLAYBACK MOVES THE CAMERA ONLY WHEN THE STOP IS OFF-SCREEN ─────
-  // The owner's call (2026-09-14), answering the gap OB-173's receipt reported: nothing
-  // brought an off-screen stop into view, because the camera moves on the LOOK channel
-  // and playback never published one. Four options were put; CHOSEN: fly only when the
-  // stop is off-screen. Motion on every advance becomes scenery; motion that is rare
-  // reads as "we have gone somewhere new", and that rarity IS the information (the same
-  // reasoning as ProjectedMap rule 1). A smooth camera that keeps the stop centred is
-  // NOT this and would be worse than nothing.
-  //
-  // THE GATE IS THE DS'S `walkLook`, never a comparison retyped here: it answers off the
-  // stop's world point and the view's world rect, with `WALK_LOOK_DEFAULTS.edgeInset`
-  // (0.12 of the smaller side, a FRACTION so it survives zoom). The three caller rules,
-  // enforced here because the function cannot: ASK ON ADVANCE ONLY — an arrival the walk
-  // TRAVELLED to while playing; pressing play asks nothing for the stop it is standing
-  // on, a seek sets a position with no travel, a pause stands still; A USER'S OWN PAN
-  // WINS — a pan or a level step DURING PLAYBACK raises `pannedRef`, and the next
-  // arrival lowers it without looking (the pan is the more recent statement of where
-  // the room wants to look; the arrival after that may look again — a pan while paused
-  // is plain navigation and raises nothing); and THIS IS THE LOOK, NEVER THE FOCUS —
-  // `playback.ts` writes the focus, this only moves the camera, at the CURRENT scale,
-  // so the document, the connections pane and the crumb show the same node after the
-  // move as before. The dock covers the pane's bottom at its LIVE height, so the rect
-  // the question is asked of stops above it.
-  const arrival = dockShown && !wall && play.playing ? walkArrival(play.position, play.steps.length) : null
-  const pannedRef = useRef(false)
-  const lastArrivalRef = useRef<number | null>(null)
-  const lookRef = useRef({ routeStops, clientBox, dockOpen })
-  useEffect(() => { lookRef.current = { routeStops, clientBox, dockOpen } })
-  useEffect(() => {
-    const prev = lastArrivalRef.current
-    lastArrivalRef.current = arrival
-    if (arrival === null || prev === null) return // paused, or play just pressed: standing, not advancing
-    if (pannedRef.current) { pannedRef.current = false; return }
-    const { routeStops: pins, clientBox: cb, dockOpen: open } = lookRef.current
-    const pin = pins.find((p) => p.step - 1 <= arrival && arrival <= p.stepEnd - 1)
-    if (!pin) return
-    const v = viewRef.current
-    const rect = worldRectOf(v, cb)
-    const ff = cb ? Math.max(VB_W / cb.w, VB_H / cb.h) : 1
-    const dockWorld = ((open ? WALK_DOCK_METRICS.open : WALK_DOCK_METRICS.closed) * ff) / v.s
-    const look = walkLook({ point: pin.c, view: { x: rect.x, y: rect.y, width: rect.w, height: Math.max(1, rect.h - dockWorld) } })
-    if (!look.move || !look.to) return
-    flyTween({ s: v.s, tx: U_CX - look.to.x * v.s, ty: U_CY - look.to.y * v.s }, LOOK_FLY_MS)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [arrival])
+  // The rule, its three caller clauses and the flight are `map/arrivallook.ts`
+  // (#324 seam 3); this pane hands it the played walk and the pins it draws by.
+  useArrivalLook(cam, { dockShown, onWall, playing: play.playing, position: play.position, stepCount: play.steps.length, pins: routeStops, dockOpen })
 
 
   // OB-117 — the walk recedes while a node's relationships are on screen. The
@@ -943,6 +720,7 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
   useEffect(() => {
     if (!bus.focus) return
     const add = OpenOnSelect(CORPUS_TREE, bus.focus)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate (see above): the fold is applied ONCE per selection, never spread per render
     setUserOpen((o) => {
       let changed = false
       for (const k in add) { if (!o[k]) { changed = true; break } }
@@ -958,6 +736,7 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
   useEffect(() => {
     if (!visibleKey) return
     const add = OpenForVisible(CORPUS_TREE, visibleKey.split('|'))
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate (see above): merges, never closes, so a user's collapses survive
     setUserOpen((o) => {
       let changed = false
       for (const k in add) { if (!o[k]) { changed = true; break } }
@@ -1058,6 +837,7 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
   // the hovered node is rarely the selected one, and roadsFor is cheap
   // enough at this corpus's scale (memoised on the id, so cursor movement
   // that stays inside one cell recomputes nothing).
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- the memo is deliberate: it keeps the two counts below from re-walking the roads on every pointer move inside one cell
   const { arrows: hoverArrows } = useMemo(() => roadsFor(cardNode), [cardNode])
   const hoverRelIn = cardNode ? hoverArrows.filter((a) => a.tgt === cardNode).reduce((s, a) => s + a.n, 0) : 0
   const hoverRelOut = cardNode ? hoverArrows.filter((a) => a.src === cardNode).reduce((s, a) => s + a.n, 0) : 0
@@ -1213,19 +993,12 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
             return
           }
           if (!drag.current) return
-          const rect = svgRef.current!.getBoundingClientRect()
-          const ff = Math.max(VB_W / rect.width, VB_H / rect.height)
-          const dx = (ev.clientX - drag.current.x) * ff
-          const dy = (ev.clientY - drag.current.y) * ff
+          const dx = ev.clientX - drag.current.x
+          const dy = ev.clientY - drag.current.y
           drag.current = { x: ev.clientX, y: ev.clientY }
-          dragDist.current += Math.hypot(dx, dy)
-          // The move itself: straight to the DOM, no render. `view` here is the
-          // last COMMITTED camera (the handler is rebuilt by the render that
-          // commits it), so measuring drift against it needs no extra ref.
-          const next = { ...viewRef.current, tx: viewRef.current.tx + dx, ty: viewRef.current.ty + dy }
-          viewRef.current = next
-          paintCamera(next)
-          if (Math.hypot(next.tx - view.tx, next.ty - view.ty) / next.s >= PAN_COMMIT) { if (play.playing) pannedRef.current = true; setView(next) }
+          // the camera's half is `panBy` (straight to the DOM, no render, and its own
+          // PAN_COMMIT rule); what the click guard needs back is how far the pointer went
+          dragDist.current += panBy(dx, dy)
         }}
         onPointerUp={(ev) => {
           if (nodeDown.current) {
@@ -1256,7 +1029,7 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
           // settle: whatever drift never crossed PAN_COMMIT is committed now, so
           // the map is culled for exactly where it ended up. A no-op when the
           // last move already committed.
-          if (drag.current) setView(viewRef.current)
+          if (drag.current) settlePan()
           drag.current = null
           setDragging(false)
         }}
@@ -1270,8 +1043,7 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
           }
         }}
         onDoubleClick={(ev) => {
-          const u = toUser(ev.clientX, ev.clientY)
-          if (levelRef.current < L_MAX) flyToLevel(levelRef.current + 1, u)
+          stepLevel(1, toUser(ev.clientX, ev.clientY))
         }}
       >
         <defs>
