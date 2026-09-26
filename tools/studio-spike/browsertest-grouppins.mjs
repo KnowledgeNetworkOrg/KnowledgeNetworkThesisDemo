@@ -100,12 +100,13 @@ try {
   const after = drawn.find((p) => p.step === 5)
   ok('the step after the groups reads its own top-level step — "4", not its flat index "5"', !after || after.label === '4' || isRange(after.label), JSON.stringify(after))
 
-  // the hover card names the full path — the only place on the map it is readable
+  // the hover card names the full path — the only place on the map it is readable. The card is
+  // the DS's `StopCard` since OB-199, and its heading (address · name) is `data-stop-card-head`
   const groupedPin = map.locator('[data-routestop][data-step="3"]').first()
   if ((await groupedPin.count()) === 1) {
     await groupedPin.hover()
     await page.waitForTimeout(300)
-    const path = page.locator('[data-stoppath]')
+    const path = page.locator('[data-stop-card-head]')
     ok('hovering a grouped pin shows its path in the card', (await path.count()) === 1)
     ok('and the path is the group\'s local numbering, "2.2 · <name>"', (await path.count()) === 1 && (await path.innerText()).startsWith('2.2 ·'), (await path.count()) ? await path.innerText() : 'no card')
     await page.mouse.move(4, 4)
@@ -120,7 +121,7 @@ try {
     // OB-184 (2026-09-14): the card NAMES the stop now, by the number THE PIN PRINTS (the walk
     // slot, "4" on this fifth stop), never a group path. Until then a top-level stop with no note
     // drew no card at all.
-    const top = page.locator('[data-stoppath]')
+    const top = page.locator('[data-stop-card-head]')
     const pinLabel = ((await topPin.textContent()) || '').trim()
     ok(`a top-level stop's card names it by the number its pin prints, "${pinLabel} · <name>", not a group path`, (await top.count()) === 1 && (await top.innerText()).startsWith(pinLabel + ' ·'), (await top.count()) ? await top.innerText() : 'no card')
     await page.mouse.move(4, 4)

@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { WALK_BAND_DEFAULTS, WALK_DOCK_METRICS, WALK_PLAYBACK_DEFAULTS, segmentWalked, walkAdvance, walkArrow, walkBand, walkEase } from './WalkDock'
+import { WALK_BAND_DEFAULTS, WALK_DOCK_METRICS, WALK_PLAYBACK_DEFAULTS, segmentWalked, walkAdvance, walkArrivalLag, walkArrow, walkBand, walkEase } from './WalkDock'
 
 describe('WALK_DOCK_METRICS — the two heights are DERIVED from the parts', () => {
   it('closed = padTop + row + railGap + rail + padBottom + border', () => {
@@ -113,6 +113,16 @@ describe('walkAdvance — the published clock, pure', () => {
     const r = walkAdvance({ step: 3, phase: 0.9, dt: 500, count: 5 })
     expect(r).toEqual({ step: 4, phase: 0, position: 4, done: true })
     expect(walkAdvance({ count: 0 }).done).toBe(true)
+  })
+
+  // OB-196 (d): the replay's beat is playback tuning, published beside the clock — and
+  // longer than one dwell on purpose, because the first stop of a replay is the one the
+  // room has not looked at for a whole walk.
+  it('publishes the replay beat, 600ms, longer than one dwell, and outside the arithmetic', () => {
+    expect(WALK_PLAYBACK_DEFAULTS.restartPause).toBe(600)
+    expect(WALK_PLAYBACK_DEFAULTS.restartPause).toBeGreaterThan(walkArrivalLag())
+    const r = walkAdvance({ step: 0, phase: 0, dt: 400, count: 5 })
+    expect(walkAdvance({ step: 0, phase: 0, dt: 400, count: 5, playback: { restartPause: 0 } })).toEqual(r)
   })
 })
 

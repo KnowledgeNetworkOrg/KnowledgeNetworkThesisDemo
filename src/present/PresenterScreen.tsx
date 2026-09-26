@@ -377,7 +377,7 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
                 onFind={(rect) => setFinder(rect || null)} finderOpen={!!finder}
                 onJumpToActive={() => setRoamingStop(null)}
                 onRoamTo={roamTo} onMakeActive={makeActive}
-                renderPreview={(_s, i) => renderStopPreview(play.steps[i])} />
+                renderPreview={(_s, i) => renderStopPreview(play.steps[i], i)} />
             </div>
             {/* THE PANES ROW — the notes pane takes what is left, the deck keeps a fixed 360 (the
                 width the recap's flagged column also keeps, so ending moves nothing sideways) */}
@@ -425,7 +425,7 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
       {finder ? (
         <StopFinder steps={steps} activeStop={activeStop} roamingStop={roamingStop} flags={flags} covered={covered}
           anchor={finder} onPick={roamTo} onClose={() => setFinder(null)}
-          renderPreview={(_s, i) => renderStopPreview(play.steps[i])} />
+          renderPreview={(_s, i) => renderStopPreview(play.steps[i], i)} />
       ) : null}
       {expanded ? (
         <div data-presenter-fullscreen onClick={() => setExpanded(false)} style={{

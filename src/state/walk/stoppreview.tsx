@@ -1,65 +1,85 @@
 // THE ONE CARD A STOP SHOWS ON HOVER, wherever the pointer finds the stop — the walk
-// viewer's strip, the map's dock and the map's pins all pass this same function as
-// `renderPreview`, so a stop previews identically on every surface (DS OB-131: "pass
-// the SAME function you pass WalkStrip and the map's pins"). It used to be an inline
-// closure in WalkViewer.tsx; three hosts would have meant three drifting copies.
+// viewer's strip, the map's dock (its two rails and, since OB-196, the current stop's
+// name), the map's pins and the presenter's strip and stop finder all pass this same
+// function as `renderPreview`, so a stop previews identically on every surface (DS
+// OB-131: "pass the SAME function you pass WalkStrip and the map's pins"). It used to be
+// an inline closure in WalkViewer.tsx; three hosts would have meant three drifting copies.
+// (It lived in instruments/walkdesk/ until #338 moved it here, beside the playback it
+// previews, because four screens import it and none of them is the walk desk.)
 //
-// IT NAMES THE STOP (DS OB-184, 2026-09-14). Until then a top-level stop with no note
-// drew NO card, on the reasoning that its name was already under its dot — true on the
-// strip and in the dock's open row, and false on the two surfaces the owner was
-// pointing at: a map pin prints only a number, and the closed rail names only the
-// stop the walk is ON. So the card leads with the stop's number and name — its full
-// step path where it sits inside a GROUP on the road, "3.1 · Name" (#228, DS OB-114,
-// WalkPreview's caller rule 4: a pin prints only the group's top-level number and
-// several pins may share it, so this card is the ONLY place on the map the path is
-// readable) — then the note, when there is one.
+// IT IS THE STOP'S DOCUMENT, NOT ITS NAME (DS OB-199, 2026-09-16). Until then this file
+// composed its own card — `address · title` plus the WALK's note — and the note is the
+// walk's optional annotation, so every stop the walk never annotated drew a one-line card:
+// the owner's screenshot read `1.2 · Transistors & Logic Gates` and nothing else. It was
+// also 11px throughout, this system's floor for numerals and never for sentences. So the
+// composition now belongs to the design system: `StopCard` draws the address and name, a
+// placement line, the walk's note and the opening of the node's document, and this file
+// only hands it strings it owns. It draws no card of its own.
 //
-// A MERGED PIN'S CARD IS THE ONE-STOP CARD PLUS A COUNT (DS OB-186, owner-ruled 2026-09-15,
-// REPLACING what OB-184 clause 3 built here — a list of every stop under the pin). At a
-// coarse level `walkPins` merges a contiguous run of stops resolving to one cell into one
-// pin; the list answered "which stops are under this pin" and never "what is this page",
-// which is the question a hover over a document pin asks — an index in a preview's
-// position, and one that grew with the run exactly when the map was busiest. So the card
-// is the SAME one-stop preview every other surface shows — that stop's number, name and
-// note — plus a footer counting the rest. WHICH stop is `walkLeadStop`'s (the host passes
-// it as `index`, with the mark): the cursor clamped into the run. THE FOOTER IS
-// LOAD-BEARING, NOT OPTIONAL: the card names one of several different documents and
-// nothing else on screen admits that; without it the card reads as the pin's whole
-// contents.
+// A MERGED PIN'S CARD IS THE ONE-STOP CARD PLUS A COUNT (DS OB-186, owner-ruled
+// 2026-09-15). At a coarse level `walkPins` merges a contiguous run of stops resolving to
+// one cell into one pin; the card names ONE of them — `walkLeadStop`'s choice, which the
+// host passes as `index`, with the mark — and `StopCard`'s footer counts the rest. THE
+// FOOTER IS LOAD-BEARING: the card names one of several different documents and nothing
+// else on screen admits that. It lives in `StopCard` since OB-199; the dock sends no mark.
 //
 // THE NUMBER IS THE SURFACE'S OWN, and since OB-188 the surfaces AGREE: the dock and the
 // map pin both print the stop's two-number ADDRESS (`walkAddresses`), so the card under a
-// pin reads the address the pin's run carries (`mark.addresses`, the host's), and the
-// dock's card counts by position as its dots do. A stop inside a group keeps its FULL path
-// on the card (`WalkPreview` rule 4 — the card has room; a mark does not).
+// pin reads the address the pin's run carries (`mark.addresses`, the host's), and every
+// other surface counts by position as its dots do. A stop inside a group keeps its FULL
+// path on the card (`WalkPreview` rule 4 — the card has room; a mark does not).
 
 import type { ReactNode } from 'react'
 
+import { StopCard } from '@/ds'
 import type { WalkMark, WalkStep } from '@/ds'
 
+import { DOC_BODY } from '../../corpus/docs'
+import { byId, pathTo } from '../../corpus/graph'
 import type { PlayStep } from './playback'
 
 type StopLike = WalkStep & Partial<Pick<PlayStep, 'path'>>
 
-/** the FULL path on the card (`WalkPreview` rule 4 — the card has room), the surface's own number otherwise */
-const nameOf = (s: StopLike, n?: number | string) => (s.path && s.path.length ? `${s.path.join('.')} · ${s.title}` : n !== undefined ? `${n} · ${s.title}` : s.title)
+/** WHERE THE STOP SITS, as `StopCard`'s one-line placement: the containment path with the
+ *  ROOT AND THE NODE ITSELF left out ("Core Computer Science › Digital Logic"). `pathTo` is
+ *  inclusive at both ends — the root names the whole corpus on every card, and the node's
+ *  own title is already the card's heading — so it is never passed raw. The walk desk's
+ *  palette draws the same string for its own rows; the layering rule keeps this folder
+ *  from importing that one (`src/layering.test.ts`: state may not import instruments).
+ *  Cached: a hover re-renders on every pointer move. */
+const placeCache = new Map<string, string>()
+export function stopPlacement(id: string): string {
+  let s = placeCache.get(id)
+  if (s === undefined) {
+    s = pathTo(id)
+      .slice(1, -1)
+      .map((pid) => byId.get(pid)!.title)
+      .join(' › ')
+    placeCache.set(id, s)
+  }
+  return s
+}
 
 export function renderStopPreview(step: StopLike | undefined, index?: number, mark?: WalkMark): ReactNode {
   // WalkStrip never clamps hoverIndex against a shrinking steps array, so a step
   // can arrive here undefined mid-edit — guard, don't assume the prop's own type.
   if (!step) return null
-  /* the count of OTHER stops under the pin; `index` is the lead stop the host chose */
-  const under = mark ? Math.max(0, mark.to - mark.from) : 0
+  /* the number this surface already prints: a merged pin's run address for the lead stop
+     (or its label), the stop's position otherwise — and a grouped stop's FULL path over
+     either, because the card has room for it */
   const own = mark
     ? (mark.addresses && index !== undefined ? mark.addresses[index - mark.from] : undefined) ?? mark.label
     : index !== undefined ? index + 1 : undefined
+  const address = step.path && step.path.length ? step.path.join('.') : own
   return (
-    <div data-stoppreview className="px-2 py-1 rounded border border-slate-200 bg-white shadow-lg text-[11px] max-w-[220px] text-slate-600">
-      <div data-stoppath className="font-medium text-slate-800">{nameOf(step, own)}</div>
-      {step.note ? <div>{step.note}</div> : null}
-      {under > 0 ? (
-        <div data-stopmore className="mt-1 pt-1 border-t border-slate-100 text-slate-500">{mark!.label} · +{under} more stop{under === 1 ? '' : 's'} under this pin</div>
-      ) : null}
-    </div>
+    <StopCard
+      address={address}
+      title={step.title}
+      optional={!!step.optional}
+      ancestry={stopPlacement(step.id) || undefined}
+      note={step.note || undefined}
+      body={DOC_BODY[step.id] || undefined}
+      mark={mark}
+    />
   )
 }

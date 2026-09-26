@@ -11,13 +11,43 @@ import { wrapTip } from '../chrome/IconButton'
  *  stay the host's (the strip's 26px transport and `--fs-micro` titles, the dock's 20px and 10px)
  *  because those are the host's density decisions, not the rule.
  *
- *  Typed port of the DS WalkParts.jsx (contract: WalkParts.d.ts), OB-133 + OB-140. */
+ *  Typed port of the DS WalkParts.jsx (contract: WalkParts.d.ts), OB-133 + OB-140, and OB-196's
+ *  replay state (`REPLAY_PATH`, `walkComplete`, `PlayToggle.completed`). NOT PORTED: OB-216's
+ *  italic optional name in `StopTitle` — a separate obligation, not this one's. */
 
 export type StopState = 'done' | 'current' | 'ahead'
 
-/** the transport glyphs, on a 14×16 viewBox; both hosts draw these two paths and no others */
+/** the transport glyphs, on a 14×16 viewBox; both hosts draw these paths and no others */
 export const PLAY_PATH = 'M2 1.5 L12.5 8 L2 14.5 Z'
 export const PAUSE_PATH = 'M2 1.5 H5.4 V14.5 H2 Z M8.6 1.5 H12 V14.5 H8.6 Z'
+/** THE THIRD GLYPH — the walk has reached its last stop, so the button restarts it (owner,
+ *  2026-09-16, DS OB-196, choosing the form: "like youtube"). A FILLED circular arrow,
+ *  anticlockwise, its head at the top-right pointing back across the gap in the ring: the
+ *  convention every media player has taught for "play it again from the start", which a double
+ *  chevron does not say (that one means skip back). Filled rather than stroked so the button still
+ *  draws ONE `fill` path for all three states — the ring is an annulus with a 300-degree band, not
+ *  a stroked arc, constructed at 10× in the DS's `guidelines/replay-glyph.html` (centre 7,8 · radii
+ *  6.7 and 4.1 · band open from -60 to 240 degrees). Re-tune it there rather than by editing this
+ *  string by eye. IT FILLS ITS BOX, like `PLAY_PATH` does: a ring is a thin band around a hole, so
+ *  the same extent inscribed politely read SMALLER than the solid triangle beside it. */
+export const REPLAY_PATH = 'M10.35 2.2 A6.7 6.7 0 1 1 3.65 2.2 L4.95 4.45 A4.1 4.1 0 1 0 9.05 4.45 Z M11.2 0.73 L5.98 1.17 L8.2 5.92 Z'
+
+/** HAS THE WALK REACHED ITS END — the one input the replay glyph needs (DS OB-196), published
+ *  rather than left to each surface because it is an off-by-one in a place nothing would notice:
+ *  a transport that answers "complete" one stop early offers to restart a walk still on its way
+ *  to the last stop, and one stop late never offers it at all. `position` is the FRACTIONAL cursor
+ *  every drawing of the walk reads, so the comparison carries the same epsilon `walkArrival` uses.
+ *  A walk of one stop (or none) is never complete: there is nothing to replay.
+ *
+ *  A CALLER OBLIGATION COMES WITH IT: in this state the button's click means "back to the start
+ *  and run", which is TWO calls in order — seek to 0, then play. Toggling alone plays a clock that
+ *  is already at the end, i.e. for no frames, and that is the silent way to get this wrong.
+ *  `WalkDock` does both itself unless the host passes `onReplay`. */
+export function walkComplete(position: number, count: number): boolean {
+  const n = Number(count) || 0
+  if (n < 2) return false
+  return (Number(position) || 0) + 1e-9 >= n - 1
+}
 
 /** A STOP'S STATE FROM ITS INDEX AND THE CURSOR — behind is `done`, on is `current`, past is
  *  `ahead`. `StepDot`'s three states, derived one way for every surface. */
@@ -139,6 +169,13 @@ export function StopTitle({ title, optional = false, state = 'ahead', lines = 2,
 export interface PlayToggleProps {
   /** which glyph draws — display only; the host sets it from its own clock */
   playing?: boolean
+  /** the walk is at its last stop, so the glyph becomes the circular replay arrow and the label
+   *  says "replay the walk from the start". DERIVED, never a mode set by hand: pass
+   *  `walkComplete(position, count)`. `playing` WINS — a completed walk being played again shows a
+   *  pause, and the two are legitimately true together for the frame the cursor sits on the last
+   *  stop. The CLICK means something else in this state; see `walkComplete` for the two calls it
+   *  owes. */
+  completed?: boolean
   /** fires; the HOST plays. Does not fire any seek. */
   onToggle?: () => void
   /** the round button's side. The strip passes `WALK_METRICS.transport` (26), the dock `WALK_DOCK_METRICS.row` (20). */
@@ -149,19 +186,32 @@ export interface PlayToggleProps {
   style?: CSSProperties
 }
 
-/** THE TRANSPORT: one round acorn button, a play or a pause glyph, at the host's `size` with the
- *  glyph at `glyph` = [width, height] (the strip draws 11×12 in a 26px button, the dock 8×10 in
- *  20px). Fires `onToggle`; the HOST runs the walk and holds the clock — this is display and a
- *  report, the same split both hosts already make. `playing` only picks the glyph. */
-export function PlayToggle({ playing = false, onToggle, size = 26, glyph = [11, 12], style }: PlayToggleProps) {
+/** THE TRANSPORT: one round acorn button, a play, pause or replay glyph, at the host's `size`
+ *  with the glyph at `glyph` = [width, height] (the strip draws 11×12 in a 26px button, the dock
+ *  8×10 in 20px). Fires `onToggle`; the HOST runs the walk and holds the clock — this is display
+ *  and a report, the same split both hosts already make. `playing` only picks the glyph.
+ *
+ *  `completed` IS THE THIRD STATE AND IT IS A PICTURE, NOT A SECOND BUTTON (owner, 2026-09-16, DS
+ *  OB-196). The button stays in one place, keeps one hit box and one channel; only the glyph and
+ *  the label change. It is DERIVED, never a mode a caller sets by hand: pass
+ *  `walkComplete(position, count)`. `playing` WINS over it — a completed walk being played again
+ *  is a pause button, not a replay one.
+ *
+ *  WHAT THE CLICK MEANS IS THE HOST'S, and it is a different sentence in this state: play/pause
+ *  toggles the clock, replay means "put the cursor back at stop 1 and run". A host wiring one
+ *  handler to all three states restarts nothing — the clock is already at the end, so the walk
+ *  plays for no frames. `WalkDock` takes an `onReplay` for it and falls back to `onSeek(0)` then
+ *  `onPlayToggle()`; a surface using this button directly owes the same two calls, in that order. */
+export function PlayToggle({ playing = false, completed = false, onToggle, size = 26, glyph = [11, 12], style }: PlayToggleProps) {
+  const label = playing ? 'pause the walk' : completed ? 'replay the walk from the start' : 'play the walk'
   return (
-    <button type="button" onClick={onToggle} title={wrapTip(playing ? 'pause the walk' : 'play the walk')} aria-label={playing ? 'pause the walk' : 'play the walk'} style={{
+    <button type="button" onClick={onToggle} title={wrapTip(label)} aria-label={label} style={{
       flex: 'none', width: size, height: size, padding: 0, appearance: 'none', WebkitAppearance: 'none', border: 'none',
       borderRadius: 'var(--radius-pill)', background: 'var(--accent-walk)', color: 'var(--text-inverse)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', ...style,
     }}>
       <svg width={glyph[0]} height={glyph[1]} viewBox="0 0 14 16" aria-hidden="true" style={{ display: 'block' }}>
-        <path d={playing ? PAUSE_PATH : PLAY_PATH} fill="currentColor" />
+        <path d={playing ? PAUSE_PATH : completed ? REPLAY_PATH : PLAY_PATH} fill="currentColor" />
       </svg>
     </button>
   )
@@ -314,4 +364,4 @@ export function walkMarkLabel(steps: readonly { path?: readonly number[] }[], ma
 /** THE SAME PARTS AS ONE OBJECT, named for the file (the DS's bundler wants an export named
  *  `WalkParts`; a consumer that prefers one import gets it). The named exports above are the
  *  primary API. */
-export const WalkParts = { StopTitle, PlayToggle, OptionalSuffix, stopState, stopInk, rowSwell: walkRowSwell, SWELL_FALLOFF: WALK_SWELL_FALLOFF, progress: walkProgress, leadStop: walkLeadStop, addresses: walkAddresses, markLabel: walkMarkLabel, PLAY_PATH, PAUSE_PATH, WALK_HOVER_GROW, WALK_ROW_HOVER_GROW, hoverStyle: walkHoverStyle }
+export const WalkParts = { StopTitle, PlayToggle, OptionalSuffix, stopState, stopInk, rowSwell: walkRowSwell, SWELL_FALLOFF: WALK_SWELL_FALLOFF, progress: walkProgress, leadStop: walkLeadStop, addresses: walkAddresses, markLabel: walkMarkLabel, complete: walkComplete, PLAY_PATH, PAUSE_PATH, REPLAY_PATH, WALK_HOVER_GROW, WALK_ROW_HOVER_GROW, hoverStyle: walkHoverStyle }

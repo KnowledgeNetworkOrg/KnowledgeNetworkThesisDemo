@@ -16,13 +16,19 @@
 //     height — 63 closed, 113 open — on the dock's own 280ms fold, so with the row open the
 //     level picker and the zoom buttons are still clickable and still act;
 //   - OB-157: the open row's line begins on the first dot's centre and ends on the last dot's,
-//     and the walked fill draws nothing at stop 1 — two 1:1 screenshots, scrolled to each end.
+//     and the walked fill draws nothing at stop 1 — two 1:1 screenshots, scrolled to each end;
+//   - OB-196: at the last stop the transport is a replay arrow, its click puts the cursor on
+//     stop 1 AT ONCE and starts the walk 600ms later, a seek in that beat cancels the start, and
+//     the current stop's NAME opens the preview card;
+//   - OB-199: that card is the stop's DOCUMENT — a stop with no walk note still says more than
+//     its heading — and the dock's name, its rail, the viewer's strip and the presenter's strip
+//     all show the same card for the same stop.
 //
 // THE FIXTURE is the opening composition: the desk's seed draft is already published
 // on bus.route, so the map starts with a real walk (drive-mappins.mjs relies on the
-// same fact). The seed's stops carry no notes, and the preview card shows a note or
-// nothing, so the pin-hover half activates a SAVED walk from Trail, whose first stop
-// has one.
+// same fact). The seed's stops carry no notes — which makes every one of them OB-199's
+// reported case — and the pin-hover half activates a SAVED walk from Trail, whose first
+// stop has one.
 //
 // Spawns vite ITSELF — backgrounded dev servers die on this machine.
 // Run from anywhere:  node tools/studio-spike/browsertest-walkdock.mjs
@@ -287,6 +293,147 @@ await page.keyboard.press('Home')
 await page.waitForTimeout(250)
 ok('Home seeks back to the first', (await readout())?.cur === 1)
 
+// ── C2. OB-196: THE TRANSPORT'S THIRD STATE — replay at the last stop, in two beats ──
+// On the last stop the play triangle becomes a circular replay arrow, derived from
+// `walkComplete` (so one stop early it is still a triangle). Its click means "back to stop 1
+// and run", in TWO beats: the cursor goes back at once, the walk starts `restartPause` (600ms)
+// later, and a seek during the beat cancels the start. The beat is sampled IN THE PAGE, one
+// reading per animation frame, because the whole clause is about WHEN.
+// `exact` on every label here: "play the walk" is a substring of the replay's label.
+const REPLAY = 'replay the walk from the start'
+const transportNow = async () => (await map.getByLabel(REPLAY, { exact: true }).count()) ? 'replay'
+  : (await map.getByLabel('pause the walk', { exact: true }).count()) ? 'pause'
+  : (await map.getByLabel('play the walk', { exact: true }).count()) ? 'play' : 'none'
+{
+  await dock().focus()
+  await page.keyboard.press('End')
+  await page.waitForTimeout(300)
+  ok('OB-196 (2): on the last stop the dock\'s transport is the replay arrow', (await transportNow()) === 'replay', await transportNow())
+  const d = await map.getByLabel(REPLAY, { exact: true }).locator('path').getAttribute('d').catch(() => null)
+  ok('and it draws REPLAY_PATH (the ring\'s arc), not the triangle', !!d && d.includes('A6.7 6.7'), `${d}`)
+  await page.keyboard.press('ArrowLeft')
+  await page.waitForTimeout(300)
+  ok('OB-196 (5): one stop back it is a play triangle again — the replay is never offered a stop early', (await transportNow()) === 'play', await transportNow())
+  await page.keyboard.press('End')
+  await page.waitForTimeout(300)
+  const beat = await page.evaluate((label) => new Promise((res) => {
+    const dockEl = document.querySelector('[aria-label="map-view"] [data-walk-dock]')
+    const cur = () => { const b = [...dockEl.querySelectorAll('button')].find((x) => /\d+ \/ \d+/.test(x.textContent || '')); const m = /(\d+) \/ (\d+)/.exec(b ? b.textContent : ''); return m ? Number(m[1]) : null }
+    const playing = () => !!dockEl.querySelector('[aria-label="pause the walk"]')
+    const frames = []
+    const t0 = performance.now()
+    dockEl.querySelector(`[aria-label="${label}"]`).click()
+    const f = () => { const t = performance.now() - t0; frames.push({ t, cur: cur(), playing: playing() }); if (t < 1100) requestAnimationFrame(f); else res(frames) }
+    requestAnimationFrame(f)
+  }), REPLAY)
+  const tPlay = beat.find((fr) => fr.playing)?.t
+  ok('OB-196 (3b): the cursor is on stop 1 IMMEDIATELY — the first frame after the click reads 1 / N, not yet playing', beat[0].cur === 1 && !beat[0].playing, JSON.stringify(beat[0]))
+  ok('and it holds there, NOT playing, for the whole beat', beat.filter((fr) => tPlay === undefined || fr.t < tPlay).every((fr) => fr.cur === 1 && !fr.playing))
+  ok('OB-196 (3)+(d): then the walk plays from stop 1, restartPause (600ms) after the click — not in the same frame', tPlay !== undefined && tPlay >= 560 && tPlay <= 760 && beat.find((fr) => fr.playing).cur === 1, tPlay === undefined ? 'never started' : `started at ${tPlay.toFixed(0)}ms`)
+  await map.getByLabel('pause the walk', { exact: true }).click()
+  await page.waitForTimeout(200)
+  // a seek during the beat: the user has chosen where to be, and the walk must not start under them
+  await dock().focus()
+  await page.keyboard.press('End')
+  await page.waitForTimeout(300)
+  await map.getByLabel(REPLAY, { exact: true }).click()
+  await page.waitForTimeout(150)
+  await dock().focus()
+  await page.keyboard.press('ArrowRight')
+  await page.waitForTimeout(900)
+  ok('OB-196 (3b): a seek DURING the beat cancels the pending start — the cursor where the user put it, still not playing', (await readout())?.cur === 2 && (await transportNow()) === 'play', `${JSON.stringify(await readout())}, transport ${await transportNow()}`)
+  // space is the same control as the button, third state included
+  await page.keyboard.press('End')
+  await page.waitForTimeout(300)
+  await page.keyboard.press(' ')
+  await page.waitForTimeout(150)
+  const spaceBeat = { cur: (await readout())?.cur, transport: await transportNow() }
+  await page.waitForTimeout(700)
+  ok('space on a finished walk restarts it the same way — stop 1 at once, playing after the beat', spaceBeat.cur === 1 && spaceBeat.transport === 'play' && (await transportNow()) === 'pause', `${JSON.stringify(spaceBeat)} then ${await transportNow()}`)
+  await map.getByLabel('pause the walk', { exact: true }).click()
+  await page.waitForTimeout(200)
+  await dock().focus()
+  await page.keyboard.press('Home')
+  await page.waitForTimeout(300)
+}
+
+// ── C3. OB-196 (4) + OB-199: THE NAME OPENS THE CARD, AND THE CARD IS THE DOCUMENT ──
+// The current stop's name beside the button was the one named stop on the dock with no way to
+// read what is in it. Hovering it opens the SAME card the rails open, centred on the WORDS (the
+// name's slot is `flex: 1`, so its box centre sits far right of a short name). And the card is
+// the stop's document: the owner's report was a card that printed the name and nothing else,
+// for a stop the walk had never annotated — so the check is OB-199's own, "the card's text is
+// longer than its own head", on a stop with no note. The stop is the reported one ("Transistors
+// & Logic Gates") when the seed walk has it, the second stop otherwise.
+const stopCard = () => page.locator('[data-stop-card]')
+const cardText = async (loc) => ((await loc.textContent().catch(() => '')) || '').replace(/\s+/g, ' ').trim()
+let sameCard = null // { k, text, head } — the dock's card for stop k, for the presenter's check in I
+{
+  const nameEl = () => dock().locator('[data-walk-dock-name]')
+  await dock().focus()
+  await page.keyboard.press('Home')
+  await page.waitForTimeout(250)
+  const n = (await readout()).n
+  let k = 1
+  for (let i = 0; i < n; i++) {
+    if (((await nameEl().textContent()) || '').startsWith('Transistors & Logic Gates')) { k = i; break }
+    await page.keyboard.press('ArrowRight')
+    await page.waitForTimeout(60)
+  }
+  await page.keyboard.press('Home')
+  for (let i = 0; i < k; i++) await page.keyboard.press('ArrowRight')
+  await page.waitForTimeout(400)
+  const nameText = ((await nameEl().textContent()) || '').trim()
+  ok('the stop under test carries NO walk note — the dock\'s name shows no " · note" (the reported case)', !!nameText && !nameText.includes(' · '), nameText)
+  await nameEl().hover()
+  await page.waitForTimeout(300)
+  ok('OB-196 (4): hovering the current stop\'s NAME opens the preview card', (await stopCard().count()) === 1, `${await stopCard().count()} cards`)
+  const head = await cardText(stopCard().locator('[data-stop-card-head]'))
+  const text = await cardText(stopCard())
+  ok('its heading is the stop\'s address and name', / · /.test(head) && head.endsWith(nameText), head)
+  ok('OB-199 (3): and the card says MORE than its heading — the node\'s document opening, for a stop with no walk note', text.length > head.length + 20, `head "${head}" (${head.length}) · card ${text.length} chars: "${text.slice(0, 90)}…"`)
+  const words = await nameEl().evaluate((el) => {
+    const box = el.getBoundingClientRect()
+    const r = document.createRange()
+    r.selectNodeContents(el)
+    const t = r.getBoundingClientRect()
+    return { cx: (box.left + Math.min(box.right, t.right)) / 2, slotCx: box.left + box.width / 2, top: box.top, vw: innerWidth }
+  })
+  const cb = await page.locator('[data-walk-preview][aria-hidden="true"]').boundingBox()
+  // the card clamps itself to the window (OB-191), so the centre it SHOULD have is the words' centre clamped the same way
+  const want = cb ? Math.min(Math.max(words.cx, 8 + cb.width / 2), words.vw - 8 - cb.width / 2) : NaN
+  ok('anchored on the WORDS, not on the name\'s flex slot — centred over the text, PREVIEW_GAP (12) above it', !!cb && Math.abs(cb.x + cb.width / 2 - want) <= 2 && Math.abs(words.top - (cb.y + cb.height) - 12) <= 1.5, cb ? `card centre ${(cb.x + cb.width / 2).toFixed(1)}, words ${words.cx.toFixed(1)}, slot ${words.slotCx.toFixed(1)}` : 'no card')
+  ok('OB-199 (4): the card is the published 264px measure', !!cb && Math.abs(cb.width - 264) <= 1, `${cb?.width}`)
+  ok('hovering the name moved nothing — the readout is still that stop', (await readout())?.cur === k + 1)
+  await page.mouse.move(4, 4)
+  await page.waitForTimeout(250)
+  ok('leaving the name clears the card', (await stopCard().count()) === 0)
+  sameCard = { k, text, head }
+  // THE SAME CARD on the dock's own rail, over stop k's tick
+  const rb = await dock().locator('[data-walk-dock-rail]').boundingBox()
+  await page.mouse.move(rb.x + 9 + (n > 1 ? k / (n - 1) : 0) * (rb.width - 18), rb.y + rb.height / 2)
+  await page.waitForTimeout(300)
+  ok('the dock\'s RAIL shows the same card for the same stop', (await cardText(stopCard())) === text, await cardText(stopCard().locator('[data-stop-card-head]')))
+  await page.mouse.move(4, 4)
+  await page.waitForTimeout(250)
+  // THE SAME CARD on the walk viewer's strip: its stop slots carry the name as their native title
+  const title = head.split(' · ').slice(1).join(' · ')
+  const slot = viewer.locator(`[title="${title.replace(/"/g, '\\"')}"]`).first()
+  if ((await slot.count()) === 1) {
+    await slot.hover()
+    await page.waitForTimeout(300)
+    ok('OB-199 (6): the walk viewer\'s strip shows the SAME card for the same stop', (await cardText(stopCard())) === text, `viewer "${(await cardText(stopCard())).slice(0, 60)}…" vs dock "${text.slice(0, 60)}…"`)
+    await page.mouse.move(4, 4)
+    await page.waitForTimeout(250)
+  } else {
+    ok('the viewer\'s strip draws the stop under test', false, `no slot titled "${title}"`)
+  }
+  // back to stop 1: the merged-pin checks below read the clamp from BEFORE the run
+  await dock().focus()
+  await page.keyboard.press('Home')
+  await page.waitForTimeout(300)
+}
+
 // ── D0a. OB-184: a MERGED pin's card names every stop under it, one card per pointer ──
 // At a coarse level `walkPins` merges a contiguous run of stops resolving to one cell into ONE
 // pin labelled "2-3". A card built from the first stop alone names one document where the pin
@@ -308,14 +455,15 @@ ok('Home seeks back to the first', (await readout())?.cur === 1)
     const spotBefore = await map.locator('[data-spot]').getAttribute('data-spot').catch(() => null)
     const pin = () => map.locator(`[data-routestop][data-step="${merged.step}"]`)
     const hoverPin = async () => { const pb = await pin().boundingBox(); await page.mouse.move(pb.x + pb.width / 2, pb.y + pb.height / 2); await page.waitForTimeout(300); return pb }
-    const card = page.locator('[data-stoppreview]')
+    // the card is `StopCard` since OB-199; its heading and its footer are the DS's own hooks
+    const card = page.locator('[data-stop-card]')
     // OB-186, BOTH ENDS OF THE CLAMP: cursor BEFORE the run → the run's first stop; cursor PAST it → its last
     const pb = await hoverPin()
     // "no per-stop list": one name line, and the run's other stops (2.1 …) are not written out on the card
-    ok('OB-186 (1): hovering the merged pin raises ONE one-stop card — no per-stop list', (await card.count()) === 1 && (await card.locator('[data-stoppath]').count()) === 1 && !(await card.innerText()).includes('2.1 ·'), (await card.innerText().catch(() => '')).replace(/\n/g, ' | '))
-    const nameBefore = (await card.locator('[data-stoppath]').textContent().catch(() => '')).trim()
+    ok('OB-186 (1): hovering the merged pin raises ONE one-stop card — no per-stop list', (await card.count()) === 1 && (await card.locator('[data-stop-card-head]').count()) === 1 && !(await card.innerText()).includes('2.1 ·'), (await card.innerText().catch(() => '')).replace(/\n/g, ' | '))
+    const nameBefore = (await card.locator('[data-stop-card-head]').textContent().catch(() => '')).trim()
     ok('OB-186 (3a): with the cursor BEFORE the run (stop 1) the card names the run\'s FIRST stop', /^1 · /.test(nameBefore), nameBefore)
-    const more = (await card.locator('[data-stopmore]').textContent().catch(() => '')).trim()
+    const more = (await card.locator('[data-stop-card-more]').textContent().catch(() => '')).trim()
     ok(`OB-186 (2): and carries the load-bearing footer — the pin's label, then "+${under} more stops under this pin"`, more === `${merged.label} · +${under} more stop${under === 1 ? '' : 's'} under this pin`, more)
     ok('OB-184 (4): ONE CARD PER POINTER — the cell\'s MapTooltip stays down while the pin\'s card is up', (await page.locator('[data-maptip]').count()) === 0)
     ok('OB-184 (2): the hover changed nothing — cursor and spot are what they were', JSON.stringify(await readout()) === JSON.stringify(rBefore) && (await map.locator('[data-spot]').getAttribute('data-spot').catch(() => null)) === spotBefore)
@@ -331,9 +479,9 @@ ok('Home seeks back to the first', (await readout())?.cur === 1)
     await page.keyboard.press('End')
     await page.waitForTimeout(400)
     await hoverPin()
-    const nameAfter = (await card.locator('[data-stoppath]').textContent().catch(() => '')).trim()
+    const nameAfter = (await card.locator('[data-stop-card-head]').textContent().catch(() => '')).trim()
     ok('OB-186 (3b): with the cursor PAST the run (the last stop) the same pin\'s card names the run\'s LAST stop, by its address — "2.2 · …"', /^2\.2 · /.test(nameAfter), nameAfter)
-    ok('the footer is the same at both ends', (await card.locator('[data-stopmore]').textContent().catch(() => '')).trim() === more)
+    ok('the footer is the same at both ends', (await card.locator('[data-stop-card-more]').textContent().catch(() => '')).trim() === more)
     await page.mouse.move(4, 4)
     await page.waitForTimeout(300)
     await dock().focus()
@@ -561,11 +709,16 @@ await pin.hover()
 await page.waitForTimeout(250)
 // the card by its own hook, not by its text: the dock's transport row shows the
 // current stop's note too (`name · note`), so the note's text is on screen twice
-const card = page.locator('[data-stoppreview]')
+const card = page.locator('[data-stop-card]')
 ok('HOVERING THE PIN shows the stop\'s preview card', (await card.count()) === 1, `${await card.count()} cards; note in dock row: ${await dock().getByText('Before any hardware').count()}`)
 const cardBox = await card.first().boundingBox()
 ok('the card floats PREVIEW_GAP (12) above the pin', !!cardBox && !!pinBox && Math.abs(pinBox.y - (cardBox.y + cardBox.height) - 12) <= 2, `card bottom ${cardBox && cardBox.y + cardBox.height}, pin top ${pinBox?.y}`)
-ok('centred on it', !!cardBox && !!pinBox && Math.abs(cardBox.x + cardBox.width / 2 - (pinBox.x + pinBox.width / 2)) <= 2)
+// centred on the pin — or as near it as the window-edge clamp (OB-191, 8px) lets a 264px card sit
+const vw = await page.evaluate(() => innerWidth)
+const pinCx = pinBox ? pinBox.x + pinBox.width / 2 : NaN
+const wantCx = cardBox ? Math.min(Math.max(pinCx, 8 + cardBox.width / 2), vw - 8 - cardBox.width / 2) : NaN
+ok('centred on it', !!cardBox && !!pinBox && Math.abs(cardBox.x + cardBox.width / 2 - wantCx) <= 2, cardBox ? `card centre ${(cardBox.x + cardBox.width / 2).toFixed(1)}, pin ${pinCx.toFixed(1)}` : '')
+ok('OB-199: the saved walk\'s first stop HAS a note, and the card carries it above the document', /Before any hardware/.test(await cardText(card)) && (await cardText(card)).length > (await cardText(card.locator('[data-stop-card-head]'))).length + 40, (await cardText(card)).slice(0, 120))
 ok('and no MapTooltip beside it — one card at a time', (await page.locator('[data-maptip]').count()) === 0)
 await page.mouse.move(mapBox2.x + 4, mapBox2.y + 4)
 await page.waitForTimeout(250)
@@ -733,6 +886,46 @@ ok('OB-179 (5): after the room pans during playback, the next arrival leaves the
   await page.waitForTimeout(300)
   const halos = await Promise.all([...Array(stopCount).keys()].map(halo))
   ok('and changes NOTHING in the dock — no mark, no seek, no scroll', halos.every((h) => h === 'none') && JSON.stringify(await readout()) === JSON.stringify(rBefore) && Math.abs((await row().evaluate((el) => el.scrollLeft)) - scroll0) < 1, `${halos.filter((h) => h !== 'none').length} halos, readout ${JSON.stringify(await readout())}`)
+}
+
+// ── I. OB-199 (6)+(7): THE PRESENTER'S STRIP SHOWS THE SAME CARD — ADDRESS INCLUDED ──
+// (last, on purpose: the Present preset replaces the desk.) The presenter wrapped the call as
+// `renderStopPreview(play.steps[i])` and dropped `i`, so even with `StopCard` in place its card
+// carried no number while the dock's did. The lecture IS the walk being played — the same draft,
+// the same step order — so the presenter's card for stop k must be the dock's card for stop k,
+// character for character, heading and address included.
+{
+  await page.setViewportSize({ width: 1750, height: 950 })
+  await page.waitForTimeout(400)
+  // the presenter draws its active stop's KNOB over that stop's tick, and the knob takes the
+  // pointer — so the walk stands somewhere other than the stop under test before the switch
+  const k = sameCard ? sameCard.k : 1
+  await dock().focus()
+  await page.keyboard.press(k === 0 ? 'End' : 'Home')
+  await page.waitForTimeout(300)
+  if ((await page.locator('[aria-label="studio-sidebar"]').count()) === 0) {
+    await page.locator('[data-toolbar-hook="palette-toggle"]').click()
+    await page.waitForTimeout(500)
+  }
+  await page.getByLabel('studio-preset-present').click()
+  await page.waitForTimeout(1200)
+  ok('the Present preset opens the presenter', (await page.locator('[aria-label="studio-presenter"]').count()) === 1)
+  const tick = page.locator(`[data-presenter-tick="${k}"]`)
+  const dot = page.locator(`[data-presenter-dot="${k}"]`)
+  const mark = (await tick.count()) ? tick : dot
+  if (sameCard && (await mark.count()) === 1) {
+    // Playwright's own hover, not a move to a box read once: it waits for the mark to stop
+    // moving, and the presenter is still settling from the preset switch and the resize above
+    await page.mouse.move(4, 4)
+    await mark.hover({ timeout: 5000 }).catch((e) => ok('the presenter\'s tick for the stop under test takes the pointer', false, String(e.message).split('\n')[0]))
+    await page.waitForTimeout(350)
+    const head = await cardText(stopCard().locator('[data-stop-card-head]'))
+    ok('OB-199 (7): the presenter\'s card carries the ADDRESS, the same heading the dock\'s card has', head === sameCard.head, `presenter "${head}" vs dock "${sameCard.head}"`)
+    ok('OB-199 (6): and the presenter\'s strip shows the SAME card as the dock for the same stop — the node\'s document included', (await cardText(stopCard())) === sameCard.text && sameCard.text.length > head.length + 20, `presenter ${(await cardText(stopCard())).length} chars vs dock ${sameCard.text.length}`)
+    await page.mouse.move(4, 4)
+  } else {
+    ok('the presenter\'s strip draws the stop under test', false, sameCard ? `no [data-presenter-tick|dot="${k}"]` : 'no dock card was captured in C3')
+  }
 }
 
 await browser.close()

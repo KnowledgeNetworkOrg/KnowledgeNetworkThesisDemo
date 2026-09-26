@@ -179,17 +179,32 @@ export interface WalkPlayback {
    *  NUMBER is an explicit override and is then CHOSEN. Do not "pin" the default by writing
    *  today's 900 in — at `step` 300 a fixed 900 lets one stalled frame spend three stops. */
   maxDt: number | null
+  /** THE BEAT BETWEEN A REPLAY AND THE WALK RUNNING AGAIN, in ms. CHOSEN, 600, and meant to be
+   *  re-tuned (owner, 2026-09-16, DS OB-196). NOT part of `walkAdvance`'s arithmetic — it is the
+   *  transport's, and it lives here because it is playback tuning and a host restarting in its own
+   *  store needs the same number. A replay makes two statements (you are at the beginning, then we
+   *  go); run together, the jump back is never seen. Longer than one dwell on purpose. */
+  restartPause: number
 }
 
 /** THE CLOCK, PUBLISHED FOR THE SAME REASON THE BAND IS: playback is a rule about how a drawing
  *  MOVES, applied per frame by a machine, and two surfaces running their own arithmetic disagree
  *  the first time someone re-tunes it. `step` and `travel` are owner-tuned on the compact rig and
  *  CHOSEN; `maxDt` is DERIVED by default (null = one `step`) and only becomes a chosen constant if
- *  a caller passes a number. THE HOST STILL OWNS THE CLOCK — this is not a timer. */
+ *  a caller passes a number; `restartPause` (600) is the replay's beat, CHOSEN. THE HOST STILL
+ *  OWNS THE CLOCK — this is not a timer. */
 export const WALK_PLAYBACK_DEFAULTS: WalkPlayback = {
   step: 900,
   travel: 0.7,
   maxDt: null,
+  /* WHY THE PAUSE IS PART OF THE GESTURE AND NOT A NICETY: a replay does two things at once — it
+     throws the cursor back to the first stop and it starts travelling. Run together, the jump back
+     is never seen: the pin pops at stop 1 and the walk is already leaving it, so the walk appears
+     to resume from nowhere in particular. The pause separates the two statements, which is the
+     same reason `travel` leaves a dwell at every other stop. Longer than one dwell (270 at the
+     defaults) on purpose: the first stop of a replay is the one the room has not looked at for a
+     whole walk. */
+  restartPause: 600,
 }
 
 /** the travel easing, in and out — a walk starts and stops at each stop, it does not scroll */
