@@ -3,7 +3,7 @@ import type { CSSProperties, ReactNode } from 'react'
 
 import { CollapseChevron } from '../chrome/CollapseChevron'
 import { wrapTip } from '../chrome/IconButton'
-import { FIRST_ROW_PAD } from '../chrome/Pane'
+import { FIRST_ROW_PAD, scrollerPadRight } from '../chrome/Pane'
 import { PaneDivider, PANE_DIVIDER_METRICS } from '../chrome/PaneDivider'
 
 /** THE NUMBERS A RAIL IS MADE OF, and every one of them is CHOSEN. `min` is the narrowest the
@@ -342,7 +342,10 @@ export function RailFrame({ side = 'left', label, count, mark, open, onOpenChang
       flex: '0 0 ' + shown + 'px', minWidth: 0, minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column',
       [side === 'left' ? 'borderRight' : 'borderLeft']: '1px solid var(--border-hair)',
     }}>
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: m.pad }}>
+      {/* ★ LOCAL, DS OB-210 (the `.jsx` still uses `m.pad` alone): the rail SCROLLS, so its right
+          padding is the table's own inset plus `scrollerPadRight()` — 0 where the bar takes real
+          space, the overlay-bar room in Firefox. The inset stays the content's; the room is the bar's. */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: m.pad, paddingRight: parseFloat(m.pad.split(' ')[1]) + scrollerPadRight() }}>
         {/* THE HANDLE SITS AT THE SEAM END OF THE HEAD — beside the content, pointing the way the
             rail will go. The eyebrow's `flex: 1` is what puts it there, on both sides. This is
             the approved drawing (`ideas/connections-dissolved-into-map-and-document.html`), not

@@ -50,6 +50,10 @@ import { summaryOfNode } from './corpustree'
 import { cardRelationsOf, neighbourhoodOf, neighbourLitBy, ORBIT_CARD_PAD_X, orbitCardWidths, orbitKeyParts } from './relations'
 import type { Neighbourhood } from './relations'
 
+/** the slice of the bus the document reads and writes — the rail's figure publishes a target on the
+ *  hover channel and the hub on the centre's own (OB-230), and a foreign hover previews a node here */
+type DocumentPanelBus = Pick<Bus, 'focus' | 'hover' | 'activateWalk' | 'setHover' | 'endHover' | 'setHoverCenter'>
+
 /** the pane's width when nothing has measured it yet — the same fallback the DS shell sizes its card
  *  with, so the first frame's card is the size a measured one usually is */
 const UNMEASURED_PANE_W = 444
@@ -115,7 +119,7 @@ function OrbitCard({ hotKey, focusId, boxW }: OrbitCardProps) {
 }
 
 interface DocumentBodyProps {
-  bus: Bus
+  bus: DocumentPanelBus
   /** the node the pane is reading, or null with nothing chosen */
   currentId: string | null
   /** the node a foreign hover is previewing, or null — only while nothing is selected */
@@ -265,7 +269,7 @@ function DocumentBody({ bus, currentId, previewId, paneW, railOpen, onRailOpenCh
   )
 }
 
-export default function DocumentPanel({ bus }: { bus: Bus }) {
+export default function DocumentPanel({ bus }: { bus: DocumentPanelBus }) {
   // IS THE POINTER IN THIS PANE? The preview below answers FOREIGN cursors only: this pane now has
   // hoverable content of its own, and it must never re-aim itself at the cursor standing in it.
   // Two ordinary pointer handlers on our own root answer the question with no synchronisation.

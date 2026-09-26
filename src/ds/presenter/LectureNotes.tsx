@@ -280,20 +280,34 @@ function Entry({ entry, cat, onEdit, onCommit, onDelete, first }: {
      straight through the reserved action space and under the pencil and bin (owner, 2026-09-04,
      with a screenshot of exactly that). `pretty` still governs where an ordinary sentence breaks. */
   const textStyle: CSSProperties = { fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-body)', lineHeight: 'var(--lh-normal)', color: 'var(--text-1)', textWrap: 'pretty', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap', userSelect: 'text', WebkitUserSelect: 'text', cursor: 'text' }
+  /* THE FIRST ROW'S TOP PADDING IS SMALLER (4 against 7), OB-207. The 7 is half of the 14px between
+     two notes' words — it pairs with the row below it across a hairline. The first row has no row
+     above it and no hairline, only the column head, which pads itself 8px underneath: the full 7
+     there is a third helping of a gap two other boxes are already giving (owner, 2026-09-17). Its
+     BOTTOM stays 7, so the rhythm between rows is unchanged, and the hover pill still clears the
+     words at the top by 4. */
   return (
     <div data-lecture-note={entry.id} onMouseEnter={() => { setHot(true); show() }} onMouseLeave={() => { setHot(false); hide() }} style={{
-      display: 'flex', gap: 9, position: 'relative', padding: '7px 4px', margin: '0 -4px',
+      display: 'flex', alignItems: 'flex-start', gap: 9, position: 'relative', padding: first ? '4px 4px 7px' : '7px 4px', margin: '0 -4px',
       borderTop: first ? 'none' : '1px solid ' + (hot ? 'transparent' : 'var(--border-hair)'),
       borderRadius: 'var(--radius-xs)', background: hot ? 'var(--bark-50)' : 'transparent',
       /* the refusal lives on the COLUMN (see the During wrapper), so the row inherits it and the
          note's own words below opt back in — one place for the rule, one for the exception */
       transition: 'var(--transition-wash)',
     }}>
-      <CategoryTag cat={cat} />
+      {/* THE TAG SITS ON THE NOTE'S FIRST LINE, NOT ON THE ROW'S TOP EDGE (OB-207). The row is
+         `alignItems: 'flex-start'` (a multi-line note plus its meta line must not drag the tag
+         down to the block's centre), which by itself puts the tag's own TOP flush with the text's
+         top — 0.9px short of the first line's visual centre (`--fs-body` 13 × `--lh-normal` 1.6 =
+         20.8px line box, the tag 19px). DERIVED, not chosen: half the difference, rounded to 1.
+         The wrapper exists only when a tag is drawn — an empty flex item would still be paid its
+         9px gap, and an entry with no category draws no tag at all. */}
+      {cat ? <span style={{ marginTop: 1, display: 'inline-flex' }}><CategoryTag cat={cat} /></span> : null}
       <div style={{ minWidth: 0, flex: 1, paddingRight: acts ? LECTURE_NOTES_METRICS.actions : 0 }}>
         {/* AN ENTRY IS READ, not glanced at, so it takes `--fs-body` — the ramp's rule ("anything
            a person READS is --fs-body or larger") over v18's 12px, which was drawn before this
-           column was a real scroller. The meta line under it stays 11px: mono numerals. */}
+           column was a real scroller. The meta line under it is `--fs-caption`, not `--fs-micro`:
+           see the line itself. */}
         {inPlace ? (
           /* keyed by `editing` so esc's revert is a remount; NO `onOpen` — the words stay a reading
              surface and the pencil is the only way in, exactly as on the prepared prose. `pre-wrap`
@@ -305,7 +319,15 @@ function Entry({ entry, cat, onEdit, onCommit, onDelete, first }: {
         ) : (
           <div style={textStyle}>{entry.text}</div>
         )}
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-micro)', color: 'var(--text-3)', marginTop: 2 }}>{entry.when}</div>
+        {/* `--fs-caption` (12px), NOT `--fs-micro` (11px), OB-207. It is not a CSS clip (no ancestor
+           overflow reaches it, and content-box against border-box makes no difference here), and the
+           digits are correct ("00:00" — a note saved in Preview, where the clock has not started).
+           At 11px, mono digits this tight over-anti-alias into blobs on a real screen and photograph
+           as "AA·AA"; `--fs-caption` is also the token's own use case — "meta lines" — where
+           `--fs-micro` is "step numbers, tags". `overflowWrap: 'anywhere'` is the same NEVER-CLIPPED
+           guard the note's own words carry: an unusually long `when` wraps rather than running past
+           the row. */}
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-caption)', color: 'var(--text-3)', marginTop: 2, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{entry.when}</div>
       </div>
       {acts ? (
         /* `reveal` IS THE VISIBILITY PROP — the same lesson the prepared pencil paid for. This span
@@ -843,7 +865,7 @@ export function LectureNotes({
            words opting back in inside `Entry`. */
         userSelect: 'none', WebkitUserSelect: 'none' }} style={{ flex: 1, minHeight: 0, userSelect: 'none', WebkitUserSelect: 'none', ...style }}>
         <Head title={duringLabel} trailing={<Tally tally={tally} entries={shownList.length} />} />
-        <PaneScroller style={{ paddingRight: 6 }}>{list}</PaneScroller>
+        <PaneScroller>{list}</PaneScroller>
       </Pane>
     )
   }
@@ -966,8 +988,18 @@ export function LectureNotes({
              is, not where the rows are; the opt-in stays on `entry.text` in `Entry`. */
           userSelect: 'none', WebkitUserSelect: 'none' }}>
           <Head title={duringLabel} trailing={<Tally tally={tally} entries={shownList.length} />} />
-          <PaneScroller style={{ paddingRight: 6 }}>{list}</PaneScroller>
-          <div style={{ flexShrink: 0, paddingTop: 8 }}>
+          {/* NEITHER END OF THIS SCROLLER IS AT A CORNER, so it carries neither `SCROLLER_INSET`
+             (12), OB-207. The bottom has the composer against it, the top has the "During class"
+             head above it — and the HEAD ALREADY OWNS THE HEAD-TO-BODY GAP: `PaneColumnHeader` pads
+             itself 8px underneath, on every column in the system. Two passes at 6px were each a
+             second helping of the same gap (owner, 2026-09-17). At 0 the room under the head is the
+             head's 8 plus the first row's own 4. The inset exists so a scrollbar's end arrows clear
+             a pane's rounded corner; the PREPARED column's scroller keeps both, because its body is
+             an in-place editor whose outline needs the room. The list is an ordinary top-down
+             column, newest first, with no spacer and no `minHeight`, and the composer stays at the
+             foot STRUCTURALLY: this scroller is `flex: 1` and the composer follows it outside. */}
+          <PaneScroller style={{ marginTop: 0, marginBottom: 0 }}>{list}</PaneScroller>
+          <div style={{ flexShrink: 0, paddingTop: 6 }}>
             <Composer categories={categories} category={category} onCategoryChange={onCategoryChange}
               draft={draft} onDraftChange={onDraftChange} onSave={onSave ? (n) => onSave(stop != null ? { ...n, stop } : n) : undefined} onAddCategory={onAddCategory || onNewCategory}
               placeholder={composerPlaceholder} menuOpen={menuOpen} onMenuOpenChange={onMenuOpenChange} />

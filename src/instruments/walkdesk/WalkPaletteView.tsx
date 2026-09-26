@@ -13,9 +13,13 @@
 import { useAuthorDraft } from '../../state/walk/authordraft'
 import Palette from './Palette'
 import { useHover } from '../../state/bus'
-import type { Bus } from '../../state/bus'
+import type { Bus, HoverBus } from '../../state/bus'
 
-export default function WalkPaletteView({ bus }: { bus: Bus }) {
+/** the slice of the bus the palette reads and writes: hover, plus the select, look and match
+ *  channels it publishes to the map. */
+type WalkPaletteViewBus = Pick<Bus, 'setFocus' | 'peekAt' | 'setMatches'> & HoverBus
+
+export default function WalkPaletteView({ bus }: { bus: WalkPaletteViewBus }) {
   const sync = useHover(bus)
   const state = useAuthorDraft()
 

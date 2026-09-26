@@ -13,7 +13,7 @@
 
 import { useEffect, useRef } from 'react'
 
-import { DomainDot, LEGEND_INSET, PaneScroller, topicPaint, wrapTip } from '@/ds'
+import { DomainDot, LEGEND_INSET, PaneScroller, scrollerPadRight, topicPaint, wrapTip } from '@/ds'
 import { byId, domainIds, edges, EDGE_COLOR, EDGE_LABEL, topicHueOf, topicsUnder } from '../corpus/graph'
 import type { Bus } from '../state/bus'
 import type { EdgeType } from '../corpus/graph'
@@ -58,7 +58,10 @@ const typeChips = (types: [EdgeType, number][]) => (
   </span>
 )
 
-export default function WalkView({ bus }: { bus: Bus }) {
+/** the slice of the bus the edge-follower reads and writes */
+type WalkViewBus = Pick<Bus, 'route' | 'setRoute'>
+
+export default function WalkView({ bus }: { bus: WalkViewBus }) {
   const { route, setRoute } = bus
   const scroller = useRef<HTMLDivElement>(null)
 
@@ -161,7 +164,7 @@ export default function WalkView({ bus }: { bus: Bus }) {
                   {choices.length === 0 ? 'no outgoing links — dead end' : `${choices.length} outgoing`}
                 </div>
 
-                <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1 pr-1">
+                <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1" style={{ paddingRight: 4 + scrollerPadRight() /* DS OB-210 */ }}>
                   {choices.map((c) => {
                     const revisitAt = route.indexOf(c.target)
                     const isChosen = c.target === chosen

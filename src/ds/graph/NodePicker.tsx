@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { DomainDot } from './DomainDot'
 import { NodeChip, CHIP_METRICS as M } from './NodeChip'
 import { IconButton, useClipped } from '../chrome/IconButton'
+import { scrollerPadRight } from '../chrome/Pane'
 
 export interface NodeOption {
   id: string
@@ -179,7 +180,7 @@ export function NodePicker({
           />
         </div>
       ) : null}
-      <div style={{ overflowY: 'auto', padding: 4 }}>
+      <div style={{ overflowY: 'auto', padding: 4, paddingRight: 4 + scrollerPadRight() /* DS OB-210 */ }}>
         {filtered.length
           ? renderRows(filtered, 0, (id) => { onChange?.(id); setOpen(false) }, ROW_PAD)
           : <div style={{ padding: '7px 9px', fontSize: 'var(--fs-caption)', color: 'var(--text-3)' }}>no nodes</div>}

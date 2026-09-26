@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { Bullet, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, ExplorerRail, ExplorerRailCorner, ExplorerRailMath, explorerRailWidth, FindMark, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_DIVIDER_METRICS, PaneDivider, paneFit, clampDesk, deskBounds, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, REPLAY_PATH, STOP_CARD_METRICS, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkComplete, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
+import { ARROW_BOW_MAX_DEG, ARROW_MIN_SHAFT_HEADS, Bullet, labelCase, LabelCut, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, ExplorerRail, ExplorerRailCorner, ExplorerRailMath, explorerRailWidth, FindMark, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_DIVIDER_METRICS, PaneDivider, paneFit, clampDesk, deskBounds, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, REPLAY_PATH, STOP_CARD_METRICS, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkComplete, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
 import { ORBIT_METRICS, OrbitMath, PANE_PLACEHOLDER_METRICS, PREVIEW_BANNER_METRICS, RELATION_STATS_METRICS, RelationOrbit, RelationStats, RelationsRailMath, StatsMath, orbitKinds, orbitMarks, orbitWedge, statKindRows } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
@@ -146,6 +146,23 @@ describe('ported but not adopted DS components', () => {
   // consumers are inside src/ds; no app code needs the raw constant yet.
   it('CARET_INK — the caret glyph ink offset; TreeRow and NodeRail are its only readers so far', () => {
     expect(CARET_INK).toBe(0.964)
+  })
+
+  // OB-197 (#343): the two RATIOS the short-relation fix is built on. The map reads them through
+  // `minShaft` and `capBow`, which apply them — so no app code needs the raw number, and none
+  // should type it: a px floor is a different arrow at every zoom, which is why the floor is
+  // three head-LENGTHS and the bow cap is an ANGLE.
+  it('ARROW_MIN_SHAFT_HEADS / ARROW_BOW_MAX_DEG — the floor and the cap, applied by minShaft and capBow', () => {
+    expect(ARROW_MIN_SHAFT_HEADS).toBe(3)
+    expect(ARROW_BOW_MAX_DEG).toBe(20)
+  })
+
+  // OB-223 (#343): the paper case a cell name is drawn in. The map spreads `LabelCut.case(...)`
+  // and never types the paint order; `labelCase` is the same function under its lower-case name,
+  // which is how the DS publishes it, so nothing in the app imports it by that name.
+  it('labelCase — the paper case, reached by the app through LabelCut.case', () => {
+    expect(LabelCut.case).toBe(labelCase)
+    expect(LabelCut.casePx).toBe(3.5)
   })
 
   // OB-063 (#154's caret question, split into design-sync's OB-063): the nesting pair

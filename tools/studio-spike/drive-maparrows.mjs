@@ -404,6 +404,22 @@ const relationsOnTop = await page.evaluate(() => {
 })
 ok('every relationship arrow paints AFTER the walk, so it sits on top', relationsOnTop === true, String(relationsOnTop))
 
+// ...AND THE WALK'S PINS ARE THE ONE EXCEPTION (OB-221). A pin carries the only copy of its stop's
+// address, while a road is a line that continues either side of a boundary, so the pins group is
+// the LAST child of the scene — after the selection overlay, its roads and its focus border — and
+// the arrows above stay where they were. Both facts asserted, because moving all three groups
+// would "tidy" the walk and hide boundaries for nothing.
+const pinsExcept = await page.evaluate(() => {
+  const pins = document.querySelector('svg[data-nested] [data-routepins]')
+  const rels = document.querySelector('svg[data-nested] [data-seloverlay]')
+  if (!pins || !rels) return null
+  return {
+    afterRelations: (rels.compareDocumentPosition(pins) & 4) !== 0,
+    lastChild: [...pins.parentNode.children].at(-1) === pins,
+  }
+})
+ok('the walk\'s PINS paint after the relations, and are the last child of their parent (OB-221)', !!pinsExcept && pinsExcept.afterRelations && pinsExcept.lastChild, JSON.stringify(pinsExcept))
+
 // AND PAINTING ON TOP IS NOT THE SAME AS READING ON TOP. The recede shipped,
 // passed every check above, and the owner still reported the relations hard to
 // see — because the two layers were sized the wrong way round: a relation head
@@ -477,6 +493,101 @@ await page.screenshot({ path: OUT + '/map-arrows.png' })
   await page.screenshot({ path: OUT + '/map-arrows-close.png', clip: { x: Math.max(0, x), y: Math.max(0, y), width: right - Math.max(0, x), height: bottom - Math.max(0, y) } })
 }
 
+// ── OB-223: cell names wear the paper case; the ghost heading is ONE opaque tone ─────────────
+// Measured on the shipped map (2026-09-18, `Discrete Mathematics` selected): a selected name fell to
+// 1.31:1 where it crossed a ghost stroke and 3.17:1 against its own washed fill. Two faults and only
+// the second was reported. What the DOM can say exactly: every cell name is drawn in the paper case
+// (`paintOrder: stroke` so the letterform keeps its weight), the ghost is a resolved OPAQUE oklch at
+// full opacity, and it paints ABOVE the washes and BELOW the names. The contrast of the selected ink
+// against its washed fill is a number, asserted in territoryfill.test.ts over every region; equal
+// ghost pixels over two differently-filled cells is a picture, taken below for the eye.
+const selectACell = async () => {
+  for (const fy of [0.5, 0.35, 0.65]) {
+    for (const fx of [0.5, 0.36, 0.64, 0.24, 0.76]) {
+      await page.mouse.click(pane.x + pane.width * fx, pane.y + pane.height * fy)
+      await page.waitForTimeout(400)
+      if ((await page.locator('svg[data-nested] [data-seloverlay]').count()) === 1) return true
+      await page.keyboard.press('Escape')
+    }
+  }
+  return false
+}
+ok('a cell can be selected for the ghost check', await selectACell())
+await page.mouse.move(4, 4)
+await page.waitForTimeout(300)
+const ghostFacts = await page.evaluate(() => {
+  const svg = document.querySelector('svg[data-nested]')
+  const after = (a, b) => !!a && !!b && (a.compareDocumentPosition(b) & 4) !== 0
+  const washes = svg.querySelector('[data-washes]')
+  const names = [...svg.querySelectorAll('[data-label]')]
+  const sel = svg.getAttribute('data-sel')
+  const selName = sel ? svg.querySelector(`[data-label="${sel}"]`) : null
+  const cased = (e) => !!e && e.getAttribute('paint-order') === 'stroke' && (e.getAttribute('stroke') || '').includes('surface-paper')
+    && e.getAttribute('stroke-linejoin') === 'round' && Number(e.getAttribute('stroke-width')) > 0 && e.getAttribute('stroke-opacity') === null
+  // the ghost headings: full-opacity region names and deep ghosts (the root's own name is 0.55 and the
+  // hovered ghost steps aside to 0.03, so neither is counted)
+  const ghosts = [...svg.querySelectorAll('[data-regionlabel], [data-ghostlabel]')].filter((e) => Number(e.getAttribute('opacity')) > 0.95)
+  return {
+    washes: !!washes,
+    washesFillOnly: !!washes && washes.querySelectorAll('[stroke]').length === 0,
+    names: names.length,
+    namesCased: names.filter(cased).length,
+    selectedName: !!selName,
+    selectedCased: cased(selName),
+    ghosts: ghosts.map((e) => ({ fill: e.getAttribute('fill'), opacity: e.getAttribute('opacity'), aboveWashes: after(washes, e), belowNames: names.length === 0 || after(e, names[0]) })),
+  }
+})
+ok('the tints of hover, spotlight and selection are their own group under the label layer, fills only', ghostFacts.washes && ghostFacts.washesFillOnly, JSON.stringify(ghostFacts))
+ok('there are cell names to judge', ghostFacts.names > 0, `${ghostFacts.names} names`)
+ok('EVERY cell name is drawn in the paper case — paint-order stroke, --surface-paper, round joins, no alpha', ghostFacts.namesCased === ghostFacts.names, `${ghostFacts.namesCased} of ${ghostFacts.names}`)
+ok('and the SELECTED name wears it exactly as the others do — the case is not a selection channel', !ghostFacts.selectedName || ghostFacts.selectedCased, `selected name present: ${ghostFacts.selectedName}`)
+ok('the ghost headings are ONE opaque tone — oklch(0.640 0.110 <hue>), no alpha — at full opacity', ghostFacts.ghosts.length > 0 && ghostFacts.ghosts.every((g) => /^oklch\(0\.640 0\.110 [\d.]+\)$/.test(g.fill || '') && g.opacity === '1'), JSON.stringify(ghostFacts.ghosts))
+ok('and painted ABOVE the washes and BELOW the names, so a name crossing one survives on its case', ghostFacts.ghosts.every((g) => g.aboveWashes && g.belowNames), JSON.stringify(ghostFacts.ghosts))
+await page.screenshot({ path: OUT + '/map-ghost-selected.png' })
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+
+// ── OB-197: a relation between two ADJACENT territories draws a line you can read ────────────
+// The arithmetic is unit-tested (`extendToMin`, `capBow`); what only a browser can say is what the map
+// DRAWS. Every road carries its own facts as attributes — the drawn chord in screen px, whether it was
+// lengthened, and how far its head points off its own chord — and this reads them across several
+// selections, because one selection may have no stub in it. THE FLOOR IS THE DS'S, not the map's: three
+// head-lengths of the set's head. A set holding any short road resolves to the published 8px head, so
+// the floor is 24px there and nowhere is it below it.
+const readRoads = () =>
+  page.$$eval('svg[data-nested] [data-seledge]', (gs) => gs.map((g) => ({
+    key: g.getAttribute('data-seledge'), len: Number(g.getAttribute('data-rlen')), grew: g.getAttribute('data-rgrew') === '1',
+    head: Number(g.getAttribute('data-rhead')), dir: g.getAttribute('data-dir'),
+  })))
+const roadsSeen = []
+let stubShot = false
+for (const fy of [0.5, 0.35, 0.65]) {
+  for (const fx of [0.5, 0.36, 0.64, 0.24, 0.76]) {
+    await page.mouse.click(pane.x + pane.width * fx, pane.y + pane.height * fy)
+    await page.waitForTimeout(350)
+    if ((await page.locator('svg[data-nested] [data-seloverlay]').count()) === 1) {
+      const roads = await readRoads()
+      roadsSeen.push(...roads)
+      if (!stubShot && roads.some((r) => r.grew)) {
+        stubShot = true
+        await page.mouse.move(4, 4)
+        await page.waitForTimeout(250)
+        await page.screenshot({ path: OUT + '/map-relations-stub.png' })
+      }
+    }
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(150)
+  }
+}
+const FLOOR = 24
+const grown = roadsSeen.filter((r) => r.grew)
+ok('the probe drew relations to judge', roadsSeen.length > 0, `${roadsSeen.length} roads over the probed selections`)
+ok('no relation is drawn shorter than the floor — three head-lengths, 24px at the set\'s 8px head', roadsSeen.every((r) => r.len >= FLOOR - 0.06), `shortest ${Math.min(...roadsSeen.map((r) => r.len)).toFixed(2)}px`)
+ok('a lengthened road lands EXACTLY on the floor, and nothing is drawn longer than it was asked for', grown.every((r) => Math.abs(r.len - FLOOR) < 0.06), grown.map((r) => r.len.toFixed(2)).join(' ') || 'none lengthened')
+ok('a road already past the floor is drawn at its own length — `grew` is false and nothing moves', roadsSeen.filter((r) => !r.grew).every((r) => r.len >= FLOOR - 0.06))
+ok('no arrowhead points off its own road by more than the 20 degrees the bow cap allows', roadsSeen.every((r) => r.head <= 20.05), `worst ${Math.max(...roadsSeen.map((r) => r.head)).toFixed(1)} degrees over ${roadsSeen.length} roads`)
+console.log(`OB-197 probe: ${roadsSeen.length} roads, ${grown.length} lengthened${grown.length ? '' : ' — NO stub was found in these selections, so the lengthening itself was not exercised'}`)
+
 await page.evaluate(() => localStorage.clear())
 await browser.close()
 vite.kill()
@@ -486,4 +597,4 @@ if (errors.length) {
   console.error('\n' + errors.length + ' failure(s):\n' + errors.join('\n'))
   process.exit(1)
 }
-console.log('\nall checks passed — shots at tools/studio-spike/shots/map-arrows{,-receded,-close,-deep}.png')
+console.log('\nall checks passed — shots at tools/studio-spike/shots/map-arrows{,-receded,-close,-deep}.png, map-ghost-selected.png and (when a stub was found) map-relations-stub.png')

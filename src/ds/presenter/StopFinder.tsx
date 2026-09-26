@@ -6,6 +6,7 @@ import { FlagMark } from '../chrome/FlagMark'
 import { FindMark } from '../chrome/FindMark'
 import { TextInput } from '../chrome/TextInput'
 import { IconButton, wrapTip } from '../chrome/IconButton'
+import { scrollerPadRight } from '../chrome/Pane'
 import { WalkPreview, previewAnchor } from '../nav/WalkPreview'
 import { portalInto } from '../chrome/portal'
 
@@ -231,7 +232,7 @@ export function StopFinder({ steps = [], activeStop = 0, roamingStop = null, fla
      `maxListHeight` by ordinary flex. Floor of four rows (`minListHeight`). */
   const room = anchor && typeof window !== 'undefined' ? Math.max(M.minListHeight + 60, window.innerHeight - (anchor.bottom + M.gap) - 8) : undefined
   const list = (
-    <div ref={listRef} role="listbox" style={{ flex: 1, minWidth: 0, minHeight: 0, maxHeight: M.maxListHeight, overflowY: 'auto', padding: 4 }}>
+    <div ref={listRef} role="listbox" style={{ flex: 1, minWidth: 0, minHeight: 0, maxHeight: M.maxListHeight, overflowY: 'auto', padding: 4, paddingRight: 4 + scrollerPadRight() /* DS OB-210 */ }}>
       {rows.length ? rows : <div style={{ padding: '14px 8px', fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', color: 'var(--text-3)', fontStyle: 'italic' }}>no stop matches "{query.trim()}"</div>}
     </div>
   )
