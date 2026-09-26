@@ -8,10 +8,12 @@
 // asks "what walks are there" asks HERE instead, where the answer is the
 // built-ins plus whatever the Walk·Desk has saved.
 //
-// It is pure and synchronous like the rest of src/model — no React. The store is
-// the same tiny subscribe/notify shape authordraft.ts uses; the two React
-// consumers bind it with useSyncExternalStore themselves, which is one line each
-// and keeps a hook out of the model layer.
+// It lives in state/, not model/, because the saved-walk list is module-level
+// mutable state backed by browser storage — the two things src/model/'s rule
+// ("pure arithmetic: no module state, no storage") rules out. It still holds no
+// hook: the store is the same tiny subscribe/notify shape authordraft.ts uses,
+// and the two React consumers bind it with useSyncExternalStore themselves, one
+// line each.
 //
 // `list()` returns a CACHED array, rebuilt only when the saved set changes.
 // useSyncExternalStore compares snapshots by identity and would loop forever on
@@ -20,6 +22,7 @@
 import { byId } from '../corpus/graph'
 import { WALKS } from '../corpus/walks'
 import type { Walk } from '../corpus/walks'
+import { platform } from '../platform'
 
 export type { Walk }
 
@@ -82,20 +85,13 @@ export function parseSaved(raw: string): Walk[] {
 // ── the store ───────────────────────────────────────────────────────────────
 
 function read(): Walk[] {
-  try {
-    const raw = localStorage.getItem(KEY)
-    return raw === null ? [] : parseSaved(raw)
-  } catch {
-    return []
-  }
+  const raw = platform.storage.get(KEY)
+  return raw === null ? [] : parseSaved(raw)
 }
 
 function write(walks: Walk[]): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(walks))
-  } catch {
-    // quota or availability — the walk still exists in this session
-  }
+  // refused (quota or availability) — the walk still exists in this session
+  platform.storage.set(KEY, JSON.stringify(walks))
 }
 
 let saved: Walk[] = read()

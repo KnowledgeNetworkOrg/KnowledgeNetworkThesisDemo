@@ -43,8 +43,96 @@ function toScreenInfo(s: ScreenDetailedish): ScreenInfo {
   }
 }
 
+// ── storage (#338 step 5) ────────────────────────────────────────────────────
+// The weak answer is a Map that forgets on reload. It is used when there is NO
+// localStorage at all (undefined or null): `set` then returns true, because the
+// value really is kept for this session. When localStorage EXISTS but a call
+// throws, the weak answer is the honest one instead — `get` returns null, `set`
+// returns false and keeps nothing, `remove` does nothing, `keys` returns [] —
+// and the Map is NOT written, because a later `get` that succeeded would read
+// localStorage and never see it. "Refused, so lost" is exactly today's behaviour.
+// Reaching for `localStorage` at all can throw too — a sandboxed frame without
+// `allow-same-origin`, or Chrome/Edge with site data blocked — and that is the
+// same refusal: the weak answer, and no Map write.
+//
+// `globalThis.localStorage` is looked up on EVERY call, never cached at module
+// load: the tests install and remove a fake per case with vi.stubGlobal after
+// this module has already been imported, so a cached copy would keep the stale
+// one.
+const memoryStore = new Map<string, string>()
+
+// The lookup lives in a guard of its own because the property READ itself is
+// what throws in a denied-storage frame — `'blocked'` means refused, not absent,
+// so it takes the weak answer rather than the in-memory one.
+function browserStore(): Storage | 'absent' | 'blocked' {
+  try {
+    return (globalThis.localStorage as Storage | undefined) ?? 'absent'
+  } catch {
+    return 'blocked'
+  }
+}
+
 export const webPlatform: Platform = {
   name: 'web',
+
+  storage: {
+    get(key) {
+      const ls = browserStore()
+      if (ls === 'absent') return memoryStore.get(key) ?? null
+      if (ls === 'blocked') return null
+      try {
+        return ls.getItem(key)
+      } catch {
+        return null
+      }
+    },
+    set(key, value) {
+      const ls = browserStore()
+      if (ls === 'absent') {
+        memoryStore.set(key, value)
+        return true
+      }
+      if (ls === 'blocked') return false
+      try {
+        ls.setItem(key, value)
+        return true
+      } catch {
+        return false
+      }
+    },
+    remove(key) {
+      const ls = browserStore()
+      if (ls === 'absent') {
+        memoryStore.delete(key)
+        return
+      }
+      if (ls === 'blocked') return
+      try {
+        ls.removeItem(key)
+      } catch {
+        // unavailable or blocked — the key stays
+      }
+    },
+    keys(prefix) {
+      const ls = browserStore()
+      if (ls === 'absent') {
+        const out: string[] = []
+        for (const k of memoryStore.keys()) if (k.startsWith(prefix)) out.push(k)
+        return out.sort()
+      }
+      if (ls === 'blocked') return []
+      try {
+        const out: string[] = []
+        for (let i = 0; i < ls.length; i++) {
+          const k = ls.key(i)
+          if (k !== null && k.startsWith(prefix)) out.push(k)
+        }
+        return out.sort()
+      } catch {
+        return []
+      }
+    },
+  },
 
   async enterFullscreen() {
     // requestFullscreen REJECTS (rather than resolving false) when it is refused:

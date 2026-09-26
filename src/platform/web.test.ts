@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { webPlatform } from './web'
 
@@ -130,5 +130,73 @@ describe('webPlatform.screens', () => {
         height: 768,
       },
     ])
+  })
+})
+
+describe('webPlatform.storage — small key-value storage that never throws (#338)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    // The throwing-lookup case defines the property directly (a getter) rather
+    // than via vi.stubGlobal, so vitest has no record of it; drop it by hand.
+    delete (globalThis as unknown as { localStorage?: unknown }).localStorage
+  })
+
+  it('round-trips through the in-memory fallback when there is no localStorage at all', () => {
+    vi.stubGlobal('localStorage', undefined)
+    expect(webPlatform.storage.get('pkt.walkdesk.draft')).toBeNull()
+    expect(webPlatform.storage.set('pkt.walkdesk.draft', '{"stops":[]}')).toBe(true)
+    expect(webPlatform.storage.get('pkt.walkdesk.draft')).toBe('{"stops":[]}')
+    expect(webPlatform.storage.keys('pkt.')).toEqual(['pkt.walkdesk.draft'])
+  })
+
+  it('answers false without throwing when the host refuses a write', () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error('QuotaExceededError')
+      },
+    })
+    expect(() => webPlatform.storage.set('pkt.x', 'y')).not.toThrow()
+    expect(webPlatform.storage.set('pkt.x', 'y')).toBe(false)
+  })
+
+  it('lists only the keys under the asked prefix, sorted', () => {
+    const map = new Map([
+      ['pkt.a', '1'],
+      ['other', '2'],
+      ['pkt.b', '3'],
+    ])
+    vi.stubGlobal('localStorage', {
+      get length() {
+        return map.size
+      },
+      key: (i: number) => [...map.keys()][i] ?? null,
+      getItem: (k: string) => map.get(k) ?? null,
+    })
+    expect(webPlatform.storage.keys('pkt.')).toEqual(['pkt.a', 'pkt.b'])
+  })
+
+  it('answers null when a read throws, rather than letting the throw through', () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => {
+        throw new Error('SecurityError')
+      },
+    })
+    expect(webPlatform.storage.get('pkt.x')).toBeNull()
+  })
+
+  it('treats a throwing LOOKUP as refused, not absent, and never throws', () => {
+    // A denied-storage frame throws on the property READ itself, before any
+    // getItem/setItem/removeItem can be called.
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new Error('SecurityError')
+      },
+    })
+    expect(webPlatform.storage.get('pkt.x')).toBeNull()
+    expect(webPlatform.storage.set('pkt.x', 'y')).toBe(false)
+    expect(webPlatform.storage.keys('pkt.')).toEqual([])
+    expect(() => webPlatform.storage.remove('pkt.x')).not.toThrow()
   })
 })

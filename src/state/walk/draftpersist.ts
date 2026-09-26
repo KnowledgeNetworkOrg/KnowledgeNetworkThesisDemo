@@ -27,6 +27,7 @@
 //   disagree: the tree is the only thing that could be wrong about its own ids.
 
 import { byId } from '../../corpus/graph'
+import { platform } from '../../platform'
 import { forEachStop, isBox } from './mockwalk'
 import type { Stop, Variant } from './mockwalk'
 
@@ -180,20 +181,13 @@ export function nextIds(stops: Stop[]): { box: number; vid: number } {
  * what is there is unusable. Never throws: a private-mode browser must open the
  * desk on a seed, not on a stack trace. */
 export function loadDraft(): DraftSnapshot | null {
-  try {
-    const raw = localStorage.getItem(KEY)
-    return raw === null ? null : parseDraft(raw)
-  } catch {
-    return null
-  }
+  const raw = platform.storage.get(KEY)
+  return raw === null ? null : parseDraft(raw)
 }
 
 /** persist the draft. Never throws — a full or unavailable store must not break
  * an edit, it just means this session won't be there tomorrow. */
 export function saveDraft(s: DraftSnapshot): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(s))
-  } catch {
-    // quota or availability — the desk keeps working, unpersisted
-  }
+  // refused (quota or availability) — the desk keeps working, unpersisted
+  platform.storage.set(KEY, JSON.stringify(s))
 }

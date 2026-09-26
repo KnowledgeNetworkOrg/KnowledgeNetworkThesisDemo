@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { byId } from '../../corpus/graph'
-import type { Walk } from '../../model/walkstore'
+import type { Walk } from '../walkstore'
 import { leafIds, resolveRoad, routeStepsOf } from './mockwalk'
 import { routeLeafIds, routeNumbers } from '../../model/route'
 import type { Stop } from './mockwalk'

@@ -13,8 +13,8 @@
 import { useSyncExternalStore } from 'react'
 
 import { CORPUS_NAME, topicIds } from '../../corpus/graph'
-import { mintId, saveWalk, walkById } from '../../model/walkstore'
-import type { Walk } from '../../model/walkstore'
+import { mintId, saveWalk, walkById } from '../walkstore'
+import type { Walk } from '../walkstore'
 import { loadDraft, nextIds, saveDraft } from './draftpersist'
 import { isBox, isFork, isLeaf, leafStops, resolveRoad } from './mockwalk'
 import type { Stop, Variant } from './mockwalk'

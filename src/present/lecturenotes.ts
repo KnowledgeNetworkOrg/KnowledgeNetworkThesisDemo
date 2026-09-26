@@ -27,6 +27,7 @@
 // never their lecture.
 
 import type { NoteCategory } from '@/ds'
+import { platform } from '../platform'
 
 /** one note taken during the lecture, as this store keeps it and the pane draws it */
 export interface LectureNoteRecord {
@@ -81,9 +82,9 @@ export function notebookKey(source: string, walkId?: string | null): string {
 const EMPTY: LectureNotebook = { notes: [], prepared: {} }
 
 function readJson<T>(key: string, fallback: T): T {
+  const raw = platform.storage.get(key)
+  if (raw === null) return fallback
   try {
-    const raw = localStorage.getItem(key)
-    if (raw === null) return fallback
     const v = JSON.parse(raw)
     return v && typeof v === 'object' ? (v as T) : fallback
   } catch {
@@ -92,11 +93,8 @@ function readJson<T>(key: string, fallback: T): T {
 }
 
 function writeJson(key: string, value: unknown): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value))
-  } catch {
-    // quota or availability — the lecture keeps working, unpersisted
-  }
+  // refused (quota or availability) — the lecture keeps working, unpersisted
+  platform.storage.set(key, JSON.stringify(value))
 }
 
 /** the walk's notebook, or an empty one. Never throws and never returns a

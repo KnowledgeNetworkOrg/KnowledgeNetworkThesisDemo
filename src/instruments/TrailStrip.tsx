@@ -10,7 +10,7 @@ import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { IconButton, LEGEND_INSET, PaneScroller, TrailChip, wrapTip } from '@/ds'
 
 import { byId, topicHueOf } from '../corpus/graph'
-import { listWalks, subscribeWalks } from '../model/walkstore'
+import { listWalks, subscribeWalks } from '../state/walkstore'
 import type { TrailVia } from '../model/nav'
 import type { Bus } from '../state/bus'
 
