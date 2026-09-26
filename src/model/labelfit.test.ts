@@ -6,7 +6,8 @@
 
 import { describe, expect, test } from 'vitest'
 
-import { fitLabel, fitRegionLabel } from './labelfit'
+import { fitLabel, fitRegionLabel, keepClearOfEarlier, regionLabelBox } from './labelfit'
+import type { LabelBox } from './labelfit'
 import { regionChordAt } from './nested'
 import type { Territory } from './nested'
 import type { XY } from './derive'
@@ -91,6 +92,108 @@ describe('fitRegionLabel — wrap first, shrink instead of dropping', () => {
       expect(l.x).toBeGreaterThanOrEqual(0)
       expect(l.x).toBeLessThanOrEqual(10)
     }
+  })
+})
+
+// #369: with the Explorer rail open, two L0 domain names each fit their own region and still met
+// by ~3px, because the fit above looks at ONE name and its own cell. These pin the second gate: the
+// box a drawn name occupies, and which of a list of names survive each other. Like the fitLabel
+// tests below, they run without a canvas, so widths are `textWidth`'s no-document fallback —
+// what is pinned is the relationships (centred, wider for more text, linear in size), not a
+// glyph measurement; the browser driver is what proves the box against the rendered face.
+describe('regionLabelBox — the box a drawn region name occupies (#369)', () => {
+  const line = (x: number, y: number, text: string) => ({ x, y, text })
+
+  test('a name with no lines has no box', () => {
+    expect(regionLabelBox([], 12, 800)).toBeNull()
+  })
+
+  test('the box is centred on the line (text-anchor: middle) and wider for a longer name', () => {
+    const short = regionLabelBox([line(50, 20, 'Sys')], 12, 800)!
+    const long = regionLabelBox([line(50, 20, 'Systems Programming')], 12, 800)!
+    expect((short.x0 + short.x1) / 2).toBeCloseTo(50)
+    expect((long.x0 + long.x1) / 2).toBeCloseTo(50)
+    expect(long.x1 - long.x0).toBeGreaterThan(short.x1 - short.x0)
+  })
+
+  test('the box grows in step with the font size', () => {
+    const small = regionLabelBox([line(50, 20, 'Systems')], 10, 800)!
+    const big = regionLabelBox([line(50, 20, 'Systems')], 20, 800)!
+    expect(big.x1 - big.x0).toBeCloseTo(2 * (small.x1 - small.x0))
+    expect(big.y1 - big.y0).toBeCloseTo(2 * (small.y1 - small.y0))
+  })
+
+  test('the baseline sits inside the box, with more of it above than below', () => {
+    const b = regionLabelBox([line(50, 20, 'Systems')], 12, 800)!
+    expect(b.y0).toBeLessThan(20)
+    expect(b.y1).toBeGreaterThan(20)
+    expect(20 - b.y0).toBeGreaterThan(b.y1 - 20)
+  })
+
+  test('a wrapped name takes the union of its lines — taller than the same name on one line', () => {
+    const one = regionLabelBox([line(50, 20, 'Core')], 12, 800)!
+    const two = regionLabelBox([line(50, 14, 'Core'), line(50, 28, 'Science')], 12, 800)!
+    expect(two.y1 - two.y0).toBeCloseTo(one.y1 - one.y0 + 14)
+    expect(two.x1 - two.x0).toBeGreaterThan(one.x1 - one.x0) // the wider second line sets the width
+  })
+})
+
+describe('keepClearOfEarlier — the later of two colliding names is left out (#369)', () => {
+  const box = (x0: number, y0: number, x1: number, y1: number): LabelBox => ({ x0, y0, x1, y1 })
+
+  test('a name that meets an earlier one is dropped; the earlier one stays', () => {
+    expect(keepClearOfEarlier([box(0, 0, 10, 10), box(5, 5, 15, 15)])).toEqual([true, false])
+  })
+
+  test('names that are all clear of each other all stay', () => {
+    expect(keepClearOfEarlier([box(0, 0, 10, 10), box(20, 0, 30, 10), box(0, 20, 10, 30)])).toEqual([true, true, true])
+  })
+
+  test('boxes must clear on BOTH axes to stay: sharing a column is not a collision', () => {
+    expect(keepClearOfEarlier([box(0, 0, 10, 10), box(2, 20, 12, 30)])).toEqual([true, true])
+  })
+
+  test('boxes that only touch along an edge do not meet', () => {
+    expect(keepClearOfEarlier([box(0, 0, 10, 10), box(10, 0, 20, 10)])).toEqual([true, true])
+  })
+
+  test('a dropped name blocks nobody: a third that met only the dropped one stays', () => {
+    // A meets B, B meets C, A and C are clear — B goes, and C has nothing left to collide with
+    const a = box(0, 0, 10, 10)
+    const b = box(8, 0, 18, 10)
+    const c = box(16, 0, 26, 10)
+    expect(keepClearOfEarlier([a, b, c])).toEqual([true, false, true])
+  })
+
+  test('a name that meets a kept name is dropped whether or not it also meets a dropped one', () => {
+    const a = box(0, 0, 10, 10)
+    const b = box(5, 0, 15, 10) // meets a — dropped
+    const c = box(8, 0, 18, 10) // meets a (kept) and b (dropped) — dropped, because of a
+    expect(keepClearOfEarlier([a, b, c])).toEqual([true, false, false])
+  })
+
+  test('list order decides which of two colliding names goes', () => {
+    const boxes: Record<string, LabelBox> = { sys: box(0, 0, 10, 10), cs: box(6, 4, 16, 14) }
+    const kept = (order: string[]) => {
+      const keep = keepClearOfEarlier(order.map((n) => boxes[n]!))
+      return order.filter((_, i) => keep[i])
+    }
+    expect(kept(['sys', 'cs'])).toEqual(['sys'])
+    expect(kept(['cs', 'sys'])).toEqual(['cs'])
+  })
+
+  test('a name with no box has no extent: it is kept and blocks nothing', () => {
+    expect(keepClearOfEarlier([null, box(0, 0, 10, 10), null, box(5, 5, 15, 15)])).toEqual([true, true, true, false])
+  })
+
+  test('no names, nothing to keep', () => {
+    expect(keepClearOfEarlier([])).toEqual([])
+  })
+
+  test('two real name boxes: close together the later goes, far apart both stay', () => {
+    const at = (x: number) => regionLabelBox([{ x, y: 20, text: 'Systems' }], 12, 800)!
+    expect(keepClearOfEarlier([at(0), at(1)])).toEqual([true, false])
+    expect(keepClearOfEarlier([at(0), at(500)])).toEqual([true, true])
   })
 })
 

@@ -12,6 +12,11 @@
 // the middle of a 948-line component where no test could see it. 2026-07-16
 // the region variant below closed the "labels overlap / region text not
 // wrapped" note: L0/L1 names wrap through the same mechanic now.
+//
+// Every fit here is ONE name against ITS OWN cell. Two names can each sit
+// inside their own region and still run into each other, so the L0 domain names
+// have a second gate at the bottom (#369): `keepClearOfEarlier` drops the later
+// of two names whose boxes meet.
 
 import { chordAt, regionChordAt } from './nested'
 import type { Territory } from './nested'
@@ -189,4 +194,69 @@ export function fitRegionLabel(title: string, rings: XY[][], cx: number, cy: num
     a = attempt(k)
   }
   return { lines: a.lines, shrink: k }
+}
+
+// ── Region names against EACH OTHER (#369) ───────────────────────────────────
+// `fitRegionLabel` fits a name into its own region and never looks at a
+// neighbour. With the Explorer rail open the map pane is narrower (196px at the
+// rail's default fit), and at the explore width two L0 domain names (`sys`,
+// `cs`) that each fit their own region meet by ~3px. The rule that was
+// missing is the same one `fitLabel`'s drop already is, one grain over: a name
+// that cannot be drawn without colliding is not drawn, and the hover tooltip
+// still has it.
+
+/** Nunito's declared ascent and descent, as `tokens/fonts.css` overrides them
+ *  (`ascent-override` 94.69%, `descent-override` 41.56%) — the box a drawn SVG
+ *  `<text>` reports runs from one to the other, not over the ink. */
+const REGION_ASCENT = 0.9469
+const REGION_DESCENT = 0.4156
+
+/** The box a region name occupies on screen — the union of its lines, in world
+ *  units, in the same measure the browser reports for the drawn `<text>`.
+ *
+ *  NOT `labelBox`, on purpose. That one is a keep-away box for walk pins and is
+ *  generous by design (the character estimate runs 1.11-1.25x wide, and it
+ *  reads cap height to descender). This one decides whether a NAME is drawn at
+ *  all, so the incentive is the opposite: a box wider or taller than the real
+ *  one drops a name that fits today. Width is MEASURED at the weight the name
+ *  is drawn at, as `fitLabel` measures, and height is the font's own.
+ *
+ *  `fs` is the size the name is actually drawn at (the fit's shrunk size, in
+ *  the same world-unit space as the lines), `weight` the CSS weight it is drawn
+ *  at. `x` on a line is its centre (`text-anchor: middle`), `y` its baseline. */
+export function regionLabelBox(lines: FitLine[], fs: number, weight: number): LabelBox | null {
+  if (lines.length === 0) return null
+  let x0 = Infinity
+  let y0 = Infinity
+  let x1 = -Infinity
+  let y1 = -Infinity
+  for (const l of lines) {
+    const half = textWidth(l.text, { fontPx: fs, weight }) / 2
+    x0 = Math.min(x0, l.x - half)
+    x1 = Math.max(x1, l.x + half)
+    y0 = Math.min(y0, l.y - fs * REGION_ASCENT)
+    y1 = Math.max(y1, l.y + fs * REGION_DESCENT)
+  }
+  return { x0, y0, x1, y1 }
+}
+
+/** Boxes that merely TOUCH along an edge do not meet — the same test the browser
+ *  driver applies to the drawn labels. */
+const boxesMeet = (a: LabelBox, b: LabelBox) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1
+
+/** Which names to keep, in the order given: `true` for a name whose box misses
+ *  every name KEPT before it, `false` for one that meets an earlier kept name.
+ *
+ *  The EARLIER name wins, and only KEPT names block — a name that was dropped
+ *  is not drawn, so it takes no room from a third that would have met only
+ *  it. A `null` box (a name with no lines) has no extent and is kept. The
+ *  caller orders the list, so the caller decides which of two colliding names
+ *  is the one that goes. */
+export function keepClearOfEarlier(boxes: (LabelBox | null)[]): boolean[] {
+  const kept: LabelBox[] = []
+  return boxes.map((b) => {
+    if (b && kept.some((k) => boxesMeet(k, b))) return false
+    if (b) kept.push(b)
+    return true
+  })
 }
