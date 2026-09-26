@@ -204,22 +204,36 @@ function groupViaBySource(rows: readonly ViaRelation[] | null | undefined) {
    becomes an anonymous flex item, which is layout-identical but cannot be measured or read back.
    Both runs are elements now, so a driver reads its own baselines out of the DOM instead of
    asserting them from the source. `data-rel-group-header` is a test hook only (it carries the
-   stable group WORD, 'direct' / 'via children', while the visible text is a sentence — OB-242).
-   THE HEADER IS NOW A SENTENCE (OB-242): "1 direct relationship", not "DIRECT 1". The count
-   leads, in its own mono face, and the noun — already pluralised by the caller — follows; both
-   sit on one baseline, the same rule OB-182 wrote for the label-and-count pair. */
-function RelGroupHeader({ label, noun, count, open, onClick }: { label: string; noun: string; count: number; open?: boolean; onClick?: () => void }) {
+   stable group WORD, 'direct' / 'via children', so a driver selects the header it means without
+   parsing the visible text). OB-242: THE LIST HEADER IS UNCHANGED — caps word, mono count, caret —
+   and the SENTENCE form ("1 direct relationship") is a `sentence` flag that only a hover card
+   passes, with the wording owned by `groupHeaderSentence`, never re-derived at a call site. */
+function RelGroupHeader({ label, count, open, onClick, sentence }: { label: string; count: number; open?: boolean; onClick?: () => void; sentence?: boolean }) {
   return (
     <div onClick={onClick} data-rel-group-header={label} style={{
-      fontSize: 11, fontWeight: 'var(--fw-bold)', color: 'var(--text-3)',
-      padding: '12px 2px 4px', display: 'flex', alignItems: 'baseline', gap: 5,
+      fontSize: 11, fontWeight: 'var(--fw-bold)', color: 'var(--text-3)', textTransform: sentence ? 'none' : 'uppercase',
+      letterSpacing: sentence ? '0em' : '.04em', padding: '12px 2px 4px', display: 'flex', alignItems: 'baseline', gap: 5,
       cursor: onClick ? 'pointer' : 'default', userSelect: 'none',
     }}>
-      {onClick ? <span style={{ display: 'inline-flex', alignSelf: 'center', alignItems: 'center', justifyContent: 'center', width: 14, height: 14, flexShrink: 0, marginTop: 1 }}><Caret open={open} /></span> : null}
-      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 'var(--fw-medium)' }}>{count}</span>
-      <span>{noun}</span>
+      {sentence
+        ? <span>{groupHeaderSentence(label, count)}</span>
+        : <Fragment>
+            {onClick ? <span style={{ display: 'inline-flex', alignSelf: 'center', alignItems: 'center', justifyContent: 'center', width: 14, height: 14, flexShrink: 0, marginTop: 1 }}><Caret open={open} /></span> : null}
+            <span>{label}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-3)', fontWeight: 'var(--fw-medium)' }}>{count}</span>
+          </Fragment>}
     </div>
   )
+}
+
+/** OB-242 — the wording for a hover card's group header, owned HERE and never at a call site:
+ *  "direct" qualifies the relationship and LEADS; "via children" is the PLACE it was found and
+ *  TRAILS the noun ("42 relationships via children"). Published on `REL_CARD_PARTS` so the orbit
+ *  hover card and this list can never disagree about how the same two facts read. */
+export function groupHeaderSentence(label: string, count: number): string {
+  return label === 'via children'
+    ? `${count} relationship${count === 1 ? '' : 's'} via children`
+    : `${count} ${label} relationship${count === 1 ? '' : 's'}`
 }
 
 /** THE GROUP HEADER, READABLE RATHER THAN RE-DRAWN. Published by the DS 2026-09-14 in the turn its
@@ -227,7 +241,7 @@ function RelGroupHeader({ label, noun, count, open, onClick }: { label: string; 
  *  `String(RelationCards)` cannot see — a specimen guarding the change had nothing to match. Same
  *  reason `LECTURE_NOTES_PARTS` and `PRESENTER_STRIP_PARTS` exist. `REL_CARD_PARTS.GroupHeader`
  *  IS `RelGroupHeader`: read it, do not mount it — `RelationCards` renders these itself. */
-export const REL_CARD_PARTS = { GroupHeader: RelGroupHeader, viaSourceDomain: viaSourceDomain }
+export const REL_CARD_PARTS = { GroupHeader: RelGroupHeader, groupHeaderSentence: groupHeaderSentence, viaSourceDomain: viaSourceDomain }
 
 /* ONE RULE PER BOUNDARY, and it governs both row forms below (DS OB-195, owner 2026-09-16: "is it
    necessary to have the two dividers between each card… it looks a bit distracting"). Every card
@@ -344,11 +358,13 @@ export function RelSourceGroup({ sourceLabel, sourcePathParts, sourceDomain, ite
       >
         <NodeChip mark="border-2" title={sourceLabel} path={sourcePathParts} domain={sourceDomain} focus width={leftWidth} maxLines={Math.max(2, Math.min(4, items.length + 1))} />
       </div>
-      {/* the bracket, and the empty 1px column that reserves its place on a one-TARGET group
-          (OB-224) — so a card with one target and a card with three still line up */}
+      {/* the bracket, on the TARGET count (OB-224): a single target is one hover unit and the
+          right-hand spine already collects its arrows, so no left divider — and no zero-width
+          spacer to reserve its place, which put 7px of blank in front of the connector for a rule
+          that is not there. The freed width is the connector's. */}
       {targets.length > 1
         ? <div style={{ width: 1, background: 'var(--border-hair)', opacity: 0.45, flexShrink: 0, margin: '4px 1px' }} />
-        : <div style={{ width: 1, flexShrink: 0 }} />}
+        : null}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: M.blockGap }}>
         {targets.map((t, i) => (
           <div
@@ -490,7 +506,7 @@ export function RelationCards({ source, direct = [], via = [], filterTargetId = 
     >
       {directRows.length ? (
         <Fragment>
-          <RelGroupHeader label="direct" noun={directRows.length === 1 ? 'direct relationship' : 'direct relationships'} count={directRows.length} open={groupOpen.direct} onClick={() => toggleGroup('direct')} />
+          <RelGroupHeader label="direct" count={directRows.length} open={groupOpen.direct} onClick={() => toggleGroup('direct')} />
           {groupOpen.direct ? (plainRows
             ? directRows.map((r) => {
                 const it = itemOf(r, onSelect, r.id)
@@ -507,7 +523,7 @@ export function RelationCards({ source, direct = [], via = [], filterTargetId = 
       ) : null}
       {viaRows.length ? (
         <Fragment>
-          <RelGroupHeader label="via children" noun={viaRows.length === 1 ? 'relationship via children' : 'relationships via children'} count={viaRows.length} open={groupOpen.via} onClick={() => toggleGroup('via')} />
+          <RelGroupHeader label="via children" count={viaRows.length} open={groupOpen.via} onClick={() => toggleGroup('via')} />
           {groupOpen.via ? (plainRows
             ? viaRows.map((vc, i) => {
                 const it = itemOf(vc.rel, onSelect, vc.rel.id + '-' + i)

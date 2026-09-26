@@ -5,8 +5,8 @@
 // under it, the shared preview card raised from a figure node (OB-229), the empty/no-follow rule
 // for a foreign hover and nothing chosen (OB-209), and the two-way lighting between the figure
 // and the map (OB-230). OB-242 and OB-224 are asserted through the connections pane's own cards,
-// whose single source this file shares (RelationCards.tsx) — the header reads as a sentence and
-// the source bracket keys off the target count.
+// whose single source this file shares (RelationCards.tsx) — the list header keeps its caps form
+// (OB-242) and the source bracket keys off the target count (OB-224).
 //
 // WHAT IT SELECTS BY, AND WHY NOT TITLES. Every surface it needs has a data-* hook:
 // `[data-relations-rail]` / `[data-relations-figure]` / `[data-relations-node]` /
@@ -172,24 +172,28 @@ if (topicId) {
     await page.evaluate((id) => document.querySelector('[data-relations-figure]')?.getAttribute('data-relations-figure') === id, topicId))
 }
 
-// ── 7. OB-242 — the connections pane's card header is a SENTENCE ────────────
+// ── 7. OB-242 — the connections pane's card header is UNCHANGED: caps, count, caret ──
 await page.getByLabel('studio-inst-connections').click()
 await page.waitForTimeout(800)
-const headerSentence = await page.evaluate(() => {
+const headerForm = await page.evaluate(() => {
   const h = document.querySelector('[data-rel-group-header="direct"]')
   if (!h) return null
   const spans = [...h.children].filter((c) => c.tagName === 'SPAN' && !c.querySelector('svg'))
-  return spans.map((s) => s.textContent).join(' ').trim()
+  const words = spans.map((s) => s.textContent).map((t) => t.trim()).filter(Boolean)
+  // a sentence header leads with the count ("1 direct relationship"); the unchanged header leads
+  // with the label word ("direct") and carries the count in a trailing span
+  return { words, hasCaret: !!h.querySelector('svg') }
 })
-ok('the "direct" group header reads as a sentence', !!headerSentence && /^\d+ direct relationships?$/.test(headerSentence), JSON.stringify(headerSentence))
-const viaSentence = await page.evaluate(() => {
+ok('the "direct" group header is the unchanged caps form, not a sentence',
+  !!headerForm && headerForm.words[0] === 'direct' && headerForm.hasCaret, JSON.stringify(headerForm))
+const viaForm = await page.evaluate(() => {
   const h = document.querySelector('[data-rel-group-header="via children"]')
   if (!h) return null
   const spans = [...h.children].filter((c) => c.tagName === 'SPAN' && !c.querySelector('svg'))
-  return spans.map((s) => s.textContent).join(' ').trim()
+  return spans.map((s) => s.textContent).map((t) => t.trim()).filter(Boolean)
 })
-if (viaSentence !== null) {
-  ok('the "via children" header is a sentence too', /^\d+ relationships? via children$/.test(viaSentence), JSON.stringify(viaSentence))
+if (viaForm !== null) {
+  ok('the "via children" header is the unchanged form too', viaForm[0] === 'via children', JSON.stringify(viaForm))
 }
 
 await page.evaluate(() => localStorage.clear())

@@ -303,7 +303,7 @@ if (aimedAt) {
   // ── 6. the cards, grouped by source ───────────────────────────────────────
   const groupHeaders = await page.evaluate(() => {
     const pane = document.querySelector('[aria-label="connections-pane"]')
-    return [...pane.querySelectorAll('[data-rel-group-header]')].map((h) => h.getAttribute('data-rel-group-header')).filter((t) => t === 'direct' || t === 'via children')
+    return [...pane.querySelectorAll('div')].map((d) => d.childNodes[1]?.textContent).filter((t) => t === 'direct' || t === 'via children')
   })
   ok('the cards carry a collapsible "direct" group', groupHeaders.includes('direct'), JSON.stringify(groupHeaders))
 
