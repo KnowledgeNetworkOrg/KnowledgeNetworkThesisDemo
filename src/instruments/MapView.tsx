@@ -219,7 +219,7 @@ const DOMAIN_NAME_WEIGHT = 800
 
 /** the slice of the bus the map reads and writes — its own members plus what playback needs,
  *  since `useWalkPlayback` writes the cursor and the focus. */
-export type MapViewBus = Pick<Bus, 'focus' | 'hover' | 'hoverStep' | 'peek' | 'matches' | 'route' | 'history' | 'trail' | 'clearFocus' | 'setHover' | 'endHover'> & PlaybackBus
+export type MapViewBus = Pick<Bus, 'focus' | 'hover' | 'hoverStep' | 'peek' | 'matches' | 'route' | 'history' | 'trail' | 'clearFocus' | 'setHover' | 'endHover' | 'hoverCenter'> & PlaybackBus
 
 /** `wall` (#267, DS OB-139 rule 4): the map as the room sees it when the professor holds it up.
  *  A still picture — every stop of the lecture a pin, the covered stops and the lit stop joined
@@ -966,6 +966,14 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
   }, [visibleKey])
 
   const selOutline = selDrawn ? outlineOf(selDrawn) : undefined
+  /* THE CENTRE LIGHTS ON ITS OWN SIGNAL (DS OB-230 clause 2, #342): the Document pane's relations
+     rail publishes `bus.hoverCenter` when its hub is pointed at, and the answer here is a modest
+     emphasis on the selected cell — a wider glow and a heavier border, never a colour change, so
+     it stays the same object rather than becoming a second highlight. It is NOT a reading of
+     `bus.hover`: that channel carries one id and the roads below light for whatever id it holds,
+     so the centre's own id would light every road at once. Only while a cell is actually drawn
+     as selected — a walk that drives the focus draws none, and there is then nothing to light. */
+  const centreLit = bus.hoverCenter && !!selOutline
 
   /* THE HEADER ROW'S PATH (OB-241 + OB-243): the selection's ancestry, walkable back up. The
      aim keeps its resting reading after a deselect while the LIT state goes out — the same
@@ -1437,8 +1445,9 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
             })}
             {sel && !wall && selOutline && (
               <>
-                {/* the glow's own blurred tint and the body wash, back to front, as they drew before */}
-                <path d={selOutline} fill={colorOf(sel)} fillOpacity={SELECTION_WASH.glow} strokeLinejoin="round" filter="url(#sel-glow)" />
+                {/* the glow's own blurred tint and the body wash, back to front, as they drew before; the
+                    glow brightens while the Document pane's hub is pointed at (`centreLit`, OB-230) */}
+                <path d={selOutline} fill={colorOf(sel)} fillOpacity={centreLit ? SELECTION_WASH.glowLit : SELECTION_WASH.glow} strokeLinejoin="round" filter="url(#sel-glow)" />
                 <path d={selOutline} fill={colorOf(sel)} fillOpacity={SELECTION_WASH.body} />
               </>
             )}
@@ -1697,9 +1706,9 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
                   every wash; the glow's blur and the white separator stay here. */}
               {selOutline && (
                 <>
-                  <path d={selOutline} fill="none" stroke={colorOf(sel)} strokeWidth={px(7)} strokeOpacity={0.5} strokeLinejoin="round" filter="url(#sel-glow)" />
+                  <path d={selOutline} fill="none" stroke={colorOf(sel)} strokeWidth={px(centreLit ? 11 : 7)} strokeOpacity={centreLit ? 0.85 : 0.5} strokeLinejoin="round" filter="url(#sel-glow)" />
                   <path d={selOutline} fill="none" stroke="#ffffff" strokeWidth={px(6)} strokeOpacity={0.98} strokeLinejoin="round" />
-                  <path data-seloutline d={selOutline} fill="none" stroke={colorOf(sel)} strokeWidth={px(4)} strokeLinejoin="round" />
+                  <path data-seloutline data-sel-lit={centreLit ? 1 : 0} d={selOutline} fill="none" stroke={colorOf(sel)} strokeWidth={px(centreLit ? 5.5 : 4)} strokeLinejoin="round" />
                 </>
               )}
               {bundles.map((bd) => {

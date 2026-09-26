@@ -848,8 +848,9 @@
       "src/ds/connections/RelationCards.tsx": {
         "from": "components/connections/RelationCards.jsx",
         "contract": "components/connections/RelationCards.d.ts",
-        "syncedAt": "2026-09-24",
+        "syncedAt": "2026-09-26",
         "deviations": [
+          "2026-09-26 OB-224 + OB-242 (#342) — TWO CHANGES, one file. (1) THE LEFT BRACKET FOLLOWS THE TARGET COUNT: `const bracket = !single`, where it read `items.length > 1`. A one-target card carrying two kinds no longer fences its source off from its only block, the right-hand SPINE is unchanged (it is per target), and the slot takes NO WIDTH when the hairline is not drawn — the first draft's 1px spacer was wrong and is not ported: with the two `rowGap`s around it, 7px of the 15px between the source pill and the shaft was held for a divider that is not there. (2) THE SENTENCE HEADER: `RelGroupHeader` gains `sentence` — '1 direct relationship', '7 direct relationships', '42 relationships via children' — and `groupHeaderSentence(label, count)` is published on `REL_CARD_PARTS`, so the plural and the word order are the component's and no call site carries either. The LIST header is unchanged (caps, count, caret). MOUNTED by `DocumentPanel.tsx`'s hover card. LOCAL, two: (a) test hooks, attributes only — `data-rel-sentence` (the whole sentence as one string) and `data-rel-bracket`, pinned by `relationcards.test.ts`; (b) `groupViaBySource` is EXPORTED, where the DS keeps it private: the hover card groups its via-children rows by source exactly as this list does, and a second copy of a grouping rule is how two surfaces disagree about which sources exist. Reported on #74.",
           "2026-09-14 OB-182 — re-ported the group header from the DS's 2026-09-14 source: `alignItems: 'baseline'` (was `center`), the caret keeps `alignSelf: 'center'` and its 1px lift, the label is wrapped in a bare `<span>` so it can be measured, and `REL_CARD_PARTS.GroupHeader` is published (on the barrel). One property; nothing else in the component changed. Test hook only: `data-rel-group-header`. `browsertest-connections.mjs` reads both runs' baselines out of the DOM after `fonts.ready`.",
           "2026-09-06 NEW FILE, OB-101 (#253). All four amendments are in: the drawn width is derived, repeated targets collapse onto one pill behind a 1px spine with `stacked` arrows and target-count hover, `blockGap` 13 and `arrowStacked` 26 are ported as the published PAIR, and `cardMax` 620 is applied as a maxWidth on the MEASURED container with `pillMax` 200 and no declared arrow maximum.",
           "LOCAL - the unfiltered height is held in STATE where the DS holds it in a ref. `react-hooks/refs` hard-errors on reading `.current` from a render body, and a hard error takes the whole component out of the lint pass. Still written from a layout effect, still only while nothing is filtered, with an equality guard; behaviour unchanged. Reported on #74.",
@@ -879,6 +880,31 @@
         "syncedAt": "2026-09-24",
         "deviations": [
           "2026-09-24 NEW FILE, OB-238 (#341) — the whole rail at its 2026-09-24 revision: the filter (`TextInput` + `FindMark`, pruning the tree IN PLACE, never a floating list), the `ContainTree` it drives, the `RailFrame` it wears, plus `ExplorerRailCorner` (the word-and-mark pairing made once, for a pane with a header row) and `explorerRailWidth`. Everything it passes through — `deselectable`, `open`/`onOpenUpdate`, `hoveredId`, `width`/`onWidthChange` — is the contracts of the components beside it, not new rail logic. ★ LOCAL, one: host rule 3 in the header says to fold `OpenOnSelect` ONCE per selection and merge `OpenForVisible` per view change, where the DS's .jsx comment still says to merge `OpenAncestors` over the map every render — that is the shape OB-244 was raised against, and the DS's own `ContainTree.d.ts` obligation 5 already carries the corrected rule, so the comment follows the contract and the stale sentence is reported on the receipt rather than followed. MOUNTED ON THE MAP PANE (`src/instruments/MapView.tsx`) in the same branch: the corner lives in the map's own upper row, the pane measures itself with `RailMath.usePaneWidth()`, the selection is the map's own focus, the open folds and the hover mirror are the host's (see the mount's comments), and the rail starts CLOSED — opening it narrows the canvas until two L0 region labels meet by ~3px (found by `browsertest-mapconnections.mjs`; raised as #369 rather than papered over). The Relations rail is #342's."
+        ]
+      },
+      "src/ds/connections/RelationOrbit.tsx": {
+        "from": "components/connections/RelationOrbit.jsx",
+        "contract": "components/connections/RelationOrbit.d.ts",
+        "syncedAt": "2026-09-26",
+        "deviations": [
+          "2026-09-26 NEW FILE, OB-229 (#342) — the figure at its 2026-09-22 revision, both amendments in: `orbitWedge(kindCount)` with the `minSectors` floor of 2 (one kind may not own the whole circle — pinned by `relationorbit.test.ts`, which fails with the floor at 1), and NO MARKS, NO DRAWING (a node with no relationships draws nothing, and `RelationStats` says so in words). One mark per RELATIONSHIP, angle is the kind, radius is the hop, the ring zone read from the pointer and never drawn as an element. Typed: `OrbitMark` is published, `orbitKinds` takes and returns `string` (the port's `Relation.kind` is `string`, where the .d.ts says `string | number`). LOCAL, four, none a behaviour: (1) `onHot`'s event is OPTIONAL — the .d.ts types it required, but the figure's own leave calls `onHot(null)` with none, so a host that dereferenced it would throw on every leave; (2) `hot` is normalised with `?? null` before it is compared with the pointer's key, because an undefined `hot` made `null !== undefined` fire `onHot(null)` on every pointer move; (3) `onHot?.()` where the .jsx writes `onHot && onHot()` — `@typescript-eslint/no-unused-expressions`; (4) test hooks, attributes only: `data-relation-orbit` on the svg, `data-orbit-wedge` on a washed wedge, `data-orbit-lit` on a mark's group and on the hub. ★ TWO DS QUESTIONS, NEITHER ADOPTED: the mark key is `<targetId>|<kind>` for the direct AND the via ring, so a node whose own relationship and a child's share a (target, kind) — or two children that both relate to the same outside node the same way — draw one mark twice on one spot under a duplicated React key. The DS's own `viaOf` (shell) has the same hazard. The HOST closes it here (`neighbourhoodOf` in `src/instruments/relations.ts` feeds ONE entry per (target, kind), which is also what `RelationsRail.d.ts` obligation 3 literally says), and the contract line is reported on the #342 receipt.",
+          "2026-09-26 ★ LOCAL, to report on #74 — the figure's cached bounding box (`rectRef`, read for the ring zone under an empty pointer) is ALSO dropped on pointer leave. The `.jsx` drops it only on window scroll and resize, so dragging the rail's seam moved the figure under a stale box and the pointer lit the wrong ring, off by the drag distance (30px in the rail's driver, against an inner ring of about 38px). Reaching the seam means leaving the figure, so the next move re-measures."
+        ]
+      },
+      "src/ds/connections/RelationStats.tsx": {
+        "from": "components/connections/RelationStats.jsx",
+        "contract": "components/connections/RelationStats.d.ts",
+        "syncedAt": "2026-09-26",
+        "deviations": [
+          "2026-09-26 NEW FILE, OB-235 (#342) — the READING of the neighbourhood that fills the space under the figure: two totals (neighbours and relationships, which do not agree on purpose), the hop split as a bar, the kinds as a descending chart, every control a hover. It is the figure's legend as much as its dashboard — the kind rows are the only place the figure's hues are named — and a count of zero draws `PanePlaceholder state=\"No relationships\" note=\"Nothing connects to this node\"` (a `note`, never a `gesture`). Typed; every prop documented. LOCAL, two: (1) BOTH bar tooltips (`title=` on the two segment spans) go through `wrapTip`, which the adherence sweep requires of every native tooltip on a DOM element and the DS source does not carry; (2) test hooks, attributes only: `data-relation-stats`, `data-stat` (the two totals), `data-stat-hop`, `data-stat-kind`."
+        ]
+      },
+      "src/ds/connections/RelationsRail.tsx": {
+        "from": "components/connections/RelationsRail.jsx",
+        "contract": "components/connections/RelationsRail.d.ts",
+        "syncedAt": "2026-09-26",
+        "deviations": [
+          "2026-09-26 NEW FILE, OB-229 + OB-235 (#342) — the relations rail whole: the figure, the hairline under it, the reading, and the `RailFrame` that hides it, plus `RelationsRailCorner` (word and mark paired once, for a pane with a header row) and `orbitBox` (the figure's box, DERIVED from `railWidth` so a host sizes its card against what the rail draws). THE CARD IS NOT IN HERE and there is no standing card list — the pane's own `NodePreviewLayer` owns the card, and `relationorbit.test.ts` pins that the rail's markup contains no card. `kind`/`hopSel`/`hop` are the rail's own state. A node with no relationships drops the figure AND the hairline and leaves the reading's placeholder. Typed; `RelationsRailCornerProps` is an interface here where the .d.ts types the corner's props inline, so each of its props carries its doc comment. LOCAL, one: `data-relations-figure` on the figure's wrapper, a test hook that also marks the box `figureRef` hands the pane's layer. NOT CLAIMED: OB-238's pane-minimum clause (the app has no minimum-width concept yet — #348), and this rail is not a reason to say OB-253's seam drag is driven; that is reported only where a driver drove it."
         ]
       },
       "src/ds/connections/ConnectionsRails.tsx": {
@@ -926,6 +952,22 @@
         "syncedAt": "2026-09-23",
         "deviations": [
           "2026-09-23 NEW FILE, #340 (OB-234) — the relations rail's mark: three discs (r 1.9) every pair linked, same construction and weight as OutlineMark. NOT MOUNTED: the closed relations pill that draws it (and keeps its count) is #342's. `size`/`style` documented here, DS's .d.ts leaves them bare, budget unchanged. Pair verified by tools/studio-spike/shot-markspair.mjs — see OutlineMark's entry."
+        ]
+      },
+      "src/ds/chrome/PreviewBanner.tsx": {
+        "from": "components/chrome/PreviewBanner.jsx",
+        "contract": "components/chrome/PreviewBanner.d.ts",
+        "syncedAt": "2026-09-26",
+        "deviations": [
+          "2026-09-26 NEW FILE, OB-209 (#342) — the one row a pane draws when its reading has been taken over by another surface's cursor, mounted ALWAYS and `PREVIEW_BANNER_METRICS.height` (16) tall whether or not anything is previewed, so a pointer sweeping the map never reflows the Document pane. Typed; every prop is documented, so the adherence budget stays at 84. ★ LOCAL, one: `data-preview-banner` is ALWAYS present and EMPTY AT REST, where the DS draws it only while previewing (`undefined` otherwise). The DS's own done-when for OB-209 asks a driver to assert `[data-preview-banner]` exists while nothing is hovered, which a missing attribute cannot satisfy — the .jsx contradicts its item. The value still reports the previewed node's id, so 'is it previewing' is `getAttribute() !== ''`. Reported on the #342 receipt. MOUNTED by `src/instruments/DocumentPanel.tsx` only: the Connections pane's own hand-rolled row (`data-childpreview`, Tailwind sky) is UNTOUCHED — OB-209 says that half dies with the pane (OB-226), and this run's card kept the pane's preview rule as it was."
+        ]
+      },
+      "src/ds/chrome/PanePlaceholder.tsx": {
+        "from": "components/chrome/PanePlaceholder.jsx",
+        "contract": "components/chrome/PanePlaceholder.d.ts",
+        "syncedAt": "2026-09-26",
+        "deviations": [
+          "2026-09-26 NEW FILE, OB-209 clauses 5 and 5(b) (#342) — the dashed 'a pane or a column with no subject' shape, at the 2026-09-22 revision: it draws BOTH a pane with no subject ('Nothing chosen', the Document pane's absence) AND a node with no answer ('No relationships', `RelationStats`' absence), so the words are all that tell them apart, and its second line comes in two kinds — `gesture` when there is a way out, `note` when there is not. Ported whole, with `note`. Typed; every prop documented. MOUNTED by `DocumentPanel.tsx` (the nothing-chosen state, OB-209 clause 6 / OB-260) and inside `RelationStats` (the no-relationships state)."
         ]
       },
       "src/instruments/ConnectionsPane.tsx": {

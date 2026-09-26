@@ -121,7 +121,9 @@ describe('OB-119 — the territory fill is pinned to its family', () => {
    * wash darkens the fill, and the ink was resolved against the pre-wash fill: 5.52:1 at rest fell to
    * 3.17:1 selected on the shipped map, under OB-102's own floor. The compositing is restated here
    * (sRGB, glow tint then body wash, both in the cell's own colour) so the test cannot pass by reading
-   * the function it checks; the two opacities are the ones the map DRAWS, read from the same export. */
+   * the function it checks; the two opacities are the ones the map DRAWS, read from the same export.
+   * The glow is taken LIT (OB-230, the Document pane's hub pointed at), its heaviest: at 0.26 against
+   * an ink resolved for the resting 0.16, the worst cell fell to 4.28:1, under the floor. */
   it('(6) the SELECTED name clears 4.5:1 against its cell as washed — and darkens only where it must', () => {
     const rgb = (hex: string) => [16, 8, 0].map((s) => (parseInt(hex.slice(1), 16) >> s) & 255)
     const blend = (top: string, alpha: number, under: string) => {
@@ -135,7 +137,7 @@ describe('OB-119 — the territory fill is pinned to its family', () => {
     let keptWhilePassing = 0
     for (const id of [...domainIds, ...regions]) {
       const tint = colorOf(id)
-      const washed = blend(tint, SELECTION_WASH.body, blend(tint, SELECTION_WASH.glow, territoryFillOf(id)))
+      const washed = blend(tint, SELECTION_WASH.body, blend(tint, SELECTION_WASH.glowLit, territoryFillOf(id)))
       const ink = selectedInkOf(id)
       const r = contrast(ink, washed)
       const before = contrast(inkStrongOf(id), washed)
