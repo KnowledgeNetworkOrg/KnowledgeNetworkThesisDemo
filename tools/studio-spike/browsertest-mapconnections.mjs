@@ -442,24 +442,82 @@ if (rollupDups.length) errors.push('rollup collapse: pair drawn more than once �
 // and the corpus's multi-word names mean at least one must have split lines.
 // #336 (OB-193): the domain names are now the picker's "L1" — its "L0" is the
 // corpus root's own single region, which is the one label this block must not read.
+//
+// #369: the same read, twice — with the Explorer rail closed (the default: every domain must
+// still be NAMED, the gate that drops a colliding name must not touch a screen that never had
+// one) and with it open, which narrows the canvas by the rail's width (196px at its default
+// fit), which is what put `sys` and `cs` 3.3 x 7.2px into each other at 1750x950. Open, a
+// name may be missing — that is the fix, the later of two colliding names is left out — but
+// no two drawn names may meet.
 {
-  const boxes = await page.$$eval('[data-regionlabel]', (ts) =>
-    ts
-      .filter((t) => Number(t.getAttribute('opacity')) > 0.3) // active-level names only
-      .map((t) => {
-        const b = t.getBoundingClientRect()
-        return { id: t.getAttribute('data-regionlabel'), x: b.x, y: b.y, w: b.width, h: b.height, lines: t.querySelectorAll('tspan').length }
-      }),
-  )
+  /** the ids of every region at one internal tier, off the cells the map mounts */
+  const regionIds = (tier) =>
+    page.$$eval(`path[data-region][data-rtier="${tier}"]`, (ps) => [...new Set(ps.map((p) => p.getAttribute('data-region')))])
+  /** the drawn names at one tier, as the boxes a person sees. Filtered to that tier's own
+   *  regions AND to opacity > 0.3: at L1 the domain names are still in the DOM as the parent's
+   *  faint watermark, and those are not the names being read. */
+  const readNames = async (tier) =>
+    page.$$eval(
+      '[data-regionlabel]',
+      (ts, ids) =>
+        ts
+          .filter((t) => ids.includes(t.getAttribute('data-regionlabel')) && Number(t.getAttribute('opacity')) > 0.3)
+          .map((t) => {
+            const b = t.getBoundingClientRect()
+            return { id: t.getAttribute('data-regionlabel'), x: b.x, y: b.y, w: b.width, h: b.height, lines: t.querySelectorAll('tspan').length }
+          }),
+      await regionIds(tier),
+    )
+  /** every pair of boxes that meet, with how far (both in px) */
+  const meetings = (boxes) => {
+    const out = []
+    for (let i = 0; i < boxes.length; i++)
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i]
+        const b = boxes[j]
+        if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h)
+          out.push({ a: a.id, b: b.id, w: Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), h: Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) })
+      }
+    return out
+  }
+  const openRail = async () => {
+    await page.locator('[data-explorer-corner] button').click()
+    await page.waitForTimeout(700) // the pane narrows, the map refits, the names re-fit with it
+  }
+  const closeRail = async () => {
+    await page.locator('[data-explorer-rail] button').first().click() // the open head's handle
+    await page.waitForTimeout(700)
+  }
+
+  const domainIds = await regionIds(0)
+  const boxes = await readNames(0)
   if (boxes.length < 2) errors.push(`region labels: expected the L0 domain names, found ${boxes.length}`)
-  for (let i = 0; i < boxes.length; i++)
-    for (let j = i + 1; j < boxes.length; j++) {
-      const a = boxes[i]
-      const b = boxes[j]
-      if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h)
-        errors.push(`region labels: ${a.id} and ${b.id} overlap at L0`)
-    }
+  for (const m of meetings(boxes)) errors.push(`region labels: ${m.a} and ${m.b} overlap at L0`)
   if (!boxes.some((b) => b.lines > 1)) errors.push('region labels: nothing wrapped at L0 despite multi-word domain names')
+  if (boxes.length !== domainIds.length)
+    errors.push(`region labels: the rail closed drew ${boxes.length} of ${domainIds.length} domain names — ${domainIds.filter((d) => !boxes.some((b) => b.id === d)).join(', ')} missing`)
+
+  await openRail()
+  await page.screenshot({ path: OUT + '/5b2-domain-names-rail-open.png' })
+  const openBoxes = await readNames(0)
+  if (openBoxes.length < 2) errors.push(`region labels: the rail open drew ${openBoxes.length} domain names`)
+  for (const m of meetings(openBoxes)) errors.push(`region labels: ${m.a} and ${m.b} overlap at L0 with the rail open (${m.w.toFixed(1)} x ${m.h.toFixed(1)}px)`)
+  console.log(`#369 domain names: ${boxes.length}/${domainIds.length} drawn rail closed, ${openBoxes.length}/${domainIds.length} rail open (left out: ${domainIds.filter((d) => !openBoxes.some((b) => b.id === d)).join(', ') || 'none'})`)
+
+  // THE MODULE NAMES ARE NOT GATED — the fix above is the L0 domain names only, and this
+  // grain is left as it was. Logged, not asserted, so a collision here is on record for a
+  // card of its own rather than found again by accident.
+  await goLevel(1)
+  await page.waitForTimeout(900)
+  const moduleIds = await regionIds(1)
+  const moduleOpen = await readNames(1)
+  await closeRail()
+  const moduleClosed = await readNames(1)
+  const describeMeetings = (bs) => meetings(bs).map((m) => `${m.a}/${m.b} ${m.w.toFixed(1)}x${m.h.toFixed(1)}px`).join('; ') || 'none'
+  console.log(`#369 module names at L1: rail closed ${moduleClosed.length}/${moduleIds.length} drawn, overlaps ${describeMeetings(moduleClosed)}`)
+  console.log(`#369 module names at L1: rail open ${moduleOpen.length}/${moduleIds.length} drawn, overlaps ${describeMeetings(moduleOpen)}`)
+  await goLevel(0) // leave the map at L0 with the rail closed, as this block found it
+  await page.waitForTimeout(900)
 }
 
 // 5c/5d — REMOVED. A domain selection used to draw a REGION STAR in the pane:

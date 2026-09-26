@@ -76,7 +76,7 @@ import type { WallView } from '../model/walkwall'
 import { PIN_NO_POSITION, pinPosition, walkPins } from '../model/walkpins'
 import { toggleWalkHidden, walkDrawn, walkKeyOf } from '../model/walkvisibility'
 import type { Bundle } from '../model/atlas'
-import { fitLabel, fitRegionLabel, labelBox } from '../model/labelfit'
+import { fitLabel, fitRegionLabel, keepClearOfEarlier, labelBox, regionLabelBox } from '../model/labelfit'
 import type { FitLine, LabelBox, LabelFit } from '../model/labelfit'
 import { descendantCount, parentOf } from '../model/nav'
 import type { Bus } from '../state/bus'
@@ -201,6 +201,10 @@ const ancLabelO = (d: number) => (d === 1 ? 0.32 : 0)
  *  still steps aside. */
 const GHOST_CASE = { stroke: '#ffffff', strokeWidth: 3.2, strokeOpacity: 0.75 }
 
+/** the weight a domain name is drawn at — read by the `<text>` AND by the box `labelFit`
+ *  measures for it (#369), which is a width at this weight, so the two cannot drift. */
+const DOMAIN_NAME_WEIGHT = 800
+
 /** `wall` (#267, DS OB-139 rule 4): the map as the room sees it when the professor holds it up.
  *  A still picture — every stop of the lecture a pin, the covered stops and the lit stop joined
  *  by the walk line, that stop lit, NO recency band, no dock, no floating chrome, no pin hover.
@@ -220,11 +224,14 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   // is a fact about territory. The rail owns its filter, tree and chrome; this pane owns the
   // four things the DS's contract leaves to the host: the selection, the open set, the hover
   // pair, and the measured width.
-  /* CLOSED AT FIRST, and that is a measured decision rather than a taste: opening the rail
+  /* CLOSED AT FIRST, which began as a measured decision rather than a taste: opening the rail
      narrows the canvas, and at the explore preset's width the map's own L0 label boxes then
-     meet by ~3px (`sys`/`cs`, 1750x950) — a map-side fit gap that does not know about
-     label-vs-label collisions, surfaced by the narrower pane. Raised as its own finding rather
-     than papered over here.
+     met by ~3px (`sys`/`cs`, 1750x950) — a map-side fit gap that did not know about
+     label-vs-label collisions, surfaced by the narrower pane. That gap is closed (#369:
+     `labelFit` now drops the later of two colliding domain names), so the default is no longer
+     forced by it; whether the rail should START open, as the idea sheet draws it, is a
+     separate call (it is one boolean here, but browsertest-explorerrail.mjs asserts the
+     closed start).
      THE UPPER ROW IS NOT THE RAIL'S FOOTPRINT — it is the approved drawing's (OB-241/243): the
      map pane's own row, where the selection sits and where the closed control lives. It draws
      open or closed, and it takes its ~44px of canvas either way; closing gives back the canvas
@@ -719,20 +726,33 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
     // the L0/L1 names go through the same wrap-into-the-cell mechanic as the
     // deep tiers now, against the honest region chord — with fitRegionLabel's
     // shrink instead of a drop, because they are the only names their level
-    // has. Computed one level past their visibility window so the 350ms
-    // opacity fades keep an element to fade.
+    // has (the one drop is below: an L0 domain name that would collide with an
+    // earlier one). Computed one level past their visibility window so the
+    // 350ms opacity fades keep an element to fade.
     const region = new Map<string, { lines: FitLine[]; fs: number }>()
     // OB-193: level -1 (the root) draws through its own small, separate block below — none of
     // this memo's tier machinery applies to it, and LEVEL_S has no entry at -1 to index.
     if (level < 0) return { active, ghost, region, box }
     const world = (v: number) => (v * f) / LEVEL_S[level]
-    if (level <= 2)
-      for (const c of countryLabels) {
-        const size = level === 0 ? 24 : PARENT_LABEL_PX
-        const fit = fitRegionLabel(c.label, countryRings[c.key], c.x, c.y, world(size))
+    if (level <= 2) {
+      const size = level === 0 ? 24 : PARENT_LABEL_PX
+      const fitted = countryLabels.map((c) => ({ c, fit: fitRegionLabel(c.label, countryRings[c.key], c.x, c.y, world(size)) }))
+      // #369: each name fits ITS OWN region, and nothing asked whether two names run into each
+      // other. At L0 the domain names are the ACTIVE grain — the level being read — so a name
+      // that would collide with an earlier one is left out (the hover tooltip still names it),
+      // and only the survivors are stored below, which also keeps a walk pin from steering
+      // around a name that is not drawn. At L1 and beyond they are the parent's watermark, which
+      // stays named for orientation, so they are not gated.
+      const keep =
+        level === 0
+          ? keepClearOfEarlier(fitted.map(({ fit }) => regionLabelBox(fit.lines, world(size * fit.shrink), DOMAIN_NAME_WEIGHT)))
+          : fitted.map(() => true)
+      fitted.forEach(({ c, fit }, i) => {
+        if (!keep[i]) return
         region.set(c.key, { lines: fit.lines, fs: size * fit.shrink })
         noteBox(c.key, fit.lines, world(size * fit.shrink))
-      }
+      })
+    }
     if (level <= 3)
       for (const m of provinceLabels) {
         const size = level <= 1 ? 15 : PARENT_LABEL_PX
@@ -1442,7 +1462,7 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                   data-regionlabel={c.key}
                   textAnchor="middle"
                   fontSize={px(fit.fs)}
-                  fontWeight={800}
+                  fontWeight={DOMAIN_NAME_WEIGHT}
                   fill={colorOf(c.key)}
                   opacity={level === 0 ? 0.55 : ancLabelOAt(level, c.key)}
                   {...ghostCase(level !== 0)}
