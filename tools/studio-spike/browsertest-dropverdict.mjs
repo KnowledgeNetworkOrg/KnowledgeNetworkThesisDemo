@@ -123,10 +123,13 @@ const drawn = (gap) =>
     const cs = bar ? getComputedStyle(bar) : null
     const pill = document.querySelector('[data-rrefusal]')
     const pr = pill?.getBoundingClientRect()
+    /* SOLID is "no border at all, a 2px filled bar". Read the border's WIDTH, not its style:
+       Tailwind's preflight gives every element `border: 0 solid`, so an unbordered bar reports
+       `solid` as its style and would never read `none`. */
     return {
       verdict: line?.getAttribute('data-rverdict') ?? null,
       dashed: cs ? cs.borderTopStyle === 'dashed' : null,
-      solid: cs ? cs.borderTopStyle === 'none' && parseFloat(cs.height) === 2 && cs.backgroundColor !== 'rgba(0, 0, 0, 0)' : null,
+      solid: cs ? parseFloat(cs.borderTopWidth) === 0 && parseFloat(cs.height) === 2 && cs.backgroundColor !== 'rgba(0, 0, 0, 0)' : null,
       arrow: gap ? document.querySelectorAll(`[data-rarrow][data-rgap="${gap}"]`).length : null,
       pill: pill ? pill.textContent : null,
       pillAt: pr ? { cx: pr.left + pr.width / 2, top: pr.top } : null,
