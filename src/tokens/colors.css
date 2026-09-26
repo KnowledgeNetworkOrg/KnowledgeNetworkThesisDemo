@@ -68,7 +68,14 @@
      dropped onto warm paper. Do not reach for it as a general accent: moss is the primary. */
   --pond-vivid: #2e86c8;
 
-  /* ── Berry: destructive only. ───────────────────────────────────────── */
+  /* ── Berry: the act will not proceed. Destruction, and refusal. ─────────
+     THE SCOPE CHANGED 2026-09-18, at the owner's ask for a green/red drag verdict. This
+     heading read "destructive only" from the day it was written, and a refused drag destroys
+     nothing — so the ramp now covers BOTH things you cannot continue with: an act that will
+     destroy something, and an act the model will not accept. Berry never decorates either way.
+     THE PRICE, said where the next reader will meet it: a red edge no longer promises that
+     something is about to be deleted. The alternative was a second red, which is worse — two
+     reds in one system is a question the reader re-answers every time they meet one. */
   --berry-50:  #fbf0ee;
   --berry-100: #f5dcd8;
   --berry-500: #b4574a;
@@ -378,6 +385,24 @@
   --state-editing-wash: var(--pond-50);
   --state-danger: var(--berry-500);
   --state-danger-wash: var(--berry-50);
+  /* ── THE DRAG VERDICT — is this drop allowed, answered live while the pointer moves.
+     TWO VERDICTS, AND THEY ARE NOT SYMMETRICAL, which is the whole design (owner, 2026-09-18):
+     a valid drop is SILENT — the operation simply happens — so green is spent on ONE thing, the
+     landing line, and never writes a word. The refusal has a sentence to draw, so red needs its
+     whole four rungs. Do not add `--verdict-yes-wash` or `-ink` to balance the pair: there is no
+     green pill, and a token for one is an invitation to draw it.
+
+     WHY MOSS NEEDS NO NEW MEANING: the ramp's own heading above introduces it as "the primary.
+     Growth, containment, yes." A green landing line is that word, drawn.
+
+     NOT the notice channel's `failed` colour, even though both resolve to berry: this is a live
+     answer to a gesture in progress, that is a report about something that already went wrong.
+     If the two ever need to differ, these aliases are the one place to change. */
+  --verdict-yes: var(--moss-500);
+  --verdict-no: var(--berry-500);
+  --verdict-no-wash: var(--berry-50);
+  --verdict-no-hair: var(--berry-100);
+  --verdict-no-ink: var(--berry-600);
   /* `--state-optional` was deleted here on 2026-08-21j, the turn OB-042's receipt landed
      (`aac8764`), exactly as the alias's own note said it would be. The trap it carried is
      worth keeping without the token: acorn is the hue of MOVEMENT through the corpus, and

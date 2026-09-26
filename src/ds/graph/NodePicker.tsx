@@ -14,6 +14,31 @@ export interface NodeOption {
   domain: string
   /** nested options, indented one step further. A node with children is still itself pickable */
   children?: NodeOption[]
+  /** THIS NODE IS NOT PICKABLE IN THIS SLOT — the row is greyed and the click refused.
+   *
+   *  **SHOWN, NOT HIDDEN, and that is a rule (2026-09-18, OB-220).** Filtering the option out
+   *  instead is the tempting version and it is worse: a node missing from the list reads as a
+   *  node missing from the CORPUS, so the reader searches for it and concludes the picker is
+   *  broken. The list's length also stays stable as the slot being filled moves up and down the
+   *  walk.
+   *
+   *  A DISABLED PARENT KEEPS PICKABLE CHILDREN. The flag is about this node's own position, not
+   *  about its subtree; nothing is inherited down the tree.
+   *
+   *  **PASS `reason` WITH IT.** A greyed row with no explanation is the same puzzle as a missing
+   *  one, one step further on. */
+  disabled?: boolean
+  /** WHY this row cannot be picked, drawn under the name at `--fs-micro` in `--text-3`. Four or
+   *  five words — it shares the row with a node title and never wraps to a third line.
+   *
+   *  **NOT BERRY, deliberately.** A row that was never offered is not a refused act: the drag's
+   *  `DropRefusal` answers a gesture the user actually MADE, while this only explains an absence,
+   *  and berry on a menu row that has done nothing wrong spends the refusal hue on nothing.
+   *
+   *  For the duplicate-node rule the wording is `'already adjacent'` — the same side-free
+   *  sentence `DropRefusal` defaults to, so the two surfaces of one rule say one thing. Ignored
+   *  without `disabled` */
+  reason?: string
 }
 
 export interface NodePickerProps {
@@ -374,23 +399,41 @@ function renderRows(nodes: NodeOption[], depth: number, onPick: (id: string) => 
   return rows
 }
 
+/** A ROW THE MODEL WILL NOT ACCEPT IS SHOWN, NOT HIDDEN (2026-09-18, OB-220). `node.disabled`
+ *  greys the row, refuses the click and carries `node.reason` under the name. Filtering it out
+ *  instead is the tempting version and it is worse: a node missing from the list reads as a node
+ *  missing from the CORPUS, so the reader searches for it and concludes the picker is broken. A
+ *  greyed row with four words under it teaches the rule once and is never puzzling again — and
+ *  the list's length stays stable as the slot it is filling moves up and down the walk.
+ *
+ *  A DISABLED PARENT KEEPS PICKABLE CHILDREN. The flag is about this node's own position in the
+ *  road, not about its subtree; nothing is inherited down the tree. */
 function MenuItem({ node, depth, onPick, rowPad }: { node: NodeOption; depth: number; onPick: (id: string) => void; rowPad: number }) {
   const clip = useClipped<HTMLSpanElement>(node.title)
+  const off = !!node.disabled
   const rowStyle: CSSProperties = {
-    display: 'flex', alignItems: 'center', gap: 8,
+    display: 'flex', alignItems: node.reason ? 'flex-start' : 'center', gap: 8,
     padding: rowPad + 'px 9px ' + rowPad + 'px ' + (9 + depth * 16) + 'px',
-    borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 'var(--fs-body)', color: 'var(--text-1)',
+    borderRadius: 'var(--radius-sm)', cursor: off ? 'not-allowed' : 'pointer', fontSize: 'var(--fs-body)',
+    color: off ? 'var(--text-3)' : 'var(--text-1)',
   }
   return (
     <div
-      onClick={() => onPick(node.id)}
+      onClick={() => { if (!off) onPick(node.id) }}
+      aria-disabled={off ? true : undefined}
       style={rowStyle}
-      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)' }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+      onMouseEnter={(e) => { if (!off) e.currentTarget.style.background = 'var(--surface-hover)' }}
+      onMouseLeave={(e) => { if (!off) e.currentTarget.style.background = 'transparent' }}
     >
-      <DomainDot domain={node.domain} />
-      <span {...clip} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {node.title}
+      <span style={{ flexShrink: 0, marginTop: node.reason ? 4 : 0 }}><DomainDot domain={node.domain} /></span>
+      <span style={{ minWidth: 0 }}>
+        <span {...clip} style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {node.title}
+        </span>
+        {/* THE REASON IS NOT BERRY. A row that was never offered is not a refused act — the
+           drag's `DropRefusal` answers a gesture the user MADE, while this only explains an
+           absence, and `--text-3` is the register the rest of this menu already speaks in. */}
+        {node.reason ? <span style={{ display: 'block', fontSize: 'var(--fs-micro)', lineHeight: 'var(--lh-snug)', color: 'var(--text-3)' }}>{node.reason}</span> : null}
       </span>
     </div>
   )

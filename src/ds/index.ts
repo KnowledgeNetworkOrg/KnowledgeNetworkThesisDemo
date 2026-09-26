@@ -24,6 +24,8 @@ export { DomainDot, FAMILY_SLOTS, familySlots, nestedFamilyPaint, nextTopicSlot,
 export type { DomainDotProps } from './graph/DomainDot'
 export { NodePicker } from './graph/NodePicker'
 export type { NodePickerProps, NodeOption } from './graph/NodePicker'
+export { DropLine, DropRefusal, DropVerdict, VERDICT_METRICS, adjacentDuplicates, neighboursOf, verdictPaint } from './graph/DropVerdict'
+export type { DropLineProps, DropRefusalProps } from './graph/DropVerdict'
 export { EdgeLegend, EdgeDash } from './graph/EdgeLegend'
 export type { EdgeLegendProps, EdgeDashProps } from './graph/EdgeLegend'
 export { EdgeEntry } from './graph/EdgeEntry'

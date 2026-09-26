@@ -30,17 +30,19 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
+import { createPortal } from 'react-dom'
 
 import { byId, childrenOf, domainIds, topicHueOf } from '../../corpus/graph'
 import {
   ARROW_METRICS, NodeArrow, NodeChip, NodePicker, chipBorder, chipSizeOf, shaftTailOffset,
   VersionedGroup, GroupGeometry, GROUP_METRICS,
+  DropLine, DropRefusal, VERDICT_METRICS,
   wrapTip, PaneScroller,
 } from '@/ds'
 import type { GroupSpec, NodeOption } from '@/ds'
 import type { AuthorState, Path } from '../../state/walk/authordraft'
 import { pathKey, useFreshGroup } from '../../state/walk/authordraft'
-import { bandFor, DT, gapFor, handleDrop } from '../../state/walk/authordnd'
+import { beginDrag, dragPayload, dropAllowed, endDrag, gapFor, handleDrop, heldBox, refusedAt } from '../../state/walk/authordnd'
 import type { Band } from '../../state/walk/authordnd'
 import { chosenIdx, chosenSteps, isLeaf } from '../../state/walk/mockwalk'
 import type { Stop } from '../../state/walk/mockwalk'
@@ -75,6 +77,20 @@ function optionFor(id: string): NodeOption {
   return { id, title: n.title, domain: topicHueOf(id) ?? '', children: kids.length ? kids : undefined }
 }
 const NODE_OPTIONS: NodeOption[] = domainIds.map(optionFor)
+/** THE ONE SENTENCE for the duplicate-neighbour rule (OB-219 clause 6, OB-220 clause 3): the
+ *  drag's refusal pill and the picker's greyed rows say it in the same words, so it is written
+ *  once. SIDE-FREE on purpose — the same refusal happens above a twin or below it. */
+const ADJACENT = 'already adjacent'
+/** the menu with every refused node GREYED, never removed (OB-220) — a node missing from the
+ *  list reads as a node missing from the corpus. Marked where it stands in the tree and nowhere
+ *  else: a refused parent keeps pickable children, and a refused child leaves its parent free. */
+function refuseOptions(list: NodeOption[], refused: ReadonlySet<string>): NodeOption[] {
+  return list.map((o) => ({
+    ...o,
+    ...(refused.has(o.id) ? { disabled: true, reason: ADJACENT } : null),
+    children: o.children && refuseOptions(o.children, refused),
+  }))
+}
 /** the step number as the CHIP is handed it — LOCAL to the container it sits in, so
  *  a leaf shows its position in its own list rather than the path down to it: the
  *  stop whose outline is `2.1` reads `1.`. The last segment IS that position, since
@@ -187,7 +203,18 @@ const roadSpec = (s: Stop, outline: string, width: number, slotH: number, chosen
   })
 
 
-type Mark = { key: string; band: Band } | null
+/** WHAT A DRAG OVER THE ROAD IS DOING RIGHT NOW (OB-219) — one record for every place a drag
+ *  can hover, where there used to be a node mark and a separate hot slot:
+ *   · `at`   the gap it would land in, as a pathKey — a slot's own path, so the landing line
+ *            and the arrow it replaces are both found by it;
+ *   · `ok`   whether it may land there, from the ONE rule the picker also reads;
+ *   · `src`  which drop target said so — a dragleave clears only its own verdict;
+ *   · `box`  the container whose ring stands in for a gap the road does not draw (a folded
+ *            card's inside, or an empty version) — the one case with no slot to put a line in;
+ *   · `spot` where the refusal pill was placed when this verdict began. Only its FIRST place:
+ *            every later move writes the pill's position straight to the element, so a
+ *            pointer that moves inside one verdict never re-renders the road. */
+type Verdict = { at: string; ok: boolean; src: string; box?: string; spot?: { x: number; y: number } } | null
 
 /** the active version's column box (width holds its widest step, height its stack) */
 interface Col {
@@ -238,6 +265,9 @@ interface Arrow {
    * skipped". Optionality reads off the inbound arrow + the node's dashed border
    * now; the old bypass rail is gone. */
   optional: boolean
+  /** the pathKey of the drop slot this arrow shares its gap with — while a drag
+   * hovers that gap, the landing line is drawn INSTEAD of the arrow (OB-219) */
+  gap: string
 }
 /** a forgiving drop target filling the gap between two siblings (or before the
  * first / after the last) — inserts at `path`, so a drop in dead space no longer
@@ -389,7 +419,7 @@ function layoutRoad(
       lastW = w
       const skipped = !!s.optional && !withOptionals
       if (prevBottom !== null)
-        arrows.push({ x1: centerX, y1: prevBottom + 3, x2: centerX, y2: y - 5, live: onRoad && !prevSkipped && !skipped, optional: !!s.optional })
+        arrows.push({ x1: centerX, y1: prevBottom + 3, x2: centerX, y2: y - 5, live: onRoad && !prevSkipped && !skipped, optional: !!s.optional, gap: pathKey(p) })
       if (isLeaf(s)) {
         items.push({ path: p, stop: s, x, y, w, h, outline, onRoad, skipped, depth })
       } else if (isFold) {
@@ -450,8 +480,8 @@ export default function AuthorRoad({
   onLeafFocus?: (id: string) => void
 }) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
-  const [mark, setMark] = useState<Mark>(null)
-  const [hotSlot, setHotSlot] = useState<number | null>(null)
+  const [verdict, setVerdict] = useState<Verdict>(null)
+  const pillRef = useRef<HTMLDivElement>(null)
   const boardRef = useRef<HTMLDivElement>(null)
   const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
   const marqueeDragRef = useRef(false)
@@ -496,6 +526,13 @@ export default function AuthorRoad({
   }, [])
 
   const { items, arrows, slots, W, H } = layoutRoad(state.stops, collapsed, choices, withOptionals)
+  /* WHERE THE VERDICT IS DRAWN (OB-219). Almost every landing gap is a slot the layout placed,
+     and the line goes there. Two are not — inside a FOLDED card, whose steps are not drawn, and
+     an EMPTY version — and there the card's ring stands in, exactly as it always has. The ring
+     only ever says "lands here": a refusal in such a place is the pill and the cursor alone, and
+     no ring, since a ring there would claim the drop is taken. */
+  const lineSlot = verdict ? slots.find((sl) => pathKey(sl.path) === verdict.at) : undefined
+  const ringed = (key: string) => !!verdict && verdict.ok && !lineSlot && verdict.box === key
   /* WHICH WALK STOP EACH ON-ROAD LEAF IS (DS OB-189): the placement walks the road in the same
      order `resolveRoad` presents it — every container down to its chosen version, unset slots and
      skipped optionals left out — so the on-road leaves in `items` order ARE `bus.route`'s order,
@@ -592,29 +629,80 @@ export default function AuthorRoad({
     }
   }
 
+  // ── the drag verdict (OB-219) ─────────────────────────────────────────────
+  // Every place a drag can hover — a gap, a stop's upper or lower half, a card's
+  // head, the board's catch-all — works out the SAME two things through `judge`:
+  // the gap it would land in, and whether the node may land there.
+
+  /** where the refusal pill hangs: centred under the held node, `dropGap` below it.
+   *  A drag the palette or the road started knows where the node is held; the map's
+   *  own ghost is drawn centred on the pointer, so it is taken as a node of the road's
+   *  own height sitting there. */
+  const pillSpot = (e: ReactDragEvent) => {
+    const held = heldBox(e)
+    return held
+      ? { x: held.left + held.width / 2, y: held.top + held.height + VERDICT_METRICS.dropGap }
+      : { x: e.clientX, y: e.clientY + NODEH / 2 + VERDICT_METRICS.dropGap }
+  }
+
+  /** judge one dragover, and answer the browser with it. ACCEPTING IS preventDefault: a
+   *  refused gap leaves the dragover uncancelled, and that is the whole refusal — the browser
+   *  shows its own no-drop cursor and fires no drop there, so the node goes back where it came
+   *  from and nothing is said. Stopped either way, so the board's catch-all cannot accept on
+   *  the gap's behalf and append the node at the end instead. */
+  const judge = (e: ReactDragEvent, at: Path, src: string, box?: string) => {
+    e.stopPropagation()
+    const ok = dropAllowed(state.stops, dragPayload(e), at)
+    if (ok) e.preventDefault()
+    const spot = ok ? undefined : pillSpot(e)
+    // the pill TRAVELS WITH THE DRAG: moved on the element itself, so a pointer moving
+    // within one verdict never re-renders the road
+    if (spot && pillRef.current) {
+      pillRef.current.style.left = spot.x + 'px'
+      pillRef.current.style.top = spot.y + 'px'
+    }
+    const k = pathKey(at)
+    setVerdict((v) => (v && v.at === k && v.ok === ok && v.src === src && v.box === box ? v : { at: k, ok, src, box, spot }))
+  }
+  /** a dragleave clears only the verdict its own target gave, and not at all when the
+   *  pointer only moved onto one of that target's own children */
+  const leave = (e: ReactDragEvent, src: string) => {
+    const to = e.relatedTarget as Node | null
+    if (to && e.currentTarget.contains(to)) return
+    setVerdict((v) => (v?.src === src ? null : v))
+  }
+  // the verdict leaves when the drag does — wherever it ended. A drag from the palette ends
+  // on the palette's element, and a drop elsewhere never reaches the road's own handlers.
+  useEffect(() => {
+    const clear = () => setVerdict(null)
+    window.addEventListener('dragend', clear)
+    window.addEventListener('drop', clear)
+    return () => {
+      window.removeEventListener('dragend', clear)
+      window.removeEventListener('drop', clear)
+    }
+  }, [])
+
   /** the block gestures every node shares — leaf pill, card header, closed pill */
   const gestures = (pl: Placed) => {
     const key = pathKey(pl.path)
+    // a folded card's middle band lands INSIDE it, where the road draws no gap —
+    // its ring stands in for the line there
+    const box = isLeaf(pl.stop) ? undefined : key
     return {
       draggable: true,
       onDragStart: (e: ReactDragEvent) => {
         e.stopPropagation()
-        e.dataTransfer.setData(DT, 'blk:' + key)
+        beginDrag(e, 'blk:' + key)
       },
       onDragEnd: () => {
-        setMark(null)
-        setHotSlot(null)
+        endDrag()
+        setVerdict(null)
       },
-      onDragOver: (e: ReactDragEvent) => {
-        e.preventDefault()
-        e.stopPropagation()
-        setHotSlot(null)
-        setMark({ key, band: bandFor(e, pl.stop) })
-      },
-      onDragLeave: () => setMark((m) => (m?.key === key ? null : m)),
+      onDragOver: (e: ReactDragEvent) => judge(e, gapFor(e, pl.path, pl.stop, choices), key, box),
+      onDragLeave: (e: ReactDragEvent) => leave(e, key),
       onDrop: (e: ReactDragEvent) => {
-        setMark(null)
-        setHotSlot(null)
+        setVerdict(null)
         handleDrop(e, gapFor(e, pl.path, pl.stop, choices), state)
       },
       onClick: selectOn(pl),
@@ -680,9 +768,12 @@ export default function AuthorRoad({
       onPointerDown={onBoardPointerDown}
       onPointerMove={onBoardPointerMove}
       onPointerUp={onBoardPointerUp}
-      onDragOver={(e: ReactDragEvent) => e.preventDefault()}
+      // THE CATCH-ALL lands at the end of the road, so it is judged as that gap —
+      // a drop on empty board must not be the way round a refusal
+      onDragOver={(e: ReactDragEvent) => judge(e, [state.stops.length], 'road')}
+      onDragLeave={(e: ReactDragEvent) => leave(e, 'road')}
       onDrop={(e: ReactDragEvent) => {
-        setMark(null)
+        setVerdict(null)
         handleDrop(e, [state.stops.length], state)
       }}
     >
@@ -710,10 +801,13 @@ export default function AuthorRoad({
               (--accent-walk). It was --text-3, which IS bark (--bark-500), one step
               darker than the system's quiet — not the "neutral grey" #113 H4 reports. */}
           <div className="absolute inset-0 pointer-events-none z-10">
-            {arrows.map((a, i) => (
+            {/* a gap the drag is over draws its landing line INSTEAD of its arrow (OB-219
+                clause 3) — see the verdict layer below the slots */}
+            {arrows.map((a, i) => verdict?.at === a.gap ? null : (
               <div
                 key={`a${i}`}
                 data-rarrow
+                data-rgap={a.gap}
                 data-rarrow-tone={a.live ? 'walk' : 'quiet'}
                 // `shaftTailOffset`, not `ARROW_METRICS.across / 2`. The two
                 // agreed until 2026-08-29: `across` was a fixed constant here, so
@@ -751,6 +845,11 @@ export default function AuthorRoad({
               // pill itself: NodePicker's unresolved shell is solid, never dashed (#144
               // / OB-058), so an outer dashed circle around it would double the shape.
               if (s.unset) {
+                // OB-220: the stops either side of this slot are GREYED in its menu with the
+                // drag's own sentence, never hidden — asked of the same rule the drag reads,
+                // with the slot itself taken out of its list, so the two surfaces cannot
+                // disagree about what is refused. An unset neighbour refuses nothing.
+                const refused = new Set(refusedAt(state.stops, pl.path, pl.path))
                 return (
                   <div
                     key={key}
@@ -780,7 +879,7 @@ export default function AuthorRoad({
                           removable from the chain exactly as a bound one is and the road
                           never swaps which control it renders as a step resolves. */}
                       <NodePicker
-                        options={NODE_OPTIONS}
+                        options={refused.size ? refuseOptions(NODE_OPTIONS, refused) : NODE_OPTIONS}
                         onChange={(id) => state.bindNode(pl.path, id)}
                         onDelete={() => state.deleteAt(pl.path)}
                         search
@@ -903,7 +1002,7 @@ export default function AuthorRoad({
                     dim,
                     // selection is drawn by the card itself (`selected` below), on
                     // its face; only the drop-target mark rides on the wrapper
-                    !isSelected && mark?.key === key && mark.band === 'inside' ? 'ring-2 ring-[var(--accent-primary)] rounded-[var(--radius-lg)]' : '',
+                    !isSelected && ringed(key) ? 'ring-2 ring-[var(--accent-primary)] rounded-[var(--radius-lg)]' : '',
                   ].join(' ')}
                   style={{ left: pl.x, top: pl.y, width: pl.visualW ?? pl.w, height: pl.h }}
                 >
@@ -998,22 +1097,16 @@ export default function AuthorRoad({
                 draggable
                 onDragStart={(e: ReactDragEvent) => {
                   e.stopPropagation()
-                  e.dataTransfer.setData(DT, 'blk:' + key)
+                  beginDrag(e, 'blk:' + key)
                 }}
                 onDragEnd={() => {
-                  setMark(null)
-                  setHotSlot(null)
+                  endDrag()
+                  setVerdict(null)
                 }}
-                onDragOver={(e: ReactDragEvent) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setHotSlot(null)
-                  setMark({ key, band: cardBand(e) })
-                }}
-                onDragLeave={() => setMark((m) => (m?.key === key ? null : m))}
+                onDragOver={(e: ReactDragEvent) => judge(e, cardGap(e), key, key)}
+                onDragLeave={(e: ReactDragEvent) => leave(e, key)}
                 onDrop={(e: ReactDragEvent) => {
-                  setMark(null)
-                  setHotSlot(null)
+                  setVerdict(null)
                   handleDrop(e, cardGap(e), state)
                 }}
                 onClick={(e) => {
@@ -1029,7 +1122,7 @@ export default function AuthorRoad({
                   dim,
                   // the drop-target ring rides on the wrapper, like the fold's; the
                   // card draws its own selection (round the head) via `selected`
-                  !isSelected && mark?.key === key && mark.band === 'inside' ? 'ring-2 ring-[var(--accent-primary)] rounded-[var(--radius-lg)]' : '',
+                  !isSelected && ringed(key) ? 'ring-2 ring-[var(--accent-primary)] rounded-[var(--radius-lg)]' : '',
                 ].join(' ')}
                 style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h }}
               >
@@ -1102,14 +1195,15 @@ export default function AuthorRoad({
                 {/* the ACTIVE version's steps float over the slot as board-level
                     siblings (placed by layoutRoad). When that version is empty the
                     card draws its own dashed zone; this transparent target over it
-                    is what makes the zone accept the road's drops. */}
+                    is what makes the zone accept the road's drops. It judges nothing
+                    itself: its dragover bubbles to the card's, which reads the slot as
+                    `inside` and asks the rule about the very gap this drop lands in. */}
                 {steps.length === 0 && (
                   <div
                     data-rbody={`${s.key}.${chosen}`}
                     onClick={(e) => e.stopPropagation()}
-                    onDragOver={(e: ReactDragEvent) => e.preventDefault()}
                     onDrop={(e: ReactDragEvent) => {
-                      setMark(null)
+                      setVerdict(null)
                       handleDrop(e, [...pl.path, chosen, 0], state)
                     }}
                     className="absolute z-30"
@@ -1127,39 +1221,34 @@ export default function AuthorRoad({
             <div
               key={`slot${i}`}
               data-rslot={pathKey(sl.path)}
-              onDragOver={(e: ReactDragEvent) => {
-                e.preventDefault()
-                e.stopPropagation()
-                setMark(null)
-                setHotSlot(i)
-              }}
-              onDragLeave={() => setHotSlot((h) => (h === i ? null : h))}
+              onDragOver={(e: ReactDragEvent) => judge(e, sl.path, `slot${i}`)}
+              onDragLeave={(e: ReactDragEvent) => leave(e, `slot${i}`)}
               onDrop={(e: ReactDragEvent) => {
-                setMark(null)
-                setHotSlot(null)
+                setVerdict(null)
                 handleDrop(e, sl.path, state)
               }}
               className="absolute z-0"
               style={{ left: sl.x, top: sl.y - SLOTH / 2, width: sl.w, height: SLOTH }}
-            >
-              {hotSlot === i && (
-                <div data-rmark className="absolute inset-x-0 top-1/2 h-[3px] -translate-y-1/2 rounded pointer-events-none" style={{ background: 'var(--acorn-500)' }} />
-              )}
-            </div>
+            />
           ))}
 
-          {mark &&
-            mark.band !== 'inside' &&
-            items
-              .filter((pl) => pathKey(pl.path) === mark.key)
-              .map((pl) => (
-                <div
-                  key="mark"
-                  data-rmark
-                  className="absolute z-30 h-[3px] rounded pointer-events-none"
-                  style={{ left: pl.x, top: mark.band === 'before' ? pl.y - 6 : pl.y + pl.h + 3, width: pl.visualW ?? pl.w, background: 'var(--acorn-500)' }}
-                />
-              ))}
+          {/* THE LANDING LINE (OB-219 clause 3) — one layer for every hover, drawn in the gap the
+              drop would land in, whichever target the pointer is over: solid `--verdict-yes` where
+              it will land, STRUCK `--verdict-no` where it will not. It replaces that gap's arrow
+              (above) at the gap's own width, centred in it as the DS's card draws it, so nothing
+              reflows when a drag begins. Above the cards (z-30), because a gap between two steps
+              lies over the open card that holds them. A valid drop gets the line and NOTHING
+              else — no pill, no words (clause 4). */}
+          {verdict && lineSlot && (
+            <div
+              data-rmark
+              data-rverdict={verdict.ok ? 'ok' : 'refused'}
+              className="absolute z-30 pointer-events-none"
+              style={{ left: lineSlot.x, top: lineSlot.y - VERDICT_METRICS.stroke / 2, width: lineSlot.w }}
+            >
+              <DropLine ok={verdict.ok} />
+            </div>
+          )}
 
           {/* marquee — the rubber-band while dragging on empty board. #17 */}
           {marquee && (
@@ -1188,6 +1277,23 @@ export default function AuthorRoad({
 
         </div>
       )}
+
+      {/* THE REFUSAL PILL RIDES THE HELD NODE (OB-219 clause 5) — centred under it,
+          `dropGap` below, travelling with the drag and gone when it ends. Not in the column
+          and not in a corner: during a drag the eye is on the node in hand. Portaled so no
+          pane clips it, and deaf to the pointer, so it can never become what the map's
+          drag finds under the cursor. The held node itself is never coloured (clause 7). */}
+      {verdict && !verdict.ok && verdict.spot && typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            ref={pillRef}
+            data-rrefusal
+            style={{ position: 'fixed', left: verdict.spot.x, top: verdict.spot.y, transform: 'translateX(-50%)', zIndex: 9999, pointerEvents: 'none' }}
+          >
+            <DropRefusal reason={ADJACENT} />
+          </div>,
+          document.body,
+        )}
     </PaneScroller>
   )
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { Bullet, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, ExplorerRail, ExplorerRailCorner, ExplorerRailMath, explorerRailWidth, FindMark, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_DIVIDER_METRICS, PaneDivider, paneFit, clampDesk, deskBounds, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, REPLAY_PATH, STOP_CARD_METRICS, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkComplete, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
+import { adjacentDuplicates, DropVerdict, verdictPaint, Bullet, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, ExplorerRail, ExplorerRailCorner, ExplorerRailMath, explorerRailWidth, FindMark, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_DIVIDER_METRICS, PaneDivider, paneFit, clampDesk, deskBounds, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, REPLAY_PATH, STOP_CARD_METRICS, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkComplete, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -273,6 +273,18 @@ describe('ported but not adopted DS components', () => {
     expect(explorerRailWidth(400, null)).toBe(railWidth('left', 400, null))
     expect(explorerRailWidth(9999, 500)).toBe(PANE_RAIL_METRICS.left.stretch)
     expect(typeof ExplorerRailMath.width).toBe('function')
+  })
+
+  // #347 (OB-219, OB-220) — the drag verdict. `DropLine`, `DropRefusal` and `VERDICT_METRICS`
+  // are adopted by AuthorRoad, and `neighboursOf` by state/walk/authordnd.ts, the one host-side
+  // check both the drag and the picker read. These three cross the barrel with them and have no
+  // app reader: `verdictPaint` is what the two marks paint themselves with, `DropVerdict` is the
+  // DS's bundled reachable-from-window form, and `adjacentDuplicates` answers a question no
+  // surface here asks — the road judges one landing gap at a time, which is `neighboursOf`.
+  it('verdictPaint / DropVerdict / adjacentDuplicates — published with the drag verdict; no app reader', () => {
+    expect(verdictPaint(true)).toEqual({ line: 'var(--verdict-yes)' })
+    expect(DropVerdict.paint).toBe(verdictPaint)
+    expect(adjacentDuplicates(['a', 'b', 'b', null, null, 'a'])).toEqual([2])
   })
 
   // `nestedFamilyPaint` / `familySlots` / `FAMILY_SLOTS` are NOT listed here because
