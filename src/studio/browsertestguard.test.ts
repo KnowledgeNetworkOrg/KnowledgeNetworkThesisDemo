@@ -48,6 +48,7 @@ const NOT_IN_THE_RUN: Record<string, string> = {
   'run-browsertests.mjs': 'the runner itself',
   'probe-maplag.mjs': 'a MEASUREMENT — prints a speed ratio, which is the assertion that fails randomly on a loaded machine',
   'probe-walkpop.mjs': 'a MEASUREMENT for #374 — prints one pin\'s scale per drawn frame across a play-through and the driver\'s own reading beside it; it measures, it does not assert',
+  'probe-walkdockbox.mjs': 'a MEASUREMENT for #365 — prints the map\'s box per change beside every font landing and dock change, under held, blocked and plain fonts; it measures, it does not assert',
   'shot-apptoolbar.mjs': 'screenshot instrument, holds assertions — see #299',
   'shot-cardhead.mjs': 'screenshot instrument, holds assertions — see #299',
   'shot-domaindot.mjs': 'screenshot instrument, holds assertions — see #299',
