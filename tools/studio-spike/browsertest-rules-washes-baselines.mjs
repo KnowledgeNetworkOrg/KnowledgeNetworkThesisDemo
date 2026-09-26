@@ -337,6 +337,56 @@ try {
     }
     await page.keyboard.press('Escape')
   }
+
+  // ── THE ROAD'S TAB SHORTCUT stays out of a control's way (found reviewing #382) ──
+  // The walk editor binds Tab to "indent the selection into the container above". A click on a
+  // card's version picker SELECTS that card, and the seeded fork sits right below a container,
+  // so Tab on a row of its open menu used to move the whole card into that container and
+  // unmount the menu under the keyboard. Asserted on the real path — the menu opened by a click
+  // — by the container's tally, which counts the steps in its version: "2 nodes" means the fork
+  // did not land inside it. Then the other side: a plain click on a stop leaves focus on the
+  // page, and Tab still indents it (the stop after the fork moves in, so the fork counts 2).
+  await fresh()
+  await openPalette()
+  await page.getByLabel('studio-preset-plan').click()
+  await page.waitForTimeout(700)
+  await page.bringToFront()
+  {
+    const card = (k) => page.locator(`[data-road-root] [data-rstage="${k}"]`)
+    const tallyOf = (k) => card(k).locator('span[title$="inside this version"]').first().innerText()
+    const focusedLabel = () => page.evaluate(() => {
+      const a = document.activeElement
+      return a ? (a.getAttribute('aria-label') || a.getAttribute('role') || a.tagName) : null
+    })
+    await card('seed-sec').scrollIntoViewIfNeeded()
+    const netBefore = await tallyOf('seed-net')
+    const trigger = card('seed-sec').locator('[role="button"]').filter({ hasText: /v\d/ }).first()
+    const tb = await trigger.boundingBox()
+    await page.mouse.click(tb.x + 6, tb.y + tb.height / 2)
+    await page.waitForTimeout(400)
+    await page.mouse.move(2, 2)
+    await page.locator('[role="listbox"] button[role="option"]').first().focus()
+    await page.waitForTimeout(400)
+    await page.keyboard.press('Tab')
+    await page.waitForTimeout(300)
+    ok('road Tab: with the fork selected by a click on its picker, Tab in its menu moves focus to the row\'s ✕',
+      (await focusedLabel()) === 'delete this version', `focus on ${await focusedLabel()}`)
+    ok('and does NOT indent the fork into the container above — the menu stays open, the container\'s tally unchanged',
+      (await page.locator('[role="listbox"]').count()) === 1 && (await tallyOf('seed-net')) === netBefore,
+      `menus ${await page.locator('[role="listbox"]').count()}, seed-net ${netBefore} -> ${await tallyOf('seed-net')}`)
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(300)
+
+    const secBefore = await tallyOf('seed-sec')
+    await page.locator('[data-road-root] [data-rnode][data-node="web-http-rest"]').click()
+    await page.waitForTimeout(300)
+    const onPage = await page.evaluate(() => document.activeElement === document.body)
+    await page.keyboard.press('Tab')
+    await page.waitForTimeout(500)
+    ok('road Tab: a plain click on a stop leaves focus on the page, and Tab still indents it into the card above',
+      onPage && secBefore === '1 node' && (await tallyOf('seed-sec')) === '2 nodes',
+      `focus on the page: ${onPage}; seed-sec ${secBefore} -> ${await tallyOf('seed-sec')}`)
+  }
 } catch (e) {
   errors.push('threw: ' + (e && e.stack ? e.stack : e))
 } finally {
