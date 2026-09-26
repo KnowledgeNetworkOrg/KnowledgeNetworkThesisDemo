@@ -15,6 +15,17 @@
 // It lives in state/ because it is what every screen shares and no screen owns
 // it: a pane that reads the bus must not be importing the shell that composes
 // it, and studio/ is a reader like any other.
+//
+// Each instrument declares the slice of the bus it uses — a `Pick<Bus, …>` of
+// exactly the members it reads and writes — and the whole `Bus` belongs to the
+// shell (studio/), which builds it with `useStudioBus` and hands each pane its
+// slice.
+//
+// For #325: the route's writers are exactly the files whose slice names one of
+// six actions — `setRoute`, `setRouteSteps`, `activateWalk` (which calls
+// `setRoute`), `clearRoute`, `teach` (which calls `setRoute`), and `reset`
+// (which empties the route). The one exception is the projector window, which
+// writes `setRoute` on a bus of its own.
 
 import { useCallback, useMemo, useState } from 'react'
 
@@ -337,7 +348,10 @@ export interface HoverBinding {
   }
 }
 
-export function useHover(bus: Bus): HoverBinding {
+/** the slice of the bus the hover binding reads and writes */
+export type HoverBus = Pick<Bus, 'hover' | 'setHover' | 'endHover'>
+
+export function useHover(bus: HoverBus): HoverBinding {
   const { hover, setHover, endHover } = bus
   return useMemo(
     () => ({

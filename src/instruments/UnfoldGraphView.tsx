@@ -84,8 +84,11 @@ function shortenToEdge(from: { x: number; y: number }, to: { x: number; y: numbe
 
 const truncate = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
 
+/** the slice of the bus the unfold graph reads and writes */
+type UnfoldGraphViewBus = Pick<Bus, 'visit' | 'setFocus'>
+
 export interface UnfoldGraphViewProps {
-  bus: Bus
+  bus: UnfoldGraphViewBus
   /** start unfolding at this leaf immediately. Nothing passes it today — the
    * map's "open neighborhood" pin action went with the flat MapView — but the
    * re-seed API is kept intact for whatever re-adds a framing command. */

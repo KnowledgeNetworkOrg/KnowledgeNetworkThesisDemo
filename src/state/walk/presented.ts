@@ -43,7 +43,10 @@ export function usePresentedRoad(): Stop[] {
  * bus.clearRoute(), which also nulls activeWalk — that is why closing the
  * walk editor used to kill an active saved walk. Real clears now only come
  * from an explicit action: activateWalk, deactivateWalk, clearRoute. */
-export function usePublishPresentedRoute(bus: Bus, road: Stop[] | null): void {
+/** the slice of the bus the presented-route writer uses */
+export type PublishedRouteBus = Pick<Bus, 'setRouteSteps'>
+
+export function usePublishPresentedRoute(bus: PublishedRouteBus, road: Stop[] | null): void {
   useEffect(() => {
     if (road === null) return
     bus.setRouteSteps(routeStepsOf(road))

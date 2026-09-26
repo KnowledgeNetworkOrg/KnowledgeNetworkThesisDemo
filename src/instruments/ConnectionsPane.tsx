@@ -277,7 +277,15 @@ interface Spoke {
  *  mirroring it onto the bus from here lights the map's territory for every one of them from
  *  a single place. An effect is the right shape for that: it is the sanctioned "update an
  *  external system with the latest state from React", and the bus is exactly that. */
-function RelationStar({ api, bus }: { api: ConnectionsGraphApi; bus: Bus }) {
+
+/** the slice of the bus the relation star publishes its cross-pane hover to */
+type RelationStarBus = Pick<Bus, 'setHover' | 'endHover'>
+/** the slice of the bus the pane-header back/forward pair reads and writes */
+type ConnectionsPaneActionsBus = Pick<Bus, 'canBack' | 'back' | 'canForward' | 'forward'>
+/** the slice of the bus the pane reads and writes, plus what it hands the relation star */
+type ConnectionsPaneBus = Pick<Bus, 'history' | 'focus' | 'hover' | 'setFocus' | 'peekAt'> & RelationStarBus
+
+function RelationStar({ api, bus }: { api: ConnectionsGraphApi; bus: RelationStarBus }) {
   const { highlightId } = api
   useEffect(() => {
     if (!highlightId) return
@@ -435,7 +443,7 @@ function RelationStar({ api, bus }: { api: ConnectionsGraphApi; bus: Bus }) {
 /** the back/forward pair, mounted in the pane HEADER's actions slot rather than inside the
  *  body — the split has no chrome row of its own, and nothing else in the app walks the
  *  focus history. Exported for `studio/instruments.tsx`, which owns that slot. */
-export function ConnectionsPaneActions({ bus }: { bus: Bus }) {
+export function ConnectionsPaneActions({ bus }: { bus: ConnectionsPaneActionsBus }) {
   return (
     <>
       <IconButton
@@ -450,7 +458,7 @@ export function ConnectionsPaneActions({ bus }: { bus: Bus }) {
   )
 }
 
-export default function ConnectionsPane({ bus }: { bus: Bus }) {
+export default function ConnectionsPane({ bus }: { bus: ConnectionsPaneBus }) {
   // IS THE POINTER IN THIS PANE? The hover PREVIEW below must answer FOREIGN cursors only:
   // hovering one of our own rows must never re-target the very pane the cursor is standing in,
   // which would re-aim the split and remount the tree under the hand moving through it.
