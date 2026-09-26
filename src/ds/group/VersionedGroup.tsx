@@ -1532,7 +1532,7 @@ export function VersionedGroup({
   const word = tally === 1 ? String(countLabel).replace(/s$/, '') : countLabel
   /* one condition for both halves of the shared slot (OB-222): what brings the buttons out is
      exactly what takes the figure away. No hover state or timer of the tally's own — `live` is
-     the shared recede clock, so the leave edge is still `window.PKT_SB.LEAVE`'s. */
+     `usePresence`, so the leave edge is the shared recede clock's (`recedeMs()`). */
   const ctlShown = live || open || editMode
   const tallyLine = (
     <span title={wrapTip(tally + ' ' + word + ' inside this version')} style={{
