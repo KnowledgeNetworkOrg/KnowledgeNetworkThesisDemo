@@ -2049,8 +2049,16 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
   )
 
   // THE WALL IS A STILL PICTURE (OB-139 rule 4): no rail, no header row, no preview layer —
-  // it renders the canvas alone, exactly as it did before the rail landed.
-  if (onWall) return canvas
+  // it renders the canvas alone, exactly as it did before the rail landed. The one thing the
+  // wall must add is the FLEX PARENT this canvas is built for: `PaneCanvas` sizes itself with
+  // `flex: 1`, and `ProjectedMap` mounts the map in a plain `absolute; inset: 0` block, where
+  // flex-grow never applies — `height` stays `auto`, the svg's `height: 100%` resolves against
+  // it and loses to its own 1440:960 viewBox ratio (measured 686×457 in the roll's 686×365
+  // slot), and the wall fit then fits the walk into 92px of box the card cannot show. Every
+  // other mount of this canvas (the pane body, the map row below) is a flex column already.
+  if (onWall) {
+    return <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>{canvas}</div>
+  }
 
   // THE RAIL AND THE MAP ARE ONE PANE now (OB-226/238): the rail beside the canvas, the map's
   // own upper row above the canvas, and ONE `NodePreviewLayer` over both because a hover's
