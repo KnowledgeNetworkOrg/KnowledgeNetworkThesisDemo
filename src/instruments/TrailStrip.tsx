@@ -25,7 +25,10 @@ const VIA_TAG: Record<TrailVia, string> = {
   desk: 'DSK',
 }
 
-export default function TrailStrip({ bus }: { bus: Bus }) {
+/** the slice of the bus the trail strip reads and writes */
+type TrailStripBus = Pick<Bus, 'trail' | 'activeWalk' | 'setFocus' | 'activateWalk' | 'deactivateWalk'>
+
+export default function TrailStrip({ bus }: { bus: TrailStripBus }) {
   const { trail, activeWalk } = bus
   // #16: the built-ins PLUS whatever the desk has saved. Bound here rather than
   // imported as a const because the list grows while the app is running — save a

@@ -27,8 +27,11 @@ import { lensModel } from '../model/lens'
 import type { ConeSide, LensModel } from '../model/lens'
 import type { Bus } from '../state/bus'
 
+/** the slice of the bus a lens reads and writes */
+export type LensPaneBus = Pick<Bus, 'focus' | 'setFocus'>
+
 export interface LensPaneProps {
-  bus: Bus
+  bus: LensPaneBus
   /** which relation this lens is about — CONFIG, not bus state. It is what makes
    * one component into four panes, and it is why the registry can generate a
    * lens per edge type instead of anyone hand-writing them. */

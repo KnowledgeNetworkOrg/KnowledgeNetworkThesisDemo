@@ -52,7 +52,10 @@ const childX = (i: number, count: number) => {
 
 const truncate = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
 
-export default function NeighborhoodPanel({ bus }: { bus: Bus }) {
+/** the slice of the bus the neighborhood diagram reads and writes */
+type NeighborhoodPanelBus = Pick<Bus, 'focus' | 'setFocus'>
+
+export default function NeighborhoodPanel({ bus }: { bus: NeighborhoodPanelBus }) {
   const currentId = bus.focus ?? ROOT_ID
   // two writers, two vias: stepping into a child is tree movement; crossing a
   // typed road is a JUMP, and the trail chip says so

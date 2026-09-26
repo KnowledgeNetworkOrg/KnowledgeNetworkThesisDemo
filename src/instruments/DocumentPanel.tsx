@@ -25,7 +25,10 @@ import { DOC_BODY } from '../corpus/docs'
 import { listWalks, subscribeWalks } from '../state/walkstore'
 import type { Bus } from '../state/bus'
 
-export default function DocumentPanel({ bus }: { bus: Bus }) {
+/** the slice of the bus the document reads and writes */
+type DocumentPanelBus = Pick<Bus, 'focus' | 'activateWalk'>
+
+export default function DocumentPanel({ bus }: { bus: DocumentPanelBus }) {
   const currentId = bus.focus ?? ROOT_ID
   const onActivateWalkAtStop = bus.activateWalk
 
