@@ -1,0 +1,28 @@
+REVISE
+
+The code does what the three items ask, and it matches the design system's source line for line, except for one deviation that is declared and justified. Two gaps remain. A new comment breaks one literal "done when" line of the menu-wash item. And nothing in this change has ever been run, including the size-check re-baseline the card explicitly requires.
+
+**Must fix:**
+
+1. **A new comment breaks the menu-wash item's "search finds nothing" line.** This is at `src/ds/group/VersionedGroup.tsx:1535`. The new comment above the shared "buttons shown" condition names the design system's global timer, `window.PKT_SB.LEAVE`. The menu-wash item (OB-206) says: "`grep -n "PKT_SB" src/ds/group` finds nothing." That search was empty before this change and now finds this line. The ledger entry written in the same change says the search "finds nothing", which is now false: that's `src/ds/PROVENANCE.json`, the card's 2026-09-25 entry, part (4). The receipt would repeat the false claim. The fix is to reword the comment to say "the shared recede clock (`useRecede`)" without naming the global.
+
+2. **Nothing has been run, so the card's re-baseline requirement is unmet.** The card says: "Done when: … the group-card screenshot drivers re-baselined where geometry moved", and "A pass without re-baselining means the change did not take." None of these have run: `npm run verify`, the browser tests, `shot-foldab.mjs` or `shot-cardhead.mjs`. So the new unit test (`src/ds/group/grouphead.test.ts`) and the new browser checks have never executed. Yet the ledger entry says the behaviour is "Proven … by grouphead.test.ts … and in the browser by browsertest-groupedit.mjs … browsertest-rules-washes-baselines.mjs".
+   - **Running them is safe.** The earlier step said installing packages would change the checkout, but it wouldn't. `npm ci` writes only `node_modules/`, which the root `.gitignore` excludes. The drivers write to `tools/studio-spike/out/` and `shots/`, and both are ignored too.
+   - **For the card's "did the change take" test:** run `shot-foldab` once with `closable: true` removed from `tools/studio-spike/foldab/main.tsx` (lines 235, 301 and 302), then again with it restored. If the first run shows no drift, say so in the receipt rather than claiming the check.
+
+**Optional:**
+
+1. **The narrow-card layout has no automated check.** The tally item (OB-222) requires that below 250px the controls sit top-aligned rather than hanging off the row's bottom edge. The unit test only checks the width arithmetic, and no browser check reads a narrow card's button position. Every folded card on the road is narrow, so this is the common case, and the card-head screenshots are the only evidence.
+2. **The keyboard path of the menu row is untested.** OB-206 requires the ✕ to appear on keyboard focus too, and "tabbing from the row to its ✕ must not lose it". The code handles this: the row's focus and blur handlers keep the ✕ on its half-second grace timer. But the new browser check drives only the mouse.
+3. **The "~40px wider" figure won't be reached.** The implementation follows the design system's formula exactly, which widens the title by the count's width minus 12px. That is 30.35px in the test environment's estimated font widths, and roughly 23px with real fonts for "3 nodes". The receipt should give the measured number and say the ~40 was the design system's estimate. It shouldn't mark that line met as written.
+4. **Items for the receipt and the drift log.** The pencil-border deviation still needs its comment on drift-log #74; the ledger names #74, but nothing has been posted. The receipt should also mention two things. First, the menu row's ✕ stays a hand-drawn button rather than the design system's shared button with its reveal setting: same behaviour, different shape. Second, the three buttons measure 56px against a 55px reserved slot.
+
+**Noticed outside this card's scope**
+
+By my arithmetic, the predicted title width runs about 8px wider than the room the head row actually gives the title. The drawn row has three 6px gaps plus a 2px margin on the title, while the formula subtracts only one gap after the title. The design system's source has the identical layout and formula. This change shrinks the overshoot on closable cards from about 27px to about 8px. A title whose width falls in that window is predicted as one line but drawn as two. That might be worth a question to the design agent.
+
+Assumptions:
+- **The search line is binding even though the hit is only a comment.** The design system's own file keeps the timer's name in a comment. But the "done when" line names the search literally, and the ledger claims its result.
+- **"Re-baselined" means the drivers run and agree with the drawn card once the size-check page's hand-built descriptions carry the new flag.** Driver screenshots are ignored by git, so there's no committed baseline image to update.
+- **The receipt and the #74 comment count as outstanding, not Must fix.** Both belong after a commit exists.
+- **What I checked, and what I didn't run.** I checked the change against the design system's actual text for OB-206, OB-222 and OB-245 and against its source files for the card and the step chain. I hand-checked the unit test's numbers: a 190.8px title column against 160.45px before, a gain of 30.35px. I confirmed both places the road draws a card always give it an ungroup button. I ran nothing, per this step's rules.
