@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { Bullet, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, ExplorerRail, ExplorerRailCorner, ExplorerRailMath, explorerRailWidth, FindMark, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_DIVIDER_METRICS, PaneDivider, paneFit, clampDesk, deskBounds, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
+import { Bullet, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, ExplorerRail, ExplorerRailCorner, ExplorerRailMath, explorerRailWidth, FindMark, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_DIVIDER_METRICS, PaneDivider, paneFit, clampDesk, deskBounds, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, REPLAY_PATH, STOP_CARD_METRICS, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkComplete, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -176,12 +176,19 @@ describe('ported but not adopted DS components', () => {
   // WalkPinHover is the DS's HTML-pin wrapper and our pins are SVG `<g>`s, which
   // bind the same two lines themselves; `segmentWalked` and `walkEase` are read by
   // `walkArrow` and `walkAdvance` from inside src/ds.
+  // #345 (OB-196, OB-199) added three more of the same kind: `REPLAY_PATH` and
+  // `walkComplete` are read by `PlayToggle` and `WalkDock` from inside src/ds (the map takes
+  // the dock's own two-beat restart, so it derives nothing itself), and `STOP_CARD_METRICS`
+  // is `StopCard`'s own measure — the app passes `StopCard` strings and never sizes it.
   it('WalkParts pieces — read by WalkStrip and WalkDock from inside src/ds; no app importer', () => {
     expect(typeof StopTitle).toBe('function')
     expect(typeof PlayToggle).toBe('function')
     expect(typeof OptionalSuffix).toBe('function')
     expect(typeof walkHoverStyle).toBe('function')
     expect(typeof WalkParts).toBe('object')
+    expect(typeof walkComplete).toBe('function')
+    expect(typeof REPLAY_PATH).toBe('string')
+    expect(STOP_CARD_METRICS.width).toBe(264)
   })
 
   it('WalkPinHover — for HTML pins; the map binds the recipe on its SVG pins itself', () => {

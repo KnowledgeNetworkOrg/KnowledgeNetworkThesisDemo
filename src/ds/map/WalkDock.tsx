@@ -1,10 +1,10 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 
 import { StepDot } from '../nav/StepDot'
 import { WalkerMark } from '../chrome/WalkerMark'
 import { WalkPreview, previewAnchor } from '../nav/WalkPreview'
-import { StopTitle, PlayToggle, OptionalSuffix, stopState, walkProgress, walkAddresses, walkRowSwell, walkHoverStyle } from '../nav/WalkParts'
+import { StopTitle, PlayToggle, OptionalSuffix, stopState, walkProgress, walkAddresses, walkRowSwell, walkHoverStyle, walkComplete } from '../nav/WalkParts'
 import type { WalkMark } from '../nav/WalkParts'
 import { wrapTip } from '../chrome/IconButton'
 import type { WalkStep } from '../nav/WalkStrip'
@@ -14,9 +14,11 @@ import type { WalkStep } from '../nav/WalkStrip'
  *  `walkAdvance`) are published here as the DS publishes them, for OB-132 to consume. NOT
  *  PORTED: `WalkMath`, the capital-initial bundle the DS exports so its own cards can reach the
  *  band through `window.<Namespace>` — its `.d.ts` says "nothing here is required in `src/ds`",
- *  and OB-130 clause (8) says do not add it to the barrel and do not import it. */
+ *  and OB-130 clause (8) says do not add it to the barrel and do not import it. Nor OB-216's
+ *  italic name on the closed rail: that is a separate obligation, and this port took OB-196's
+ *  replay and name hover only. */
 
-import { walkBand } from './walkrecipes'
+import { walkBand, WALK_PLAYBACK_DEFAULTS } from './walkrecipes'
 import type { WalkBand } from './walkrecipes'
 
 export { walkBand, walkBandSpan, segmentWalked, walkArrow, walkEase, walkAdvance, walkArrival, walkArrivalLag, walkLook, WALK_BAND_DEFAULTS, WALK_ARROW_DEFAULTS, WALK_PLAYBACK_DEFAULTS, WALK_LOOK_DEFAULTS } from './walkrecipes'
@@ -91,6 +93,26 @@ export interface WalkDockProps {
   /** mounts the play/pause button at the row's left end; omit it and there is no transport. Fires;
    *  the HOST runs the walk. Does not fire `onSeek`. */
   onPlayToggle?: () => void
+  /** THE TRANSPORT'S THIRD STATE, and the only new call it takes: once the cursor is on the last
+   *  stop the button draws the replay arrow and its click means "back to stop 1 and run" (owner,
+   *  2026-09-16, DS OB-196). The dock derives the state with `walkComplete(position,
+   *  steps.length)` — it is never a prop — and a walk being played shows a pause regardless.
+   *
+   *  WITHOUT THIS HANDLER the dock does the restart through the two channels it already has:
+   *  `onSeek(0)` at once and then `onPlayToggle()` after `restartPause`. That is correct and needs
+   *  no adoption. Pass `onReplay` when your store can set cursor and playing in ONE write — and
+   *  then the beat is yours too, because this skips it. */
+  onReplay?: () => void
+  /** THE BEAT BETWEEN A REPLAY CLICK AND THE WALK RUNNING, in ms. Defaults to
+   *  `WALK_PLAYBACK_DEFAULTS.restartPause` (600, CHOSEN). The cursor goes back at ONCE and the
+   *  walk starts after this pause, because a replay makes two statements — you are at the
+   *  beginning, then we go — and run together the jump back is never seen.
+   *
+   *  ANY SEEK DURING THE PAUSE CANCELS THE PENDING START, and so does a second press of the
+   *  button or the space bar: a user who has chosen where to be during the beat does not get the
+   *  walk starting out from under them. IGNORED WHEN `onReplay` IS GIVEN — a host doing the
+   *  restart in one write owns the beat too, and two pauses read as a stutter. */
+  restartPause?: number
   /** the user picked stop `index` — by clicking or dragging the closed rail, dragging the open
    *  row, or a key while the dock has focus. Fires live during a drag. Set `position` from it. */
   onSeek?: (index: number) => void
@@ -121,6 +143,15 @@ export interface WalkDockProps {
    *  ONE CARD PER STOP, because the dock draws ONE MARK PER STOP (owner, 2026-09-14): the dock has
    *  no ranges. A mark that means two things cannot be read, and the map's own `"2-3"` pin means
    *  something else entirely (several nodes in one cell at this zoom).
+   *
+   *  THE CURRENT STOP'S NAME IN THE TRANSPORT ROW IS A FOURTH WAY IN (owner, 2026-09-16, DS
+   *  OB-196). It was the only named stop on the surface with no way to read what is in it, and it
+   *  is the one a reader meets first, because it is what the dock shows at rest. The card anchors
+   *  on the WORDS, not on the name's slot (the slot is `flex: 1` and a short name sits at its left
+   *  end), and a truncated name anchors on the clip. IT REPORTS NOTHING THROUGH `onStepHover`:
+   *  that channel says "the reader is pointing at THIS stop", and pointing at the readout of where
+   *  the walk already stands says nothing new — it would light the current stop's halo on this
+   *  very row.
    *
    *  A DRAG SHOWS THE CARD TOO, and that is the newer rule (owner, 2026-09-14; OB-185): the dock
    *  used to clear the preview on `pointerdown`, which is backwards — a hover asks *what is over
@@ -187,7 +218,7 @@ interface Hover { i: number; x: number; top: number }
  *  reports an integer stop, `onPlayToggle` asks the host to run its clock; the dock holds no
  *  timer. `position` accepts the host's integer cursor unchanged — the knob then steps; a
  *  fractional clock is what buys travel. */
-export function WalkDock({ steps = [], position = 0, playing = false, onPlayToggle, onSeek, open, defaultOpen = false, onOpenChange, metric, defaultMetric = 'position', onMetricChange, band, renderPreview, onStepHover, hoveredStep, style }: WalkDockProps) {
+export function WalkDock({ steps = [], position = 0, playing = false, onPlayToggle, onReplay, restartPause, onSeek, open, defaultOpen = false, onOpenChange, metric, defaultMetric = 'position', onMetricChange, band, renderPreview, onStepHover, hoveredStep, style }: WalkDockProps) {
   const M = WALK_DOCK_METRICS
   const N = steps.length
   const last = Math.max(0, N - 1)
@@ -263,7 +294,47 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
     const r = el.getBoundingClientRect()
     return r.left + i * M.stopW + M.stopW / 2 - el.scrollLeft
   }
-  const seek = (i: number) => { if (onSeek && N) onSeek(clampI(i)) }
+  /* THE REPLAY, IN TWO BEATS (DS OB-196). The cursor goes back at once — so the pins, the ticks
+     and the name all say "stop 1" while the room is still looking at the click — and the walk
+     starts `restartPause` later. One call would hide the jump back inside the first travel; see
+     `WALK_PLAYBACK_DEFAULTS.restartPause`.
+     ANY SEEK CANCELS THE PENDING START, which is why `seek` clears the timer rather than the
+     handlers doing it one by one: the user dragging the rail during the pause has chosen where to
+     be, and a walk that starts running out from under that is the fault this guard exists for.
+     A SECOND PRESS of the button or the space bar cancels it too (their own handlers below).
+     `onReplay` SKIPS ALL OF IT: a host doing the restart in one write owns the beat as well, and
+     two pauses — theirs and ours — would read as a stutter. */
+  const restartRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pause = restartPause === undefined ? WALK_PLAYBACK_DEFAULTS.restartPause : restartPause
+  const cancelRestart = () => { if (restartRef.current !== null) { clearTimeout(restartRef.current); restartRef.current = null } }
+  useEffect(() => () => { if (restartRef.current !== null) clearTimeout(restartRef.current) }, [])
+  /* ★ LOCAL: THE DELAYED START CALLS THE HOST'S TOGGLE AS IT IS WHEN THE BEAT ENDS, not as it was
+     at the click. The DS's timer closes over the click's `onPlayToggle`, and this app's toggle is a
+     fresh closure per render that remembers its render's cursor — the LAST stop, at the click — so
+     it would re-seek to stop 1 and write the focus a second time (a second entry on the trail).
+     Read through a ref written after every render, the toggle sees the cursor already at 0. And a
+     walk something else started during the beat is left running rather than paused. */
+  const playRef = useRef({ onPlayToggle, playing })
+  useEffect(() => { playRef.current = { onPlayToggle, playing } })
+  /* ★ LOCAL: A SEEK FROM ANOTHER PANE CANCELS THE START TOO. The DS cancels on this dock's own
+     seeks; the viewer's strip and the presenter move the same cursor, and a user who picks a stop
+     there during the beat has chosen where to be just the same (OB-196 clause 3b: "cursor
+     wherever the user put it, `playing` still false"). The replay's own jump lands on 0, which is
+     the one change this lets through. */
+  useEffect(() => {
+    if (cur !== 0 && restartRef.current !== null) { clearTimeout(restartRef.current); restartRef.current = null }
+  }, [cur])
+  const seek = (i: number) => { cancelRestart(); if (onSeek && N) onSeek(clampI(i)) }
+  const restart = () => {
+    if (onReplay) { onReplay(); return }
+    seek(0)
+    restartRef.current = setTimeout(() => {
+      restartRef.current = null
+      const p = playRef.current
+      if (p.onPlayToggle && !p.playing) p.onPlayToggle()
+    }, Math.max(0, pause))
+  }
+  const complete = walkComplete(pos, N)
   /* ONE REPORT PER CHANGE OF STOP, kept in a REF and not compared against `hover`: a drag's
      `pointermove` listener lives on `window` for the whole gesture and closes over the render that
      created it, so a check against the state value goes stale on the first move and reports the
@@ -280,6 +351,34 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
      never sends one: it has no ranges, so there is nothing to send. */
   const previewAt = (i: number, x: number, top: number) => { report(i); setHover({ i, x, top }) }
   const clearPreview = () => { setHover(null); report(null) }
+  /* THE NAME IN THE TRANSPORT ROW GETS THE SAME CARD (owner, 2026-09-16, DS OB-196). It is the one
+     place a stop is named while the dock is at rest, and it was the only named stop on the whole
+     surface with no way to read what is in it — every tick, every dot and every map pin opens the
+     preview. Anchored on the NAME's own box, the discrete case, not the pointer: the name is one
+     object, not a scrub.
+     IT REPORTS NOTHING TO THE HOST, and that is the difference from a stop hover: `onStepHover`
+     publishes "the reader is pointing at THIS stop" to the other panes, and pointing at the
+     readout of where the walk already is says nothing new — it would light the current stop's
+     halo on this very row for as long as the pointer rested on its own label. */
+  const nameEnter = (e: ReactMouseEvent<HTMLSpanElement>) => {
+    if (!N || !renderPreview) return
+    const el = e.currentTarget
+    const box = el.getBoundingClientRect()
+    /* THE CARD CENTRES ON THE WORDS, NOT ON THE SLOT. This span is `flex: 1` — it owns the whole
+       gap between the button and the readout, so its own box is the row's leftover width and a
+       short name sits at the left end of it. Anchoring on the box put the card a long way right
+       of the thing it describes. A Range over the contents gives the text's true width, which for
+       a truncated name runs PAST the clip, so the right edge is clamped back to the box. */
+    let right = box.right
+    if (el.firstChild && typeof document !== 'undefined' && document.createRange) {
+      const rng = document.createRange()
+      rng.selectNodeContents(el)
+      const tr = rng.getBoundingClientRect()
+      if (tr.width) right = Math.min(box.right, tr.right)
+    }
+    setHover({ i: cur, x: (box.left + right) / 2, top: box.top })
+  }
+  const nameLeave = () => { if (!dragRef.current) setHover(null) }
   const outside = (el: HTMLElement | null, ev: { clientX: number; clientY: number } | null) => {
     if (!el || !ev) return false
     const r = el.getBoundingClientRect()
@@ -400,7 +499,9 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
     else if (k === 'ArrowLeft') { e.preventDefault(); seek(cur - 1) }
     else if (k === 'Home') { e.preventDefault(); seek(0) }
     else if (k === 'End') { e.preventDefault(); seek(last) }
-    else if (k === ' ' && onPlayToggle) { e.preventDefault(); onPlayToggle() }
+    /* SPACE IS THE SAME CONTROL AS THE BUTTON, including its third state: on a finished walk it
+       restarts (with the same beat) rather than toggling a clock that has nowhere to go. */
+    else if (k === ' ' && onPlayToggle) { e.preventDefault(); if (complete && !playing) restart(); else { cancelRestart(); onPlayToggle() } }
   }
 
   const step = steps[cur]
@@ -422,10 +523,17 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
       {/* THE TRANSPORT ROW — first in both states. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, height: M.row }}>
         {onPlayToggle ? (
-          /* `PlayToggle` (WalkParts) — the strip's own button at this row's 20px. */
-          <PlayToggle playing={playing} onToggle={onPlayToggle} size={M.row} glyph={[8, 10]} />
+          /* `PlayToggle` (WalkParts) — the strip's own button at this row's 20px, in its third
+             state once the cursor is on the last stop: the glyph becomes the replay arrow and the
+             click means "from the beginning" (owner, 2026-09-16, DS OB-196). `walkComplete` is the
+             derivation, so the dock cannot answer a stop early or a stop late; `playing` wins, so
+             a completed walk being replayed shows a pause. THE RESTART IS TWO HOST CALLS IN ORDER
+             — seek to 0, then toggle — because the clock is already at the end and toggling alone
+             plays for no frames. `onReplay` is the host's own chance to do it as one action. */
+          <PlayToggle playing={playing} completed={complete} size={M.row} glyph={[8, 10]}
+            onToggle={complete && !playing ? restart : () => { cancelRestart(); onPlayToggle() }} />
         ) : null}
-        <span ref={nameRef} style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 12, fontWeight: 'var(--fw-semibold)', color: 'var(--text-walk)' }}>
+        <span ref={nameRef} data-walk-dock-name="" onMouseEnter={nameEnter} onMouseLeave={nameLeave} style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 12, fontWeight: 'var(--fw-semibold)', color: 'var(--text-walk)' }}>
           {step ? step.title : ''}
           {/* THE SAME SUFFIX THE OPEN ROW AND THE STRIP DRAW (owner, 2026-09-01) — the closed rail's
               name is the one place a stop is named while the dock is at rest, so it says

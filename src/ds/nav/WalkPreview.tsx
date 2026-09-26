@@ -1,6 +1,10 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { portalInto } from '../chrome/portal'
+/* the SAME suffix every other walk surface draws after an optional stop's name (`WalkParts`, the
+   file that exists because the dock's copy of this had already lost it). No cycle: `WalkParts`
+   imports nothing from here — `WalkDock` is the file that imports both. */
+import { OptionalSuffix } from './WalkParts'
 
 /** THE PREVIEW POPUP'S ONE GEOMETRY, published so three surfaces share it: how far above its
  *  anchor the card floats. A number in prose gets retyped; `WalkStrip` carried `top - 12` inline
@@ -71,7 +75,15 @@ export interface WalkPreviewProps {
  *  TRUE centre and never pre-shift `x` — the clamp cannot tell a pre-shifted anchor from a real
  *  one and would correct it twice (`WalkPreview.d.ts` rule 6).
  *
- *  Typed port of the DS WalkPreview.jsx (contract: WalkPreview.d.ts), OB-131. */
+ *  AND THE CONTENT IS THE STOP'S DOCUMENT, NOT ITS NAME (rule 7, DS OB-199, 2026-09-16) — and the
+ *  way to keep that true is to pass `StopCard` (below) rather than a card of your own. A hover
+ *  here asks *what will I read when I get there*; the name is already under the dot, beside the
+ *  transport and in the breadcrumb, so a card carrying only the name is a native tooltip with a
+ *  border on it. That is what the owner reported (the app's card printed `address · title` plus
+ *  the walk's note WHEN THE WALK HAD ONE, and the stop in the screenshot had none).
+ *
+ *  Typed port of the DS WalkPreview.jsx (contract: WalkPreview.d.ts), OB-131, and OB-199's
+ *  `StopCard` + `STOP_CARD_METRICS`. */
 /** IT RENDERS THROUGH A PORTAL, AND THAT IS NOT A DETAIL — it is what makes `position: fixed` mean
  *  what the docblock above says. A `filter`, `backdrop-filter`, `transform`, `perspective` or
  *  `will-change` on ANY ancestor makes that ancestor the containing block for a fixed descendant,
@@ -109,4 +121,115 @@ export function WalkPreview({ x, top, gap = PREVIEW_GAP, children }: WalkPreview
   )
   const host = typeof document !== 'undefined' ? document.body : null
   return host ? portalInto(host, card) : card
+}
+
+/** THE CARD'S OWN MEASURE AND ITS CLAMPS — CHOSEN, not derived. 264px is ≈38 characters at
+ *  `--fs-body`, which is a readable measure for two or three lines of prose and still narrower
+ *  than the narrowest pane the dock sits on. The clamps are what keep a long document from
+ *  turning a look-ahead into a page: three lines of the document alone, two when a walk note is
+ *  above it, three for the note itself. */
+export const STOP_CARD_METRICS = { width: 264, bodyLines: 3, bodyLinesWithNote: 2, noteLines: 3 }
+
+function stopClamp(lines: number): CSSProperties {
+  return { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: lines, overflow: 'hidden' }
+}
+
+export interface StopCardProps {
+  /** the stop's number as the SURFACE counts it — the dock and the map pin pass the two-number
+   *  address (`walkAddresses`), a grouped stop its full path (rule 4), a merged pin its run's
+   *  label. Omit for no number. */
+  address?: string | number
+  /** the stop's node title */
+  title: string
+  /** draws the shared " (optional)" suffix after the name — the same `OptionalSuffix` every other
+   *  walk surface uses, never a second wording. ★ LOCAL: the DS's card also italicises the name and
+   *  slants the address for it; that is OB-216, a separate obligation this port did not take. */
+  optional?: boolean
+  /** where the stop sits, one line, clipped: "Core Computer Science › Digital Logic". The host
+   *  composes it from its own tree — a breadcrumb string, not a list of nodes. */
+  ancestry?: string
+  /** the WALK's own note for this stop — why this walk comes here. Clamped to three lines. */
+  note?: ReactNode
+  /** the NODE's document opening — what the reader will actually find. Clamped to three lines, or
+   *  two when a note sits above it. THIS IS THE ONE THE REPORT WAS ABOUT: without it a stop the
+   *  walk never annotated draws a card with nothing in it. */
+  body?: ReactNode
+  /** a merged MAP pin's mark (`{ from, to, label }`, 0-based, the host's own numbering). The
+   *  footer then counts the other stops under that pin — load-bearing, because the card names one
+   *  of several documents and nothing else on the map says so (OB-186). The dock passes none. */
+  mark?: { from: number; to: number; label?: string }
+  /** position/size overrides for the mount only. Do not restyle the type or the ink. */
+  style?: CSSProperties
+}
+
+/** WHAT THE CARD SAYS, WRITTEN ONCE (owner, 2026-09-16, DS OB-199: "when i hover over the walk
+ *  dock's nodes the tooltip preview is still not right, just shows the title of the node being
+ *  hovered over"). `WalkPreview` places the card and this composes it, so the strip, the dock's two
+ *  rails, the dock's name readout and a map pin all answer the hover with the same thing.
+ *
+ *  THE QUESTION THE HOVER ASKS IS "WHAT WILL I READ WHEN I GET THERE", and a name cannot answer
+ *  it — the name is already under the dot on the open row, beside the transport on the closed
+ *  rail, and in the tree and the breadcrumb besides. So the card is the stop's DOCUMENT: where the
+ *  stop sits, the walk's own reason for stopping there, and the opening of the page itself.
+ *
+ *  THE HOST OWNS EVERY STRING AND THIS INVENTS NONE. `body` is the node's document opening — the
+ *  app's `DOC_BODY` is guarded at module load to hold one for every graph node, so a card with
+ *  nothing under its head is a host that did not pass it, not a stop without a page. With neither
+ *  `note` nor `body` the card draws its head and its placement line and stops: no skeleton, no
+ *  "no description", no prose this side made up.
+ *
+ *  THE INK LADDER CARRIES THE SOURCE, so no labels are needed and none are drawn: the walk's own
+ *  note is `--text-1` (someone wrote it for this walk), the document's opening is `--text-2` (it
+ *  belongs to the node and is true whoever is reading), the placement line a meta line at
+ *  `--fs-caption`. AND THE PROSE IS `--fs-body`: 11px is this system's floor for numerals, tags
+ *  and glyph marks, never for sentences — the reported card was 11px prose, which is half of why
+ *  it read as a tip rather than as a page.
+ *
+ *  A MERGED PIN'S FOOTER IS LOAD-BEARING (OB-186): the card names ONE of several documents under
+ *  that pin and nothing else on the map admits it. Pass the pin's own `mark` and the footer counts
+ *  the rest; the dock passes none, because the dock draws one mark per stop.
+ *
+ *  Test hooks: `data-stop-card` and `data-stop-card-more` are the DS's; ★ LOCAL
+ *  `data-stop-card-head` marks the heading, so a browser check can assert the card says MORE than
+ *  its head — OB-199's own acceptance test. */
+export function StopCard({ address, title, optional = false, ancestry, note, body, mark, style }: StopCardProps) {
+  const M = STOP_CARD_METRICS
+  const under = mark ? Math.max(0, mark.to - mark.from) : 0
+  return (
+    <div data-stop-card="" style={{
+      width: M.width, maxWidth: '100%', boxSizing: 'border-box',
+      borderRadius: 'var(--radius-md)', border: '1px solid var(--border-hair)',
+      background: 'var(--surface-paper)', boxShadow: 'var(--lift-2)', overflow: 'hidden',
+      fontFamily: 'var(--font-ui)', textAlign: 'left', ...style,
+    }}>
+      <div style={{ padding: '8px 11px 0' }}>
+        <div data-stop-card-head="" style={{ fontSize: 'var(--fs-body)', lineHeight: 'var(--lh-snug)', fontWeight: 'var(--fw-semibold)', color: 'var(--text-1)', ...stopClamp(2) }}>
+          {address == null || address === '' ? null : (
+            <span style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'var(--tnum)', color: 'var(--text-2)' }}>{address + ' · '}</span>
+          )}
+          {title}
+          {optional ? <OptionalSuffix /> : null}
+        </div>
+        {ancestry ? (
+          <div style={{ marginTop: 2, fontSize: 'var(--fs-caption)', lineHeight: 'var(--lh-snug)', color: 'var(--text-2)', ...stopClamp(1) }}>{ancestry}</div>
+        ) : null}
+      </div>
+      {note || body ? (
+        <div style={{ padding: '6px 11px 9px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {note ? (
+            <div style={{ fontSize: 'var(--fs-body)', lineHeight: 'var(--lh-snug)', color: 'var(--text-1)', ...stopClamp(M.noteLines) }}>{note}</div>
+          ) : null}
+          {body ? (
+            <div style={{ fontSize: 'var(--fs-body)', lineHeight: 'var(--lh-snug)', color: 'var(--text-2)', ...stopClamp(note ? M.bodyLinesWithNote : M.bodyLines) }}>{body}</div>
+          ) : null}
+        </div>
+      ) : <div style={{ height: 8 }} />}
+      {mark && under > 0 ? (
+        <div data-stop-card-more="" style={{ padding: '5px 11px 7px', borderTop: '1px solid var(--border-hair)', fontSize: 'var(--fs-caption)', lineHeight: 'var(--lh-snug)', color: 'var(--text-2)' }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'var(--tnum)' }}>{mark.label}</span>
+          {' · +' + under + (under === 1 ? ' more stop' : ' more stops') + ' under this pin'}
+        </div>
+      ) : null}
+    </div>
+  )
 }
