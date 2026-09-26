@@ -9,6 +9,10 @@
 //   - OB-204: a highlight that tracks the pointer down an open list does not animate. The version
 //     dropdown's rows, the stop finder's rows and the note-category popover's rows compute
 //     `transition-property: none`; the version picker's TRIGGER still washes.
+//   - OB-206: and it does not WAIT either. A version row's wash and its delete ✕ are two states
+//     of one gesture: on leave the background is clear while the ✕ is still up and tabbable,
+//     and the ✕ recedes on the shared clock after that. Asserted as an ORDER, never as a
+//     wall-clock 500 — a throttled frame stretches every timer.
 //   - OB-201: a round close control draws the ✕ as an svg, centred on the button by construction.
 //   - OB-195: a relationship card draws its rule on the TOP edge only — no card carries a bottom
 //     border, so two adjacent cards share one hairline.
@@ -181,6 +185,39 @@ try {
     await page.keyboard.press('Escape')
   }
 
+  // ── OB-206: the row's wash and its ✕ are two states ────────────────────────
+  // On the seeded FORK, the one card whose menu rows carry a delete ✕ (it holds two versions).
+  const forked = page.locator('[data-road-root] [data-rstage="seed-sec"]')
+  if (ok('OB-206: the seeded two-version card is on the road', (await forked.count()) === 1)) {
+    await forked.scrollIntoViewIfNeeded()
+    const trigger = forked.locator('[role="button"]').filter({ hasText: /v\d/ }).first()
+    const tb = await trigger.boundingBox()
+    await page.mouse.click(tb.x + 6, tb.y + tb.height / 2)
+    await page.waitForTimeout(400)
+    // the menu's FIRST row, so leaving upward always leaves the menu, whichever way it opened
+    const rowState = () => page.evaluate(() => {
+      const opt = document.querySelector('[role="listbox"] button[role="option"]')
+      const x = opt && opt.parentElement.querySelector('button[aria-label="delete this version"]')
+      return x ? { wash: getComputedStyle(opt).backgroundColor, x: getComputedStyle(x).opacity, tab: x.tabIndex } : null
+    })
+    if (ok('OB-206: the open menu\'s rows carry a delete ✕', !!(await rowState()))) {
+      const rb = await page.locator('[role="listbox"] button[role="option"]').first().boundingBox()
+      await page.mouse.move(rb.x + rb.width / 2, rb.y + rb.height / 2, { steps: 4 })
+      await page.waitForTimeout(400) // the ✕'s own 250ms fade in
+      const hovered = await rowState()
+      ok('OB-206: hovering a row lights its wash and brings up its ✕', hovered.wash !== 'rgba(0, 0, 0, 0)' && hovered.x === '1' && hovered.tab === 0, JSON.stringify(hovered))
+      await page.mouse.move(rb.x + rb.width / 2, rb.y - 400, { steps: 2 })
+      await page.waitForTimeout(20)
+      const left = await rowState()
+      ok('OB-206: on leave the background is clear at once while the ✕ is still up and still tabbable — the wash does not wait on the ✕\'s clock',
+        left.wash === 'rgba(0, 0, 0, 0)' && left.x === '1' && left.tab === 0, JSON.stringify(left))
+      await page.waitForTimeout(1500) // the recede clock (500ms) and the fade (250ms), with room for a slow timer
+      const gone = await rowState()
+      ok('OB-206: and the ✕ goes after that, on the recede clock — faded out and out of the tab order', gone.x === '0' && gone.tab === -1, JSON.stringify(gone))
+    }
+    await page.keyboard.press('Escape')
+  }
+
   // ── OB-201: a round close control draws its ✕ ──────────────────────────────
   const close = await page.evaluate(() => {
     const btn = [...document.querySelectorAll('button[aria-label="close"], button[aria-label^="close "]')]
@@ -245,6 +282,111 @@ try {
     .filter((b) => b.getBoundingClientRect().height >= 20)
     .map((b) => getComputedStyle(b).transitionProperty))
   ok('OB-204: the category popover\'s rows have transition-property none', popRows.length > 0 && popRows.every((p) => p === 'none'), `${popRows.length} rows, ${JSON.stringify([...new Set(popRows)])}`)
+
+  // ── OB-206, THE KEYBOARD PATH: focus on a row brings up its ✕, and Tab hands off to it ──
+  // The item's second done-when line: "the row's ✕ still appears on hover AND on keyboard focus
+  // … tabbing from the row to its ✕ must not lose it". Focus leaves the row for the ✕ INSIDE it,
+  // so the row's blur starts the recede clock and the ✕'s own focus has to cancel it.
+  // On a FRESH page, with the menu opened by Enter, never by a click: a click on the card selects
+  // it, and while a card below a container is selected the road binds Tab to "indent the
+  // selection" wherever focus is, so the Tab would move the card and unmount this menu. That is
+  // the road's shortcut, not this component, and it is reported separately.
+  // The pointer stays parked off the road, so nothing here can be lit by hover. The row is
+  // given focus directly (this menu has no arrow keys, and it is not next in the tab order after
+  // its trigger), and only on a page that HAS focus: on an unfocused page a programmatic
+  // `.focus()` moves `activeElement` without firing one focus event, which reads exactly like a
+  // dead focus path (the DS's own measurement trap). The hand-off itself is a real Tab press.
+  await fresh()
+  await openPalette()
+  await page.getByLabel('studio-preset-plan').click()
+  await page.waitForTimeout(700)
+  await page.bringToFront()
+  await page.mouse.move(2, 2)
+  {
+    const forked = page.locator('[data-road-root] [data-rstage="seed-sec"]')
+    await forked.scrollIntoViewIfNeeded()
+    const trigger = forked.locator('[role="button"]').filter({ hasText: /v\d/ }).first()
+    await trigger.focus()
+    await page.keyboard.press('Enter')
+    await page.waitForTimeout(400)
+    const rowState = () => page.evaluate(() => {
+      const opt = document.querySelector('[role="listbox"] button[role="option"]')
+      const x = opt && opt.parentElement.querySelector('button[aria-label="delete this version"]')
+      return x ? { wash: getComputedStyle(opt).backgroundColor, x: getComputedStyle(x).opacity, tab: x.tabIndex } : null
+    })
+    const focusedLabel = () => page.evaluate(() => {
+      const a = document.activeElement
+      return a ? (a.getAttribute('aria-label') || a.getAttribute('role') || a.tagName) : null
+    })
+    const before = await rowState()
+    if (ok('OB-206 (keyboard): Enter on the picker opens the menu, its ✕ at rest', !!before && before.x === '0' && before.tab === -1, JSON.stringify(before))) {
+      await page.locator('[role="listbox"] button[role="option"]').first().focus()
+      const holds = await page.evaluate(() => document.hasFocus()
+        && document.activeElement === document.querySelector('[role="listbox"] button[role="option"]'))
+      if (ok('OB-206 (keyboard): the page has focus and the menu\'s first row holds it', holds, `focus on ${await focusedLabel()}`)) {
+        await page.waitForTimeout(400) // the ✕'s own 250ms fade in
+        const focused = await rowState()
+        ok('OB-206 (keyboard): focus on the row lights its wash and brings up its ✕, tabbable', focused.wash !== 'rgba(0, 0, 0, 0)' && focused.x === '1' && focused.tab === 0, JSON.stringify(focused))
+        await page.keyboard.press('Tab')
+        ok('OB-206 (keyboard): the next Tab lands on the row\'s own ✕', (await focusedLabel()) === 'delete this version', `focus on ${await focusedLabel()}`)
+        await page.waitForTimeout(1500) // past the recede clock the row's blur started, with room for a slow timer
+        const handed = await rowState()
+        ok('OB-206 (keyboard): and the ✕ is still up and tabbable well past the recede clock — the hand-off did not lose it',
+          !!handed && handed.x === '1' && handed.tab === 0 && (await focusedLabel()) === 'delete this version', JSON.stringify(handed))
+      }
+    }
+    await page.keyboard.press('Escape')
+  }
+
+  // ── THE ROAD'S TAB SHORTCUT stays out of a control's way (found reviewing #382) ──
+  // The walk editor binds Tab to "indent the selection into the container above". A click on a
+  // card's version picker SELECTS that card, and the seeded fork sits right below a container,
+  // so Tab on a row of its open menu used to move the whole card into that container and
+  // unmount the menu under the keyboard. Asserted on the real path — the menu opened by a click
+  // — by the container's tally, which counts the steps in its version: "2 nodes" means the fork
+  // did not land inside it. Then the other side: a plain click on a stop leaves focus on the
+  // page, and Tab still indents it (the stop after the fork moves in, so the fork counts 2).
+  await fresh()
+  await openPalette()
+  await page.getByLabel('studio-preset-plan').click()
+  await page.waitForTimeout(700)
+  await page.bringToFront()
+  {
+    const card = (k) => page.locator(`[data-road-root] [data-rstage="${k}"]`)
+    const tallyOf = (k) => card(k).locator('span[title$="inside this version"]').first().innerText()
+    const focusedLabel = () => page.evaluate(() => {
+      const a = document.activeElement
+      return a ? (a.getAttribute('aria-label') || a.getAttribute('role') || a.tagName) : null
+    })
+    await card('seed-sec').scrollIntoViewIfNeeded()
+    const netBefore = await tallyOf('seed-net')
+    const trigger = card('seed-sec').locator('[role="button"]').filter({ hasText: /v\d/ }).first()
+    const tb = await trigger.boundingBox()
+    await page.mouse.click(tb.x + 6, tb.y + tb.height / 2)
+    await page.waitForTimeout(400)
+    await page.mouse.move(2, 2)
+    await page.locator('[role="listbox"] button[role="option"]').first().focus()
+    await page.waitForTimeout(400)
+    await page.keyboard.press('Tab')
+    await page.waitForTimeout(300)
+    ok('road Tab: with the fork selected by a click on its picker, Tab in its menu moves focus to the row\'s ✕',
+      (await focusedLabel()) === 'delete this version', `focus on ${await focusedLabel()}`)
+    ok('and does NOT indent the fork into the container above — the menu stays open, the container\'s tally unchanged',
+      (await page.locator('[role="listbox"]').count()) === 1 && (await tallyOf('seed-net')) === netBefore,
+      `menus ${await page.locator('[role="listbox"]').count()}, seed-net ${netBefore} -> ${await tallyOf('seed-net')}`)
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(300)
+
+    const secBefore = await tallyOf('seed-sec')
+    await page.locator('[data-road-root] [data-rnode][data-node="web-http-rest"]').click()
+    await page.waitForTimeout(300)
+    const onPage = await page.evaluate(() => document.activeElement === document.body)
+    await page.keyboard.press('Tab')
+    await page.waitForTimeout(500)
+    ok('road Tab: a plain click on a stop leaves focus on the page, and Tab still indents it into the card above',
+      onPage && secBefore === '1 node' && (await tallyOf('seed-sec')) === '2 nodes',
+      `focus on the page: ${onPage}; seed-sec ${secBefore} -> ${await tallyOf('seed-sec')}`)
+  }
 } catch (e) {
   errors.push('threw: ' + (e && e.stack ? e.stack : e))
 } finally {

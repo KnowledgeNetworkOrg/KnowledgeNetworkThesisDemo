@@ -1,7 +1,8 @@
 // Verification for the DS-head merge on the Walk Editor's open container card (#91).
 // The card's head is now the DS VersionedGroup head — mono outline, display-font
-// title wrapping to two lines, an always-visible tally, the DescLine, and the DS
-// version picker with its drawn tick and caret.
+// title wrapping to two lines, a tally that holds the head's right slot at rest and
+// gives it to the receding controls while the card is live (OB-222), the DescLine,
+// and the DS version picker with its drawn tick and caret.
 //
 // The head STOPPED being a fixed 72px. headRows() predicts its height from the
 // text, layoutRoad reserves that, and the render pass draws each row at the same

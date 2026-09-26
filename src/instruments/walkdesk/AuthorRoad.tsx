@@ -170,6 +170,9 @@ const roadSpec = (s: Stop, outline: string, width: number, slotH: number, chosen
     // a stand-in, never called: groupSpec() only checks onDescribe's presence, to derive
     // `describable` — every open card here IS editable, matching the real onDescribe below
     onDescribe: () => {},
+    // the same stand-in for `closable` (OB-222): every card here IS given onClose, open and
+    // folded, so its head's right slot reserves three buttons, not two
+    onClose: () => {},
     versions: s.variants.map((v, i) => ({ id: v.id, name: v.label, label: versionCode(i) })),
     versionNamePlaceholder: VERSION_UNNAMED,
     activeId: s.variants[chosen]?.id ?? '',
@@ -552,10 +555,19 @@ export default function AuthorRoad({
   // of the toolbar stays mouse-only. Both ignored while a text field is focused,
   // and Tab still falls through to native focus-navigation when canIndent is
   // false (no preventDefault), so it never traps focus.
+  // Tab is also left alone while focus sits on a CONTROL — a button, a link, a
+  // menu or its rows. There Tab means "next control", and the selection is
+  // usually the card that control lives on: clicking a card's version picker
+  // selects the card, so Tab inside its open menu used to move the whole card
+  // into the one above and unmount the menu under the keyboard. The road's
+  // stops are not focusable, so after a plain click on one focus is the page
+  // itself and the shortcut still applies.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+      if (e.key === 'Tab' && t && typeof t.closest === 'function'
+        && t.closest('button, a[href], select, [role="button"], [role="option"], [role="listbox"], [role="menu"], [role="menuitem"]')) return
       if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
       if ((e.key === 'g' || e.key === 'G') && state.canGroup) {
         e.preventDefault()

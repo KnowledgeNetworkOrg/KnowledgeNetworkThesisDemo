@@ -26,19 +26,38 @@ export { InlineText, INLINE_EDIT_STYLE, tidyMultiline, EditMark }
    is that two consecutive wells are no longer the same colour. */
 const Depth = createContext(0)
 
+/** THE TRAILING DOT IS THE SYSTEM'S, NOT THE CALLER'S (DS OB-245, 2026-09-21, owner, on the
+ *  running walk editor: "version nodes' names start with a number like 1, 2, but the node pills
+ *  start with numbers like 3. 4. 5."). Until then the dot was inherited from whatever the caller
+ *  typed: `index="2."` drew `2.`, `index="2"` drew `2` — and `NodeChain`, which numbers the chips
+ *  INSIDE the same card, has always dotted its own. One card, two notations, and neither side was
+ *  wrong by its own contract. A caller cannot see the chips' notation from where it passes
+ *  `index`, so this is not a rule to write down: `index` is a NUMBER, the dot is how this system
+ *  draws a step number, and both spellings now draw the same thing. Idempotent — nothing can
+ *  produce `2..`. */
+function dotted(raw?: string): string {
+  const s = String(raw == null ? '' : raw).trim()
+  return s ? s.replace(/\.$/, '') + '.' : s
+}
+
 /** THE NUMBER IS LOCAL TO ITS OWN WELL, not a path from the root. "2.2.2.1." is four
  *  numbers to read before the name, it grows with every level, and it repeats what the
  *  nesting already shows — the reader can see which well they are in. So a group displays
  *  its own ordinal and numbers its children from that: "2." holding "2.1", "2.2", at
  *  whatever depth it sits. `numberScope="path"` keeps the full dotted path for a surface
- *  that genuinely needs a citable address. */
+ *  that genuinely needs a citable address. Always ends in the dot — see `dotted`. */
 function localIndex(index?: string): string | undefined {
   const raw = String(index == null ? '' : index).trim()
   if (!raw) return index
-  const dotted = raw.endsWith('.')
   const parts = raw.replace(/\.$/, '').split('.')
-  const last = parts[parts.length - 1]
-  return dotted ? last + '.' : last
+  return parts[parts.length - 1] + '.'
+}
+
+/** what the head actually prints, for the renderer AND for the measurer — `titleColumn()` sizes
+ *  the name against the index beside it, so a predictor reading the caller's raw string while the
+ *  head draws a dotted one is short by a mono full stop on every undotted call. */
+function drawnIndex(index: string | undefined, scope?: 'local' | 'path'): string | undefined {
+  return scope === 'path' ? dotted(index) : localIndex(index)
 }
 
 /** a NOTE tells you something and dismisses itself; a QUESTION has answers and does not */
@@ -144,8 +163,10 @@ export interface VersionedGroupProps {
    *  named that (OB-081). `GroupGeometry.headHeight()`/`foldedSize()` measure this
    *  in place of `title` when it is empty, so the predicted height matches. */
   titlePlaceholder?: string
-  /** the group's position among its siblings ("2."). Derived, mono, never editable.
-   *  The children's own numbers come from it: 2. contains 2.1, 2.2, 2.3 */
+  /** the group's position among its siblings. Derived, mono, never editable.
+   *  The children's own numbers come from it: 2. contains 2.1., 2.2., 2.3.
+   *  A NUMBER, NOT A NOTATION (OB-245): "2" and "2." draw the same `2.` — the trailing dot is
+   *  the component's, so the head and the chips inside it always read one notation */
   index?: string
   /** pass false to stop handing step numbers down to the children */
   numberSteps?: boolean
@@ -698,7 +719,7 @@ export const GROUP_METRICS = {
   descPullUp: 4, descPullUnder: 2,
   pickerMinH: 28, pickerPadY: 10, pickerPadX: 13,       /* --hit-min; 5+5; 7+6 */
   pickerCheck: 12, pickerCaret: 16, pickerGap: 6,
-  narrowAt: 250, ctlCluster: 37,                       /* two 18px buttons + 1px */
+  narrowAt: 250, ctlCluster: 37, ctlCluster3: 55,      /* two 18px buttons + 1px; three when closable */
   foldPadTop: 8, foldPadX: 8, foldPadBottom: 9, foldPeekX: 4, foldPeekY: 4,
   railIndent: 13, railPadLeft: 10, bodyPadTop: 6, bodyPadRight: 8,
   /* ★ LOCAL: what the DS's own numbers leave out, measured.
@@ -804,6 +825,12 @@ export interface GroupSpec {
   count?: number
   countLabel?: string
   narrow?: boolean
+  /** the card has an ungroup button — the spec's half of `onClose` (OB-222). The head's right
+   *  slot holds the tally at rest and the controls while the card is live, and it reserves the
+   *  wider of the two: 55px for three buttons, 37px for two. `groupSpec()` sets this from
+   *  `!!onClose`; a spec built BY HAND for a card that is given `onClose` must pass `true`, or
+   *  the title column is reserved 18px too wide and a long name runs under the buttons. */
+  closable?: boolean
   /** `openHeight` only: a TOLD body height — the `bodyHeight` prop. The well takes it as a
    *  `height` with `minHeight: 0`, so NO CEILING APPLIES; this is what an arithmetic board
    *  passes when it has already decided the box. */
@@ -837,15 +864,21 @@ function titleColumn(width: number, spec: GroupSpec, folded: boolean): { col: nu
   /* OB-049: the peek strip is reserved in both states — the shell's own paddingRight never
      changes with fold — so it comes off the column unconditionally too, not only folded. */
   let col = width - hairline() * 2 - M.foldPeekX - shellPad - M.headPadLeft - M.headPadRight
-  if (spec.index) col -= measure(spec.index, 500, 12, 'mono') + M.pickerGap - 2
-  col -= M.ctlCluster + M.pickerGap
+  /* `dotted()` here as well as in `groupSpec` (OB-245): a board building a spec by hand is
+     measuring what the head DRAWS, and the head adds the dot. Idempotent on an already-dotted
+     string. */
+  if (spec.index) col -= measure(dotted(spec.index), 500, 12, 'mono') + M.pickerGap - 2
+  /* ONE RIGHT-HAND SLOT, NOT TWO (OB-222, 2026-09-18). The tally and the receding controls
+     occupy the same space: the figure is what is there at rest, the buttons take it over while
+     the card is live. So the column loses the WIDER of the two and one gap, never both plus two
+     gaps — which is also why the empty strip beside the tally is gone: there is nothing left to
+     reserve. OB-049 still holds: the tally is gated on `narrow` alone — the row that draws it
+     never tests fold state either, so a wide-but-folded head still shows it. */
+  const cluster = spec.closable ? M.ctlCluster3 : M.ctlCluster
   const narrow = spec.narrow === undefined ? width < M.narrowAt : spec.narrow
-  /* OB-049: gated on `narrow` alone — the row that draws the tally (`isNarrow ? null :
-     tallyLine`) never tests fold state either, so a wide-but-folded head still shows it. */
-  if (!narrow) {
-    const t = (spec.count === undefined ? 0 : spec.count) + ' ' + (spec.countLabel || 'nodes')
-    col -= measure(t, 400, 11, 'ui') + M.pickerGap
-  }
+  const tallyW = narrow ? 0
+    : measure((spec.count === undefined ? 0 : spec.count) + ' ' + (spec.countLabel || 'nodes'), 400, 11, 'ui')
+  col -= Math.max(cluster, tallyW) + M.pickerGap
   return { col: Math.max(M.titleMinW, col), narrow }
 }
 
@@ -889,7 +922,7 @@ export function headHeight(spec?: GroupSpec): HeadHeight {
        does the indent that aligns this line with the TITLE rather than the card edge: the
        same index-width expression titleColumn subtracts, so a wrapped description wraps
        where it draws. No index, no indent. */
-    const dIndent = s.index ? measure(s.index, 500, 12, 'mono') + M.pickerGap - 2 : 0
+    const dIndent = s.index ? measure(dotted(s.index), 500, 12, 'mono') + M.pickerGap - 2 : 0
     const dcol = width - hair * 2 - M.padX * 2 - M.descPadX * 2 - dIndent
     /* at least one line: an empty editable row is one line tall, and `linesOf('')` is 0 */
     const dl = Math.max(1, linesOf(descText, dcol, 400, 12, 'ui', 0))
@@ -992,7 +1025,9 @@ export function groupSpec(props: VersionedGroupProps): GroupSpec {
   const spec: GroupSpec = {
     title: p.title,
     titlePlaceholder: p.titlePlaceholder,
-    index: p.index,
+    /* the string the head DRAWS, not the caller's spelling (OB-245) — `index="2"` and
+       `index="2."` predict one width because they draw one `2.` */
+    index: drawnIndex(p.index, p.numberScope),
     description: p.description,
     descPlaceholder: p.descPlaceholder,
     describable: !!p.onDescribe,
@@ -1001,6 +1036,8 @@ export function groupSpec(props: VersionedGroupProps): GroupSpec {
     versionLabel: live.label,
     count: p.count === undefined ? vs.length : p.count,
     countLabel: p.countLabel,
+    /* the spec's half of `onClose` (OB-222): three buttons share the head's right slot, not two */
+    closable: !!p.onClose,
   }
   if (typeof p.width === 'number') spec.width = p.width
   if (p.narrow !== undefined) spec.narrow = p.narrow
@@ -1047,7 +1084,7 @@ export function VersionedGroup({
      broken the tree on purpose and therefore has to supply what the tree cannot */
   const contextDepth = useContext(Depth)
   const depth = depthProp === undefined ? contextDepth : depthProp
-  const shownIndex = numberScope === 'path' ? index : localIndex(index)
+  const shownIndex = drawnIndex(index, numberScope)
   const [open, setOpen] = useState(defaultOpen)
   const [ownEditMode, setOwnEditMode] = useState(!!defaultEditMode)
   const editMode = editModeProp === undefined ? ownEditMode : editModeProp
@@ -1493,6 +1530,10 @@ export function VersionedGroup({
   }
 
   const word = tally === 1 ? String(countLabel).replace(/s$/, '') : countLabel
+  /* one condition for both halves of the shared slot (OB-222): what brings the buttons out is
+     exactly what takes the figure away. No hover state or timer of the tally's own — `live` is
+     `usePresence`, so the leave edge is the shared recede clock's (`recedeMs()`). */
+  const ctlShown = live || open || editMode
   const tallyLine = (
     <span title={wrapTip(tally + ' ' + word + ' inside this version')} style={{
       flexShrink: 0, display: 'inline-block', fontFamily: 'var(--font-ui)',
@@ -1511,9 +1552,9 @@ export function VersionedGroup({
       ) : null}
       <span data-grab="" ref={titleBox} style={{
         /* a floor, not a share: the head's fixed furniture is what shrinks when the
-           group is narrow, never the name. The control cluster keeps its width even
-           while receded, so the title never jumps — and never has controls land on
-           its tail — when they appear */
+           group is narrow, never the name. The right slot keeps its width in both
+           states, so the title never jumps — and never has controls land on its
+           tail — when they appear */
         flex: '0 1 auto', minWidth: 96, display: 'block', cursor: 'inherit', marginRight: 2,
       }}>
         {/* THE TITLE IS EDITED IN PLACE, for a second reason beyond the
@@ -1578,20 +1619,52 @@ export function VersionedGroup({
           editStyle={{ color: 'var(--text-1)', fontStyle: 'normal' }} />
       </span>
       <span style={{ flex: 1 }} />
-      {isNarrow ? null : tallyLine}
-      <span style={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0, height: 18, alignSelf: 'flex-start', marginTop: -1 }}>
+      {/* THE SHARED RIGHT SLOT (OB-222, owner 2026-09-18: "theres some empty space to its right,
+          for the hidden buttons"). At rest it holds the tally; the moment the card is live the
+          buttons cross-fade into the same place and the figure steps out. Nothing reflows,
+          because the slot is the wider of the two and it is reserved in both states — the old
+          layout reserved the buttons' strip BESIDE the tally, which was the empty gap. The
+          buttons are centred on the tally's own line, so their position follows the figure's
+          baseline rather than being nudged off the row's top.
+          ACCEPTED, SO NOBODY "FIXES" IT BACK: the count is a REST-STATE readout now, not on
+          screen while the pointer or the keyboard is inside the card — the owner's choice over
+          drawing the buttons permanently or hanging them off the top border. Never let this
+          tally be the only place a number the user needs appears. */}
+      <span style={{
+        position: 'relative', flexShrink: 0, display: 'flex', justifyContent: 'flex-end',
+        /* narrow, the tally has moved to its own line, so this box has no in-flow content and
+           therefore no baseline to align on — it would hang off the row's bottom edge and take
+           the buttons with it. Top-align it in that state only. */
+        alignSelf: isNarrow ? 'flex-start' : undefined,
+        minWidth: onClose ? GROUP_METRICS.ctlCluster3 : GROUP_METRICS.ctlCluster,
+        minHeight: GROUP_METRICS.microLine,
+      }}>
         <span style={{
-          display: 'flex', alignItems: 'center', gap: 1,
-          opacity: live || open || editMode ? 1 : 0, pointerEvents: live || open || editMode ? 'auto' : 'none',
+          opacity: ctlShown ? 0 : 1, transition: 'opacity var(--dur-fade) var(--ease-soft)',
+        }}>{isNarrow ? null : tallyLine}</span>
+        <span style={{
+          position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)',
+          display: 'flex', alignItems: 'center', gap: 1, height: 18,
+          opacity: ctlShown ? 1 : 0, pointerEvents: ctlShown ? 'auto' : 'none',
           transition: 'opacity var(--dur-fade) var(--ease-soft)',
         }}>
-          {/* THE PENCIL — whole-card edit mode (OB-110). Pressed while editing: accent ink on
-              the sunken step, the DS's own .jsx face for it (its IconButton contract calls
-              `style` position-only; the pencil's pressed face is the one exception the DS
-              draws itself, and it is copied as drawn). */}
+          {/* THE PENCIL — whole-card edit mode (OB-110). ON WEARS THE STATE IT TURNS ON (OB-222
+              clause 6, owner 2026-09-18: "grey is more like disabled/not available in our app"):
+              `--state-editing-wash` with the `--state-editing` edge and ink is what the title,
+              the description and the version name are wearing at that same moment, so the toggle
+              and its effect are one colour. Not moss: moss means "this version is live" 30px
+              below, on the check. Not a filled pond face either — pond also means SELECTED, and a
+              selection is a ring round the whole card. The DS's IconButton contract calls `style`
+              position-only; the pencil's pressed face is the one exception the DS draws itself.
+              ★ LOCAL: the edge is the whole `border`, where the DS passes `borderColor` alone.
+              IconButton sets `border` as a shorthand and re-sets it on every hover, and React
+              re-applies only what changed — so the pointer leaving the pencil re-set `border` to
+              transparent and wiped the untouched `borderColor` underneath it (the trap
+              adherence.test.ts pins for TreeRow). Same edge drawn; it just cannot be erased.
+              Drift-log #74. */}
           <IconButton label={editMode ? 'done editing' : 'edit'} glyphSize={10} onClick={() => setEditMode((m) => !m)}
             reachable={live || open || editMode}
-            style={editMode ? { color: 'var(--accent-primary-ink)', background: 'var(--surface-sunken-2)' } : undefined}>
+            style={editMode ? { color: 'var(--state-editing)', background: 'var(--state-editing-wash)', border: '1px solid var(--state-editing)' } : undefined}>
             <EditMark />
           </IconButton>
           {/* glyphSize is explicit on both: the shared component derives 10px at this
