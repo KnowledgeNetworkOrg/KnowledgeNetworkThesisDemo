@@ -282,6 +282,61 @@ try {
     .filter((b) => b.getBoundingClientRect().height >= 20)
     .map((b) => getComputedStyle(b).transitionProperty))
   ok('OB-204: the category popover\'s rows have transition-property none', popRows.length > 0 && popRows.every((p) => p === 'none'), `${popRows.length} rows, ${JSON.stringify([...new Set(popRows)])}`)
+
+  // ── OB-206, THE KEYBOARD PATH: focus on a row brings up its ✕, and Tab hands off to it ──
+  // The item's second done-when line: "the row's ✕ still appears on hover AND on keyboard focus
+  // … tabbing from the row to its ✕ must not lose it". Focus leaves the row for the ✕ INSIDE it,
+  // so the row's blur starts the recede clock and the ✕'s own focus has to cancel it.
+  // On a FRESH page, with the menu opened by Enter, never by a click: a click on the card selects
+  // it, and while a card below a container is selected the road binds Tab to "indent the
+  // selection" wherever focus is, so the Tab would move the card and unmount this menu. That is
+  // the road's shortcut, not this component, and it is reported separately.
+  // The pointer stays parked off the road, so nothing here can be lit by hover. The row is
+  // given focus directly (this menu has no arrow keys, and it is not next in the tab order after
+  // its trigger), and only on a page that HAS focus: on an unfocused page a programmatic
+  // `.focus()` moves `activeElement` without firing one focus event, which reads exactly like a
+  // dead focus path (the DS's own measurement trap). The hand-off itself is a real Tab press.
+  await fresh()
+  await openPalette()
+  await page.getByLabel('studio-preset-plan').click()
+  await page.waitForTimeout(700)
+  await page.bringToFront()
+  await page.mouse.move(2, 2)
+  {
+    const forked = page.locator('[data-road-root] [data-rstage="seed-sec"]')
+    await forked.scrollIntoViewIfNeeded()
+    const trigger = forked.locator('[role="button"]').filter({ hasText: /v\d/ }).first()
+    await trigger.focus()
+    await page.keyboard.press('Enter')
+    await page.waitForTimeout(400)
+    const rowState = () => page.evaluate(() => {
+      const opt = document.querySelector('[role="listbox"] button[role="option"]')
+      const x = opt && opt.parentElement.querySelector('button[aria-label="delete this version"]')
+      return x ? { wash: getComputedStyle(opt).backgroundColor, x: getComputedStyle(x).opacity, tab: x.tabIndex } : null
+    })
+    const focusedLabel = () => page.evaluate(() => {
+      const a = document.activeElement
+      return a ? (a.getAttribute('aria-label') || a.getAttribute('role') || a.tagName) : null
+    })
+    const before = await rowState()
+    if (ok('OB-206 (keyboard): Enter on the picker opens the menu, its ✕ at rest', !!before && before.x === '0' && before.tab === -1, JSON.stringify(before))) {
+      await page.locator('[role="listbox"] button[role="option"]').first().focus()
+      const holds = await page.evaluate(() => document.hasFocus()
+        && document.activeElement === document.querySelector('[role="listbox"] button[role="option"]'))
+      if (ok('OB-206 (keyboard): the page has focus and the menu\'s first row holds it', holds, `focus on ${await focusedLabel()}`)) {
+        await page.waitForTimeout(400) // the ✕'s own 250ms fade in
+        const focused = await rowState()
+        ok('OB-206 (keyboard): focus on the row lights its wash and brings up its ✕, tabbable', focused.wash !== 'rgba(0, 0, 0, 0)' && focused.x === '1' && focused.tab === 0, JSON.stringify(focused))
+        await page.keyboard.press('Tab')
+        ok('OB-206 (keyboard): the next Tab lands on the row\'s own ✕', (await focusedLabel()) === 'delete this version', `focus on ${await focusedLabel()}`)
+        await page.waitForTimeout(1500) // past the recede clock the row's blur started, with room for a slow timer
+        const handed = await rowState()
+        ok('OB-206 (keyboard): and the ✕ is still up and tabbable well past the recede clock — the hand-off did not lose it',
+          !!handed && handed.x === '1' && handed.tab === 0 && (await focusedLabel()) === 'delete this version', JSON.stringify(handed))
+      }
+    }
+    await page.keyboard.press('Escape')
+  }
 } catch (e) {
   errors.push('threw: ' + (e && e.stack ? e.stack : e))
 } finally {

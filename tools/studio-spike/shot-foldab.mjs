@@ -42,6 +42,9 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.
 
 await page.goto(`http://localhost:${PORT}/tools/studio-spike/foldab/index.html`)
 await page.waitForTimeout(900)
+// the OB-222 edge and slot cases render only once the fonts are in (they measure text)
+await page.waitForSelector('[data-cal-slot="plain"]', { timeout: 10000 }).catch(() => {})
+await page.waitForTimeout(300)
 
 await page.screenshot({ path: `${OUT}/foldab-01-all.png`, fullPage: true })
 console.log('foldab-01-all.png taken (three folds, same content, on the road well)')
@@ -106,6 +109,7 @@ const openCal = await page.evaluate(() => {
     const rows = [...face.children].filter((c) => c.tagName === 'DIV')
     const r = (x) => { const b = x.getBoundingClientRect(); return { y: Math.round((b.y - fb.y) * 100) / 100, h: Math.round(b.height * 100) / 100 } }
     const title = face.querySelector('span[title]')
+    const lh = title ? parseFloat(getComputedStyle(title).lineHeight) : 0
     const desc = face.querySelector('[data-grab] > div:nth-child(2) span')
     const picker = face.querySelector('[role="button"]')
     const sb = shell.getBoundingClientRect()
@@ -117,9 +121,12 @@ const openCal = await page.evaluate(() => {
       pickerH: picker ? Math.round(picker.getBoundingClientRect().height * 100) / 100 : null,
       predH: Number(el.getAttribute('data-pred-h')), predBodyTop: Number(el.getAttribute('data-pred-bodytop')),
       measured: el.getAttribute('data-pred-measured'), slot: el.getAttribute('data-slot'),
+      title: el.getAttribute('data-cal-title'), predLines: Number(el.getAttribute('data-pred-lines')),
+      lines: title && lh ? Math.round(title.getBoundingClientRect().height / lh) : null,
     }
   })
 })
+const edgeMissing = await page.locator('[data-cal-edge-missing]').count()
 console.log('\nGroupGeometry.openHeight vs the DS group OPEN with bodySlot @ width ' + (openCal[0] && openCal[0].faceW) + ' (text ' + (openCal[0] && openCal[0].measured === 'true' ? 'measured' : 'ESTIMATED') + '):')
 let geomBad = 0
 for (const c of openCal) {
@@ -130,6 +137,41 @@ for (const c of openCal) {
   const ok = Math.abs(dH) <= 0.5 && (dTop === null || Math.abs(dTop) <= 1)
   if (!ok) geomBad++
   console.log(`  ${c.k.padEnd(9)} shell=${c.shellH} predicted=${c.predH} (${dH >= 0 ? '+' : ''}${dH})  slot=[${c.slot}] bodyTop=${c.predBodyTop} (${dTop === null ? '—' : (dTop >= 0 ? '+' : '') + dTop})  rows=${JSON.stringify(c.rows.slice(0, 3))} ${ok ? 'ok' : 'DRIFT'}`)
+}
+// OB-222's edge: the one title where `closable` decides the line count. If the page could not
+// find one, the check below has nothing to bite on, and that is a failure in its own right.
+const edge = openCal.filter((c) => c.k.startsWith('edge-'))
+if (edgeMissing || edge.length !== 2) {
+  geomBad++
+  console.log(`  EDGE MISSING — no prefix of the edge sentence changes its line count with \`closable\` at ${openCal[0] && openCal[0].faceW}px, so nothing here checks it`)
+} else {
+  console.log(`  edge title "${edge[0].title}": ` + edge.map((c) => `${c.k} predicted ${c.predLines} line(s), drew ${c.lines}`).join('; '))
+}
+
+// ── OB-222: the head's right slot, drawn — the obligation's own 300px card with a 3-node tally ──
+// `titleColumn()` takes max(cluster, tally) off the column; the drawn slot must BE that width.
+// Then the "~40px wider" line, from the drawn tally: the old reservation was the two-button
+// cluster, the tally and two gaps; the new one is the wider of the two and one gap.
+const slots = await page.evaluate(() => [...document.querySelectorAll('[data-cal-slot]')].map((el) => {
+  const tally = el.querySelector('span[title$="inside this version"]')
+  const slot = tally && tally.parentElement.parentElement
+  const n = (a) => Number(el.getAttribute(a))
+  return {
+    k: el.getAttribute('data-cal-slot'), cluster: n('data-cluster'), oldCluster: n('data-old-cluster'), gap: n('data-gap'),
+    predTally: n('data-pred-tally'),
+    tally: tally ? Math.round(tally.getBoundingClientRect().width * 100) / 100 : null,
+    slot: slot ? Math.round(slot.getBoundingClientRect().width * 100) / 100 : null,
+  }
+}))
+console.log('\nOB-222 right slot @ width 300, "3 nodes":')
+if (slots.length !== 2) { geomBad++; console.log('  SLOT CASES MISSING') }
+for (const s of slots) {
+  const want = Math.max(s.cluster, s.tally)
+  const ok = s.slot !== null && Math.abs(s.slot - want) <= 0.5
+  if (!ok) geomBad++
+  const widen = (t) => Math.round((s.oldCluster + s.gap + t - Math.max(s.cluster, t)) * 100) / 100
+  console.log(`  ${s.k.padEnd(9)} tally drawn=${s.tally} predicted=${Math.round(s.predTally * 100) / 100}  slot=${s.slot} (want max(${s.cluster}, tally) = ${want})`
+    + `  title column vs the old reservation: +${widen(s.tally)}px drawn, +${widen(s.predTally)}px predicted  ${ok ? 'ok' : 'DRIFT'}`)
 }
 
 console.log('\nfoldSize() calibration @ width 150, narrow, folded:')

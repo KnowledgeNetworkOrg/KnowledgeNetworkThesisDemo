@@ -326,6 +326,56 @@ try {
   await page.locator('[role="option"]').nth(1).click()
   await page.waitForTimeout(300)
   ok('and the other version still carries its own name — "Second take" was not overwritten', (await text()).includes('Second take') && !(await text()).includes('First take'), (await text()).replace(/\n/g, ' | '))
+
+  // ── OB-222, NARROW: the case every folded card on the road is in ─────────────────────────
+  // Below `narrowAt` (250) the tally drops to its own line, so the right slot has no in-flow
+  // content and no baseline of its own. The slot must still reserve the three-button cluster,
+  // and it is top-aligned in that state so the buttons sit on the title's FIRST line rather than
+  // hanging off the row's bottom edge. Read on the seeded card folded: 190px wide, its title
+  // "Secure the channel" at the 96px floor, which wraps to two lines — so top and bottom differ.
+  {
+    const open = road().locator('[data-rstage="seed-sec"]')
+    await open.scrollIntoViewIfNeeded()
+    await open.hover({ position: { x: 60, y: 12 } })
+    await page.waitForTimeout(300)
+    await open.locator('[aria-label="minimize"]').click()
+    await page.waitForTimeout(500)
+    const shut = road().locator('[data-rstage-closed="seed-sec"]')
+    if (ok('OB-222 (narrow): minimise folds the seeded card', (await shut.count()) === 1)) {
+      const sb = await shut.boundingBox()
+      await page.mouse.move(sb.x + 30, sb.y + 10)
+      await page.waitForTimeout(450)
+      const g = await shut.evaluate((card) => {
+        const box = (el) => { const b = el.getBoundingClientRect(); return { t: b.top, b: b.bottom, w: b.width } }
+        const cluster = card.querySelector('button[aria-label="ungroup nodes"]').parentElement
+        const slot = cluster.parentElement
+        const row = slot.parentElement
+        const title = row.querySelector(':scope > span[data-grab]')
+        const tally = card.querySelector('span[title$="inside this version"]')
+        const lh = parseFloat(getComputedStyle(title.querySelector('span') || title).lineHeight)
+        return {
+          width: card.getBoundingClientRect().width, row: box(row), slot: box(slot), cluster: box(cluster), title: box(title),
+          tally: tally && box(tally), lh, ctlOpacity: getComputedStyle(cluster).opacity,
+        }
+      })
+      const titleLines = Math.round((g.title.b - g.title.t) / g.lh)
+      const centre = (g.cluster.t + g.cluster.b) / 2
+      ok('OB-222 (narrow): the folded card is narrow, and its title wraps to two lines here', g.width < 250 && titleLines >= 2, `${g.width.toFixed(1)}px wide, ${titleLines} title lines`)
+      ok('the tally has dropped to its own line, below the head row', !!g.tally && g.tally.t >= g.row.b - 0.5, JSON.stringify({ tally: g.tally, row: g.row }))
+      ok('the slot still reserves the three-button cluster (55px)', Math.abs(g.slot.w - 55) < 0.5, `${g.slot.w.toFixed(2)}px`)
+      ok('woken, the buttons show', g.ctlOpacity === '1', g.ctlOpacity)
+      // Without the top-alignment the empty slot is placed by a baseline synthesised from its
+      // bottom edge, and the ROW GROWS around it (35.09 → 37.94px here, measured with the rule
+      // removed), pushing the title down and every predicted height off. The buttons still land
+      // somewhere on the first line in that state, and the row's top moves with the slot, so
+      // neither the centre nor the slot's top can tell the two apart — the row's height can.
+      ok('OB-222 (narrow): the top-aligned slot does not stretch the row — the head row is exactly as tall as the two-line title', Math.abs((g.row.b - g.row.t) - (g.title.b - g.title.t)) < 0.5,
+        `row ${(g.row.b - g.row.t).toFixed(2)}px, title ${(g.title.b - g.title.t).toFixed(2)}px`)
+      ok('and the buttons sit on the title\'s FIRST line, not the row\'s bottom edge',
+        centre >= g.title.t && centre <= g.title.t + g.lh, `cluster centre ${(centre - g.title.t).toFixed(2)}px below the title's top; first line ${g.lh}px`)
+    }
+    await page.mouse.move(4, 4)
+  }
   ok('no page errors', errors.filter((e) => e.startsWith('pageerror')).length === 0)
 } catch (e) {
   errors.push('exception: ' + (e && e.stack || e))

@@ -21,10 +21,11 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import '../../../src/index.css'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { VersionedGroup, GroupGeometry } from '../../../src/ds/group/VersionedGroup'
 import type { BodySlot } from '../../../src/ds/group/VersionedGroup'
 import { NodeChip, chipSize } from '../../../src/ds/graph/NodeChip'
+import { measure } from '../../../src/ds/graph/textMeasure'
 
 const NODEW = 150
 const NODEH = 34
@@ -138,7 +139,7 @@ const CALIBRATE = [
  *  the geometry assumes. */
 const OPEN_W = 272
 const SLOT_H = 94 // two 34px nodes and a 26px gap — a road column of two leaves
-const OPEN_CASES: { k: string; title: string; desc: string; name: string; slot?: number; count?: number; depth?: number }[] = [
+const OPEN_CASES: { k: string; title: string; desc: string; name: string; slot?: number; count?: number; depth?: number; closable?: boolean }[] = [
   { k: 't1-d1-n1', title: 'Secure the channel', desc: 'a typed name must become an address', name: 'just the handshake' },
   { k: 't2', title: 'Everything the browser does before the first byte comes back', desc: 'a typed name must become an address', name: 'just the handshake' },
   { k: 'd2', title: 'Secure the channel', desc: 'a typed name must become an address before anything moves, and the resolver is where that happens', name: 'just the handshake' },
@@ -227,14 +228,15 @@ function OpenCase({ c }: { c: (typeof OPEN_CASES)[number] }) {
   const onBodySlot = useCallback((b: BodySlot) => setSlot((prev) => (prev && prev.left === b.left && prev.top === b.top && prev.width === b.width && prev.height === b.height) ? prev : b), [])
   const slotH = c.slot ?? SLOT_H
   const count = c.count ?? 2
+  const closable = c.closable !== false
   // OB-050: ASKED, not told — `slotHeight`, matching the `slotHeight={slotH}` prop this case
   // actually renders below, never `bodyHeight` (a told height takes no ceiling, which is not
   // what this case is: it asks, and the `tall` row below is what proves the cap still bites).
   // OB-222: `closable`, because the card below is given `onClose` — a hand-built spec has to say
   // so, or the head's right slot is reserved at two buttons' width while it draws three
-  const pred = GroupGeometry.openHeight({ width: OPEN_W, title: c.title, index: '3', description: c.desc, descPlaceholder: 'enter description', versionName: c.name, versionLabel: 'v1', count, countLabel: 'nodes', narrow: false, closable: true, slotHeight: slotH, bodyMaxHeight: null })
+  const pred = GroupGeometry.openHeight({ width: OPEN_W, title: c.title, index: '3', description: c.desc, descPlaceholder: 'enter description', versionName: c.name, versionLabel: 'v1', count, countLabel: 'nodes', narrow: false, closable, slotHeight: slotH, bodyMaxHeight: null })
   return (
-    <div data-cal-open={c.k} data-ds-host="" data-cal-depth={c.depth ?? 0} data-pred-h={pred.height} data-pred-bodytop={pred.bodyTop} data-pred-measured={String(pred.measured)}
+    <div data-cal-open={c.k} data-ds-host="" data-cal-depth={c.depth ?? 0} data-cal-title={c.title} data-pred-lines={pred.titleLines} data-pred-h={pred.height} data-pred-bodytop={pred.bodyTop} data-pred-measured={String(pred.measured)}
       data-slot={slot ? `${slot.left},${slot.top},${slot.width},${slot.height}` : ''}>
       <VersionedGroup title={c.title} index="3" count={count} countLabel="nodes" description={c.desc}
         versions={[{ id: '0', name: c.name, label: 'v1' }]} activeId="0"
@@ -249,8 +251,70 @@ function OpenCase({ c }: { c: (typeof OPEN_CASES)[number] }) {
         // height instead, the cap crushes the body by its own padding, which is
         // what every case here reported as -6 (and -30 on the empty zone).
         bodySlot slotHeight={slotH} bodyMaxHeight="none" onBodySlot={onBodySlot}
-        onToggleFold={() => {}} onClose={() => {}} onDescribe={() => {}} onRetitle={() => {}} onRename={() => {}} />
+        onToggleFold={() => {}} onClose={closable ? () => {} : undefined} onDescribe={() => {}} onRetitle={() => {}} onRename={() => {}} />
     </div>
+  )
+}
+
+/** OB-222's EDGE — the case every row above misses. `closable` moves the head's right slot
+ *  from 37px to 55px, and none of the fixed titles sits where 18px changes a line count, so
+ *  dropping `closable: true` from every spec on this page left the driver's answer unchanged.
+ *  This picks, WITH THE REAL FONTS, the shortest prefix of a sentence whose predicted title
+ *  lines differ between the two reservations, and renders it twice: once given `onClose`
+ *  (three buttons, spec `closable`) and once not (two buttons, spec without it). Each has to
+ *  agree with its own drawing, so a spec that loses `closable` is a line short, and shows. */
+const EDGE_SOURCE = 'Reach the machine across every hop between here and there'
+function edgeTitle(): string | null {
+  const lines = (title: string, closable: boolean) => GroupGeometry.headHeight({
+    width: OPEN_W, title, index: '3', count: 2, countLabel: 'nodes', narrow: false, closable,
+  }).titleLines
+  for (let k = 1; k <= EDGE_SOURCE.length; k++) {
+    const t = EDGE_SOURCE.slice(0, k).trimEnd()
+    if (lines(t, true) !== lines(t, false)) return t
+  }
+  return null
+}
+
+/** OB-222's "~40px wider": the tally and the slot as drawn, on the obligation's own card — 300px,
+ *  a 3-node tally, with and without the ungroup button. The driver reads the slot back and
+ *  checks it is the WIDER of the cluster and the tally, the one thing `titleColumn()` assumes. */
+const SLOT_W = 300
+function SlotCase({ closable }: { closable: boolean }) {
+  return (
+    <div data-cal-slot={closable ? 'closable' : 'plain'} data-ds-host=""
+      data-pred-tally={measure('3 nodes', 400, 11, 'ui')}
+      data-cluster={closable ? GroupGeometry.GROUP_METRICS.ctlCluster3 : GroupGeometry.GROUP_METRICS.ctlCluster}
+      data-old-cluster={GroupGeometry.GROUP_METRICS.ctlCluster} data-gap={GroupGeometry.GROUP_METRICS.pickerGap}>
+      <VersionedGroup title="Secure the channel" index="3" count={3} countLabel="nodes"
+        versions={versions} activeId="0" resizable={false} movable={false} narrow={false} width={SLOT_W}
+        onToggleFold={() => {}} onClose={closable ? () => {} : undefined} />
+    </div>
+  )
+}
+
+/** Both of the above measure text, so they wait for the fonts: a canvas asked before the
+ *  webfont lands measures the fallback face and would pick an edge that is not one. */
+function FontCases() {
+  const [edge, setEdge] = useState<string | null | undefined>(undefined)
+  useEffect(() => {
+    let live = true
+    document.fonts.ready.then(() => { if (live) setEdge(edgeTitle()) })
+    return () => { live = false }
+  }, [])
+  if (edge === undefined) return null
+  return (
+    <>
+      {edge === null
+        ? <div data-cal-edge-missing="" />
+        : [true, false].map((closable) => (
+          <OpenCase key={String(closable)} c={{
+            k: closable ? 'edge-x' : 'edge-nox', title: edge, closable,
+            desc: 'a typed name must become an address', name: 'just the handshake',
+          }} />
+        ))}
+      <SlotCase closable />
+      <SlotCase closable={false} />
+    </>
   )
 }
 
@@ -280,6 +344,7 @@ createRoot(document.getElementById('root')!).render(
           The DS group OPEN as the road hosts it — bodySlot, told 272 wide and a slot of {SLOT_H} — against GroupGeometry.openHeight: title, DescLine, picker at one and two lines, an empty version.
         </div>
         {OPEN_CASES.map((c) => <OpenCase key={c.k} c={c} />)}
+        <FontCases />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: 470 }}>
         <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-bold)', color: 'var(--text-1)' }}>calibrate · leaf chip</div>
