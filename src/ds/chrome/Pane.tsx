@@ -31,6 +31,38 @@ export const SCROLLER_INSET = 12
  *  restate any of them from here. */
 export const FIRST_ROW_PAD = 14
 
+/** WHAT A SCROLLBAR TAKES OUT OF A SCROLLING BOX — MEASURED ONCE, never assumed. 12 under
+ *  this project's own styled bars, 15-17 under an unstyled Windows/Linux bar, and ZERO
+ *  under an overlay bar (Firefox's `scrollbar-width: thin` in `base.css`, macOS by default,
+ *  a touch device), where the bar floats ON the content instead of beside it. Not a token,
+ *  because it is a fact about the reader's machine rather than a decision of ours.
+ *
+ *  MOVED HERE from `group/VersionedGroup` (DS OB-210): it is a fact about scrolling boxes
+ *  and belongs with the component that owns them. `VersionedGroup` re-exports it, so every
+ *  existing reader keeps its name — ONE implementation. */
+let scrollbarPx: number | null = null
+export function scrollbarWidth(): number {
+  if (scrollbarPx !== null) return scrollbarPx
+  if (typeof document === 'undefined' || !document.body) return 0
+  const box = document.createElement('div')
+  box.style.cssText = 'position:absolute;top:-9999px;width:100px;height:100px;overflow:scroll'
+  document.body.appendChild(box)
+  scrollbarPx = box.offsetWidth - box.clientWidth
+  document.body.removeChild(box)
+  return scrollbarPx
+}
+
+/** THE ROOM A SCROLLING COLUMN HOLDS OFF ITS OWN RIGHT EDGE, and the answer is conditional
+ *  because the question is (DS OB-210). `scrollbar-gutter: stable` reserves the bar's width
+ *  where the bar HAS a width, and reserves exactly nothing where it does not — so in Firefox,
+ *  whose thin bar takes no layout space, every scrolling column drew its last ~8px under its
+ *  own thumb, while Chromium's styled 12px gutter hid the fault from anyone testing there.
+ *
+ *  10 is CHOSEN: the drawn thumb's own width plus air, not a gutter's. Conditional on
+ *  purpose — adding it unconditionally doubles the gap wherever the gutter already works. */
+export const SCROLLBAR_ROOM = 10
+export function scrollerPadRight(): number { return scrollbarWidth() > 0 ? 0 : SCROLLBAR_ROOM }
+
 export interface PaneScrollerProps {
   /** which axis scrolls; the other is hidden. Default `y` */
   axis?: 'y' | 'x' | 'both'
@@ -57,6 +89,8 @@ export interface PaneScrollerProps {
  *
  *  Typed port of the DS Pane.jsx (contract: Pane.d.ts). */
 export function PaneScroller({ axis = 'y', style, forwardRef, children, ...rest }: PaneScrollerProps) {
+  /* the overlay-bar room, unless the caller has priced its own right padding in (DS OB-210) */
+  const padRight = style && style.paddingRight != null ? style.paddingRight : (axis === 'x' ? 0 : scrollerPadRight())
   return (
     <div
       ref={forwardRef}
@@ -71,6 +105,7 @@ export function PaneScroller({ axis = 'y', style, forwardRef, children, ...rest 
         marginTop: SCROLLER_INSET,
         marginBottom: SCROLLER_INSET,
         ...style,
+        paddingRight: padRight,
       }}
     >
       {children}

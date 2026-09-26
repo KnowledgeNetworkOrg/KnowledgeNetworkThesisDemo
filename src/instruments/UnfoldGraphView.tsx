@@ -20,7 +20,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { LEGEND_INSET, PaneScroller } from '@/ds'
+import { LEGEND_INSET, PaneScroller, scrollerPadRight } from '@/ds'
 import { byId, domainOf, EDGE_COLOR, EDGE_LABEL } from '../corpus/graph'
 import { colorOf } from '../model/color'
 import type { EdgeType } from '../corpus/graph'
@@ -337,7 +337,7 @@ export default function UnfoldGraphView({ bus, initialStart = null, resetTo = nu
                 if (groups.length === 0)
                   return <div className="text-[10.5px] text-slate-400">every link from here is already on the map</div>
                 return (
-                  <div className="flex flex-col gap-2 max-h-[260px] overflow-auto">
+                  <div className="flex flex-col gap-2 max-h-[260px] overflow-auto" style={{ paddingRight: scrollerPadRight() /* DS OB-210 */ }}>
                     {groups.map(({ type, rows }) => (
                       <div key={type}>
                         <div className="flex items-center gap-1.5 mb-1">

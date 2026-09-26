@@ -49,23 +49,56 @@ export function measure(text: unknown, weight: number, size: number, kind: FontK
  *  forever in an environment with no canvas. Read it AFTER the measurements it vouches for. */
 export function canMeasure(): boolean { return ctx2d !== false && ctx2d !== null }
 
+/** THE MARGIN A WRAP DECISION KEEPS AGAINST ITS OWN MEASUREMENT, in px. CHOSEN, not derived: 1px
+ *  covers the worst measured case (0.48) with room, and a whole pixel is easier to reason about
+ *  than the error it absorbs.
+ *
+ *  WHY A WRAP DECISION NEEDS ONE AT ALL. Every line count here comes from canvas `measureText`,
+ *  and that is not the same engine as the one that lays the text out. In Chromium the two agree to
+ *  about 0.01px. In FIREFOX the canvas UNDERSHOOTS Firefox's own DOM text layout by roughly
+ *  0.24-0.48px on the same string (measured, `receipts/ff429dc.md`). So a run whose real width is a
+ *  fraction over the column measures as a fraction under it, and the count comes back one line low
+ *  — the text then wraps anyway and a box sized from that count crops it.
+ *
+ *  MEASURED, 2026-09-17 (OB-217), on the case that reported it: "Transistors & Logic Gates" in a
+ *  150.18px title column. Firefox predicted **1 line** and DREW **2** — a box 16.1px short of the
+ *  45.77px its own text needed, which is the whole second line. Chromium predicted 2 and drew 2 in
+ *  the same column. One string, one column, two engines, two answers.
+ *
+ *  THE DIRECTION IS THE WHOLE POINT: a line too MANY costs a few pixels of slack in a box, and a
+ *  line too FEW crops the words. They are not symmetric mistakes, so the comparison is made
+ *  pessimistic and stays that way — do not tighten it to the measured error and do not make it
+ *  engine-conditional. `receipts/ff429dc.md` already spent this same constant on the one-line
+ *  WIDTH (`chipSize`); this is the second place that needed it, and the reason it was missed is
+ *  that a width safety is discarded the moment `chipSize` clamps to `maxWidth` — which is exactly
+ *  when the column gets tight enough for the wrap decision to matter. BOTH PATHS READ THIS ONE
+ *  DECLARATION. */
+export const WRAP_SAFETY_PX = 1
+
 /** lines ONE run of text takes at a column, honouring `overflow-wrap: break-word`: word
  *  boundaries first, and only a word that cannot fit at all is split inside itself. Empty text
- *  is one line — an empty editable row is still a row. */
+ *  is one line — an empty editable row is still a row.
+ *
+ *  The column is narrowed by `WRAP_SAFETY_PX` before anything is compared to it — EVERY
+ *  comparison in the loop, the `trial` fit and the `solo` overflow that decides how many times an
+ *  unbreakable word divides. See that constant for why a wrap decision cannot trust its own
+ *  measurement to the pixel. */
 export function wrappedLines(text: unknown, width: number, weight: number, size: number, kind: FontKind): number {
   const str = String(text == null ? '' : text).trim()
   if (!str) return 1
+  /* floored at 1 so an absurdly narrow column still divides */
+  const room = Math.max(1, width - WRAP_SAFETY_PX)
   const words = str.split(/\s+/)
   let lines = 1
   let cur = ''
   for (let i = 0; i < words.length; i++) {
     const w = words[i]
     const trial = cur ? cur + ' ' + w : w
-    if (measure(trial, weight, size, kind) <= width) { cur = trial; continue }
+    if (measure(trial, weight, size, kind) <= room) { cur = trial; continue }
     if (cur) { lines++; cur = w } else cur = w
     const solo = measure(cur, weight, size, kind)
-    if (solo > width) {
-      lines += Math.ceil(solo / width) - 1
+    if (solo > room) {
+      lines += Math.ceil(solo / room) - 1
       cur = ''
     }
   }

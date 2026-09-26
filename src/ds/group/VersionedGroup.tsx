@@ -8,6 +8,7 @@ import { InlineText, INLINE_EDIT_STYLE, tidyMultiline } from '../chrome/InlineTe
 import { EditMark } from '../chrome/EditMark'
 import { CloseMark } from '../chrome/CloseMark'
 import { portalInto } from '../chrome/portal'
+import { scrollbarWidth } from '../chrome/Pane'
 import { usedStroke } from '../graph/NodeChip'
 import { measure, linesOfBlock as linesOf, clampToLines, canMeasure } from '../graph/textMeasure'
 
@@ -756,20 +757,9 @@ export const GROUP_METRICS = {
  *  Predict with this, never with 1. */
 export function hairline(): number { return usedStroke(1) } // the 1px case of NodeChip's — one arithmetic, DS 2026-09-02
 
-/** what a scrollbar takes out of a scrolling box — MEASURED once from an offscreen box,
- *  because it is a real number on one machine, 0 where the platform draws overlay
- *  scrollbars, and something else again under a custom scrollbar stylesheet. Not a token. */
-let scrollbarPx: number | null = null
-export function scrollbarWidth(): number {
-  if (scrollbarPx !== null) return scrollbarPx
-  if (typeof document === 'undefined' || !document.body) return 0
-  const box = document.createElement('div')
-  box.style.cssText = 'position:absolute;top:-9999px;width:100px;height:100px;overflow:scroll'
-  document.body.appendChild(box)
-  scrollbarPx = box.offsetWidth - box.clientWidth
-  document.body.removeChild(box)
-  return scrollbarPx
-}
+/** what a scrollbar takes out of a scrolling box — MOVED to `chrome/Pane` (DS OB-210), which
+ *  owns scrolling boxes; re-exported here so every existing reader keeps its name. */
+export { scrollbarWidth }
 
 /** published OB-051: where the body slot sits SIDEWAYS — `{ left, right, axisOffset }`,
  *  relative to the width the card is laid out at. This is the number `AuthorRoad` used to

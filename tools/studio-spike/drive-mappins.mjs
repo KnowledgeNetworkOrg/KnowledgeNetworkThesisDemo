@@ -172,6 +172,67 @@ await page.screenshot({ path: OUT + '/map-pins-l3.png' })
 ok('back at L2 for the label-clearance shot', (await backTo(2)) === 2)
 await page.screenshot({ path: OUT + '/map-pins-l2.png' })
 
+// ── OB-221: a walk pin on a focused cell is not buried by the focus border ──
+// THE FAULT WAS PAINT ORDER, NOT A STYLE: inside an SVG the later sibling wins, and the pins group
+// used to sit AHEAD of the hover pre-selection, the spotlight and the selection overlay, so every
+// cell-state treatment painted over a pin — the selection's middle stroke (an opaque white casing
+// under a 4px stroke in the cell's own hue, ten pixels of ink centred on the boundary) buried the
+// only copy of a stop's address. `z-index` is not the lever, and none of those groups takes pointer
+// events, so a hit test cannot see the fault either: the assertion is about the TREE.
+// (a)+(d): the pins group is the LAST child of its parent, before and after a selection exists.
+const pinsLast = () =>
+  page.evaluate(() => {
+    const g = document.querySelector('svg[data-nested] [data-routepins]')
+    if (!g) return null
+    return { last: [...g.parentNode.children].at(-1) === g, siblings: g.parentNode.children.length }
+  })
+const before = await pinsLast()
+ok('data-routepins is the LAST child of its parent — painted after every cell-state treatment', !!before && before.last, JSON.stringify(before))
+
+// select the cell a pin stands on: a click on a pin falls through to its region
+const paneBox = await page.locator('[aria-label="map-view"]').boundingBox()
+const pinBoxes = await page.locator('[data-routestop]').evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ x: r.x, y: r.y, width: r.width, height: r.height })))
+const pinInPane = pinBoxes.find((r) => r.x >= paneBox.x && r.x + r.width <= paneBox.x + paneBox.width && r.y >= paneBox.y && r.y + r.height <= paneBox.y + paneBox.height)
+ok('a pin is in the pane to stand on', !!pinInPane)
+if (pinInPane) {
+  await page.mouse.click(pinInPane.x + pinInPane.width / 2, pinInPane.y + pinInPane.height / 2)
+  await page.waitForTimeout(600)
+  const focused = await page.evaluate(() => document.querySelectorAll('svg[data-nested] [data-seloutline]').length)
+  ok('the cell under the pin is focused: its focus border is drawn', focused === 1, `${focused} outline(s)`)
+  const after = await page.evaluate(() => {
+    const g = document.querySelector('svg[data-nested] [data-routepins]')
+    const outline = document.querySelector('svg[data-nested] [data-seloutline]')
+    const overlay = document.querySelector('svg[data-nested] [data-seloverlay]')
+    // Node.DOCUMENT_POSITION_FOLLOWING === 4: the pins come AFTER the outline and the whole overlay
+    return {
+      afterOutline: !!g && !!outline && (outline.compareDocumentPosition(g) & 4) !== 0,
+      afterOverlay: !!g && !!overlay && (overlay.compareDocumentPosition(g) & 4) !== 0,
+      last: !!g && [...g.parentNode.children].at(-1) === g,
+    }
+  })
+  ok('the pins are painted AFTER the focus border', after.afterOutline, JSON.stringify(after))
+  ok('and after the whole selection overlay, its roads and its neighbourhood', after.afterOverlay, JSON.stringify(after))
+  ok('and are still the last child of their parent with a selection on screen', after.last, JSON.stringify(after))
+  // the arrows stay where they were (only the pin moved): they still paint BEFORE the overlay
+  ok('the walk\'s ARROWS did not move — a line under a boundary reads as behind it, and loses nothing', await page.evaluate(() => {
+    const walk = document.querySelector('svg[data-nested] [data-routepath]')
+    const overlay = document.querySelector('svg[data-nested] [data-seloverlay]')
+    return !!walk && !!overlay && (walk.compareDocumentPosition(overlay) & 4) !== 0
+  }))
+  // (c) no gesture changed: the pin still opens its preview card on hover
+  const still = await page.locator('[data-routestop]').evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ x: r.x, y: r.y, width: r.width, height: r.height })))
+  const hoverPin = still.find((r) => r.x >= paneBox.x && r.x + r.width <= paneBox.x + paneBox.width && r.y >= paneBox.y && r.y + r.height <= paneBox.y + paneBox.height)
+  if (hoverPin) {
+    await page.mouse.move(hoverPin.x + hoverPin.width / 2, hoverPin.y + hoverPin.height / 2)
+    await page.waitForTimeout(500)
+    ok('and the pin still opens its preview card on hover (no gesture moved)', (await page.locator('[data-walk-preview]').count()) >= 1)
+  }
+  await page.screenshot({ path: OUT + '/map-pins-focused.png' })
+  await page.mouse.move(4, 4)
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
+}
+
 await page.evaluate(() => localStorage.clear())
 await browser.close()
 vite.kill()
@@ -181,4 +242,4 @@ if (errors.length) {
   console.error('\n' + errors.length + ' failure(s):\n' + errors.join('\n'))
   process.exit(1)
 }
-console.log('\nall checks passed — shots at tools/studio-spike/shots/map-pins-{l2,l3}.png')
+console.log('\nall checks passed — shots at tools/studio-spike/shots/map-pins-{l2,l3,focused}.png')

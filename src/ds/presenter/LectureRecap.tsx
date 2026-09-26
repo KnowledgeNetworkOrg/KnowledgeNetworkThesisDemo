@@ -228,7 +228,7 @@ export function LectureRecap({
         {notes}
         <div style={{ flexShrink: 0, width: asideWidth, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <Pane title={flaggedTitle} scroll="none" bodyStyle={{ padding: '0 13px 12px ' + LEGEND_INSET + 'px' }} style={{ flex: 1, minHeight: 0 }}>
-            <PaneScroller style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 6 }}>
+            <PaneScroller style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {rows.length ? rows.map((f, i) => <FlaggedRow key={f.id != null ? f.id : i} item={f} />)
                 : <p style={{ margin: 0, fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', lineHeight: 'var(--lh-normal)', color: 'var(--text-2)' }}>{flaggedEmpty}</p>}
             </PaneScroller>
