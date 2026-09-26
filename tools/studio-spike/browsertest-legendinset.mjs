@@ -78,6 +78,30 @@ await page.evaluate(() => localStorage.clear())
 await page.reload()
 await page.waitForTimeout(700)
 
+// SELECT A NODE FIRST (#342). With nothing chosen the document pane draws a centred
+// "Nothing chosen" placeholder (DS OB-209) — a body that starts with a FRAMED object, which
+// this item's clause (5) leaves to the eye — so the pane's text only starts under the legend
+// once a node is being read. The opening composition carries the map; click one of its cells.
+const cell = await page.evaluate(() => {
+  const svg = document.querySelector('svg[data-nested]')
+  if (!svg) return null
+  const b = svg.getBoundingClientRect()
+  for (let y = b.y + b.height * 0.3; y < b.y + b.height * 0.7; y += 12) {
+    for (let x = b.x + b.width * 0.3; x < b.x + b.width * 0.7; x += 12) {
+      const el = document.elementFromPoint(x, y)
+      const id = el && (el.getAttribute('data-terr') || el.getAttribute('data-region'))
+      if (id && getComputedStyle(el).pointerEvents !== 'none') return { x, y, id }
+    }
+  }
+  return null
+})
+ok('a map cell was found to select, so the document pane has a node to read', !!cell, JSON.stringify(cell))
+if (cell) {
+  await page.mouse.click(cell.x, cell.y)
+  await page.waitForTimeout(400)
+  await page.mouse.move(5, 5)
+}
+
 /** every pane on the desk: its legend text and where the first glyph of the legend and of
  *  the body's first line each begin. Measured in the page. */
 const measure = () => page.evaluate(() => {

@@ -52,7 +52,7 @@ describe('the card belongs to the cursor over THIS pane', () => {
   })
 
   test('nothing hovered anywhere draws neither', () => {
-    expect(hoverMarks(NOTHING)).toEqual({ spotlightId: null, card: null })
+    expect(hoverMarks(NOTHING)).toEqual({ spotlightId: null, centreId: null, card: null })
   })
 })
 
@@ -139,6 +139,42 @@ describe('the walk’s own stop is a light, not a selection (DS OB-173)', () => 
 
   test('no walk on the map is no light — nothing is left stuck on', () => {
     expect(hoverMarks({ ...NOTHING, walkStopCell: null }).spotlightId).toBeNull()
+  })
+})
+
+describe('the centre is its own channel (DS OB-230)', () => {
+  // The document's Relations figure lights the map two ways: a NEIGHBOUR through the published
+  // hover (the road to it and its cell), and the node the document is ABOUT through a separate
+  // centre signal. Folding the centre into the published hover would light every road around
+  // the selection at once — the highlight meaning only "something is hovered".
+  test('the centre signal lights the selected cell, and nothing else', () => {
+    const marks = hoverMarks({ ...NOTHING, selectedCell: 'topic-c', centerLit: true })
+    expect(marks.centreId).toBe('topic-c')
+    expect(marks.spotlightId).toBeNull()
+    expect(marks.card).toBeNull()
+  })
+
+  test('with nothing selected it lights nothing rather than guessing a cell', () => {
+    expect(hoverMarks({ ...NOTHING, centerLit: true }).centreId).toBeNull()
+  })
+
+  test('without the signal the selection is never lit by it, however much else is hovered', () => {
+    const marks = hoverMarks({ ...NOTHING, selectedCell: 'topic-c', publishedCell: 'topic-a' })
+    expect(marks.centreId).toBeNull()
+    expect(marks.spotlightId).toBe('topic-a')
+  })
+
+  test('a neighbour and the centre can be lit at once, each on its own channel', () => {
+    const marks = hoverMarks({ ...NOTHING, selectedCell: 'topic-c', publishedCell: 'topic-a', centerLit: true })
+    expect(marks.centreId).toBe('topic-c')
+    expect(marks.spotlightId).toBe('topic-a')
+  })
+
+  test('dropping the signal drops the light — nothing outlives the hover', () => {
+    const lit = hoverMarks({ ...NOTHING, selectedCell: 'topic-c', centerLit: true })
+    const after = hoverMarks({ ...NOTHING, selectedCell: 'topic-c', centerLit: false })
+    expect(lit.centreId).toBe('topic-c')
+    expect(after.centreId).toBeNull()
   })
 })
 
