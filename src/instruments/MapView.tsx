@@ -55,16 +55,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { OpenMap } from '@/ds'
-import { Breadcrumb, containsSummary, ExplorerRail, ExplorerRailCorner, findTreePath, FIRST_ROW_PAD, walkArrival, walkLeadStop, LevelPicker, MapFloatingButton, MapTooltip, NodePreviewLayer, OpenForVisible, OpenOnSelect, PaneCanvas, usePaneWidth, VisibilityMark, WALK_DOCK_METRICS, WalkDock, WalkPreview, ZoomControl } from '@/ds'
-import { byId, domainIds, domainOf, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT_ID } from '../corpus/graph'
+import { Breadcrumb, containsSummary, ExplorerRail, ExplorerRailCorner, findTreePath, FIRST_ROW_PAD, walkArrival, walkLeadStop, LevelPicker, MapFloatingButton, NodePreviewLayer, OpenForVisible, OpenOnSelect, PaneCanvas, usePaneWidth, VisibilityMark, WALK_DOCK_METRICS, WalkDock, WalkPreview, ZoomControl } from '@/ds'
+import { byId, domainIds, domainOf, pathTo, ROOT_ID } from '../corpus/graph'
 import { HOME_VIEW, L_MAX, VB_H, VB_W, VB_X, VB_Y } from './map/camera'
 import { useArrivalLook } from './map/arrivallook'
 import { useMapCamera } from './map/mapcamera'
 import { ancBorderO, useMapLabelFit } from './map/maplabelfit'
 import { MapLabels } from './map/MapLabels'
 import { DragGhost } from './map/DragGhost'
+import { useMapHover } from './map/hoverlayer'
+import { MapHover } from './map/MapHover'
 import { MapSelection } from './map/MapSelection'
 import { useMapSelection } from './map/mapselect'
+import { MapTooltipCard } from './map/MapTooltipCard'
 import { useNodeDrag } from './map/nodedrag'
 import { useWallFit, WALL_LEVEL, WALL_VIEW } from './map/wallfit'
 import { WalkArrows } from './map/WalkArrows'
@@ -77,14 +80,12 @@ import { leafPos, provinceIds } from '../model/flat'
 import type { XY } from '../model/derive'
 import { colorOf, SELECTION_WASH, territoryFillOf } from '../model/color'
 import { countryPath, provincePath, rootPath, territories } from '../model/nested'
-import { endpointAtTier, flightTargetOf, outlineOf, roadsFor } from '../model/atlas'
-import { hoverMarks } from '../model/maphover'
+import { flightTargetOf, outlineOf } from '../model/atlas'
 import type { WallView } from '../model/walkwall'
 import { pinPosition, walkPins } from '../model/walkpins'
 import { routeOptionals } from '../model/route'
 import { toggleWalkHidden, walkDrawn, walkKeyOf } from '../model/walkvisibility'
 import type { Bundle } from '../model/atlas'
-import { descendantCount, parentOf } from '../model/nav'
 import type { Bus } from '../state/bus'
 import { CORPUS_TREE, summaryOfNode } from './corpustree'
 
@@ -550,86 +551,10 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
   const restId = bus.history.cursor >= 0 ? bus.history.stack[bus.history.cursor] : ROOT_ID
   const aimId = bus.focus ?? (byId.has(restId) ? restId : ROOT_ID)
   const crumbPath = (findTreePath(CORPUS_TREE, aimId) ?? []).map((n) => ({ id: n.id, title: n.title, domain: n.root ? null : n.domain }))
-  const hoverOutline = hover && hover !== sel && !dragging ? outlineOf(hover) : undefined
-
-  // SPOTLIGHT — a hover published by ANOTHER instrument: "the thing your cursor
-  // is on over there lives HERE". Suppressed when it is just our own preselected
-  // cell echoing back (that already has the dashed outline). Any node can be
-  // spotlit, at any level: a deep concept lights its own small cell inside its
-  // topic, which is exactly the "where does this sit?" answer. Display only —
-  // the camera never moves, so a hover can never steal the view.
-  //
-  // The spotlight also carries the LOOK: the last clicked Connections node
-  // stays lit — lifted to its owning topic when it has no cell of its own —
-  // until the look is superseded (next look, any focus change). "Highlight" is
-  // half of what the click asked for; the flight above is the other half.
-  const lookId = peek ? (outlineOf(peek.id) ? peek.id : endpointAtTier(peek.id, 2)) : null
-
-  // item 2: WHICH HOVER GETS WHAT. The spotlight described above and the card
-  // described below are one decision with two different answers, so they are
-  // decided together, in `src/model/maphover.ts` rather than inline here — that
-  // file's header carries the reasoning. The short version is OB-127 (#251): a
-  // hover published by another pane lights a cell and stops there. It used to
-  // also raise a card, at whatever point over this pane the cursor last occupied,
-  // which was routinely nowhere near the cell being reported.
-  const marks = hoverMarks({
-    cursorCell: hover,
-    selectedCell: sel,
-    publishedCell: hoverId,
-    lookedAtCell: lookId,
-    walkStopCell: walkDroveFocus ? sel : null,
-    onRelation: hoverEdge !== null,
-    walkPinHovered: pinHover !== null,
-  })
-  const spotId = marks.spotlightId
-  const spotOutline = spotId ? outlineOf(spotId) : undefined
-
-  // THE CELL THE CARD IS ABOUT — our own cursor's, and now only ever our own. It
-  // feeds MapTooltip's immediate title readout rather than the native <title>,
-  // which lags ~half a second and is OS-styled; this reads the moment the pointer
-  // lands. Called `hoverChip` until 2026-08-28 (#221) after the fixed top-left
-  // chip it used to feed (OB-095 deleted that surface at 1e530af, OB-096 put the
-  // cursor-anchored card in its place), then `hoverNode` until OB-127 took the
-  // published hover out of it. Named for the card now, since the name has already
-  // outlived two surfaces.
-  const cardNode = marks.card?.kind === 'node' ? marks.card.id : null
-
-  // ── #238: WHEN THE CURSOR'S POSITION IS WORTH KNOWING ─────────────────────
-  // `pointerPos` is read for exactly one thing — placing MapTooltip beside the
-  // cursor (OB-096) — and the tooltip only mounts when there is something to
-  // report. So the position is only worth tracking while `tipLive` holds, and
-  // this is the single expression that decides both, so the gate and the render
-  // condition below cannot drift apart.
-  //
-  // Ungated it cost, per second of cursor movement over water at L2: 430ms of
-  // scripting, a forced layout per move, and ZERO style recalculations — a full
-  // re-render of ~500 SVG elements to move a card that was not on screen, against
-  // a 4ms idle floor. Measured by tools/studio-spike/probe-maplag.mjs.
-  //
-  // What this does NOT fix, and #238 stays open for: while the tooltip IS up the
-  // gate is open and the per-move re-render is back at full price (~420ms on the
-  // same measure). Removing that too means not putting the position in state at
-  // all — writing it to the card's own style through a ref. That was held back
-  // pending the Design System's answer on whether MapTooltip anchors to the hovered
-  // ELEMENT instead, which would have deleted this class of work rather than
-  // optimised it. OB-127 answered: the cursor, unqualified. So the ref rewrite is
-  // now all that is left of #238, and it waits on nobody.
-  const tipLive = marks.card !== null
-
-  // REMOVED at OB-127, recorded so it is not rebuilt: a `useLayoutEffect` keyed on
-  // `spotId` that called `placeTipAtCursor()` whenever another pane published a
-  // hover, placing the card before paint so it did not visibly jump. Careful work
-  // on a problem that stopped existing — that case draws no card at all now.
-
-  // OB-096 — the hovered node's OWN roads, for MapTooltip's relations row. A
-  // fresh call rather than reusing the selection's `bundles`/`arrows` above:
-  // the hovered node is rarely the selected one, and roadsFor is cheap
-  // enough at this corpus's scale (memoised on the id, so cursor movement
-  // that stays inside one cell recomputes nothing).
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- the memo is deliberate: it keeps the two counts below from re-walking the roads on every pointer move inside one cell
-  const { arrows: hoverArrows } = useMemo(() => roadsFor(cardNode), [cardNode])
-  const hoverRelIn = cardNode ? hoverArrows.filter((a) => a.tgt === cardNode).reduce((s, a) => s + a.n, 0) : 0
-  const hoverRelOut = cardNode ? hoverArrows.filter((a) => a.src === cardNode).reduce((s, a) => s + a.n, 0) : 0
+  // ── THE HOVER LAYER (#399 cut 3) — the deciding half is `map/hoverlayer.ts` ─
+  // Called exactly where `hoverOutline` sat, so the memo inside keeps its place
+  // in the hook order.
+  const { hoverOutline, spotId, spotOutline, cardNode, tipLive, hoverRelIn, hoverRelOut } = useMapHover({ hover, sel, hoverId, peek, hoverEdge, pinHover, dragging, walkDroveFocus })
 
   const canvas = (
     <PaneCanvas aria-label="map-view" face="none" style={{ background: MAP_WATER }}>
@@ -949,25 +874,13 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
               ─────────────────────────────────────────────────────────────────────── */}
           <WalkArrows bus={bus} pins={routeStops} pinPos={pinPos} f={f} viewS={view.s} px={px} wall={wall} visible={walkVisible} receded={walkReceded} />
 
-          {/* ── HOVER PRESELECTION: the cell a click would pick — kills the "which
-              region am I over?" guess. Its OUTLINE is here, above the labels and the
-              walk; its light TINT is the `data-washes` group below the label layer
-              (OB-223), the same outline path. ────────────────────────────── */}
-          {hoverOutline && (
-            <g data-hover={hover} pointerEvents="none">
-              <path d={hoverOutline} fill="none" stroke="#ffffff" strokeWidth={px(3)} strokeOpacity={0.9} />
-              <path d={hoverOutline} fill="none" stroke={colorOf(hover!)} strokeWidth={px(1.5)} strokeOpacity={0.9} strokeDasharray={`${px(5)} ${px(3)}`} />
-            </g>
-          )}
-
-          {/* ── SPOTLIGHT: something hovered in ANOTHER pane lives here. Outline
-              here; its tint is in `data-washes` (OB-223). ─────────────────── */}
-          {spotOutline && (
-            <g data-spot={spotId} pointerEvents="none">
-              <path d={spotOutline} fill="none" stroke="#ffffff" strokeWidth={px(4.5)} strokeOpacity={0.95} />
-              <path d={spotOutline} fill="none" stroke={colorOf(spotId!)} strokeWidth={px(2.4)} strokeOpacity={0.95} />
-            </g>
-          )}
+          <MapHover
+            hoverOutline={hoverOutline}
+            hover={hover}
+            spotOutline={spotOutline}
+            spotId={spotId}
+            px={px}
+          />
 
           {/* ── SELECTION OVERLAY: the selected region's typed edges, pinned
               until click-off. Edges live at the topic grain but run BORDER to
@@ -1057,35 +970,14 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
 
       {ghost && <DragGhost ghost={ghost} />}
 
-      {/* ── OB-096: MapTooltip, cursor-anchored, replacing the old fixed
-          top-left hover chip (OB-095) — a relation hover (an edge of the
-          current selection) wins over a node hover, since the two can only
-          coexist when the pointer sits exactly on the boundary between an
-          edge's stroke and the territory under it. pointer-events-none so
-          the card itself never steals the hover it is reporting on. ────── */}
       {pointerPos && tipLive && (
-        <div data-maptip className="absolute z-10 pointer-events-none" style={{ left: pointerPos.x + 14, top: pointerPos.y + 14 }}>
-          {hoverEdge ? (
-            <MapTooltip
-              kind="relation"
-              hue={hoverEdge.type ? EDGE_COLOR[hoverEdge.type] : MIXED_EDGE_COLOR}
-              title={hoverEdge.type ? EDGE_LABEL[hoverEdge.type] : 'mixed'}
-              from={byId.get(hoverEdge.src)!.title}
-              to={byId.get(hoverEdge.tgt)!.title}
-            />
-          ) : (
-            <MapTooltip
-              kind="node"
-              hue={colorOf(cardNode!)}
-              title={byId.get(cardNode!)!.title}
-              typeLabel={byId.get(cardNode!)!.topic ? 'topic' : byId.get(cardNode!)!.kind}
-              nodeCount={byId.get(cardNode!)!.kind === 'container' ? descendantCount(cardNode!) : undefined}
-              relationsIn={hoverRelIn}
-              relationsOut={hoverRelOut}
-              parent={parentOf(cardNode!) !== ROOT_ID ? byId.get(parentOf(cardNode!))?.title : undefined}
-            />
-          )}
-        </div>
+        <MapTooltipCard
+          pointerPos={pointerPos}
+          hoverEdge={hoverEdge}
+          cardNode={cardNode}
+          hoverRelIn={hoverRelIn}
+          hoverRelOut={hoverRelOut}
+        />
       )}
 
       {/* ── OB-096/097: the map's own floating chrome, all built on
