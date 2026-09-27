@@ -56,13 +56,15 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import type { OpenMap } from '@/ds'
-import { Breadcrumb, capBow, containsSummary, ExplorerRail, ExplorerRailCorner, extendToMin, findTreePath, FIRST_ROW_PAD, headForSet, minShaft, walkArrival, walkLeadStop, LevelPicker, MapFloatingButton, MapTooltip, NodePreviewLayer, OpenForVisible, OpenOnSelect, PaneCanvas, usePaneWidth, VisibilityMark, WALK_DOCK_METRICS, WalkDock, WalkPreview, ZoomControl } from '@/ds'
+import { Breadcrumb, containsSummary, ExplorerRail, ExplorerRailCorner, findTreePath, FIRST_ROW_PAD, walkArrival, walkLeadStop, LevelPicker, MapFloatingButton, MapTooltip, NodePreviewLayer, OpenForVisible, OpenOnSelect, PaneCanvas, usePaneWidth, VisibilityMark, WALK_DOCK_METRICS, WalkDock, WalkPreview, ZoomControl } from '@/ds'
 import { byId, domainIds, domainOf, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT_ID } from '../corpus/graph'
 import { HOME_VIEW, L_MAX, VB_H, VB_W, VB_X, VB_Y } from './map/camera'
 import { useArrivalLook } from './map/arrivallook'
 import { useMapCamera } from './map/mapcamera'
 import { ancBorderO, useMapLabelFit } from './map/maplabelfit'
 import { MapLabels } from './map/MapLabels'
+import { MapSelection } from './map/MapSelection'
+import { useMapSelection } from './map/mapselect'
 import { useWallFit, WALL_LEVEL, WALL_VIEW } from './map/wallfit'
 import { WalkArrows } from './map/WalkArrows'
 import { WalkPins } from './map/WalkPins'
@@ -75,7 +77,7 @@ import { leafPos, provinceIds } from '../model/flat'
 import type { XY } from '../model/derive'
 import { colorOf, SELECTION_WASH, territoryFillOf } from '../model/color'
 import { countryPath, provincePath, rootPath, territories } from '../model/nested'
-import { endpointAtTier, flightTargetOf, outlineOf, ringsCrossT, roadsFor } from '../model/atlas'
+import { endpointAtTier, flightTargetOf, outlineOf, roadsFor } from '../model/atlas'
 import { hoverMarks } from '../model/maphover'
 import type { WallView } from '../model/walkwall'
 import { pinPosition, walkPins } from '../model/walkpins'
@@ -439,15 +441,10 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
     if (el) el.dispatchEvent(dndEvent('dragover', x, y, id))
   }
 
-  // ── the selection overlay, whole: which topics the selection resolves to,
-  // which of their edges survive the roll-up to this grain, and how those
-  // collapse into one road per pair. All of it is model/atlas.ts's job now.
-  const { tier: selTier, bundles } = useMemo(() => roadsFor(selDrawn), [selDrawn])
-  // a changed (or cleared) selection unmounts the old roads outright — no
-  // pointerleave ever fires on them — so a stale hoverEdge would otherwise
-  // survive pointing at a bundle object from the previous selection
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate (see above): no pointerleave can fire on roads a changed selection unmounted
-  useEffect(() => setHoverEdge(null), [sel])
+  // ── THE SELECTION OVERLAY (#399 cut 1) — the deciding half is `map/mapselect.ts` ─
+  // Called exactly where the `roadsFor` memo and its clear effect sat, so that
+  // effect keeps its place in the hook order.
+  const { bundles, selOutline, centreLit, litRoad, anyRoadLit, clipRoad, roadFloor, neighbourhood } = useMapSelection({ sel, selDrawn, wall, px, hoverId, hoverCenter: bus.hoverCenter, setHoverEdge })
 
   // ── SEARCH MATCHES (#25) — the supply pane's live hit set, lit on the map ──
   // A match deep in a subtree owns no cell at this stratum, so it ROLLS UP to
@@ -581,16 +578,6 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
     })
   }, [visibleKey])
 
-  const selOutline = selDrawn ? outlineOf(selDrawn) : undefined
-  /* THE CENTRE LIGHTS ON ITS OWN SIGNAL (DS OB-230 clause 2, #342): the Document pane's relations
-     rail publishes `bus.hoverCenter` when its hub is pointed at, and the answer here is a modest
-     emphasis on the selected cell — a wider glow and a heavier border, never a colour change, so
-     it stays the same object rather than becoming a second highlight. It is NOT a reading of
-     `bus.hover`: that channel carries one id and the roads below light for whatever id it holds,
-     so the centre's own id would light every road at once. Only while a cell is actually drawn
-     as selected — a walk that drives the focus draws none, and there is then nothing to light. */
-  const centreLit = bus.hoverCenter && !!selOutline
-
   /* THE HEADER ROW'S PATH (OB-241 + OB-243): the selection's ancestry, walkable back up. The
      aim keeps its resting reading after a deselect while the LIT state goes out — the same
      split the connections pane draws — because the breadcrumb is the readout for where the
@@ -678,68 +665,6 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
   const { arrows: hoverArrows } = useMemo(() => roadsFor(cardNode), [cardNode])
   const hoverRelIn = cardNode ? hoverArrows.filter((a) => a.tgt === cardNode).reduce((s, a) => s + a.n, 0) : 0
   const hoverRelOut = cardNode ? hoverArrows.filter((a) => a.src === cardNode).reduce((s, a) => s + a.n, 0) : 0
-
-  // item 3: a hovered counterpart lights the ROAD to it, not just its territory.
-  // The bus hover arrives as a topic id (a Connections relationship row) or a map
-  // cell; lift it to the road's grain (selTier) and the bundle whose end it
-  // matches is the connection to the selected node. The rest dim, the same way
-  // the star dims its other spokes one pane over.
-  const litRoad = hoverId && bundles.length ? endpointAtTier(hoverId, selTier) : null
-  const anyRoadLit = litRoad != null && bundles.some((b) => b.src === litRoad || b.tgt === litRoad)
-
-  // ── OB-197: A RELATION BETWEEN TWO ADJACENT TERRITORIES GETS A LINE YOU CAN READ ─────────
-  // A road is clipped to the borders of the selected grain, so a relation between two
-  // territories that SHARE a border leaves a shaft a few units long — and at this map's weight
-  // the head is then most of the drawing (owner, 2026-09-16: "the head is way too big, also when
-  // the arrow is so short its really hard to read the arrow at all ... it doesn't have to land on
-  // the absolute edge of either node's territories"). RULED: lengthen the line, past the exact
-  // boundary. A head cap on the map was considered and rejected — it would take the head off every
-  // 14px chain and road arrow elsewhere, where the head IS the arrow — so none is added here.
-  //
-  // THE FLOOR IS THE DS'S, IN THE DS'S UNITS. `minShaft` is three head-lengths of the head one
-  // whole SET of arrows shares (`headForSet`, called once over every road drawn, never a per-arrow
-  // head: a floor that follows each arrow's own head draws arrows that mean the same thing at
-  // several lengths for no reason a reader can see). It is a count of SCREEN px, so it goes
-  // through `px()` before it meets these world-unit endpoints — a px floor typed here would be a
-  // different arrow at every zoom. The roads are hand-drawn triangles rather than `NodeArrow`, so
-  // it is the shared head sizing and not a drawn head that the set is asked about.
-  /** the two points a road is CLIPPED to — where it leaves its source cell and lands in its
-   *  target's, each a `dip` past the border so the arrow points INTO the territory, in world units */
-  const clipRoad = (bd: Bundle) => {
-    const a = bd.a
-    const b = bd.b
-    const dx = b.x - a.x
-    const dy = b.y - a.y
-    const len = Math.hypot(dx, dy) || 1
-    // trim to the BORDERS of the SELECTED grain: the tail starts just inside the source
-    // region, the head lands just over the target's border — nothing converges on the capitals
-    const dip = px(11) / len
-    const exitT = ringsCrossT(a, b, bd.srcRings, 'min') ?? px(6) / len
-    const entryT = ringsCrossT(a, b, bd.tgtRings, 'max') ?? 1 - px(9) / len
-    const t0 = Math.max(0, exitT - dip)
-    const t1 = Math.min(1, entryT + dip)
-    return { from: { x: a.x + dx * t0, y: a.y + dy * t0 }, to: { x: a.x + dx * t1, y: a.y + dy * t1 } }
-  }
-  const roadFloor =
-    sel && !wall && bundles.length > 0
-      ? px(minShaft({
-          headSize: headForSet({
-            lengths: bundles.map((bd) => {
-              const c = clipRoad(bd)
-              return Math.hypot(c.to.x - c.from.x, c.to.y - c.from.y) / px(1)
-            }),
-          }),
-        }))
-      : 0
-
-  
-  /** the cells a selection's roads reach, other than the selection itself — each gets a wash of its
-   *  own colour ("what is this connected to" reads from the fills, not just the arrows). Read by
-   *  BOTH halves of that drawing: the tint, which sits under the labels, and the outline, which
-   *  sits over them (OB-223), so the two can never disagree about which cells they are. */
-  const neighbourhood: string[] = sel && !wall
-    ? [...new Set(bundles.flatMap((bd) => [bd.src, bd.tgt]))].filter((id) => id !== sel && id !== endpointAtTier(sel, selTier))
-    : []
 
   const canvas = (
     <PaneCanvas aria-label="map-view" face="none" style={{ background: MAP_WATER }}>
@@ -1126,162 +1051,20 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
               instead of converging on the city dots. White-cased for
               readability, arrowhead at the target. ─────────────────────── */}
           {sel && !wall && (
-            <g data-seloverlay pointerEvents="none">
-              {/* the selection's NEIGHBOURHOOD (2026-07-17): every cell a road
-                  reaches gets a wash of its own color too — "what is this
-                  connected to" reads from the fills, not just the arrows.
-                  Deliberately quieter than the selected cell on every axis
-                  (0.1 vs 0.2 fill, hairline vs 3px border), and painted FIRST
-                  so the primary stays the loudest thing in the overlay. It
-                  follows the roads' hover dim, so pointing at one counterpart
-                  recedes the rest of the neighbourhood with its roads.
-                  THE TINT IS NOT HERE ANY MORE (OB-223): it is in `data-washes`,
-                  under the label layer, from the same `neighbourhood` list. What
-                  stays is the OUTLINE, and `data-selconn` with it. */}
-              {neighbourhood.map((cp) => {
-                  const o = outlineOf(cp)
-                  if (!o) return null
-                  const dim = anyRoadLit && litRoad !== cp
-                  return (
-                    <g key={cp} data-selconn={cp} opacity={dim ? 0.25 : 1} style={{ transition: 'opacity 120ms' }}>
-                      <path d={o} fill="none" stroke="#ffffff" strokeWidth={px(2.5)} strokeOpacity={0.9} />
-                      <path d={o} fill="none" stroke={colorOf(cp)} strokeWidth={px(1.3)} strokeOpacity={0.6} />
-                    </g>
-                  )
-                })}
-              {/* The selected cell is the LOUDEST thing on the map (issue #8: a
-                  hairline + faint tint was still easy to lose, especially once
-                  the neighbourhood wash tinted its connections at 0.1). Three
-                  layers, back to front: a real GAUSSIAN GLOW (feGaussianBlur)
-                  in the cell's tree color that leaks light past the border, a
-                  white separator that also tints the cell body, and a crisp
-                  heavy border. The glow lives in the luminance channel the flat
-                  fills never touch, so it reads as "lit" even next to a same-hue
-                  sibling — a haloed cell among pale ones is selected at a glance.
-                  THE TINTS OF THE FIRST TWO ARE IN `data-washes` NOW (OB-223), under
-                  the label layer, so the ghost heading can be one opaque tone above
-                  every wash; the glow's blur and the white separator stay here. */}
-              {selOutline && (
-                <>
-                  <path d={selOutline} fill="none" stroke={colorOf(sel)} strokeWidth={px(centreLit ? 11 : 7)} strokeOpacity={centreLit ? 0.85 : 0.5} strokeLinejoin="round" filter="url(#sel-glow)" />
-                  <path d={selOutline} fill="none" stroke="#ffffff" strokeWidth={px(6)} strokeOpacity={0.98} strokeLinejoin="round" />
-                  <path data-seloutline data-sel-lit={centreLit ? 1 : 0} d={selOutline} fill="none" stroke={colorOf(sel)} strokeWidth={px(centreLit ? 5.5 : 4)} strokeLinejoin="round" />
-                </>
-              )}
-              {bundles.map((bd) => {
-                const a = bd.a
-                const b = bd.b
-                const dx = b.x - a.x
-                const dy = b.y - a.y
-                const len = Math.hypot(dx, dy) || 1
-                const nx = -dy / len
-                const ny = dx / len
-                // OB-197 — THE ORDER IS THE CONTRACT: clip to the cells' edges, THEN lengthen,
-                // THEN cap the bow against the length that came back. Capping against the stub
-                // chord caps against a chord the drawing no longer has.
-                //   1. clip: where the road leaves its cell and lands in the next (`clipRoad`)
-                //   2. lengthen: a road already past the floor comes back untouched (`grew`
-                //      false, nothing moves); a stub is pushed back along its own line by HALF the
-                //      shortfall at EACH end — into both territories, never one — so its midpoint,
-                //      where the ×n count sits, does not shift
-                const clipped = clipRoad(bd)
-                const grown = extendToMin({ from: clipped.from, to: clipped.to, min: roadFloor })
-                const ax = grown.from.x
-                const ay = grown.from.y
-                const bx = grown.to.x
-                const by = grown.to.y
-                //   3. bow: one line per pair now, so the bow no longer has to fan parallels
-                //      apart — it only keeps the road off the dead-straight centroid axis. Sign is
-                //      pair-deterministic, so it never flips. The bow is a CAP on how far the head
-                //      may point off its own line, not a length to draw at: the same px(14)
-                //      sagitta is a gentle curve at chord 64 and a hairpin at chord 10, and a stub
-                //      whose whole drawing is a head pointing sideways is the "two arrowheads
-                //      overlapped" the owner reported.
-                const bulge = capBow({ length: grown.length, bow: (bd.src < bd.tgt ? 1 : -1) * px(14) })
-                //   4. everything below — the head's angle and the count's position — is derived
-                //      from the CAPPED control point: one derivation, so the head cannot point
-                //      off a curve the shaft is not drawing.
-                const cx = (ax + bx) / 2 + nx * bulge
-                const cy = (ay + by) / 2 + ny * bulge
-                const ang = (Math.atan2(by - cy, bx - cx) * 180) / Math.PI
-                // test hooks, in SCREEN px and degrees: the drawn chord, whether it was lengthened,
-                // and how far the head points off its own chord (attributes only)
-                const chordPx = grown.length / px(1)
-                const headOff = Math.abs((((Math.atan2(by - cy, bx - cx) - Math.atan2(by - ay, bx - ax)) * 180) / Math.PI + 540) % 360 - 180)
-                const d = `M${ax},${ay} Q${cx},${cy} ${bx},${by}`
-                // the curve's midpoint (t = 0.5 on the quadratic) — where the
-                // traffic count sits
-                const mx = 0.25 * ax + 0.5 * cx + 0.25 * bx
-                const my = 0.25 * ay + 0.5 * cy + 0.25 * by
-                const col = bd.type ? EDGE_COLOR[bd.type] : MIXED_EDGE_COLOR
-                // item 3: this road lights when the hovered counterpart is its end
-                const lit = litRoad != null && (bd.src === litRoad || bd.tgt === litRoad)
-                const dim = anyRoadLit && !lit
-                return (
-                  <g
-                    key={bd.key}
-                    data-seledge={`${bd.src}>${bd.tgt}`}
-                    data-en={bd.n}
-                    data-dir={bd.dir}
-                    data-rlen={chordPx.toFixed(2)}
-                    data-rgrew={grown.grew ? 1 : 0}
-                    data-rhead={headOff.toFixed(1)}
-                    data-elit={lit ? 1 : 0}
-                    opacity={dim ? 0.22 : 1}
-                    // OB-096 — MapTooltip's relation shape, on hover. `stroke`
-                    // rather than `auto`: only the drawn line (including its
-                    // wider white halo, a real hit target) responds, not the
-                    // curve's whole invisible fill-none bounding box.
-                    pointerEvents="stroke"
-                    onPointerEnter={() => {
-                      setHoverEdge(bd)
-                      placeTipAtCursor()
-                    }}
-                    onPointerLeave={() => setHoverEdge((h) => (h === bd ? null : h))}
-                    style={{ transition: 'opacity 120ms' }}
-                  >
-                    {/* A RELATION IS THE FOCUS LAYER, so it must not draw lighter
-                        than the walk it displaces. It did: the walk's head is
-                        ARROW_METRICS 8 long by 8.8 wide on a 1.5px shaft, and these
-                        were 5.5 by 5.6 on 1.8 — the RECEDED layer carrying the bigger
-                        arrowheads. OB-117 tried to open that gap by dimming the walk
-                        and could not, because the gap was the wrong way round to
-                        begin with; owner still reported the relations hard to read
-                        with the recede shipped and working. Sized a step ABOVE the
-                        walk's head instead of a step below it.
-
-                        The head takes the same white casing as its shaft, which is
-                        OB-116's argument one layer up: a bare triangle over a
-                        saturated territory fill is a smudge, and enlarging it only
-                        makes a bigger smudge. */}
-                    <path d={d} fill="none" stroke="#ffffff" strokeWidth={px(lit ? 6.2 : 4.8)} strokeOpacity={0.75} />
-                    <path d={d} fill="none" stroke={col} strokeWidth={px(lit ? 4.4 : bd.n > 1 ? 3.4 : 2.6)} strokeOpacity={0.92} />
-                    {bd.dir === 'fwd' && (
-                      <g transform={`translate(${bx} ${by}) rotate(${ang})`}>
-                        <path d={`M${px(1.4)},0 L${-px(10.4)},${px(6.2)} L${-px(10.4)},${-px(6.2)} Z`} fill="#ffffff" fillOpacity={0.75} />
-                        <path data-selhead d={`M0,0 L${-px(9)},${px(5)} L${-px(9)},${-px(5)} Z`} fill={col} />
-                      </g>
-                    )}
-                    {bd.n > 1 && (
-                      <text
-                        x={mx}
-                        y={my - px(4)}
-                        textAnchor="middle"
-                        fontSize={px(10)}
-                        fontWeight={700}
-                        fill={col}
-                        stroke="#ffffff"
-                        strokeWidth={px(2.6)}
-                        paintOrder="stroke"
-                        style={{ userSelect: 'none' }}
-                      >
-                        ×{bd.n}
-                      </text>
-                    )}
-                  </g>
-                )
-              })}
-            </g>
+            <MapSelection
+              sel={sel}
+              selOutline={selOutline}
+              centreLit={centreLit}
+              neighbourhood={neighbourhood}
+              anyRoadLit={anyRoadLit}
+              litRoad={litRoad}
+              bundles={bundles}
+              clipRoad={clipRoad}
+              roadFloor={roadFloor}
+              px={px}
+              setHoverEdge={setHoverEdge}
+              placeTipAtCursor={placeTipAtCursor}
+            />
           )}
 
           {/* ── THE WALK'S PINS — PAINTED LAST (OB-221). THE RULE IS "THE PINS ARE
