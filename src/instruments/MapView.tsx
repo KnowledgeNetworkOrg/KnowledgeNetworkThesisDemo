@@ -53,7 +53,6 @@
 // component should be: a camera, a hover, and a paint order.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 
 import type { OpenMap } from '@/ds'
 import { Breadcrumb, containsSummary, ExplorerRail, ExplorerRailCorner, findTreePath, FIRST_ROW_PAD, walkArrival, walkLeadStop, LevelPicker, MapFloatingButton, MapTooltip, NodePreviewLayer, OpenForVisible, OpenOnSelect, PaneCanvas, usePaneWidth, VisibilityMark, WALK_DOCK_METRICS, WalkDock, WalkPreview, ZoomControl } from '@/ds'
@@ -63,13 +62,14 @@ import { useArrivalLook } from './map/arrivallook'
 import { useMapCamera } from './map/mapcamera'
 import { ancBorderO, useMapLabelFit } from './map/maplabelfit'
 import { MapLabels } from './map/MapLabels'
+import { DragGhost } from './map/DragGhost'
 import { MapSelection } from './map/MapSelection'
 import { useMapSelection } from './map/mapselect'
+import { useNodeDrag } from './map/nodedrag'
 import { useWallFit, WALL_LEVEL, WALL_VIEW } from './map/wallfit'
 import { WalkArrows } from './map/WalkArrows'
 import { WalkPins } from './map/WalkPins'
 import type { PinHover } from './map/WalkPins'
-import { DT } from '../state/walk/authordnd'
 import { routeIsWalk, useWalkPlayback } from '../state/walk/playback'
 import type { PlaybackBus } from '../state/walk/playback'
 import { renderStopPreview } from '../state/walk/stoppreview'
@@ -399,47 +399,12 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
     onFocus(id)
   }
 
-  // ── #24 — DRAG THE SELECTED CELL ONTO THE ROAD ────────────────────────────
-  // A CUSTOM POINTER DRAG, not native HTML5 DnD, for two reasons the ticket's
-  // "just add draggable" plan couldn't survive: Chromium ignores the draggable
-  // attribute on SVG shapes, and a native drag image is a frozen snapshot — it
-  // can't MORPH. So we drive the whole gesture by hand: a portal ghost follows
-  // the cursor, showing the cell's own outline while over the map and crossfading
-  // into a node pill once it leaves the map (the "shape becomes a node" ask). On
-  // as it moves we feed the road a stream of synthetic HTML5 `dragover`/`dragleave`
-  // events at the cursor, and a `drop` on release — so the road's OWN handlers do
-  // both the live preview caret AND the precise insertion (gaps, stages, branches)
-  // verbatim, no reimplementation and no road refactor. A container id rides the
-  // same path and lands as a plain visit (everything is a node). Only the SELECTED
-  // cell arms this (see the pointerdown gate), so pan is untouched everywhere else.
-  type Box = { x: number; y: number; width: number; height: number }
-  const nodeDown = useRef<{ id: string; x: number; y: number; bbox: Box } | null>(null)
-  const ndActive = useRef(false)
-  // the element the last synthetic dragover went to — so we can dragleave it the
-  // moment the cursor moves to a new target (or off the road), which is what
-  // clears its caret. Mirrors the enter/leave a native drag would produce.
-  const lastOver = useRef<Element | null>(null)
-  const [ghost, setGhost] = useState<{ id: string; x: number; y: number; outside: boolean; bbox: Box } | null>(null)
-
-  /** a DnD event carrying the palette payload. Dispatched by hand, these fire the
-   * road's real onDragOver / onDragLeave / onDrop exactly as a browser drag would
-   * — no browser DnD state machine to satisfy, so a `drop` needs no prior
-   * handshake, and dragover/leave drive the road's existing caret. */
-  const dndEvent = (type: 'dragover' | 'dragleave' | 'drop', x: number, y: number, id: string) => {
-    const dt = new DataTransfer()
-    dt.setData(DT, 'pal:' + id)
-    return new DragEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer: dt })
-  }
-  /** point the road's preview caret at the cursor: leave the old target, hover
-   * the new one. Called on every move while a node drag is in flight. */
-  const dragOverAt = (x: number, y: number, id: string) => {
-    const el = document.elementFromPoint(x, y)
-    if (el !== lastOver.current) {
-      if (lastOver.current) lastOver.current.dispatchEvent(dndEvent('dragleave', x, y, id))
-      lastOver.current = el
-    }
-    if (el) el.dispatchEvent(dndEvent('dragover', x, y, id))
-  }
+  // ── #24 THE NODE DRAG (#399 cut 2) — the gesture is `map/nodedrag.ts` ──────
+  // Called exactly where the drag state block sat, so the hook order is
+  // unchanged. The pan/drag gates stay here and read `nodeDown.current`, which
+  // the hook returns; `drag`/`dragDist`/`dragging` stay here because pan shares
+  // them.
+  const { ghost, nodeDown, down, move, release } = useNodeDrag({ svgRef, dragRef: drag, dragDistRef: dragDist, setDragging })
 
   // ── THE SELECTION OVERLAY (#399 cut 1) — the deciding half is `map/mapselect.ts` ─
   // Called exactly where the `roadsFor` memo and its clear effect sat, so that
@@ -693,14 +658,7 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
           const t = ev.target as Element
           const downId = t.getAttribute('data-terr') ?? t.getAttribute('data-region')
           if (downId && downId === sel) {
-            // ARM a node drag on the selected cell (see the block above). Don't
-            // capture yet — a pure click must still reach onClick to deselect;
-            // capture happens in pointermove once movement confirms a drag. Grab
-            // the cell's geometry NOW, while we hold its path element, so the
-            // ghost can draw the outline (getBBox is in the same user space as
-            // outlineOf's `d`).
-            drag.current = null
-            nodeDown.current = { id: sel, x: ev.clientX, y: ev.clientY, bbox: (t as SVGGraphicsElement).getBBox() }
+            down(ev, t, sel)
             return
           }
           drag.current = { x: ev.clientX, y: ev.clientY }
@@ -722,19 +680,7 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
           // ── node drag (arming or in flight) takes priority over pan ──────
           const nd = nodeDown.current
           if (nd) {
-            const dist = Math.hypot(ev.clientX - nd.x, ev.clientY - nd.y)
-            if (!ndActive.current && dist > 5) {
-              // confirmed a drag: capture so moves over the ROAD still reach us
-              ndActive.current = true
-              ;(ev.currentTarget as Element).setPointerCapture(ev.pointerId)
-            }
-            if (ndActive.current) {
-              const r = svgRef.current!.getBoundingClientRect()
-              const outside = ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom
-              setGhost({ id: nd.id, x: ev.clientX, y: ev.clientY, outside, bbox: nd.bbox })
-              // drive the road's live preview caret at the cursor
-              dragOverAt(ev.clientX, ev.clientY, nd.id)
-            }
+            move(ev, nd)
             return
           }
           if (!drag.current) return
@@ -747,28 +693,7 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
         }}
         onPointerUp={(ev) => {
           if (nodeDown.current) {
-            if (ndActive.current) {
-              const { clientX: x, clientY: y } = ev
-              const id = nodeDown.current.id
-              // clear whatever caret we're leaving, THEN drop on the target under
-              // the cursor (handleDrop reads the pointer position, not the caret,
-              // so the insertion is right either way). Swallow the click this
-              // press would fire so a completed drag never also deselects the cell.
-              if (lastOver.current) lastOver.current.dispatchEvent(dndEvent('dragleave', x, y, id))
-              lastOver.current = null
-              const el = document.elementFromPoint(x, y)
-              if (el) el.dispatchEvent(dndEvent('drop', x, y, id))
-              dragDist.current = 999
-              try {
-                ;(ev.currentTarget as Element).releasePointerCapture(ev.pointerId)
-              } catch {
-                /* capture may not have been taken (a click, no drag) */
-              }
-            }
-            nodeDown.current = null
-            ndActive.current = false
-            setGhost(null)
-            setDragging(false)
+            release(ev)
             return
           }
           // settle: whatever drift never crossed PAN_COMMIT is committed now, so
@@ -1130,80 +1055,7 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
         </g>
       </svg>
 
-      {/* ── #24 THE DRAG GHOST — the cell you are carrying to the road ────────
-          A portal to <body> so it floats above every pane regardless of their
-          overflow. Two layers crossfade on the `outside` flag: the cell's own
-          OUTLINE (drawn from outlineOf in the same user space getBBox reports,
-          so any size works) while the pointer is over the map, and a NODE PILL
-          once it leaves — the "shape becomes a node" morph. pointer-events:none
-          so it never blocks elementFromPoint at the drop. */}
-      {ghost &&
-        createPortal(
-          <div
-            data-dragghost={ghost.id}
-            style={{
-              position: 'fixed',
-              left: ghost.x,
-              top: ghost.y,
-              zIndex: 9999,
-              pointerEvents: 'none',
-              transform: 'translate(-50%, -50%)',
-            }}
-          >
-            <div
-              style={{
-                position: 'absolute',
-                left: '50%',
-                top: '50%',
-                transform: `translate(-50%, -50%) scale(${ghost.outside ? 0.55 : 1})`,
-                opacity: ghost.outside ? 0 : 1,
-                transition: 'opacity 180ms ease, transform 180ms ease',
-              }}
-            >
-              <svg
-                width={78}
-                height={78}
-                viewBox={`${ghost.bbox.x} ${ghost.bbox.y} ${ghost.bbox.width} ${ghost.bbox.height}`}
-                style={{ overflow: 'visible', filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.25))' }}
-              >
-                <path
-                  d={outlineOf(ghost.id)}
-                  fill={colorOf(ghost.id)}
-                  fillOpacity={0.85}
-                  stroke="#ffffff"
-                  strokeWidth={Math.max(ghost.bbox.width, ghost.bbox.height) / 32}
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </div>
-            <div
-              style={{
-                position: 'absolute',
-                left: '50%',
-                top: '50%',
-                transform: `translate(-50%, -50%) scale(${ghost.outside ? 1 : 0.55})`,
-                opacity: ghost.outside ? 1 : 0,
-                transition: 'opacity 180ms ease, transform 180ms ease',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '4px 10px',
-                borderRadius: 9999,
-                background: '#ffffff',
-                border: `2px solid ${colorOf(ghost.id)}`,
-                color: colorOf(ghost.id),
-                fontSize: 10.5,
-                fontWeight: 600,
-                whiteSpace: 'nowrap',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.18)',
-              }}
-            >
-              <span style={{ width: 8, height: 8, borderRadius: 9999, background: colorOf(ghost.id), flexShrink: 0 }} />
-              {byId.get(ghost.id)!.title}
-            </div>
-          </div>,
-          document.body,
-        )}
+      {ghost && <DragGhost ghost={ghost} />}
 
       {/* ── OB-096: MapTooltip, cursor-anchored, replacing the old fixed
           top-left hover chip (OB-095) — a relation hover (an edge of the
