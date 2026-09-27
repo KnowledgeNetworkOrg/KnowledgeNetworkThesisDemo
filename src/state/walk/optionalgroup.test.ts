@@ -167,4 +167,18 @@ describe('the derived reading on the road — "this group is optional" is comput
   test('an empty group is not dropped — it has nothing to skip', () => {
     expect(resolveRoad([group('g', [])], {}, false)).toHaveLength(1)
   })
+
+  test('a group of placeholders only, pressed optional, is dropped whole like any all-optional group', () => {
+    // "Add node" twice, group them, press Optional: the button reads the placeholders ON,
+    // so the road must skip the group too — not keep it as an empty stage that takes a number
+    const hole: Stop = { node: '', unset: true, variants: [] }
+    const plan = setOptionalAt([leaf(A), group('g', [hole, hole]), leaf(B)], [[1]], true)
+    expect(optionalOf(plan, [[1]])).toBe(true)
+    expect(skippableBox(plan[1], {})).toBe(true)
+    expect(resolveRoad(plan, {}, false).map((s) => s.node ?? s.key)).toEqual([A, B])
+    // not pressed, it stays where it was put; a bound leaf beside the placeholders decides alone
+    expect(skippableBox(group('g', [hole, hole]), {})).toBe(false)
+    expect(skippableBox(group('g', [hole, leaf(C, true)]), {})).toBe(true)
+    expect(skippableBox(group('g', [{ ...hole, optional: true }, leaf(C)]), {})).toBe(false)
+  })
 })

@@ -287,22 +287,25 @@ export function withOptional(s: Stop, on: boolean): Stop {
   return { ...s, variants: s.variants.map((vr) => ({ ...vr, steps: vr.steps.map((c) => withOptional(c, on)) })) }
 }
 
-/** the bound leaves the road would take through `stops` — the chosen version of
- *  every container, placeholders left out, exactly as `resolveRoad` walks it */
+/** the leaves the road would take through `stops` — the chosen version of every
+ *  container, as `resolveRoad` walks it, placeholders included (the caller tells
+ *  them apart: `resolveRoad` never presents one) */
 function roadLeaves(stops: Stop[], choices: Record<string, string>): Stop[] {
   const out: Stop[] = []
   for (const s of stops) {
-    if (isLeaf(s)) {
-      if (!s.unset) out.push(s)
-    } else out.push(...roadLeaves(chosenSteps(s, choices), choices))
+    if (isLeaf(s)) out.push(s)
+    else out.push(...roadLeaves(chosenSteps(s, choices), choices))
   }
   return out
 }
 
 /** A CONTAINER THE ROAD MAY SKIP WHOLE — the derived "this group is optional": it
  *  holds at least one bound leaf on its chosen road, and every one of them is
- *  optional. A leaf answers false (its own flag is the answer there). An empty
- *  group is not skippable: it has nothing to skip and stays where it was put.
+ *  optional. A group holding ONLY placeholders is read on those instead, so one
+ *  marked optional (the button reads the placeholders, and a press writes them)
+ *  goes whole too rather than staying as an empty numbered stage. A leaf answers
+ *  false (its own flag is the answer there). An empty group is not skippable: it
+ *  has nothing to skip and stays where it was put.
  *  Read by `resolveRoad` to drop the container when optionals are bypassed, and
  *  by the editor's road and columns to draw it dashed.
  *
@@ -314,7 +317,9 @@ function roadLeaves(stops: Stop[], choices: Record<string, string>): Stop[] {
 export function skippableBox(s: Stop, choices: Record<string, string>): boolean {
   if (isLeaf(s)) return false
   const leaves = roadLeaves(chosenSteps(s, choices), choices)
-  return leaves.length > 0 && leaves.every((l) => l.optional === true)
+  const bound = leaves.filter((l) => !l.unset)
+  const judged = bound.length > 0 ? bound : leaves
+  return judged.length > 0 && judged.every((l) => l.optional === true)
 }
 
 // ── Module-load guard — the walks.ts idiom: throw at load, not at render ────
