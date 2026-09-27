@@ -27,11 +27,15 @@ export default function ProjectorScreen() {
      is ever written. */
   const bus = useStudioBus(() => {})
   const idsKey = state.ids.join('\n')
+  /* the optional flags ride as steps on the route (DS OB-214 clause 4), so this window's map dashes
+     the same pins the presenter's does — a bare `setRoute(ids)` would draw every stop required */
+  const optKey = state.optional.map((o) => (o ? 1 : 0)).join('')
   useEffect(() => {
-    bus.setRoute(idsKey ? idsKey.split('\n') : [])
+    const ids = idsKey ? idsKey.split('\n') : []
+    bus.setRouteSteps(ids.map((node, i) => (optKey[i] === '1' ? { node, optional: true } : { node })))
     // the bus object is rebuilt every render; only the published stops should republish
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idsKey])
+  }, [idsKey, optKey])
   useEffect(() => { document.title = state.live && state.slide ? state.slide.title : 'projector' }, [state])
   /* the wall's frame, held for the lecture and keyed to the walk (DS OB-163) — the presenter's
      rule, the same hook, so the projector's own M down / M up is one picture */

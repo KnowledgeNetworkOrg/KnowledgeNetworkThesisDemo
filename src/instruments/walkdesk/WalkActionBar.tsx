@@ -77,11 +77,19 @@ export default function WalkActionBar() {
         { glyph: <NewWalkMark size={13} />, label: 'New walk', title: 'start over with an empty slot', onClick: state.newWalk },
         { glyph: <AddNodeMark size={13} />, label: 'Add node', title: 'add a node at the selection', onClick: state.addSelectionNode },
         { glyph: '⊞', label: 'Group', title: 'group the selected steps', disabled: !state.canGroup, onClick: state.groupSelection },
+        /* DS OB-215: a selected group or fork is pressable too, and acts on every leaf inside it
+           — the group itself never carries the flag. THREE STATES, because a group can be MIXED
+           (press on it, then toggle one leaf back): the pill shows it and the title says what a
+           press does from each. From mixed a press makes every leaf optional (the owner's ruling). */
         {
           glyph: <OptionalMark size={13} />,
           label: 'Optional',
-          title: state.optionalActive ? 'make required' : 'make optional',
-          selected: state.optionalActive,
+          title: state.optionalOn === true
+            ? 'make required'
+            : state.optionalOn === 'mixed'
+              ? 'some of the selection is optional — make all of it optional'
+              : 'make optional',
+          selected: state.optionalOn,
           disabled: !state.canOptional,
           onClick: state.toggleOptionalSelection,
         },

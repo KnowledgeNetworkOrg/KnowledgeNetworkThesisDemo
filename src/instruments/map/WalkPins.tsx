@@ -122,8 +122,12 @@ export function WalkPins({ pins, pinPos, play, f, viewS, wall, visible, receded,
             <foreignObject x={-s.size / 2} y={-s.size / 2} width={s.size} height={s.size} style={{ overflow: 'visible' }}>
               {/* the wash (OB-187 clause 3): how much of this pin's run is behind the walk,
                   `walkProgress` on the same mark the card reads — a merged pin washes a stop
-                  at a time as the class works through it. The wall is a still picture. */}
-              <StepDot n={mark.label} state={wall ? wallPinState(s, wall) : b.behind ? 'done' : 'ahead'} arrival={wall ? undefined : b.active} progress={wall ? undefined : walkProgress(mark, play.position)} variant="pin" size={s.size} />
+                  at a time as the class works through it. The wall is a still picture.
+                  `optional` (DS OB-214 clauses 3-4) dashes the ring and slants the numeral
+                  for a pin whose every stop may be skipped — never special-cased for the lit
+                  pin: the dash rides with the current look, and mid-crossing it neither
+                  thickens nor fades, because StepDot keys geometry on the discrete state. */}
+              <StepDot n={mark.label} state={wall ? wallPinState(s, wall) : b.behind ? 'done' : 'ahead'} arrival={wall ? undefined : b.active} progress={wall ? undefined : walkProgress(mark, play.position)} variant="pin" size={s.size} optional={s.optional} />
             </foreignObject>
           </g>
         )

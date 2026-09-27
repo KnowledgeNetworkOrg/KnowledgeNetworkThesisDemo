@@ -19,8 +19,11 @@
 // broken build measures 28×28 exactly like a fixed one — verified by reverting
 // the fix and re-running: every measurement check passed. The DS saw it flatten
 // because their rig's dot is 18px. So the branch is asserted DIRECTLY as well:
-// the circle branch draws its whole face in one `<svg>` and the pill branch has
-// none, which is exact at every size and is what actually regressed.
+// the circle branch draws its face as `<circle>`s and the pill branch as a
+// `<rect>`, which is exact at every size and is what actually regressed. (Until
+// OB-214, 2026-09-26, the pill had no SVG at all and "has an <svg>" was the
+// test; the pill's face is one SVG now so it can draw a dash, and the circle
+// element is what still separates the two.)
 //
 // Spawns vite ITSELF — backgrounded dev servers die on this machine, so the
 // script owns the server lifecycle. Same pattern as drive-walkwheel.mjs.
@@ -91,9 +94,10 @@ const dots = (root) =>
           label: b.textContent.trim(),
           w: Math.round(r.width * 10) / 10,
           h: Math.round(r.height * 10) / 10,
-          // the circle branch draws fill + ring + dash in one <svg>; the pill
-          // branch draws a CSS border and no SVG at all. This is the branch.
-          svg: !!b.querySelector('svg'),
+          // the circle branch draws fill + ring + dash as <circle>s; the pill
+          // branch draws the same face as one <rect> of the text's own width.
+          // Both are one <svg> since OB-214 — the circle element is the branch.
+          circle: !!b.querySelector('svg circle'),
         }
       })
   }, root)
@@ -154,9 +158,9 @@ ok('the walk is long enough to have two-digit stops at all', twoDigit.length > 0
 // strip is re-measured, for a reason that has nothing to do with this item.
 const single = rail.find((d) => d.label === '9') || rail.find((d) => d.label.length === 1)
 ok(
-  'every numeric stop takes the CIRCLE branch — one SVG face, not a CSS pill',
-  rail.every((d) => d.svg),
-  `${rail.filter((d) => !d.svg).map((d) => d.label).join(', ') || 'none on the pill branch'}`,
+  'every numeric stop takes the CIRCLE branch — a circle face, not the pill',
+  rail.every((d) => d.circle),
+  `${rail.filter((d) => !d.circle).map((d) => d.label).join(', ') || 'none on the pill branch'}`,
 )
 ok('every stop is a CIRCLE — width equals height', rail.every((d) => Math.abs(d.w - d.h) < 0.5), JSON.stringify(rail.filter((d) => Math.abs(d.w - d.h) >= 0.5)))
 ok(
@@ -180,7 +184,7 @@ if (pins.length === 0) {
   // range ("1–2.2", the older hyphenated "1-3") are strings over one character and take the PILL.
   const pinNums = pins.filter((d) => /^\d+$/.test(d.label))
   const pinRanges = pins.filter((d) => /[-\u2013]/.test(d.label))
-  ok('every plain-number map pin takes the circle branch too', pinNums.every((d) => d.svg), `${pinNums.length} pins: ${pinNums.map((d) => d.label).join(', ')}`)
+  ok('every plain-number map pin takes the circle branch too', pinNums.every((d) => d.circle), `${pinNums.length} pins: ${pinNums.map((d) => d.label).join(', ')}`)
   ok('and measures square', pinNums.every((d) => Math.abs(d.w - d.h) < 0.5), pinNums.map((d) => `${d.label} ${d.w}x${d.h}`).join(', '))
   // pins are sized per crowding, so they are NOT all the same size as each other
   // — squareness is the whole claim here, not a shared width.
@@ -194,8 +198,8 @@ if (pins.length === 0) {
   ok('some cell is crowded enough to draw a range label at this level', pinRanges.length > 0,
     `${pins.length} pins: ${pins.map((d) => d.label).join(', ')}`)
   ok(
-    'and a RANGE label ("1–2.2") still takes the pill branch — no SVG face',
-    pinRanges.length > 0 && pinRanges.every((d) => !d.svg),
+    'and a RANGE label ("1–2.2") still takes the pill branch — no circle face',
+    pinRanges.length > 0 && pinRanges.every((d) => !d.circle),
     pinRanges.map((d) => `${d.label} ${d.w}x${d.h}`).join(', '),
   )
 }

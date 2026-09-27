@@ -20,8 +20,21 @@ export interface ToolbarItemSpec {
   glyph?: ReactNode
   /** names the action AND states the current truth: "optionals: on the road" */
   title?: string
-  /** this toggle is currently on — draws a moss (or acorn) wash, never a hue swap */
-  on?: boolean
+  /** this toggle's state: `true` on, `false` off, `'mixed'` partly on. THREE RUNGS OF ONE LADDER,
+   *  each adding a whole channel rather than turning one up (owner's pick, 2026-09-17, DS OB-215):
+   *
+   *  - `false` — no ring, no wash, `--text-2` ink, semibold.
+   *  - `'mixed'` — the RING and the tone's ink, NO wash, still semibold.
+   *  - `true` — ring AND wash, the tone's ink, BOLD. Never a hue swap.
+   *
+   *  `'mixed'` EXISTS FOR A BULK SETTER WHOSE SUBJECT DISAGREES WITH ITSELF — the walk editor's
+   *  optional button over a versioned group, three of whose four leaves are optional.
+   *
+   *  ABSENT AND `false` ARE DIFFERENT CONTROLS, not two spellings of off. Omitting `on` means "this
+   *  is not a toggle" and no `aria-pressed` is emitted; `on={false}` is a toggle that is currently
+   *  off. `'mixed'` maps to ARIA's own `aria-pressed="mixed"`. A caller does NOT dash the pill to
+   *  mean mixed — the glyph inside an optional-style button is already a dashed ring. */
+  on?: boolean | 'mixed'
   disabled?: boolean
   /** walk = acorn (movement through the corpus); primary = moss */
   tone?: 'quiet' | 'walk' | 'primary'
@@ -152,33 +165,57 @@ export function Toolbar({ groups = [], trailing, dense = true, brand, motif, sea
   )
 }
 
+/* ONE LADDER, THREE RUNGS, AND EACH RUNG ADDS A WHOLE CHANNEL rather than turning one up (DS
+   OB-215, 2026-09-17, owner's pick) — see `on`. WHY A RING/WASH LADDER AND NOT A DASHED PILL: the
+   house rule is "dashed means conditional", and the glyph inside the optional button is already
+   `OptionalMark`, a dashed ring; a dashed pill around it would put two dashes in one control saying
+   two different things. HOVER ON `mixed` KEEPS THE RING AND TAKES THE NEUTRAL `--surface-hover`,
+   never the walk wash — a walk-washed mixed button is pixel-identical to `on`, so hovering would
+   appear to change the state.
+
+   A GLYPH BESIDE A LABEL ALIGNS ON THE BASELINE, NOT ON THE BOX (DS OB-215 clause 6) — adopted from
+   `PillButton`, where the owner settled it over five rounds on 2026-08-21; this bar never got the
+   ruling, so `OptionalMark` drew 2.00px below the label's cap-height centre here and 1.00px in a
+   pill. Three parts, all `PillButton`'s: `alignItems: 'baseline'`, the glyph span at `lineHeight:
+   1`, and the uniform `top: -1px` optical nudge. ALL KEYED ON `label`: a glyph-only item has no
+   baseline to meet, is a square box, and its mark belongs in the middle of it — the nudge would
+   lift it off centre, and most of the app toolbar is glyph-only. */
 function ToolbarItem({ label, glyph, title, on, disabled, tone, onClick, dense, hook }: ToolbarItemSpec & { dense?: boolean }) {
   const [hot, setHot] = useState(false)
   const walk = tone === 'walk'
+  const mixed = on === 'mixed'
+  /* THE TWO READINGS OF `on` ARE DELIBERATELY DIFFERENT, and a truthiness test cannot tell them
+     apart: `engaged` is "wholly or partly" and carries the ink and the ring; `isOn` is "wholly",
+     and is the only one that earns the wash and the bold weight. `on ?` would draw the STRING
+     'mixed' as fully on. */
+  const isOn = on === true
+  const engaged = isOn || mixed
   const ink = disabled
     ? 'var(--text-3)'
-    : on
+    : engaged
       ? walk
         ? 'var(--text-walk)'
         : 'var(--accent-primary-ink)'
       : tone === 'primary'
         ? 'var(--accent-primary-ink)'
         : 'var(--text-2)'
-  const bd = on ? (walk ? 'var(--border-walk)' : 'var(--moss-300)') : hot && !disabled ? 'var(--border-rule)' : 'transparent'
-  const bg = on ? (walk ? 'var(--accent-walk-wash)' : 'var(--accent-primary-wash)') : hot && !disabled ? 'var(--surface-hover)' : 'transparent'
+  const bd = engaged ? (walk ? 'var(--border-walk)' : 'var(--moss-300)') : hot && !disabled ? 'var(--border-rule)' : 'transparent'
+  const bg = isOn ? (walk ? 'var(--accent-walk-wash)' : 'var(--accent-primary-wash)') : hot && !disabled ? 'var(--surface-hover)' : 'transparent'
   const box = dense ? 24 : 30
   return (
     <button
       type="button"
       title={wrapTip(title || label)}
+      aria-label={label ? undefined : title}
       disabled={disabled}
       onClick={onClick}
       data-toolbar-hook={hook}
+      aria-pressed={on === undefined ? undefined : mixed ? 'mixed' : isOn}
       onMouseEnter={() => setHot(true)}
       onMouseLeave={() => setHot(false)}
       style={{
         display: 'inline-flex',
-        alignItems: 'center',
+        alignItems: label ? 'baseline' : 'center',
         justifyContent: 'center',
         gap: 6,
         flexShrink: 0,
@@ -192,7 +229,7 @@ function ToolbarItem({ label, glyph, title, on, disabled, tone, onClick, dense, 
         color: ink,
         fontFamily: 'var(--font-ui)',
         fontSize: label ? 'var(--fs-body)' : 'var(--fs-title)',
-        fontWeight: on ? 'var(--fw-bold)' : 'var(--fw-semibold)',
+        fontWeight: isOn ? 'var(--fw-bold)' : 'var(--fw-semibold)',
         lineHeight: 1,
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 'var(--opacity-disabled)' : 1,
@@ -200,7 +237,7 @@ function ToolbarItem({ label, glyph, title, on, disabled, tone, onClick, dense, 
         whiteSpace: 'nowrap',
       }}
     >
-      {glyph ? <span style={{ opacity: 0.85 }}>{glyph}</span> : null}
+      {glyph ? <span style={{ opacity: 0.85, lineHeight: 1, position: 'relative', top: label ? -1 : 0 }}>{glyph}</span> : null}
       {label}
     </button>
   )

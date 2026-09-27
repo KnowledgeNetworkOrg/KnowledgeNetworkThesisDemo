@@ -77,6 +77,7 @@ import { countryLabels, endpointAtTier, flightTargetOf, outlineOf, provinceLabel
 import { hoverMarks } from '../model/maphover'
 import type { WallView } from '../model/walkwall'
 import { pinPosition, walkPins } from '../model/walkpins'
+import { routeOptionals } from '../model/route'
 import { toggleWalkHidden, walkDrawn, walkKeyOf } from '../model/walkvisibility'
 import type { Bundle } from '../model/atlas'
 import { fitLabel, fitRegionLabel, keepClearOfEarlier, labelBox, regionLabelBox } from '../model/labelfit'
@@ -188,7 +189,7 @@ const DOMAIN_NAME_WEIGHT = 800
 
 /** the slice of the bus the map reads and writes — its own members plus what playback needs,
  *  since `useWalkPlayback` writes the cursor and the focus. */
-export type MapViewBus = Pick<Bus, 'focus' | 'hover' | 'hoverStep' | 'peek' | 'matches' | 'route' | 'history' | 'trail' | 'clearFocus' | 'setHover' | 'endHover' | 'hoverCenter'> & PlaybackBus
+export type MapViewBus = Pick<Bus, 'focus' | 'hover' | 'hoverStep' | 'peek' | 'matches' | 'route' | 'routeSteps' | 'history' | 'trail' | 'clearFocus' | 'setHover' | 'endHover' | 'hoverCenter'> & PlaybackBus
 
 /** `wall` (#267, DS OB-139 rule 4): the map as the room sees it when the professor holds it up.
  *  A still picture — every stop of the lecture a pin, the covered stops and the lit stop joined
@@ -661,12 +662,18 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
   // pins themselves are rebuilt only when the walk, the level or the zoom
   // changes — never per frame, which is what lets a played walk redraw at the
   // frame rate without re-laying-out its pins every time.
+  //
+  // WHICH STOPS THE WALK MAY SKIP (DS OB-214 clauses 2-3) come from the same place `bus.route`
+  // does — `bus.routeSteps`, whose leaves carry the flag — as a list indexed like the route. The
+  // pins take it beside the route; only stage 2's merge reads it. A BYPASSED optional is not in
+  // the route at all (the desk resolved it away before publishing), so there is no ghost pin.
+  const routeOptional = useMemo(() => routeOptionals(bus.routeSteps), [bus.routeSteps])
   const routeStops = useMemo(
-    () => walkPins({ route: bus.route, level, px, labelBoxes }),
+    () => walkPins({ route: bus.route, optional: routeOptional, level, px, labelBoxes }),
     // `px` is STABLE (mapcamera's useCallback on f/view.s, its old deps), so listing it
     // re-runs this memo exactly when either of those moves. The fresh-reference warning
     // this used to suppress is gone with the fresh reference.
-    [bus.route, level, px, labelBoxes],
+    [bus.route, routeOptional, level, px, labelBoxes],
   )
   // ── OB-132: WHERE THE WALK IS, IN PINS. The DS's band (`walkBand`) fades every
   // mark by its distance from the played position — full on the stop, five

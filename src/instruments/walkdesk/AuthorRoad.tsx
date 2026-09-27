@@ -42,7 +42,7 @@ import type { AuthorState, Path } from '../../state/walk/authordraft'
 import { pathKey, useFreshGroup } from '../../state/walk/authordraft'
 import { bandFor, DT, gapFor, handleDrop } from '../../state/walk/authordnd'
 import type { Band } from '../../state/walk/authordnd'
-import { chosenIdx, chosenSteps, isLeaf } from '../../state/walk/mockwalk'
+import { chosenIdx, chosenSteps, isLeaf, skippableBox } from '../../state/walk/mockwalk'
 import type { Stop } from '../../state/walk/mockwalk'
 import type { HoverBinding } from '../../state/bus'
 
@@ -387,9 +387,13 @@ function layoutRoad(
       const x = centerX - r.left
       slots.push({ path: p, x: centerX - w / 2, y: prevBottom === null ? y - 8 : (prevBottom + y) / 2, w })
       lastW = w
-      const skipped = !!s.optional && !withOptionals
+      // a leaf's own flag, or — for a container, which has none (DS OB-215) — the derived
+      // reading: every leaf on its chosen road optional. The same rule `resolveRoad` drops it by,
+      // so what this road greys out is exactly what the presented walk leaves out.
+      const optional = isLeaf(s) ? !!s.optional : skippableBox(s, choices)
+      const skipped = optional && !withOptionals
       if (prevBottom !== null)
-        arrows.push({ x1: centerX, y1: prevBottom + 3, x2: centerX, y2: y - 5, live: onRoad && !prevSkipped && !skipped, optional: !!s.optional })
+        arrows.push({ x1: centerX, y1: prevBottom + 3, x2: centerX, y2: y - 5, live: onRoad && !prevSkipped && !skipped, optional })
       if (isLeaf(s)) {
         items.push({ path: p, stop: s, x, y, w, h, outline, onRoad, skipped, depth })
       } else if (isFold) {
@@ -916,8 +920,10 @@ export default function AuthorRoad({
                     // around a rounded stack (the DS card owns its border, so
                     // neither cue restyles the component's edge — both ride outside
                     // it). dashed ALWAYS means conditional; it yields to selection.
+                    // A container has no flag of its own (DS OB-215): it dashes when every
+                    // leaf on its road is optional — derived, never stored.
                     selected={isSelected}
-                    optional={!!s.optional}
+                    optional={skippableBox(s, choices)}
                     title={s.title ?? ''}
                     titlePlaceholder={STAGE_UNNAMED}
                     index={pl.outline}
@@ -1071,9 +1077,10 @@ export default function AuthorRoad({
                   activeId={s.variants[chosen]?.id ?? ''}
                   // the road's two cues, drawn by the card: selection round the head
                   // (a card's body holds nodes selectable in their own right);
-                  // dashed round the face when the container is conditional
+                  // dashed round the face when the container is conditional — which, with no
+                  // flag on a container any more (DS OB-215), means every leaf on its road is
                   selected={isSelected}
-                  optional={!!s.optional}
+                  optional={skippableBox(s, choices)}
                   // both gestures belong to the road: dragging a stop is the board's
                   // job, and a card sized by the layout has no resize handle to offer
                   movable={false}

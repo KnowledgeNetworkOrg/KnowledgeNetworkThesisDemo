@@ -24,12 +24,12 @@ const at = (x: number, y: number): XY => ({ x, y })
 const node = (x: number, y: number) => ({ c: at(x, y) })
 
 /** a draw-ready pin whose key/visId are readable in a failure message */
-const pin = (c: XY, size = 22): WalkPin => ({ key: `k${c.x},${c.y}`, visId: `v${c.x},${c.y}`, step: 1, stepEnd: 1, c, size })
+const pin = (c: XY, size = 22): WalkPin => ({ key: `k${c.x},${c.y}`, visId: `v${c.x},${c.y}`, step: 1, stepEnd: 1, c, size, optional: false })
 
 /** `n` pins 100 world units apart along +x, in walk order — long enough that the
  *  band's trailing edge actually bites somewhere in the middle of it */
 const row = (n: number, size = 22): WalkPin[] =>
-  Array.from({ length: n }, (_, i) => ({ key: `k${i}`, visId: `v${i}`, step: i + 1, stepEnd: i + 1, c: at(i * 100, 0), size }))
+  Array.from({ length: n }, (_, i) => ({ key: `k${i}`, visId: `v${i}`, step: i + 1, stepEnd: i + 1, c: at(i * 100, 0), size, optional: false }))
 
 /** how close curve A ever comes to curve B along A's own length — the nearest
  *  point on B to each sampled point of A, minimised.
@@ -148,6 +148,40 @@ describe('walkArrowDraws — the per-arrow record the renderer places', () => {
     const straight = nearestGapAlong([prev, mid, 0], [mid, next, 0])
     const bowed = nearestGapAlong([prev, mid, draws[0].bow], [mid, next, draws[1].bow])
     expect(bowed).toBeGreaterThan(straight * 2)
+  })
+
+  // OB-214 clause 5: a run split at an optionality boundary is two pins on ONE cell,
+  // fanned a few px apart. The walk does not move between them. The fan here puts the
+  // second twin a step BACK toward the arriving line, the arrangement that read as a
+  // hairpin: ~18° between the two lines at each twin, under BOW_CLOSE_DEG.
+  const twins = (): WalkPin[] => [
+    { ...pin(at(0, 0)), visId: 'a' },
+    { ...pin(at(200, 0)), visId: 'x', step: 2, stepEnd: 2 },
+    { ...pin(at(197, 1)), visId: 'x', step: 3, stepEnd: 3, optional: true },
+    { ...pin(at(400, 0)), visId: 'b', step: 4, stepEnd: 4 },
+  ]
+
+  test('a split spot draws no arrow between its twins, only into and out of the pair', () => {
+    const draws = walkArrowDraws({ pins: twins(), pinPos: null, head: 8, viewS: 1, f: 1, px: (v) => v })
+    expect(draws.map((d) => d.i)).toEqual([0, 2])
+    expect(walkHeadLengths(twins(), 1, 1, 8)).toHaveLength(2)
+  })
+
+  test('a walk passing straight through a split spot stays straight — the fan is not a hairpin', () => {
+    // asked at each twin alone, the 3px hop to the other one lies back along the
+    // line the walk arrived on, and both long shafts bowed
+    expect(walkBowSigns(twins())).toEqual([0, 0, 0])
+    const draws = walkArrowDraws({ pins: twins(), pinPos: null, head: 8, viewS: 1, f: 1, px: (v) => v })
+    expect(draws.every((d) => d.bow === 0)).toBe(true)
+  })
+
+  test('a split spot the walk really doubles back through still bows, into and out of the pair', () => {
+    const pins = twins()
+    pins[3] = { ...pins[3], c: at(-40, 10) }
+    const signs = walkBowSigns(pins)
+    expect(signs[0]).not.toBe(0)
+    expect(signs[1]).toBe(0)
+    expect(signs[2]).toBe(signs[0])
   })
 })
 

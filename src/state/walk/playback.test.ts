@@ -90,6 +90,12 @@ describe('the road on the bus keeps its groups (#228, DS OB-114)', () => {
     expect(routeNumbers(routeStepsOf(road)).map((n) => n.step)).toEqual([1, 2, 2, 3])
   })
 
+  it('a leaf\'s optional flag rides on its step, and a required step is the same `{ node }` as ever (DS OB-214)', () => {
+    const road = resolveRoad([leaf(A), fork('f', [{ id: 'v0', label: 'one', steps: [leaf(B, { optional: true }), leaf(C)] }])], {}, true)
+    expect(routeStepsOf(road)).toEqual([{ node: A }, { title: 'which way', steps: [{ node: B, optional: true }, { node: C }] }])
+    expect(routeStepsOf(road)[0]).not.toHaveProperty('optional')
+  })
+
   it('a saved walk has no paths at all', () => {
     const w: Walk = { id: 'w', title: 't', stops: [{ id: A, note: '' }, { id: B, note: '' }] } as Walk
     expect(playSteps(w, []).every((s) => s.path === undefined)).toBe(true)
