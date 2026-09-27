@@ -583,7 +583,8 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
         </div>
         {steps.map((s, i) => {
           const b = walkBand(i, pos, band)
-          return <div key={s.id} aria-hidden="true" style={{
+          /* POSITION + id, never the id alone: a walk may revisit a node (#347) */
+          return <div key={`${i}-${s.id}`} aria-hidden="true" style={{
             position: 'absolute', top: M.rail / 2, left: at(last ? i / last : 0), width: M.tick, height: b.tickHeight, borderRadius: 1,
             transform: 'translate(-50%, -50%)', pointerEvents: 'none', opacity: b.ink,
             background: b.behind ? 'var(--accent-walk)' : 'var(--bark-400)',
@@ -634,7 +635,8 @@ export function WalkDock({ steps = [], position = 0, playing = false, onPlayTogg
                    it a second later — two tooltips for one pointer rest. The attribute survives
                    only for a host that passes no `renderPreview`, where a clamped title would
                    otherwise have no way to be read in full. */
-                <div key={s.id} data-walk-dock-stop={i} title={renderPreview ? undefined : wrapTip(s.optional ? s.title + ' (optional)' : s.title)} style={{ position: 'relative', flex: 'none', width: M.stopW, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, opacity: Math.max(b.ink, 0.35 * (1 - b.near) + b.near) }}>
+                /* POSITION + id, never the id alone: a walk may revisit a node (#347) */
+                <div key={`${i}-${s.id}`} data-walk-dock-stop={i} title={renderPreview ? undefined : wrapTip(s.optional ? s.title + ' (optional)' : s.title)} style={{ position: 'relative', flex: 'none', width: M.stopW, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, opacity: Math.max(b.ink, 0.35 * (1 - b.near) + b.near) }}>
                   <div style={{ height: M.walker, display: 'flex', alignItems: 'flex-end', color: 'var(--accent-walk)' }}>
                     {i === cur ? <WalkerMark size={M.walker} animated={playing} /> : null}
                   </div>

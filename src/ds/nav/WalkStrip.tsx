@@ -498,8 +498,9 @@ export function WalkStrip({ steps = [], cursor = 0, variant = 'seek', showCount 
           padding: `${M.walker + M.walkerLift}px ${M.labelOverhang}px 4px`, userSelect: 'none', cursor: 'grab',
           scrollbarWidth: scrollbar ? undefined : 'none', msOverflowStyle: scrollbar ? undefined : 'none',
         } as CSSProperties}>
+          {/* POSITION + id, never the id alone: a walk may revisit a node (#347) */}
           {steps.map((s, i) => (
-            <Fragment key={s.id}>
+            <Fragment key={`${i}-${s.id}`}>
               {i > 0 ? (
                 <span style={{ flex: 'none', display: 'flex', alignItems: 'center', height: M.dot, transform: rowHot ? 'scaleY(' + WALK_ROW_HOVER_GROW + ')' : 'none', transition: 'transform var(--dur-hover) var(--ease-soft)' }}
                   onMouseEnter={() => { if (dragRef.current && dragRef.current.moved) return; if (onArrowHover) onArrowHover(i) }}

@@ -383,8 +383,9 @@ for (const [id, fill] of territoryFillMap) {
 /** THE SELECTED CELL'S TWO WASHES, as opacities of that cell's OWN colour (`colorOf`): the glow's
  *  own tint, then the body wash over it. Exported so the map DRAWS them from these very numbers
  *  and the ink below is resolved against what is actually painted — a copy of either in the map
- *  is how the two would drift. */
-export const SELECTION_WASH = { glow: 0.16, body: 0.22 } as const
+ *  is how the two would drift. `glowLit` is the glow while the Document pane's hub is pointed at
+ *  (OB-230): the heaviest the glow ever gets, so it is the one the ink is resolved against. */
+export const SELECTION_WASH = { glow: 0.16, glowLit: 0.26, body: 0.22 } as const
 
 const channels = (hex: string): [number, number, number] => {
   const n = parseInt(hex.slice(1), 16)
@@ -398,12 +399,13 @@ function blendHex(top: string, alpha: number, under: string): string {
 }
 
 /** the colour a SELECTED cell's label actually sits on: its territory fill, the glow's tint over
- *  it, then the body wash — the fill taken at full opacity, which is the darker (worse) reading,
- *  so an answer that clears the floor here clears it on a half-muted leaf cell too */
+ *  it, then the body wash — the fill taken at full opacity and the glow at its LIT strength, both
+ *  the darker (worse) reading, so an answer that clears the floor here clears it at rest and on a
+ *  half-muted leaf cell too */
 export function washedFillOf(id: string): string {
   const fill = territoryFillMap.get(id) ?? FALLBACK.fill
   const tint = anchorMap.get(id) ?? FALLBACK.anchor
-  return blendHex(tint, SELECTION_WASH.body, blendHex(tint, SELECTION_WASH.glow, fill))
+  return blendHex(tint, SELECTION_WASH.body, blendHex(tint, SELECTION_WASH.glowLit, fill))
 }
 
 const selectedInkMap = new Map<string, string>()

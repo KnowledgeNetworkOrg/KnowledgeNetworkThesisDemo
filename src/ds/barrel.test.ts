@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { ARROW_BOW_MAX_DEG, ARROW_MIN_SHAFT_HEADS, Bullet, labelCase, LabelCut, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, ExplorerRail, ExplorerRailCorner, ExplorerRailMath, explorerRailWidth, FindMark, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_DIVIDER_METRICS, PaneDivider, paneFit, clampDesk, deskBounds, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, REPLAY_PATH, STOP_CARD_METRICS, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StepDotMath, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkComplete, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
+import { ORBIT_METRICS, OrbitMath, PANE_PLACEHOLDER_METRICS, PREVIEW_BANNER_METRICS, RELATION_STATS_METRICS, RelationOrbit, RelationStats, RelationsRailMath, StatsMath, orbitKinds, orbitMarks, orbitWedge, statKindRows } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -250,12 +251,12 @@ describe('ported but not adopted DS components', () => {
   })
 
   // #340 (OB-225, 234, 237, 239, 241, 243) — the dissolution's shared chrome, ported into
-  // src/ds and deliberately NOT adopted yet: the two rails that render it are #341's (the
-  // map's Explorer rail) and #342's (the document's Relations rail), and the panes they mount
-  // in are rewired there. Listed so mounting one is a deliberate edit here, not an audit miss.
-  // `FIRST_ROW_PAD` is read by RailFrame itself; it crosses the barrel for #358, which
-  // completes OB-249.
-  it('RailFrame / RailOpenButton / RailCorner / OutlineMark / RelationsMark — waiting on #341 and #342 to mount the rails', () => {
+  // src/ds. The two rails that render it are now BOTH mounted (#341's Explorer rail on the map,
+  // #342's Relations rail on the document), but they assemble it by relative import, so no app
+  // file imports these from the barrel directly. Listed so adopting one is a deliberate edit
+  // here, not an audit miss. `FIRST_ROW_PAD` is read by RailFrame itself; it crosses the barrel
+  // for #358, which completes OB-249.
+  it('RailFrame / RailOpenButton / RailCorner / OutlineMark / RelationsMark — assembled inside the two mounted rails (#341, #342)', () => {
     expect(typeof RailFrame).toBe('function')
     expect(typeof RailOpenButton).toBe('function')
     expect(typeof RailCorner).toBe('function')
@@ -299,6 +300,29 @@ describe('ported but not adopted DS components', () => {
     expect(explorerRailWidth(400, null)).toBe(railWidth('left', 400, null))
     expect(explorerRailWidth(9999, 500)).toBe(PANE_RAIL_METRICS.left.stretch)
     expect(typeof ExplorerRailMath.width).toBe('function')
+  })
+
+  // #342 (OB-229, OB-235, OB-209) — the Document pane's relations rail. `RelationsRail`,
+  // `RelationsRailCorner`, `orbitBox`, `ORBIT_SELF`, `relationStats`, `PreviewBanner`,
+  // `PanePlaceholder` and `groupViaBySource` are ADOPTED (DocumentPanel.tsx imports them), so they
+  // are not listed. These are the rail's two parts and their published helpers, which the rail
+  // assembles by relative import and no host draws separately, plus the metrics and capitalised
+  // aliases the DS publishes beside them.
+  it('RelationOrbit / RelationStats and their helpers — the relations rail\'s parts, published for a host that draws them apart (#342)', () => {
+    expect(typeof RelationOrbit).toBe('function')
+    expect(typeof RelationStats).toBe('function')
+    // one kind may not own the whole circle: the floor is a published function, not a division
+    expect(ORBIT_METRICS.minSectors).toBe(2)
+    expect(orbitWedge(1)).toBe(180)
+    expect(OrbitMath.wedge).toBe(orbitWedge)
+    expect(OrbitMath.marks).toBe(orbitMarks)
+    expect(OrbitMath.kinds).toBe(orbitKinds)
+    expect(StatsMath.rows).toBe(statKindRows)
+    expect(RELATION_STATS_METRICS.trackShare).toBe(52)
+    expect(typeof RelationsRailMath.orbitBox).toBe('function')
+    // the row a preview banner reserves, drawn or not (OB-209), and the placeholder's floor
+    expect(PREVIEW_BANNER_METRICS.height).toBe(16)
+    expect(PANE_PLACEHOLDER_METRICS.minHeight).toBe(120)
   })
 
   // `nestedFamilyPaint` / `familySlots` / `FAMILY_SLOTS` are NOT listed here because
