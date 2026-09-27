@@ -56,11 +56,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import type { OpenMap } from '@/ds'
-import { Breadcrumb, capBow, containsSummary, ExplorerRail, ExplorerRailCorner, extendToMin, findTreePath, FIRST_ROW_PAD, headForSet, LabelCut, minShaft, walkArrival, walkLeadStop, LevelPicker, MapFloatingButton, MapTooltip, NodePreviewLayer, OpenForVisible, OpenOnSelect, PaneCanvas, topicPaintValues, usePaneWidth, VisibilityMark, WALK_DOCK_METRICS, WalkDock, WalkPreview, ZoomControl } from '@/ds'
-import { byId, domainIds, domainOf, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT_ID, topicHueOf } from '../corpus/graph'
-import { HOME_VIEW, L_MAX, LEVEL_S, VB_H, VB_W, VB_X, VB_Y } from './map/camera'
+import { Breadcrumb, capBow, containsSummary, ExplorerRail, ExplorerRailCorner, extendToMin, findTreePath, FIRST_ROW_PAD, headForSet, minShaft, walkArrival, walkLeadStop, LevelPicker, MapFloatingButton, MapTooltip, NodePreviewLayer, OpenForVisible, OpenOnSelect, PaneCanvas, usePaneWidth, VisibilityMark, WALK_DOCK_METRICS, WalkDock, WalkPreview, ZoomControl } from '@/ds'
+import { byId, domainIds, domainOf, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT_ID } from '../corpus/graph'
+import { HOME_VIEW, L_MAX, VB_H, VB_W, VB_X, VB_Y } from './map/camera'
 import { useArrivalLook } from './map/arrivallook'
 import { useMapCamera } from './map/mapcamera'
+import { ancBorderO, useMapLabelFit } from './map/maplabelfit'
+import { MapLabels } from './map/MapLabels'
 import { useWallFit, WALL_LEVEL, WALL_VIEW } from './map/wallfit'
 import { WalkArrows } from './map/WalkArrows'
 import { WalkPins } from './map/WalkPins'
@@ -71,17 +73,15 @@ import type { PlaybackBus } from '../state/walk/playback'
 import { renderStopPreview } from '../state/walk/stoppreview'
 import { leafPos, provinceIds } from '../model/flat'
 import type { XY } from '../model/derive'
-import { colorOf, labelInkOf, SELECTION_WASH, selectedInkOf, territoryFillOf } from '../model/color'
-import { countryPath, countryRings, provincePath, provinceRings, rootPath, rootRings, territories } from '../model/nested'
-import { countryLabels, endpointAtTier, flightTargetOf, outlineOf, provinceLabels, ringsCrossT, roadsFor, rootLabel } from '../model/atlas'
+import { colorOf, SELECTION_WASH, territoryFillOf } from '../model/color'
+import { countryPath, provincePath, rootPath, territories } from '../model/nested'
+import { endpointAtTier, flightTargetOf, outlineOf, ringsCrossT, roadsFor } from '../model/atlas'
 import { hoverMarks } from '../model/maphover'
 import type { WallView } from '../model/walkwall'
 import { pinPosition, walkPins } from '../model/walkpins'
 import { routeOptionals } from '../model/route'
 import { toggleWalkHidden, walkDrawn, walkKeyOf } from '../model/walkvisibility'
 import type { Bundle } from '../model/atlas'
-import { fitLabel, fitRegionLabel, keepClearOfEarlier, labelBox, regionLabelBox } from '../model/labelfit'
-import type { FitLine, LabelBox, LabelFit } from '../model/labelfit'
 import { descendantCount, parentOf } from '../model/nav'
 import type { Bus } from '../state/bus'
 import { CORPUS_TREE, summaryOfNode } from './corpustree'
@@ -134,59 +134,10 @@ const labelToLevel = (s: string) => Number(s.slice(1)) - 1
 //   jumps, so the transition was never smoothing anything, only blurring it.
 const FADE = 'fill-opacity 350ms, stroke-opacity 350ms'
 
-// ── THE CONTEXT WINDOW ───────────────────────────────────────────────────────
-// One formal rule for ALL receded line-work and ghost text, keyed on
-// d = level − tier (how many grains above the active stratum an ancestor is).
-// Relevance is LOCAL: the immediate parent (d = 1) is the only ancestor that
-// renders — full border emphasis plus one big faint watermark ghost. Every
-// grain above it disappears ENTIRELY (a sharp window, not a decay): global
-// orientation is already carried by the tree COLORS of every fill, so
-// far-ancestor line-work and text were redundant noise. d < 1 (the active
-// level and the pre-mounted next tier) is the fill layers' job, not the
-// line-work's. Borders and labels both read from here, so the window cannot
-// drift apart per layer.
-// The window has exactly ONE local exception, and it is a reading exception,
-// not a structural one: the single ghost the CURSOR is standing inside fades
-// almost away (see ancLabelOAt, item 10). The rule below still decides which
-// grains exist; that one only decides whether the ghost you are reading through
-// gets out of your way.
+/** the immediate parent grain's border weight. The window that decides WHEN a border
+ *  or a ghost exists — `ancBorderO`/`ancLabelO`, one rule for both halves — is
+ *  `./map/maplabelfit.ts`, so the line-work and the labels cannot drift apart. */
 const PARENT_BORDER_W = 2.6
-const PARENT_LABEL_PX = 26
-const ancBorderO = (d: number) => (d === 1 ? 0.6 : 0)
-/** THE GHOST HEADING IS DRAWN AT FULL OPACITY INSIDE THE WINDOW (OB-223) — it was 0.32. The quiet
- *  now lives in the COLOUR, one opaque mid-tone per hue (`topicPaintValues().ghost`), because a hue
- *  at 0.32 alpha composited through whatever lay beneath it took a different value over every child
- *  and changed shade mid-word: "a background layer reporting what is under it". Outside the window
- *  it is still 0. The one exception is unchanged and lives in `ancLabelOAt`: the ghost the cursor
- *  is standing inside steps aside. */
-const ancLabelO = (d: number) => (d === 1 ? 1 : 0)
-/** THE PARENT LAYER'S NAME GETS A CASE OF ITS OWN, and it is that — not the
- *  opacity alone — that makes the ghost legible (owner, 2026-08-28: the parent
- *  headings are too faint, make them more visible).
- *
- *  The ghost is set in the region's OWN hue over that region's own fill, so it is
- *  tint on tint: at 0.15 it read as a stain rather than a word, and simply
- *  turning it up muddies into the fill instead of separating from it — more ink,
- *  still no edge. A white case gives the glyphs a boundary, and with one the same
- *  word carries at far less ink than it would need bare. So the opacity moves
- *  0.15 → 0.32 AND the case arrives; either half alone is the wrong fix.
- *
- *  DELIBERATELY THINNER AND SOFTER THAN THE ACTIVE GRAIN'S CASE (2.4 at 0.85):
- *  the ghost is context, not the stratum being read, and must not come forward
- *  far enough to compete with the names on the level you are actually on. The
- *  element's own `opacity` still multiplies fill and case together, so the hover
- *  fade to 0.03 keeps working untouched — the ghost you are standing inside
- *  still steps aside.
- *
- *  OB-223: the ghost's FILL is no longer the region's hue at 0.32 alpha but one opaque tone per hue
- *  (`ghostOf`, below), drawn at full opacity and above every fill and every wash — this case is
- *  unchanged and still rides on top of that tone. */
-const GHOST_CASE = { stroke: '#ffffff', strokeWidth: 3.2, strokeOpacity: 0.75 }
-
-/** the weight a domain name is drawn at — read by the `<text>` AND by the box `labelFit`
- *  measures for it (#369), which is a width at this weight, so the two cannot drift. */
-const DOMAIN_NAME_WEIGHT = 800
-
 /** the slice of the bus the map reads and writes — its own members plus what playback needs,
  *  since `useWalkPlayback` writes the cursor and the focus. */
 export type MapViewBus = Pick<Bus, 'focus' | 'hover' | 'hoverStep' | 'peek' | 'matches' | 'route' | 'routeSteps' | 'history' | 'trail' | 'clearFocus' | 'setHover' | 'endHover' | 'hoverCenter'> & PlaybackBus
@@ -498,16 +449,6 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
   // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate (see above): no pointerleave can fire on roads a changed selection unmounted
   useEffect(() => setHoverEdge(null), [sel])
 
-  /** the parent layer's case, applied ONLY where a name is acting as a ghost.
-   *  A domain name at L0 and a module name at L1 are the ACTIVE grain, not
-   *  context — they are the level you are reading — and they keep exactly the
-   *  treatment they shipped with. The same element draws both roles, so the
-   *  distinction has to be made per render rather than per component. */
-  const ghostCase = (on: boolean) =>
-    on
-      ? { stroke: GHOST_CASE.stroke, strokeWidth: px(GHOST_CASE.strokeWidth), strokeOpacity: GHOST_CASE.strokeOpacity, paintOrder: 'stroke' }
-      : {}
-
   // ── SEARCH MATCHES (#25) — the supply pane's live hit set, lit on the map ──
   // A match deep in a subtree owns no cell at this stratum, so it ROLLS UP to
   // its VISIBLE ANCESTOR: pathTo(m)[level+1] is the containment ancestor sitting
@@ -530,122 +471,11 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
     }
   }
 
-  // OB-212: `fitLabel` now MEASURES a name against the real webfont rather than estimating —
-  // before Nunito/Quicksand load, `textWidth` reads the fallback face's metrics, so the first
-  // paint can wrap and shrink names against the wrong numbers. Re-run the memo once the real
-  // face is in, same pattern as AuthorRoad's `setFontsReady`.
-  const [labelFontsReady, setLabelFontsReady] = useState(0)
-  useEffect(() => {
-    if (typeof document === 'undefined' || !document.fonts) return
-    let on = true
-    document.fonts.ready.then(() => { if (on) setLabelFontsReady((n) => n + 1) })
-    return () => { on = false }
-  }, [])
-
-  // wrapped labels, fitted at the level's CANONICAL scale — not the mid-flight
-  // zoom — so a name's line breaks are decided once per level, not per frame
-  const labelFit = useMemo(() => {
-    // OB-212: no value read here, only a re-run trigger — `textWidth` measures against
-    // whichever face is ACTUALLY loaded for a given font-family string, and that changes
-    // as the webfont arrives even though the string itself never does.
-    void labelFontsReady
-    const active = new Map<string, LabelFit>()
-    const ghost = new Map<string, LabelFit>()
-    // OB-108: every fitted label's own extent, so a walk pin can be kept off the
-    // name it would otherwise delete. Built HERE rather than beside the pins
-    // because this is the only place that knows each label's font size — the
-    // three cases below each choose their own — and a box without its size is a
-    // second guess at the same number.
-    const box = new Map<string, LabelBox>()
-    const noteBox = (id: string, lines: FitLine[] | null, fs: number) => {
-      const bx = lines ? labelBox(lines, fs) : null
-      if (bx) box.set(id, bx)
-    }
-    // REGION names (SelfNotes: "labels overlap / region text not wrapped"):
-    // the L0/L1 names go through the same wrap-into-the-cell mechanic as the
-    // deep tiers now, against the honest region chord — with fitRegionLabel's
-    // shrink instead of a drop, because they are the only names their level
-    // has (the one drop is below: an L0 domain name that would collide with an
-    // earlier one). Computed one level past their visibility window so the
-    // 350ms opacity fades keep an element to fade.
-    const region = new Map<string, { lines: FitLine[]; fs: number }>()
-    // OB-193: level -1 (the root) draws through its own small, separate block below — none of
-    // this memo's tier machinery applies to it, and LEVEL_S has no entry at -1 to index.
-    if (level < 0) return { active, ghost, region, box }
-    const world = (v: number) => (v * f) / LEVEL_S[level]
-    if (level <= 2) {
-      const size = level === 0 ? 24 : PARENT_LABEL_PX
-      const fitted = countryLabels.map((c) => ({ c, fit: fitRegionLabel(c.label, countryRings[c.key], c.x, c.y, world(size)) }))
-      // #369: each name fits ITS OWN region, and nothing asked whether two names run into each
-      // other. At L0 the domain names are the ACTIVE grain — the level being read — so a name
-      // that would collide with an earlier one is left out (the hover tooltip still names it),
-      // and only the survivors are stored below, which also keeps a walk pin from steering
-      // around a name that is not drawn. At L1 and beyond they are the parent's watermark, which
-      // stays named for orientation, so they are not gated.
-      const keep =
-        level === 0
-          ? keepClearOfEarlier(fitted.map(({ fit }) => regionLabelBox(fit.lines, world(size * fit.shrink), DOMAIN_NAME_WEIGHT)))
-          : fitted.map(() => true)
-      fitted.forEach(({ c, fit }, i) => {
-        if (!keep[i]) return
-        region.set(c.key, { lines: fit.lines, fs: size * fit.shrink })
-        noteBox(c.key, fit.lines, world(size * fit.shrink))
-      })
-    }
-    if (level <= 3)
-      for (const m of provinceLabels) {
-        const size = level <= 1 ? 15 : PARENT_LABEL_PX
-        const fit = fitRegionLabel(m.label, provinceRings[m.key], m.x, m.y, world(size))
-        region.set(m.key, { lines: fit.lines, fs: size * fit.shrink })
-        noteBox(m.key, fit.lines, world(size * fit.shrink))
-      }
-    if (level < 2) return { active, ghost, region, box }
-    // OB-212: the floor a cell name may shrink to before `clipToRoom` takes over — in this
-    // memo's own world-unit space, so it shrinks alongside the name being fitted rather than
-    // a raw `LabelCut.floorPx` (a real-px number) being compared against a world-unit size.
-    const floorFs = world(LabelCut.floorPx)
-    for (const t of territories) {
-      if (t.tier === level || (t.leaf && t.tier < level)) {
-        const fs = world(t.tier === level ? 12.5 : 11.5)
-        const fit = fitLabel(byId.get(t.id)!.title, t, fs, false, floorFs)
-        if (fit) active.set(t.id, fit)
-        noteBox(t.id, fit ? fit.lines : null, fit ? fit.fs : fs)
-      } else if (level >= 3 && !t.leaf && t.tier === level - 1) {
-        const fs = world(PARENT_LABEL_PX)
-        const fit = fitLabel(byId.get(t.id)!.title, t, fs, true, floorFs)!
-        ghost.set(t.id, fit)
-        // THE PARENT WATERMARK COUNTS AS A LABEL TOO (OB-108). It is the name of
-        // the very cell a pin at this level belongs to, so a pin over it is the
-        // same fault as one over an active name, only quieter. It is a WEAK case
-        // on purpose: the ghost is set at the parent grain and can span most of
-        // the region, so there is often nowhere inside the cell that clears it —
-        // and `pinSpotClear` then leaves the pin where it was rather than
-        // shoving it somewhere worse. Registering it costs one box and improves
-        // the cases where a clear spot does exist.
-        noteBox(t.id, fit.lines, fit.fs)
-      }
-    }
-    return { active, ghost, region, box }
-    // labelFontsReady is a re-run trigger only (OB-212): the memo re-measures against
-    // whichever face is loaded when it runs, it never branches on the counter's value.
-  }, [level, f, labelFontsReady])
-
-  /** OB-193: the root's own name, fitted into `rootRings` the same way a country's name fits
-   *  into its own — kept OUT of `labelFit` above because that memo is guarded off entirely at
-   *  level -1, and this is the one thing still drawn there. Shares level 0's world-scale
-   *  (`LEVEL_S[0]`), for the same reason `flyToLevel` shares its camera framing. */
-  const rootLabelFit = useMemo(() => {
-    if (level !== -1) return null
-    const size = 24
-    const world = (v: number) => (v * f) / LEVEL_S[0]
-    const fit = fitRegionLabel(rootLabel.label, rootRings, rootLabel.x, rootLabel.y, world(size))
-    return { lines: fit.lines, fs: size * fit.shrink }
-  }, [level, f])
-
-  /** every name actually drawn at this level, as boxes — what a walk pin has to
-   *  stay off (OB-108). Its own memo so `routeStops` re-runs when the labels
-   *  move, not when anything else in `labelFit` does. */
-  const labelBoxes = useMemo(() => [...labelFit.box.values()], [labelFit])
+  // ── THE LABELS (#324 seam 4) — the fitting half is `map/maplabelfit.ts` ─────
+  // Called exactly where `labelFontsReady` and its memos sat, so the font-ready
+  // effect keeps its place in the hook order, and `labelBoxes` exists before
+  // `routeStops` below reads it.
+  const { labelFit, rootLabelFit, labelBoxes } = useMapLabelFit({ level, f })
 
   // ── THE WALK'S PINS (#26) — where each stop is drawn at this level ──────────
   // The whole decision moved to `model/walkpins.ts` (#249, OB-128). It used to
@@ -902,24 +732,7 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
         }))
       : 0
 
-  // ── item 10: "labels blocking when zoomed in" ────────────────────────────
-  // The watermark never blocked a CLICK — every label layer is pointerEvents:
-  // none. What it blocked was READING: 26px of parent name lying across the
-  // small active names underneath. The cure is one rule, the same shape as the
-  // context window itself — the ghost you are STANDING INSIDE steps aside,
-  // because that is exactly the cell whose contents you are trying to read.
-  // Move the cursor away and it returns; orientation costs nothing the moment
-  // you stop needing the detail. Since the territories tile their parent
-  // exactly, the ghost under the cursor is just the parent of the hovered cell
-  // — true at every level, so countries, provinces and deep ghosts share it.
-  const ghostUnderCursor = hover ? parentOf(hover) : null
-  const ancLabelOAt = (d: number, id: string) => (id === ghostUnderCursor ? 0.03 : ancLabelO(d))
-  /** THE GHOST HEADING'S ONE TONE (OB-223): the region's hue as a single resolved, OPAQUE `oklch()`
-   *  from `topicPaintValues().ghost` — the JS-resolved twin of `topicPaint().ghost`, because a
-   *  `var()` in an SVG presentation attribute is not something this map trusts (an unknown hue
-   *  would otherwise draw nothing). One value per hue, so a heading reads the SAME colour over every
-   *  child it spans, selected or not; what the cell beneath it is doing is none of its business. */
-  const ghostOf = (id: string) => topicPaintValues(topicHueOf(id)).ghost.css
+  
   /** the cells a selection's roads reach, other than the selection itself — each gets a wash of its
    *  own colour ("what is this connected to" reads from the fills, not just the arrows). Read by
    *  BOTH halves of that drawing: the tint, which sits under the labels, and the outline, which
@@ -1232,157 +1045,22 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
             )}
           </g>
 
-          {/* ── labels: the active grain in full ink, ONE ghost above it.
-              No capital dots (2026-07-13) — the fill, border and name already
-              say "a node lives here"; the wrapped name IS the place marker. */}
-          {/* PAINT ORDER IS THE POINT (2026-07-14, item 10): every ghost paints
-              BEFORE the active names, never after. The deep ghost layer used to
-              come last and so laid its 26px parent name ON TOP of the very
-              labels the reader was zooming in to read. Ghosts are background;
-              they go in the background. */}
-          <g pointerEvents="none">
-            {/* OB-193: the root's own name — full ink only at its own level, exactly the
-                active-grain treatment `countryLabels` gets at level 0 below (no ghost: there
-                is nothing above the root to ghost it FOR, and nothing beside it to separate
-                it FROM). `colorOf(ROOT_ID)` resolves to the same neutral anchor its fill does. */}
-            {rootLabelFit && (
-              <text
-                data-regionlabel={ROOT_ID}
-                textAnchor="middle"
-                fontSize={px(rootLabelFit.fs)}
-                fontWeight={800}
-                fill={colorOf(ROOT_ID)}
-                opacity={0.55}
-                style={{ userSelect: 'none', transition: 'opacity 350ms' }}
-              >
-                {rootLabelFit.lines.map((ln, i) => (
-                  <tspan key={i} x={ln.x} y={ln.y}>
-                    {ln.text}
-                  </tspan>
-                ))}
-              </text>
-            )}
-            {countryLabels.map((c) => {
-              const fit = labelFit.region.get(c.key)
-              if (!fit) return null
-              return (
-                <text
-                  key={c.key}
-                  data-regionlabel={c.key}
-                  textAnchor="middle"
-                  fontSize={px(fit.fs)}
-                  fontWeight={DOMAIN_NAME_WEIGHT}
-                  /* at its own level the domain name is the ACTIVE grain (its anchor at a
-                     watermark's weight); at every other level it is a GHOST heading, in the one
-                     opaque tone for its hue (OB-223) */
-                  fill={level === 0 ? colorOf(c.key) : ghostOf(c.key)}
-                  opacity={level === 0 ? 0.55 : ancLabelOAt(level, c.key)}
-                  {...ghostCase(level !== 0)}
-                  style={{ userSelect: 'none', transition: 'opacity 350ms' }}
-                >
-                  {fit.lines.map((ln, i) => (
-                    <tspan key={i} x={ln.x} y={ln.y}>
-                      {ln.text}
-                    </tspan>
-                  ))}
-                </text>
-              )
-            })}
-            {provinceLabels.map((m) => {
-              const fit = labelFit.region.get(m.key)
-              if (!fit) return null
-              return (
-                <text
-                  key={m.key}
-                  data-regionlabel={m.key}
-                  textAnchor="middle"
-                  fontSize={px(fit.fs)}
-                  fontWeight={level === 1 ? 700 : 800}
-                  /* at level 1 a province name is a CELL NAME — it wears the paper case like every
-                     other (OB-223), because the domain's ghost heading crosses it here; its ink is
-                     resolved against the cell AS WASHED once the cell is selected. At every other
-                     level it is the GHOST heading, in the one opaque tone for its hue */
-                  fill={level === 1 ? (sel === m.key ? selectedInkOf(m.key) : labelInkOf(m.key)) : ghostOf(m.key)}
-                  opacity={level === 1 ? 0.9 : ancLabelOAt(level - 1, m.key)}
-                  {...(level === 1 ? LabelCut.case(px(LabelCut.casePx)) : ghostCase(true))}
-                  style={{ userSelect: 'none', transition: 'opacity 350ms' }}
-                >
-                  {fit.lines.map((ln, i) => (
-                    <tspan key={i} x={ln.x} y={ln.y}>
-                      {ln.text}
-                    </tspan>
-                  ))}
-                </text>
-              )
-            })}
-            {level >= 3 &&
-              mounted
-                // the window admits ONE territory-grain ghost: the parent
-                .filter((t) => !t.leaf && t.tier === level - 1 && onScreen({ x: t.cx, y: t.cy }, 60) && labelFit.ghost.has(t.id))
-                .map((t) => (
-                  <text
-                    key={`ghost-${t.id}`}
-                    data-ghostlabel={t.id}
-                    textAnchor="middle"
-                    fontSize={worldFsToPx(labelFit.ghost.get(t.id)!.fs)}
-                    fontWeight={800}
-                    fill={ghostOf(t.id)}
-                    opacity={ancLabelOAt(1, t.id)}
-                    {...ghostCase(true)}
-                    style={{ userSelect: 'none', transition: 'opacity 200ms' }}
-                  >
-                    {labelFit.ghost.get(t.id)!.lines.map((ln, i) => (
-                      <tspan key={i} x={ln.x} y={ln.y}>
-                        {ln.text}
-                      </tspan>
-                    ))}
-                  </text>
-                ))}
-            {/* the active grain, LAST and white-cased: a name on the stratum you
-                are reading punches cleanly through whatever ghost lies under it,
-                instead of muddying into it */}
-            {level >= 2 &&
-              mounted
-                .filter((t) => isActive(t) && onScreen({ x: t.cx, y: t.cy }, 60) && labelFit.active.has(t.id))
-                .map((t) => {
-                  // The selected cell's name is CALMED, not shouted (the glow
-                  // and heavy border already mark the cell): a crisp near-black
-                  // emphasis ink instead of the muddy dark tint, weight 700 —
-                  // clean type over an outlined-sticker look. Full opacity keeps
-                  // it the clearest label even as the glow tints the body beneath.
-                  //
-                  // EVERY CELL NAME WEARS THE PAPER CASE, SELECTED OR NOT (OB-223, owner
-                  // 2026-09-18): `LabelCut.case` — `paintOrder: 'stroke'` so the stroke
-                  // is drawn first and the letterform keeps its exact weight — spread
-                  // whole, never retyped, and sized through `px` so it tracks zoom like
-                  // every other hairline here. A case that arrived on selection would make
-                  // the label's own drawing a second selection channel, blinking as the
-                  // user clicks. Worn always, no name on the map depends on what is behind
-                  // it being light, which is what lets the ghost heading be an opaque tone.
-                  // AND THE INK IS RESOLVED AGAINST THE COLOUR ACTUALLY PAINTED: a selected
-                  // cell is washed, so its name takes `selectedInkOf`, not the pre-wash ink.
-                  const isSel = t.id === sel
-                  return (
-                    <text
-                      key={t.id}
-                      data-label={t.id}
-                      textAnchor="middle"
-                      fontSize={worldFsToPx(labelFit.active.get(t.id)!.fs)}
-                      fontWeight={isSel ? 700 : 600}
-                      fill={isSel ? selectedInkOf(t.id) : labelInkOf(t.id)}
-                      {...LabelCut.case(px(LabelCut.casePx))}
-                      opacity={isSel ? 1 : isMuted(t) ? 0.7 : 0.92}
-                      style={{ userSelect: 'none' }}
-                    >
-                      {labelFit.active.get(t.id)!.lines.map((ln, i) => (
-                        <tspan key={i} x={ln.x} y={ln.y}>
-                          {ln.text}
-                        </tspan>
-                      ))}
-                    </text>
-                  )
-                })}
-          </g>
+          {/* ── labels: their own layer now, `map/MapLabels.tsx` (#324 seam 4).
+              Paint order is still the point — every ghost before every active
+              name — and the rule for it lives with the layer. ─────────────── */}
+          <MapLabels
+            level={level}
+            labelFit={labelFit}
+            rootLabelFit={rootLabelFit}
+            px={px}
+            worldFsToPx={worldFsToPx}
+            onScreen={onScreen}
+            mounted={mounted}
+            isActive={isActive}
+            isMuted={isMuted}
+            sel={sel}
+            hover={hover}
+          />
 
           {/* ── SEARCH MATCH PINS (#25): the live hit set, lit on the territory
               on a DIFFERENT visual axis than selection (glow) or hover (dashed)
