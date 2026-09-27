@@ -101,12 +101,6 @@
    the woff2 files in `assets/`. That is now a FRAGILITY fix rather than a capability fix — the
    bold italic arrived by pointing at the right Google file, not by self-hosting.
 
-   THE TWO ITALIC FILES, READ FROM THE FILES THEMSELVES (2026-09-26, fontTools on the downloaded
-   woff2, not through a browser): both carry an `fvar` weight axis 200-1000 and the italic bit,
-   so the declared 400-800 is inside what they hold. sha256 `XRXX...DRs4` 6cfcc3786d5ba3b5,
-   `XRXX...Rs71cA` 1bb48a49c837d76a. The replaced `XRXK...` file has no `fvar` at all — a
-   single-weight face, as the discriminating test found. Re-hash when self-hosting.
-
    THE URLS ARE VERSIONED (v32 / v37 / v24) AND THAT IS THE ONE FRAGILITY. Google keeps old
    versions served, but if one ever 404s the family falls through to `ui-rounded` rather than
    to the import above — a visible failure, not a silent one. The durable fix is to self-host
