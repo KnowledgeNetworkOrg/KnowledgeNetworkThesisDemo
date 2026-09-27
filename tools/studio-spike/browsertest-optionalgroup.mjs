@@ -173,16 +173,28 @@ try {
   ok('OB-215 (3): the group is now MIXED and the button says so — `aria-pressed="mixed"`', (await pressed()) === 'mixed', String(await pressed()))
   const mixedFace = await face()
   ok('the mixed rung is the RING without the WASH — the ring of ON, the face of OFF', mixedFace.bd === onFace.bd && mixedFace.bd !== offFace.bd && mixedFace.bg === offFace.bg && mixedFace.bg !== onFace.bg, JSON.stringify({ offFace, mixedFace, onFace }))
+  // and UNDER THE POINTER, the moment the author decides whether a press clears or sets
+  // every leaf: hover-first would swap ON's wash for the neutral hover and draw it as MIXED
+  await pill.hover()
+  await page.waitForTimeout(200)
+  const mixedHot = await face()
 
   await press()
   ok('OB-215 (4): a press FROM MIXED makes every stop optional', (await chipOpt(IP)) && (await chipOpt(TCP)) && (await pressed()) === 'true')
+  await pill.hover()
+  await page.waitForTimeout(200)
+  const onHot = await face()
+  await page.mouse.move(4, 4)
+  await page.waitForTimeout(200)
+  ok('hovered, ON still is not MIXED — ON keeps its wash, MIXED takes the neutral hover', onHot.bg === onFace.bg && onHot.bg !== mixedHot.bg, JSON.stringify({ mixedHot, onHot }))
 
   // leave the walk mixed for the map: 2.1 optional, 2.2 required
   await selectChip(TCP)
   await press()
   ok('the fixture for the map: 2.1 optional, 2.2 required', (await chipOpt(IP)) && !(await chipOpt(TCP)))
-  // deselect, so the road's selection does not ride along into the map checks
-  await page.keyboard.press('Escape')
+  // THE ROAD'S SELECTION STAYS ON 2.2 into the map checks. Nothing on the desk binds
+  // Escape to a deselect (an earlier Escape here pressed into the focused pill and did
+  // nothing); the checks below read the pins by step, which a road selection does not move.
   await page.mouse.move(4, 4)
   await page.waitForTimeout(400)
 

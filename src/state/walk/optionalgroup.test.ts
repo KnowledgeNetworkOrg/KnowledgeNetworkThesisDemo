@@ -144,6 +144,12 @@ describe('the derived reading on the road — "this group is optional" is comput
     expect(skippableBox(f, { f: 'f-v1' })).toBe(false)
   })
 
+  test('the box and the button part on purpose on a fork — dashed on its road, mixed over its versions', () => {
+    const plan = [fork('f', [leaf(A, true)], [leaf(B)])]
+    expect(skippableBox(plan[0], {})).toBe(true)
+    expect(optionalOf(plan, [[0]])).toBe('mixed')
+  })
+
   test('bypassing optionals drops an all-optional group WHOLE — no empty numbered group left behind', () => {
     const plan = [leaf(A), group('g', [leaf(B, true), leaf(C, true)]), leaf(A)]
     expect(resolveRoad(plan, {}, false).map((s) => s.node ?? s.key)).toEqual([A, A])

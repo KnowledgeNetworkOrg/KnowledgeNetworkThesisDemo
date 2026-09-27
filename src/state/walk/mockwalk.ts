@@ -304,7 +304,13 @@ function roadLeaves(stops: Stop[], choices: Record<string, string>): Stop[] {
  *  optional. A leaf answers false (its own flag is the answer there). An empty
  *  group is not skippable: it has nothing to skip and stays where it was put.
  *  Read by `resolveRoad` to drop the container when optionals are bypassed, and
- *  by the editor's road and columns to draw it dashed. */
+ *  by the editor's road and columns to draw it dashed.
+ *
+ *  NOT THE OPTIONAL BUTTON'S READING, ON PURPOSE. `optionalOf` (authordraft.ts)
+ *  reads every leaf in EVERY version, because a press writes them all; this reads
+ *  the chosen road only, because it answers "will the walk skip this?". They part
+ *  on a fork whose chosen version is all optional and whose other is not: the box
+ *  draws dashed and the button reads mixed. Both are true statements. */
 export function skippableBox(s: Stop, choices: Record<string, string>): boolean {
   if (isLeaf(s)) return false
   const leaves = roadLeaves(chosenSteps(s, choices), choices)
