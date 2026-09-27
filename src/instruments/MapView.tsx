@@ -731,12 +731,6 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
             px={px}
           />
 
-          {/* ── SELECTION OVERLAY: the selected region's typed edges, pinned
-              until click-off. Edges live at the topic grain but run BORDER to
-              BORDER along the capital-to-capital line: each end dips px(11)
-              past its cell's border, so the arrows point INTO territories
-              instead of converging on the city dots. White-cased for
-              readability, arrowhead at the target. ─────────────────────── */}
           {sel && !wall && (
             <MapSelection
               sel={sel}
