@@ -39,12 +39,14 @@ import type { WalkPin } from './walkpins'
  *  `head` is passed in (the caller passes `ARROW_METRICS.head`, a `.tsx` constant
  *  this layer cannot reach) so the published head stays the one source of it.
  *  Hops under a pixel — the threshold the renderer has always used to drop a
- *  degenerate arrow — contribute nothing. */
-export function walkHeadLengths(pins: readonly { c: XY; size: number }[], viewS: number, f: number, head: number): number[] {
+ *  degenerate arrow — contribute nothing, and so does the hop inside a split spot,
+ *  which draws no arrow (`walkArrowDraws`). */
+export function walkHeadLengths(pins: readonly { c: XY; size: number; visId?: string }[], viewS: number, f: number, head: number): number[] {
   const lengths: number[] = []
   for (let i = 1; i < pins.length; i++) {
     const from = pins[i - 1]
     const to = pins[i]
+    if (sameSpot(from, to)) continue
     const worldDist = Math.hypot(to.c.x - from.c.x, to.c.y - from.c.y) || 1
     const dist = (worldDist * viewS) / f // world units -> real px
     if (dist < 1) continue
@@ -78,17 +80,31 @@ export function walkHeadLengths(pins: readonly { c: XY; size: number }[], viewS:
  *  on whether the next stop lies clockwise or anticlockwise of the previous one
  *  from this pin; `bowSignAt` reads it off the geometry, and getting it backwards
  *  curves the two TOWARD each other. Measured on the drawn curves in
- *  `walkarrow.test.ts`, both arrangements, rather than argued. */
-export function walkBowSigns(pins: readonly { c: XY }[]): number[] {
+ *  `walkarrow.test.ts`, both arrangements, rather than argued.
+ *
+ *  A SPLIT SPOT IS ONE STOP HERE (OB-214 clause 5). Two neighbouring pins on one cell
+ *  are a single run that stage 2 cut at an optionality boundary (`walkpins.ts` — a
+ *  run is otherwise merged, so nothing else puts two pins in a row on one cell). The
+ *  walk does not move between them, so the doubling-back question is asked at the
+ *  pair as a whole, from the stop before it to the stop after it. Asked at each half,
+ *  the few-px fan between the twins reads as a hairpin and bows the long line in. */
+export function walkBowSigns(pins: readonly { c: XY; visId?: string }[]): number[] {
   const signs = new Array<number>(Math.max(0, pins.length - 1)).fill(0)
   for (let p = 1; p < pins.length - 1; p++) {
-    const sign = bowSignAt(pins[p].c, pins[p - 1].c, pins[p + 1].c)
+    if (sameSpot(pins[p - 1], pins[p])) continue
+    let q = p
+    while (q + 1 < pins.length && sameSpot(pins[q], pins[q + 1])) q++
+    if (q + 1 >= pins.length) continue
+    const sign = bowSignAt(pins[p].c, pins[p - 1].c, pins[q + 1].c)
     if (sign === 0) continue
     signs[p - 1] = sign
-    signs[p] = sign
+    signs[q] = sign
   }
   return signs
 }
+
+/** two neighbouring pins on one cell — a run split at an optionality boundary */
+const sameSpot = (a: { visId?: string }, b: { visId?: string }) => a.visId !== undefined && a.visId === b.visId
 
 // ── the arrows, as records a renderer can place ──────────────────────────────
 
@@ -150,6 +166,8 @@ export function walkArrowDraws({ pins, pinPos, head, viewS, f, px }: WalkArrowDr
   for (let k = 0; k + 1 < pins.length; k++) {
     const from = pins[k]
     const to = pins[k + 1]
+    // no arrow inside a split spot: the walk does not move between the twins (see walkBowSigns)
+    if (sameSpot(from, to)) continue
     const dx = to.c.x - from.c.x
     const dy = to.c.y - from.c.y
     const worldDist = Math.hypot(dx, dy) || 1
