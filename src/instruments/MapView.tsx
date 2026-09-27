@@ -53,36 +53,40 @@
 // component should be: a camera, a hover, and a paint order.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 
 import type { OpenMap } from '@/ds'
-import { Breadcrumb, capBow, containsSummary, ExplorerRail, ExplorerRailCorner, extendToMin, findTreePath, FIRST_ROW_PAD, headForSet, minShaft, walkArrival, walkLeadStop, LevelPicker, MapFloatingButton, MapTooltip, NodePreviewLayer, OpenForVisible, OpenOnSelect, PaneCanvas, usePaneWidth, VisibilityMark, WALK_DOCK_METRICS, WalkDock, WalkPreview, ZoomControl } from '@/ds'
-import { byId, domainIds, domainOf, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT_ID } from '../corpus/graph'
+import { Breadcrumb, containsSummary, ExplorerRail, ExplorerRailCorner, findTreePath, FIRST_ROW_PAD, walkArrival, walkLeadStop, LevelPicker, MapFloatingButton, NodePreviewLayer, OpenForVisible, OpenOnSelect, PaneCanvas, usePaneWidth, VisibilityMark, WALK_DOCK_METRICS, WalkDock, WalkPreview, ZoomControl } from '@/ds'
+import { byId, domainOf, pathTo, ROOT_ID } from '../corpus/graph'
 import { HOME_VIEW, L_MAX, VB_H, VB_W, VB_X, VB_Y } from './map/camera'
 import { useArrivalLook } from './map/arrivallook'
 import { useMapCamera } from './map/mapcamera'
-import { ancBorderO, useMapLabelFit } from './map/maplabelfit'
+import { useMapLabelFit } from './map/maplabelfit'
+import { MapBase } from './map/MapBase'
 import { MapLabels } from './map/MapLabels'
+import { DragGhost } from './map/DragGhost'
+import { useMapHover } from './map/hoverlayer'
+import { MapHover } from './map/MapHover'
+import { MapSelection } from './map/MapSelection'
+import { useMapSelection } from './map/mapselect'
+import { MapTooltipCard } from './map/MapTooltipCard'
+import { useNodeDrag } from './map/nodedrag'
 import { useWallFit, WALL_LEVEL, WALL_VIEW } from './map/wallfit'
 import { WalkArrows } from './map/WalkArrows'
 import { WalkPins } from './map/WalkPins'
 import type { PinHover } from './map/WalkPins'
-import { DT } from '../state/walk/authordnd'
 import { routeIsWalk, useWalkPlayback } from '../state/walk/playback'
 import type { PlaybackBus } from '../state/walk/playback'
 import { renderStopPreview } from '../state/walk/stoppreview'
-import { leafPos, provinceIds } from '../model/flat'
+import { leafPos } from '../model/flat'
 import type { XY } from '../model/derive'
-import { colorOf, SELECTION_WASH, territoryFillOf } from '../model/color'
-import { countryPath, provincePath, rootPath, territories } from '../model/nested'
-import { endpointAtTier, flightTargetOf, outlineOf, ringsCrossT, roadsFor } from '../model/atlas'
-import { hoverMarks } from '../model/maphover'
+import { colorOf, SELECTION_WASH } from '../model/color'
+import { territories } from '../model/nested'
+import { flightTargetOf, outlineOf } from '../model/atlas'
 import type { WallView } from '../model/walkwall'
 import { pinPosition, walkPins } from '../model/walkpins'
 import { routeOptionals } from '../model/route'
 import { toggleWalkHidden, walkDrawn, walkKeyOf } from '../model/walkvisibility'
 import type { Bundle } from '../model/atlas'
-import { descendantCount, parentOf } from '../model/nav'
 import type { Bus } from '../state/bus'
 import { CORPUS_TREE, summaryOfNode } from './corpustree'
 
@@ -108,36 +112,6 @@ const LEVEL_LABELS = Array.from({ length: L_MAX + 2 }, (_, i) => `L${i}`)
 const levelToLabel = (l: number) => `L${l + 1}`
 const labelToLevel = (s: string) => Number(s.slice(1)) - 1
 
-// The level-change cross-fade: a cell's paint and its outline arrive and leave
-// together, so a stratum swap reads as one movement instead of two.
-//
-// STROKE-WIDTH IS DELIBERATELY NOT IN THIS LIST (#238). It was, and it was wrong
-// twice over. Every stroke on the map is `px(k)` = `k * f / view.s`, so its width
-// is a CONSTANT at any given level and changes only while `view.s` is moving —
-// which is to say, only during a zoom flight, where it is ALREADY interpolating
-// smoothly on its own, once per animation frame.
-//
-//   the cost — a 350ms transition restarted ~16 times over a 260ms flight, on
-//   every one of ~350 elements, on a property that (unlike transform and opacity)
-//   is not compositor-only and so forces layout and paint on the main thread each
-//   time. Measured by probe-maplag.mjs, medians of 5: a zoom round trip at L2
-//   738ms -> 428ms, and layouts 82 -> 33.
-//
-//   the bug — a transition does not only cost, it LAGS, and this one lagged
-//   enormously. Sampling the rendered width against the attribute React had just
-//   written, frame by frame through one flight: the gap peaked at 98.8% — the
-//   line-work drawing at 1.72 units where the map had asked for 0.86, i.e. TWICE
-//   the intended weight — and was still more than 1% out 587ms in, well over
-//   double the length of the flight it was supposedly smoothing. With the property
-//   removed the same sampling reads 0% on every frame. So this is a correctness
-//   fix that happens to also be faster: there is no level change at which a width
-//   jumps, so the transition was never smoothing anything, only blurring it.
-const FADE = 'fill-opacity 350ms, stroke-opacity 350ms'
-
-/** the immediate parent grain's border weight. The window that decides WHEN a border
- *  or a ghost exists — `ancBorderO`/`ancLabelO`, one rule for both halves — is
- *  `./map/maplabelfit.ts`, so the line-work and the labels cannot drift apart. */
-const PARENT_BORDER_W = 2.6
 /** the slice of the bus the map reads and writes — its own members plus what playback needs,
  *  since `useWalkPlayback` writes the cursor and the focus. */
 export type MapViewBus = Pick<Bus, 'focus' | 'hover' | 'hoverStep' | 'peek' | 'matches' | 'route' | 'routeSteps' | 'history' | 'trail' | 'clearFocus' | 'setHover' | 'endHover' | 'hoverCenter'> & PlaybackBus
@@ -397,57 +371,17 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
     onFocus(id)
   }
 
-  // ── #24 — DRAG THE SELECTED CELL ONTO THE ROAD ────────────────────────────
-  // A CUSTOM POINTER DRAG, not native HTML5 DnD, for two reasons the ticket's
-  // "just add draggable" plan couldn't survive: Chromium ignores the draggable
-  // attribute on SVG shapes, and a native drag image is a frozen snapshot — it
-  // can't MORPH. So we drive the whole gesture by hand: a portal ghost follows
-  // the cursor, showing the cell's own outline while over the map and crossfading
-  // into a node pill once it leaves the map (the "shape becomes a node" ask). On
-  // as it moves we feed the road a stream of synthetic HTML5 `dragover`/`dragleave`
-  // events at the cursor, and a `drop` on release — so the road's OWN handlers do
-  // both the live preview caret AND the precise insertion (gaps, stages, branches)
-  // verbatim, no reimplementation and no road refactor. A container id rides the
-  // same path and lands as a plain visit (everything is a node). Only the SELECTED
-  // cell arms this (see the pointerdown gate), so pan is untouched everywhere else.
-  type Box = { x: number; y: number; width: number; height: number }
-  const nodeDown = useRef<{ id: string; x: number; y: number; bbox: Box } | null>(null)
-  const ndActive = useRef(false)
-  // the element the last synthetic dragover went to — so we can dragleave it the
-  // moment the cursor moves to a new target (or off the road), which is what
-  // clears its caret. Mirrors the enter/leave a native drag would produce.
-  const lastOver = useRef<Element | null>(null)
-  const [ghost, setGhost] = useState<{ id: string; x: number; y: number; outside: boolean; bbox: Box } | null>(null)
+  // ── #24 THE NODE DRAG (#399 cut 2) — the gesture is `map/nodedrag.ts` ──────
+  // Called exactly where the drag state block sat, so the hook order is
+  // unchanged. The pan/drag gates stay here and read `nodeDown.current`, which
+  // the hook returns; `drag`/`dragDist`/`dragging` stay here because pan shares
+  // them.
+  const { ghost, nodeDown, down, move, release } = useNodeDrag({ svgRef, dragRef: drag, dragDistRef: dragDist, setDragging })
 
-  /** a DnD event carrying the palette payload. Dispatched by hand, these fire the
-   * road's real onDragOver / onDragLeave / onDrop exactly as a browser drag would
-   * — no browser DnD state machine to satisfy, so a `drop` needs no prior
-   * handshake, and dragover/leave drive the road's existing caret. */
-  const dndEvent = (type: 'dragover' | 'dragleave' | 'drop', x: number, y: number, id: string) => {
-    const dt = new DataTransfer()
-    dt.setData(DT, 'pal:' + id)
-    return new DragEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer: dt })
-  }
-  /** point the road's preview caret at the cursor: leave the old target, hover
-   * the new one. Called on every move while a node drag is in flight. */
-  const dragOverAt = (x: number, y: number, id: string) => {
-    const el = document.elementFromPoint(x, y)
-    if (el !== lastOver.current) {
-      if (lastOver.current) lastOver.current.dispatchEvent(dndEvent('dragleave', x, y, id))
-      lastOver.current = el
-    }
-    if (el) el.dispatchEvent(dndEvent('dragover', x, y, id))
-  }
-
-  // ── the selection overlay, whole: which topics the selection resolves to,
-  // which of their edges survive the roll-up to this grain, and how those
-  // collapse into one road per pair. All of it is model/atlas.ts's job now.
-  const { tier: selTier, bundles } = useMemo(() => roadsFor(selDrawn), [selDrawn])
-  // a changed (or cleared) selection unmounts the old roads outright — no
-  // pointerleave ever fires on them — so a stale hoverEdge would otherwise
-  // survive pointing at a bundle object from the previous selection
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate (see above): no pointerleave can fire on roads a changed selection unmounted
-  useEffect(() => setHoverEdge(null), [sel])
+  // ── THE SELECTION OVERLAY (#399 cut 1) — the deciding half is `map/mapselect.ts` ─
+  // Called exactly where the `roadsFor` memo and its clear effect sat, so that
+  // effect keeps its place in the hook order.
+  const { bundles, selOutline, centreLit, litRoad, anyRoadLit, clipRoad, roadFloor, neighbourhood } = useMapSelection({ sel, selDrawn, wall, px, hoverId, hoverCenter: bus.hoverCenter, setHoverEdge })
 
   // ── SEARCH MATCHES (#25) — the supply pane's live hit set, lit on the map ──
   // A match deep in a subtree owns no cell at this stratum, so it ROLLS UP to
@@ -581,16 +515,6 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
     })
   }, [visibleKey])
 
-  const selOutline = selDrawn ? outlineOf(selDrawn) : undefined
-  /* THE CENTRE LIGHTS ON ITS OWN SIGNAL (DS OB-230 clause 2, #342): the Document pane's relations
-     rail publishes `bus.hoverCenter` when its hub is pointed at, and the answer here is a modest
-     emphasis on the selected cell — a wider glow and a heavier border, never a colour change, so
-     it stays the same object rather than becoming a second highlight. It is NOT a reading of
-     `bus.hover`: that channel carries one id and the roads below light for whatever id it holds,
-     so the centre's own id would light every road at once. Only while a cell is actually drawn
-     as selected — a walk that drives the focus draws none, and there is then nothing to light. */
-  const centreLit = bus.hoverCenter && !!selOutline
-
   /* THE HEADER ROW'S PATH (OB-241 + OB-243): the selection's ancestry, walkable back up. The
      aim keeps its resting reading after a deselect while the LIT state goes out — the same
      split the connections pane draws — because the breadcrumb is the readout for where the
@@ -598,148 +522,10 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
   const restId = bus.history.cursor >= 0 ? bus.history.stack[bus.history.cursor] : ROOT_ID
   const aimId = bus.focus ?? (byId.has(restId) ? restId : ROOT_ID)
   const crumbPath = (findTreePath(CORPUS_TREE, aimId) ?? []).map((n) => ({ id: n.id, title: n.title, domain: n.root ? null : n.domain }))
-  const hoverOutline = hover && hover !== sel && !dragging ? outlineOf(hover) : undefined
-
-  // SPOTLIGHT — a hover published by ANOTHER instrument: "the thing your cursor
-  // is on over there lives HERE". Suppressed when it is just our own preselected
-  // cell echoing back (that already has the dashed outline). Any node can be
-  // spotlit, at any level: a deep concept lights its own small cell inside its
-  // topic, which is exactly the "where does this sit?" answer. Display only —
-  // the camera never moves, so a hover can never steal the view.
-  //
-  // The spotlight also carries the LOOK: the last clicked Connections node
-  // stays lit — lifted to its owning topic when it has no cell of its own —
-  // until the look is superseded (next look, any focus change). "Highlight" is
-  // half of what the click asked for; the flight above is the other half.
-  const lookId = peek ? (outlineOf(peek.id) ? peek.id : endpointAtTier(peek.id, 2)) : null
-
-  // item 2: WHICH HOVER GETS WHAT. The spotlight described above and the card
-  // described below are one decision with two different answers, so they are
-  // decided together, in `src/model/maphover.ts` rather than inline here — that
-  // file's header carries the reasoning. The short version is OB-127 (#251): a
-  // hover published by another pane lights a cell and stops there. It used to
-  // also raise a card, at whatever point over this pane the cursor last occupied,
-  // which was routinely nowhere near the cell being reported.
-  const marks = hoverMarks({
-    cursorCell: hover,
-    selectedCell: sel,
-    publishedCell: hoverId,
-    lookedAtCell: lookId,
-    walkStopCell: walkDroveFocus ? sel : null,
-    onRelation: hoverEdge !== null,
-    walkPinHovered: pinHover !== null,
-  })
-  const spotId = marks.spotlightId
-  const spotOutline = spotId ? outlineOf(spotId) : undefined
-
-  // THE CELL THE CARD IS ABOUT — our own cursor's, and now only ever our own. It
-  // feeds MapTooltip's immediate title readout rather than the native <title>,
-  // which lags ~half a second and is OS-styled; this reads the moment the pointer
-  // lands. Called `hoverChip` until 2026-08-28 (#221) after the fixed top-left
-  // chip it used to feed (OB-095 deleted that surface at 1e530af, OB-096 put the
-  // cursor-anchored card in its place), then `hoverNode` until OB-127 took the
-  // published hover out of it. Named for the card now, since the name has already
-  // outlived two surfaces.
-  const cardNode = marks.card?.kind === 'node' ? marks.card.id : null
-
-  // ── #238: WHEN THE CURSOR'S POSITION IS WORTH KNOWING ─────────────────────
-  // `pointerPos` is read for exactly one thing — placing MapTooltip beside the
-  // cursor (OB-096) — and the tooltip only mounts when there is something to
-  // report. So the position is only worth tracking while `tipLive` holds, and
-  // this is the single expression that decides both, so the gate and the render
-  // condition below cannot drift apart.
-  //
-  // Ungated it cost, per second of cursor movement over water at L2: 430ms of
-  // scripting, a forced layout per move, and ZERO style recalculations — a full
-  // re-render of ~500 SVG elements to move a card that was not on screen, against
-  // a 4ms idle floor. Measured by tools/studio-spike/probe-maplag.mjs.
-  //
-  // What this does NOT fix, and #238 stays open for: while the tooltip IS up the
-  // gate is open and the per-move re-render is back at full price (~420ms on the
-  // same measure). Removing that too means not putting the position in state at
-  // all — writing it to the card's own style through a ref. That was held back
-  // pending the Design System's answer on whether MapTooltip anchors to the hovered
-  // ELEMENT instead, which would have deleted this class of work rather than
-  // optimised it. OB-127 answered: the cursor, unqualified. So the ref rewrite is
-  // now all that is left of #238, and it waits on nobody.
-  const tipLive = marks.card !== null
-
-  // REMOVED at OB-127, recorded so it is not rebuilt: a `useLayoutEffect` keyed on
-  // `spotId` that called `placeTipAtCursor()` whenever another pane published a
-  // hover, placing the card before paint so it did not visibly jump. Careful work
-  // on a problem that stopped existing — that case draws no card at all now.
-
-  // OB-096 — the hovered node's OWN roads, for MapTooltip's relations row. A
-  // fresh call rather than reusing the selection's `bundles`/`arrows` above:
-  // the hovered node is rarely the selected one, and roadsFor is cheap
-  // enough at this corpus's scale (memoised on the id, so cursor movement
-  // that stays inside one cell recomputes nothing).
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- the memo is deliberate: it keeps the two counts below from re-walking the roads on every pointer move inside one cell
-  const { arrows: hoverArrows } = useMemo(() => roadsFor(cardNode), [cardNode])
-  const hoverRelIn = cardNode ? hoverArrows.filter((a) => a.tgt === cardNode).reduce((s, a) => s + a.n, 0) : 0
-  const hoverRelOut = cardNode ? hoverArrows.filter((a) => a.src === cardNode).reduce((s, a) => s + a.n, 0) : 0
-
-  // item 3: a hovered counterpart lights the ROAD to it, not just its territory.
-  // The bus hover arrives as a topic id (a Connections relationship row) or a map
-  // cell; lift it to the road's grain (selTier) and the bundle whose end it
-  // matches is the connection to the selected node. The rest dim, the same way
-  // the star dims its other spokes one pane over.
-  const litRoad = hoverId && bundles.length ? endpointAtTier(hoverId, selTier) : null
-  const anyRoadLit = litRoad != null && bundles.some((b) => b.src === litRoad || b.tgt === litRoad)
-
-  // ── OB-197: A RELATION BETWEEN TWO ADJACENT TERRITORIES GETS A LINE YOU CAN READ ─────────
-  // A road is clipped to the borders of the selected grain, so a relation between two
-  // territories that SHARE a border leaves a shaft a few units long — and at this map's weight
-  // the head is then most of the drawing (owner, 2026-09-16: "the head is way too big, also when
-  // the arrow is so short its really hard to read the arrow at all ... it doesn't have to land on
-  // the absolute edge of either node's territories"). RULED: lengthen the line, past the exact
-  // boundary. A head cap on the map was considered and rejected — it would take the head off every
-  // 14px chain and road arrow elsewhere, where the head IS the arrow — so none is added here.
-  //
-  // THE FLOOR IS THE DS'S, IN THE DS'S UNITS. `minShaft` is three head-lengths of the head one
-  // whole SET of arrows shares (`headForSet`, called once over every road drawn, never a per-arrow
-  // head: a floor that follows each arrow's own head draws arrows that mean the same thing at
-  // several lengths for no reason a reader can see). It is a count of SCREEN px, so it goes
-  // through `px()` before it meets these world-unit endpoints — a px floor typed here would be a
-  // different arrow at every zoom. The roads are hand-drawn triangles rather than `NodeArrow`, so
-  // it is the shared head sizing and not a drawn head that the set is asked about.
-  /** the two points a road is CLIPPED to — where it leaves its source cell and lands in its
-   *  target's, each a `dip` past the border so the arrow points INTO the territory, in world units */
-  const clipRoad = (bd: Bundle) => {
-    const a = bd.a
-    const b = bd.b
-    const dx = b.x - a.x
-    const dy = b.y - a.y
-    const len = Math.hypot(dx, dy) || 1
-    // trim to the BORDERS of the SELECTED grain: the tail starts just inside the source
-    // region, the head lands just over the target's border — nothing converges on the capitals
-    const dip = px(11) / len
-    const exitT = ringsCrossT(a, b, bd.srcRings, 'min') ?? px(6) / len
-    const entryT = ringsCrossT(a, b, bd.tgtRings, 'max') ?? 1 - px(9) / len
-    const t0 = Math.max(0, exitT - dip)
-    const t1 = Math.min(1, entryT + dip)
-    return { from: { x: a.x + dx * t0, y: a.y + dy * t0 }, to: { x: a.x + dx * t1, y: a.y + dy * t1 } }
-  }
-  const roadFloor =
-    sel && !wall && bundles.length > 0
-      ? px(minShaft({
-          headSize: headForSet({
-            lengths: bundles.map((bd) => {
-              const c = clipRoad(bd)
-              return Math.hypot(c.to.x - c.from.x, c.to.y - c.from.y) / px(1)
-            }),
-          }),
-        }))
-      : 0
-
-  
-  /** the cells a selection's roads reach, other than the selection itself — each gets a wash of its
-   *  own colour ("what is this connected to" reads from the fills, not just the arrows). Read by
-   *  BOTH halves of that drawing: the tint, which sits under the labels, and the outline, which
-   *  sits over them (OB-223), so the two can never disagree about which cells they are. */
-  const neighbourhood: string[] = sel && !wall
-    ? [...new Set(bundles.flatMap((bd) => [bd.src, bd.tgt]))].filter((id) => id !== sel && id !== endpointAtTier(sel, selTier))
-    : []
+  // ── THE HOVER LAYER (#399 cut 3) — the deciding half is `map/hoverlayer.ts` ─
+  // Called exactly where `hoverOutline` sat, so the memo inside keeps its place
+  // in the hook order.
+  const { hoverOutline, spotId, spotOutline, cardNode, tipLive, hoverRelIn, hoverRelOut } = useMapHover({ hover, sel, hoverId, peek, hoverEdge, pinHover, dragging, walkDroveFocus })
 
   const canvas = (
     <PaneCanvas aria-label="map-view" face="none" style={{ background: MAP_WATER }}>
@@ -768,14 +554,7 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
           const t = ev.target as Element
           const downId = t.getAttribute('data-terr') ?? t.getAttribute('data-region')
           if (downId && downId === sel) {
-            // ARM a node drag on the selected cell (see the block above). Don't
-            // capture yet — a pure click must still reach onClick to deselect;
-            // capture happens in pointermove once movement confirms a drag. Grab
-            // the cell's geometry NOW, while we hold its path element, so the
-            // ghost can draw the outline (getBBox is in the same user space as
-            // outlineOf's `d`).
-            drag.current = null
-            nodeDown.current = { id: sel, x: ev.clientX, y: ev.clientY, bbox: (t as SVGGraphicsElement).getBBox() }
+            down(ev, t, sel)
             return
           }
           drag.current = { x: ev.clientX, y: ev.clientY }
@@ -797,19 +576,7 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
           // ── node drag (arming or in flight) takes priority over pan ──────
           const nd = nodeDown.current
           if (nd) {
-            const dist = Math.hypot(ev.clientX - nd.x, ev.clientY - nd.y)
-            if (!ndActive.current && dist > 5) {
-              // confirmed a drag: capture so moves over the ROAD still reach us
-              ndActive.current = true
-              ;(ev.currentTarget as Element).setPointerCapture(ev.pointerId)
-            }
-            if (ndActive.current) {
-              const r = svgRef.current!.getBoundingClientRect()
-              const outside = ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom
-              setGhost({ id: nd.id, x: ev.clientX, y: ev.clientY, outside, bbox: nd.bbox })
-              // drive the road's live preview caret at the cursor
-              dragOverAt(ev.clientX, ev.clientY, nd.id)
-            }
+            move(ev, nd)
             return
           }
           if (!drag.current) return
@@ -822,28 +589,7 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
         }}
         onPointerUp={(ev) => {
           if (nodeDown.current) {
-            if (ndActive.current) {
-              const { clientX: x, clientY: y } = ev
-              const id = nodeDown.current.id
-              // clear whatever caret we're leaving, THEN drop on the target under
-              // the cursor (handleDrop reads the pointer position, not the caret,
-              // so the insertion is right either way). Swallow the click this
-              // press would fire so a completed drag never also deselects the cell.
-              if (lastOver.current) lastOver.current.dispatchEvent(dndEvent('dragleave', x, y, id))
-              lastOver.current = null
-              const el = document.elementFromPoint(x, y)
-              if (el) el.dispatchEvent(dndEvent('drop', x, y, id))
-              dragDist.current = 999
-              try {
-                ;(ev.currentTarget as Element).releasePointerCapture(ev.pointerId)
-              } catch {
-                /* capture may not have been taken (a click, no drag) */
-              }
-            }
-            nodeDown.current = null
-            ndActive.current = false
-            setGhost(null)
-            setDragging(false)
+            release(ev)
             return
           }
           // settle: whatever drift never crossed PAN_COMMIT is committed now, so
@@ -880,139 +626,17 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
             imperatively so a pan costs one attribute write instead of a render
             of everything below this node. */}
         <g ref={sceneRef} data-scene="">
-          {/* ── FILLS, painted shallow → deep. Only the active level carries
-              paint (pale tree colors) and pointer events; everything else is
-              mounted transparent so level changes FADE. ─────────────────── */}
-          {/* OB-193: THE ROOT'S OWN LEVEL — one region, the whole corpus, drawn where the six
-              domains sit today (same `rootRings`/`countryRings` extent, same camera). It takes
-              `territoryFillOf`/`colorOf(ROOT_ID)`, which every map fill/anchor lookup already
-              falls back to a neutral swatch for on an id with no hue family — the root has
-              none, by design (owner, 2026-09-15), so it draws colourless without a second
-              colour path to keep in step with the rest of the map. It has no sibling to
-              separate from, so it carries no ancestor-border line-work of its own. */}
-          <path
-            d={rootPath}
-            data-region={ROOT_ID}
-            data-rtier={-1}
-            fill={territoryFillOf(ROOT_ID)}
-            fillOpacity={level === -1 ? 0.95 : 0}
-            stroke="#ffffff"
-            strokeOpacity={level === -1 ? 0.9 : 0}
-            strokeWidth={px(1.2)}
-            pointerEvents={level === -1 ? 'auto' : 'none'}
-            style={{ cursor: sel === ROOT_ID ? 'grab' : 'pointer', transition: FADE }}
-            onClick={() => regionClick(ROOT_ID)}
-            onPointerEnter={() => enterCell(ROOT_ID)}
-            onPointerLeave={() => leaveCell(ROOT_ID)}
+          <MapBase
+            level={level}
+            sel={sel}
+            mounted={mounted}
+            isActive={isActive}
+            isMuted={isMuted}
+            px={px}
+            regionClick={regionClick}
+            enterCell={enterCell}
+            leaveCell={leaveCell}
           />
-          <g>
-            {domainIds.map((d) => (
-              <path
-                key={d}
-                d={countryPath[d]}
-                data-region={d}
-                data-rtier={0}
-                fill={territoryFillOf(d)}
-                fillOpacity={level === 0 ? 0.95 : 0}
-                stroke="#ffffff"
-                strokeOpacity={level === 0 ? 0.9 : 0}
-                strokeWidth={px(1.2)}
-                pointerEvents={level === 0 ? 'auto' : 'none'}
-                style={{ cursor: sel === d ? 'grab' : 'pointer', transition: FADE }}
-                onClick={() => regionClick(d)}
-                onPointerEnter={() => enterCell(d)}
-                onPointerLeave={() => leaveCell(d)}
-              />
-            ))}
-          </g>
-          <g>
-            {provinceIds.map((m) => (
-              <path
-                key={m}
-                d={provincePath[m]}
-                data-region={m}
-                data-rtier={1}
-                fill={territoryFillOf(m)}
-                fillOpacity={level === 1 ? 0.95 : 0}
-                stroke="#ffffff"
-                strokeOpacity={level === 1 ? 0.95 : 0}
-                strokeWidth={px(1.1)}
-                pointerEvents={level === 1 ? 'auto' : 'none'}
-                style={{ cursor: sel === m ? 'grab' : 'pointer', transition: FADE }}
-                onClick={() => regionClick(m)}
-                onPointerEnter={() => enterCell(m)}
-                onPointerLeave={() => leaveCell(m)}
-              />
-            ))}
-          </g>
-          <g>
-            {mounted.map((t) => (
-              <path
-                key={t.id}
-                d={t.d}
-                data-terr={t.id}
-                data-tier={t.tier}
-                fill={territoryFillOf(t.id)}
-                fillOpacity={isActive(t) ? (isMuted(t) ? 0.6 : 0.95) : 0}
-                stroke="#ffffff"
-                strokeOpacity={isActive(t) ? 0.95 : 0}
-                strokeWidth={px(1.05)}
-                pointerEvents={isActive(t) ? 'auto' : 'none'}
-                style={{ cursor: sel === t.id ? 'grab' : 'pointer', transition: FADE }}
-                onClick={() => regionClick(t.id)}
-                onPointerEnter={() => enterCell(t.id)}
-                onPointerLeave={() => leaveCell(t.id)}
-              />
-            ))}
-          </g>
-
-          {/* ── LINE-WORK: under the context window at most ONE of these
-              layers is visible at a time — the immediate parent grain. The
-              active level owns the whole color budget. ──────────────────── */}
-          <g pointerEvents="none">
-            {domainIds.map((d) => (
-              <path
-                key={d}
-                d={countryPath[d]}
-                data-border={d}
-                data-btier={0}
-                fill="none"
-                stroke={colorOf(d)}
-                strokeOpacity={ancBorderO(level)}
-                strokeWidth={px(PARENT_BORDER_W)}
-                style={{ transition: FADE }}
-              />
-            ))}
-            {provinceIds.map((m) => (
-              <path
-                key={m}
-                d={provincePath[m]}
-                data-border={m}
-                data-btier={1}
-                fill="none"
-                stroke={colorOf(m)}
-                strokeOpacity={ancBorderO(level - 1)}
-                strokeWidth={px(PARENT_BORDER_W)}
-                style={{ transition: FADE }}
-              />
-            ))}
-            {[...mounted]
-              .filter((t) => !t.leaf)
-              .sort((a, b) => a.tier - b.tier)
-              .map((t) => (
-                <path
-                  key={t.id}
-                  d={t.d}
-                  data-border={t.id}
-                  data-btier={t.tier}
-                  fill="none"
-                  stroke={colorOf(t.id)}
-                  strokeOpacity={ancBorderO(level - t.tier)}
-                  strokeWidth={px(PARENT_BORDER_W)}
-                  style={{ transition: FADE }}
-                />
-              ))}
-          </g>
 
           {/* ── OB-223: THE TINTS OF HOVER, SPOTLIGHT AND SELECTION, UNDER THE LABELS.
               A ghost heading is now ONE opaque tone and has to be painted above every
@@ -1099,189 +723,29 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
               ─────────────────────────────────────────────────────────────────────── */}
           <WalkArrows bus={bus} pins={routeStops} pinPos={pinPos} f={f} viewS={view.s} px={px} wall={wall} visible={walkVisible} receded={walkReceded} />
 
-          {/* ── HOVER PRESELECTION: the cell a click would pick — kills the "which
-              region am I over?" guess. Its OUTLINE is here, above the labels and the
-              walk; its light TINT is the `data-washes` group below the label layer
-              (OB-223), the same outline path. ────────────────────────────── */}
-          {hoverOutline && (
-            <g data-hover={hover} pointerEvents="none">
-              <path d={hoverOutline} fill="none" stroke="#ffffff" strokeWidth={px(3)} strokeOpacity={0.9} />
-              <path d={hoverOutline} fill="none" stroke={colorOf(hover!)} strokeWidth={px(1.5)} strokeOpacity={0.9} strokeDasharray={`${px(5)} ${px(3)}`} />
-            </g>
-          )}
+          <MapHover
+            hoverOutline={hoverOutline}
+            hover={hover}
+            spotOutline={spotOutline}
+            spotId={spotId}
+            px={px}
+          />
 
-          {/* ── SPOTLIGHT: something hovered in ANOTHER pane lives here. Outline
-              here; its tint is in `data-washes` (OB-223). ─────────────────── */}
-          {spotOutline && (
-            <g data-spot={spotId} pointerEvents="none">
-              <path d={spotOutline} fill="none" stroke="#ffffff" strokeWidth={px(4.5)} strokeOpacity={0.95} />
-              <path d={spotOutline} fill="none" stroke={colorOf(spotId!)} strokeWidth={px(2.4)} strokeOpacity={0.95} />
-            </g>
-          )}
-
-          {/* ── SELECTION OVERLAY: the selected region's typed edges, pinned
-              until click-off. Edges live at the topic grain but run BORDER to
-              BORDER along the capital-to-capital line: each end dips px(11)
-              past its cell's border, so the arrows point INTO territories
-              instead of converging on the city dots. White-cased for
-              readability, arrowhead at the target. ─────────────────────── */}
           {sel && !wall && (
-            <g data-seloverlay pointerEvents="none">
-              {/* the selection's NEIGHBOURHOOD (2026-07-17): every cell a road
-                  reaches gets a wash of its own color too — "what is this
-                  connected to" reads from the fills, not just the arrows.
-                  Deliberately quieter than the selected cell on every axis
-                  (0.1 vs 0.2 fill, hairline vs 3px border), and painted FIRST
-                  so the primary stays the loudest thing in the overlay. It
-                  follows the roads' hover dim, so pointing at one counterpart
-                  recedes the rest of the neighbourhood with its roads.
-                  THE TINT IS NOT HERE ANY MORE (OB-223): it is in `data-washes`,
-                  under the label layer, from the same `neighbourhood` list. What
-                  stays is the OUTLINE, and `data-selconn` with it. */}
-              {neighbourhood.map((cp) => {
-                  const o = outlineOf(cp)
-                  if (!o) return null
-                  const dim = anyRoadLit && litRoad !== cp
-                  return (
-                    <g key={cp} data-selconn={cp} opacity={dim ? 0.25 : 1} style={{ transition: 'opacity 120ms' }}>
-                      <path d={o} fill="none" stroke="#ffffff" strokeWidth={px(2.5)} strokeOpacity={0.9} />
-                      <path d={o} fill="none" stroke={colorOf(cp)} strokeWidth={px(1.3)} strokeOpacity={0.6} />
-                    </g>
-                  )
-                })}
-              {/* The selected cell is the LOUDEST thing on the map (issue #8: a
-                  hairline + faint tint was still easy to lose, especially once
-                  the neighbourhood wash tinted its connections at 0.1). Three
-                  layers, back to front: a real GAUSSIAN GLOW (feGaussianBlur)
-                  in the cell's tree color that leaks light past the border, a
-                  white separator that also tints the cell body, and a crisp
-                  heavy border. The glow lives in the luminance channel the flat
-                  fills never touch, so it reads as "lit" even next to a same-hue
-                  sibling — a haloed cell among pale ones is selected at a glance.
-                  THE TINTS OF THE FIRST TWO ARE IN `data-washes` NOW (OB-223), under
-                  the label layer, so the ghost heading can be one opaque tone above
-                  every wash; the glow's blur and the white separator stay here. */}
-              {selOutline && (
-                <>
-                  <path d={selOutline} fill="none" stroke={colorOf(sel)} strokeWidth={px(centreLit ? 11 : 7)} strokeOpacity={centreLit ? 0.85 : 0.5} strokeLinejoin="round" filter="url(#sel-glow)" />
-                  <path d={selOutline} fill="none" stroke="#ffffff" strokeWidth={px(6)} strokeOpacity={0.98} strokeLinejoin="round" />
-                  <path data-seloutline data-sel-lit={centreLit ? 1 : 0} d={selOutline} fill="none" stroke={colorOf(sel)} strokeWidth={px(centreLit ? 5.5 : 4)} strokeLinejoin="round" />
-                </>
-              )}
-              {bundles.map((bd) => {
-                const a = bd.a
-                const b = bd.b
-                const dx = b.x - a.x
-                const dy = b.y - a.y
-                const len = Math.hypot(dx, dy) || 1
-                const nx = -dy / len
-                const ny = dx / len
-                // OB-197 — THE ORDER IS THE CONTRACT: clip to the cells' edges, THEN lengthen,
-                // THEN cap the bow against the length that came back. Capping against the stub
-                // chord caps against a chord the drawing no longer has.
-                //   1. clip: where the road leaves its cell and lands in the next (`clipRoad`)
-                //   2. lengthen: a road already past the floor comes back untouched (`grew`
-                //      false, nothing moves); a stub is pushed back along its own line by HALF the
-                //      shortfall at EACH end — into both territories, never one — so its midpoint,
-                //      where the ×n count sits, does not shift
-                const clipped = clipRoad(bd)
-                const grown = extendToMin({ from: clipped.from, to: clipped.to, min: roadFloor })
-                const ax = grown.from.x
-                const ay = grown.from.y
-                const bx = grown.to.x
-                const by = grown.to.y
-                //   3. bow: one line per pair now, so the bow no longer has to fan parallels
-                //      apart — it only keeps the road off the dead-straight centroid axis. Sign is
-                //      pair-deterministic, so it never flips. The bow is a CAP on how far the head
-                //      may point off its own line, not a length to draw at: the same px(14)
-                //      sagitta is a gentle curve at chord 64 and a hairpin at chord 10, and a stub
-                //      whose whole drawing is a head pointing sideways is the "two arrowheads
-                //      overlapped" the owner reported.
-                const bulge = capBow({ length: grown.length, bow: (bd.src < bd.tgt ? 1 : -1) * px(14) })
-                //   4. everything below — the head's angle and the count's position — is derived
-                //      from the CAPPED control point: one derivation, so the head cannot point
-                //      off a curve the shaft is not drawing.
-                const cx = (ax + bx) / 2 + nx * bulge
-                const cy = (ay + by) / 2 + ny * bulge
-                const ang = (Math.atan2(by - cy, bx - cx) * 180) / Math.PI
-                // test hooks, in SCREEN px and degrees: the drawn chord, whether it was lengthened,
-                // and how far the head points off its own chord (attributes only)
-                const chordPx = grown.length / px(1)
-                const headOff = Math.abs((((Math.atan2(by - cy, bx - cx) - Math.atan2(by - ay, bx - ax)) * 180) / Math.PI + 540) % 360 - 180)
-                const d = `M${ax},${ay} Q${cx},${cy} ${bx},${by}`
-                // the curve's midpoint (t = 0.5 on the quadratic) — where the
-                // traffic count sits
-                const mx = 0.25 * ax + 0.5 * cx + 0.25 * bx
-                const my = 0.25 * ay + 0.5 * cy + 0.25 * by
-                const col = bd.type ? EDGE_COLOR[bd.type] : MIXED_EDGE_COLOR
-                // item 3: this road lights when the hovered counterpart is its end
-                const lit = litRoad != null && (bd.src === litRoad || bd.tgt === litRoad)
-                const dim = anyRoadLit && !lit
-                return (
-                  <g
-                    key={bd.key}
-                    data-seledge={`${bd.src}>${bd.tgt}`}
-                    data-en={bd.n}
-                    data-dir={bd.dir}
-                    data-rlen={chordPx.toFixed(2)}
-                    data-rgrew={grown.grew ? 1 : 0}
-                    data-rhead={headOff.toFixed(1)}
-                    data-elit={lit ? 1 : 0}
-                    opacity={dim ? 0.22 : 1}
-                    // OB-096 — MapTooltip's relation shape, on hover. `stroke`
-                    // rather than `auto`: only the drawn line (including its
-                    // wider white halo, a real hit target) responds, not the
-                    // curve's whole invisible fill-none bounding box.
-                    pointerEvents="stroke"
-                    onPointerEnter={() => {
-                      setHoverEdge(bd)
-                      placeTipAtCursor()
-                    }}
-                    onPointerLeave={() => setHoverEdge((h) => (h === bd ? null : h))}
-                    style={{ transition: 'opacity 120ms' }}
-                  >
-                    {/* A RELATION IS THE FOCUS LAYER, so it must not draw lighter
-                        than the walk it displaces. It did: the walk's head is
-                        ARROW_METRICS 8 long by 8.8 wide on a 1.5px shaft, and these
-                        were 5.5 by 5.6 on 1.8 — the RECEDED layer carrying the bigger
-                        arrowheads. OB-117 tried to open that gap by dimming the walk
-                        and could not, because the gap was the wrong way round to
-                        begin with; owner still reported the relations hard to read
-                        with the recede shipped and working. Sized a step ABOVE the
-                        walk's head instead of a step below it.
-
-                        The head takes the same white casing as its shaft, which is
-                        OB-116's argument one layer up: a bare triangle over a
-                        saturated territory fill is a smudge, and enlarging it only
-                        makes a bigger smudge. */}
-                    <path d={d} fill="none" stroke="#ffffff" strokeWidth={px(lit ? 6.2 : 4.8)} strokeOpacity={0.75} />
-                    <path d={d} fill="none" stroke={col} strokeWidth={px(lit ? 4.4 : bd.n > 1 ? 3.4 : 2.6)} strokeOpacity={0.92} />
-                    {bd.dir === 'fwd' && (
-                      <g transform={`translate(${bx} ${by}) rotate(${ang})`}>
-                        <path d={`M${px(1.4)},0 L${-px(10.4)},${px(6.2)} L${-px(10.4)},${-px(6.2)} Z`} fill="#ffffff" fillOpacity={0.75} />
-                        <path data-selhead d={`M0,0 L${-px(9)},${px(5)} L${-px(9)},${-px(5)} Z`} fill={col} />
-                      </g>
-                    )}
-                    {bd.n > 1 && (
-                      <text
-                        x={mx}
-                        y={my - px(4)}
-                        textAnchor="middle"
-                        fontSize={px(10)}
-                        fontWeight={700}
-                        fill={col}
-                        stroke="#ffffff"
-                        strokeWidth={px(2.6)}
-                        paintOrder="stroke"
-                        style={{ userSelect: 'none' }}
-                      >
-                        ×{bd.n}
-                      </text>
-                    )}
-                  </g>
-                )
-              })}
-            </g>
+            <MapSelection
+              sel={sel}
+              selOutline={selOutline}
+              centreLit={centreLit}
+              neighbourhood={neighbourhood}
+              anyRoadLit={anyRoadLit}
+              litRoad={litRoad}
+              bundles={bundles}
+              clipRoad={clipRoad}
+              roadFloor={roadFloor}
+              px={px}
+              setHoverEdge={setHoverEdge}
+              placeTipAtCursor={placeTipAtCursor}
+            />
           )}
 
           {/* ── THE WALK'S PINS — PAINTED LAST (OB-221). THE RULE IS "THE PINS ARE
@@ -1347,110 +811,16 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
         </g>
       </svg>
 
-      {/* ── #24 THE DRAG GHOST — the cell you are carrying to the road ────────
-          A portal to <body> so it floats above every pane regardless of their
-          overflow. Two layers crossfade on the `outside` flag: the cell's own
-          OUTLINE (drawn from outlineOf in the same user space getBBox reports,
-          so any size works) while the pointer is over the map, and a NODE PILL
-          once it leaves — the "shape becomes a node" morph. pointer-events:none
-          so it never blocks elementFromPoint at the drop. */}
-      {ghost &&
-        createPortal(
-          <div
-            data-dragghost={ghost.id}
-            style={{
-              position: 'fixed',
-              left: ghost.x,
-              top: ghost.y,
-              zIndex: 9999,
-              pointerEvents: 'none',
-              transform: 'translate(-50%, -50%)',
-            }}
-          >
-            <div
-              style={{
-                position: 'absolute',
-                left: '50%',
-                top: '50%',
-                transform: `translate(-50%, -50%) scale(${ghost.outside ? 0.55 : 1})`,
-                opacity: ghost.outside ? 0 : 1,
-                transition: 'opacity 180ms ease, transform 180ms ease',
-              }}
-            >
-              <svg
-                width={78}
-                height={78}
-                viewBox={`${ghost.bbox.x} ${ghost.bbox.y} ${ghost.bbox.width} ${ghost.bbox.height}`}
-                style={{ overflow: 'visible', filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.25))' }}
-              >
-                <path
-                  d={outlineOf(ghost.id)}
-                  fill={colorOf(ghost.id)}
-                  fillOpacity={0.85}
-                  stroke="#ffffff"
-                  strokeWidth={Math.max(ghost.bbox.width, ghost.bbox.height) / 32}
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </div>
-            <div
-              style={{
-                position: 'absolute',
-                left: '50%',
-                top: '50%',
-                transform: `translate(-50%, -50%) scale(${ghost.outside ? 1 : 0.55})`,
-                opacity: ghost.outside ? 1 : 0,
-                transition: 'opacity 180ms ease, transform 180ms ease',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '4px 10px',
-                borderRadius: 9999,
-                background: '#ffffff',
-                border: `2px solid ${colorOf(ghost.id)}`,
-                color: colorOf(ghost.id),
-                fontSize: 10.5,
-                fontWeight: 600,
-                whiteSpace: 'nowrap',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.18)',
-              }}
-            >
-              <span style={{ width: 8, height: 8, borderRadius: 9999, background: colorOf(ghost.id), flexShrink: 0 }} />
-              {byId.get(ghost.id)!.title}
-            </div>
-          </div>,
-          document.body,
-        )}
+      {ghost && <DragGhost ghost={ghost} />}
 
-      {/* ── OB-096: MapTooltip, cursor-anchored, replacing the old fixed
-          top-left hover chip (OB-095) — a relation hover (an edge of the
-          current selection) wins over a node hover, since the two can only
-          coexist when the pointer sits exactly on the boundary between an
-          edge's stroke and the territory under it. pointer-events-none so
-          the card itself never steals the hover it is reporting on. ────── */}
       {pointerPos && tipLive && (
-        <div data-maptip className="absolute z-10 pointer-events-none" style={{ left: pointerPos.x + 14, top: pointerPos.y + 14 }}>
-          {hoverEdge ? (
-            <MapTooltip
-              kind="relation"
-              hue={hoverEdge.type ? EDGE_COLOR[hoverEdge.type] : MIXED_EDGE_COLOR}
-              title={hoverEdge.type ? EDGE_LABEL[hoverEdge.type] : 'mixed'}
-              from={byId.get(hoverEdge.src)!.title}
-              to={byId.get(hoverEdge.tgt)!.title}
-            />
-          ) : (
-            <MapTooltip
-              kind="node"
-              hue={colorOf(cardNode!)}
-              title={byId.get(cardNode!)!.title}
-              typeLabel={byId.get(cardNode!)!.topic ? 'topic' : byId.get(cardNode!)!.kind}
-              nodeCount={byId.get(cardNode!)!.kind === 'container' ? descendantCount(cardNode!) : undefined}
-              relationsIn={hoverRelIn}
-              relationsOut={hoverRelOut}
-              parent={parentOf(cardNode!) !== ROOT_ID ? byId.get(parentOf(cardNode!))?.title : undefined}
-            />
-          )}
-        </div>
+        <MapTooltipCard
+          pointerPos={pointerPos}
+          hoverEdge={hoverEdge}
+          cardNode={cardNode}
+          hoverRelIn={hoverRelIn}
+          hoverRelOut={hoverRelOut}
+        />
       )}
 
       {/* ── OB-096/097: the map's own floating chrome, all built on
