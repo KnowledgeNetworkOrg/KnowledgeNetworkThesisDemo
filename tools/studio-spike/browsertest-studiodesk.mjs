@@ -629,10 +629,16 @@ await page.screenshot({ path: `${OUT}/12-return-from-presenter.png` })
 console.log('12-return-from-presenter.png taken')
 
 // ── 13. the palette's flight never covers its own toggle (DS OB-264) ──────────
-// The flight's target IS the toggle's centre, so for its 400ms an invisible pane sat on the
-// button: the cursor read the pane (arrow, not the button's pointer) and a press landed on the
-// pane, not the toggle. A Playwright `.click()` CANNOT see this — it waits for whatever covers
-// the button to go — so this uses the raw pointer and asks the page what is under it.
+// The flight's target IS the toggle's centre, so while a flight runs an invisible pane can sit on
+// the button: the cursor reads the pane (arrow, not the button's pointer) and a press lands on the
+// pane, not the toggle. A Playwright `.click()` CANNOT see this — it waits for whatever covers the
+// button to go — so this uses the raw pointer and asks the page what is under it.
+//
+// IT SAMPLES ON EVERY ANIMATION FRAME, not once at a fixed time (found in review of #418). The
+// flight's easing (`--ease-settle`, cubic-bezier(0.32, 0.72, 0, 1)) is front-loaded — about 90% done
+// by 150ms — so a single sample at 150ms found the opening pane already clear of the button whether
+// or not the fix was there, and the check could not fail. The frames at the START of the flight are
+// where the pane is on the button.
 {
   const toggle = page.locator('[data-toolbar-hook="palette-toggle"]')
   const centre = async () => {
@@ -643,52 +649,99 @@ console.log('12-return-from-presenter.png taken')
     const c = await centre()
     await page.mouse.click(c.x, c.y)
   }
-  const toggleIsUnderPointer = async () => {
-    const c = await centre()
-    return await page.evaluate(({ x, y }) => {
-      const hit = document.elementFromPoint(x, y)
-      const t = document.querySelector('[data-toolbar-hook="palette-toggle"]')
-      return !!hit && !!t && (hit === t || t.contains(hit))
-    }, c)
-  }
   const paletteIsOpen = async () => (await page.locator('[aria-label^="studio-inst-"]').count()) > 0
+  /** run `act` while sampling, on every animation frame for `ms`, whether the toggle is what is
+   *  under its own centre; answers how many frames had something else on top of it */
+  const coverWhile = async (act, ms) => {
+    const sampler = page.evaluate((window_ms) => new Promise((resolve) => {
+      const t0 = performance.now()
+      let frames = 0
+      let covered = 0
+      const first = [] // the first few covered frames, so a failure says WHAT was on top and WHEN
+      const tick = () => {
+        const t = document.querySelector('[data-toolbar-hook="palette-toggle"]')
+        const r = t.getBoundingClientRect()
+        const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
+        frames++
+        if (!(hit && (hit === t || t.contains(hit)))) {
+          covered++
+          if (first.length < 3) first.push({ frame: frames, ms: Math.round(performance.now() - t0), on_top: hit ? hit.tagName + (hit.getAttribute('aria-label') ? '[' + hit.getAttribute('aria-label') + ']' : '') + (hit.getAttribute('data-toolbar-hook') ? '{' + hit.getAttribute('data-toolbar-hook') + '}' : '') : 'nothing' })
+        }
+        if (performance.now() - t0 < window_ms) requestAnimationFrame(tick)
+        else resolve({ frames, covered, first })
+      }
+      requestAnimationFrame(tick)
+    }), ms)
+    await act()
+    return await sampler
+  }
+  const settle = (ms = 800) => page.waitForTimeout(ms)
 
   // start from a closed, settled palette
-  if (await paletteIsOpen()) { await press(); await page.waitForTimeout(800) }
+  if (await paletteIsOpen()) { await press(); await settle() }
   if (await paletteIsOpen()) fail('could not start the palette-flight check from a closed palette')
 
-  await press() // open
-  await page.waitForTimeout(150)
-  if (!(await toggleIsUnderPointer())) fail('OPENING flight: the toggle is not what is under the pointer — the flying pane covers it')
-  await page.waitForTimeout(800)
+  const opening = await coverWhile(press, 700)
+  if (opening.frames < 10) fail(`the opening sampler saw only ${opening.frames} frames — it did not watch the flight`)
+  if (opening.covered > 0) fail(`OPENING flight: something covered the toggle on ${opening.covered} of ${opening.frames} frames: ${JSON.stringify(opening.first)}`)
+  await settle(200)
   if (!(await paletteIsOpen())) fail('a press on the toggle did not open the palette')
 
-  await press() // close
-  await page.waitForTimeout(150)
-  if (!(await toggleIsUnderPointer())) fail('CLOSING flight: the toggle is not what is under the pointer — the flying pane covers it')
-  await page.waitForTimeout(800)
+  const closing = await coverWhile(press, 700)
+  if (closing.frames < 10) fail(`the closing sampler saw only ${closing.frames} frames — it did not watch the flight`)
+  if (closing.covered > 0) fail(`CLOSING flight: the flying pane covered the toggle on ${closing.covered} of ${closing.frames} frames: ${JSON.stringify(closing.first)}`)
+  await settle(200)
   if (await paletteIsOpen()) fail('a press on the toggle did not close the palette')
+  console.log(`palette flight, frames with the toggle NOT on top — opening ${opening.covered}/${opening.frames}, closing ${closing.covered}/${closing.frames}`)
 
-  // EVERY PRESS IS ANSWERED: close then open again inside the flight must leave it open. With the
-  // pane covering the button the second press lands on the pane and the palette ends closed.
+  // EVERY PRESS IS ANSWERED, and the obligation's own sequence (OB-264 done-when 2): from open,
+  // close, open, close inside 400ms leaves the palette CLOSED — cut, no second flight. With the pane
+  // covering the button the 2nd and 3rd presses land on the pane, and the first one alone also
+  // ends closed, so the sequence below is paired with the next one, which ends OPEN.
   await press() // open
-  await page.waitForTimeout(800)
+  await settle()
+  await press() // close
+  await page.waitForTimeout(100)
+  await press() // open, mid-flight
+  await page.waitForTimeout(100)
+  await press() // close again, still inside the 400ms
+  await settle(900)
+  if (await paletteIsOpen()) fail('close, open, close inside 400ms must leave the palette CLOSED (cut, no second flight)')
+  if ((await page.locator('[aria-label^="studio-inst-"]').count()) !== 0) fail('a palette is still mounted after the close, open, close sequence')
+
+  // ...and close then open inside the flight must leave it OPEN: this is the one a covered button
+  // fails, because the second press lands on the pane and the palette ends closed.
+  await press() // open
+  await settle()
   await press() // close
   await page.waitForTimeout(100)
   await press() // open again, mid-flight
-  await page.waitForTimeout(900)
+  await settle(900)
   if (!(await paletteIsOpen())) fail('a press during the closing flight was swallowed — close, then open inside 400ms must leave the palette OPEN')
 
   // AT REST the pane takes the pointer again
-  const paletteTakesPointerAtRest = await page.evaluate(() => {
+  const paletteTakesPointer = () => page.evaluate(() => {
     const row = document.querySelector('[aria-label^="studio-inst-"]')
     if (!row) return false
     const b = row.getBoundingClientRect()
     const hit = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2)
     return !!hit && (hit === row || row.contains(hit))
   })
-  if (!paletteTakesPointerAtRest) fail('at rest the palette pane no longer takes the pointer (pointer-events left off)')
-  console.log('palette flight never covers its toggle — checked mid-open, mid-close, a quick re-press, and at rest')
+  if (!(await paletteTakesPointer())) fail('at rest the palette pane no longer takes the pointer (pointer-events left off)')
+
+  // UNDER prefers-reduced-motion (review of #418): the flight is 1ms but `paletteAnim` lives for the
+  // 400ms timer. An OPENING pane has already landed and must take the pointer at once; a CLOSING
+  // one still sits invisible on the toggle until it unmounts and must not take it.
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const closingReduced = await coverWhile(press, 500) // close, from open
+  if (closingReduced.covered > 0) fail(`REDUCED MOTION, closing: the pane covered the toggle on ${closingReduced.covered} of ${closingReduced.frames} frames: ${JSON.stringify(closingReduced.first)}`)
+  await settle(600)
+  await press() // open
+  await page.waitForTimeout(120)
+  if (!(await paletteTakesPointer())) fail('REDUCED MOTION, opening: a settled palette ignored the pointer for the 400ms flight timer')
+  await settle(600)
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  console.log('palette flight never covers its toggle — checked on every frame opening and closing, the obligation\'s sequences, at rest, and under reduced motion')
 }
 
 await browser.close()

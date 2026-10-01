@@ -134,3 +134,12 @@
    hide the native scrollbar and let the rare overflow scroll by wheel/trackpad. */
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* While the palette pane flies to or from the toolbar's toggle it takes no pointer, and neither
+   does ANYTHING INSIDE IT (DS OB-264, found again in review of #418). `pointer-events: none` on the
+   wrapper alone is not enough: a descendant that sets `pointer-events: auto` itself — the legend
+   `PaneHeader`'s title spans do — beats the value it would inherit, and as the shrinking pane crosses
+   the toggle's centre that text was still the hit target for a frame. `StudioView` puts
+   `data-palette-flying` on the wrapper exactly while the pane is in the air. */
+[data-palette-flying],
+[data-palette-flying] * { pointer-events: none !important; }
