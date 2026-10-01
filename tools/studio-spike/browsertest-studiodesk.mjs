@@ -731,15 +731,38 @@ console.log('12-return-from-presenter.png taken')
   })
   if (!(await paletteTakesPointer())) fail('at rest the palette pane no longer takes the pointer (pointer-events left off)')
 
+  // THE SAMPLER'S COMPANION (round 2 of the review): the fault was a descendant's own
+  // `pointer-events: auto` beating the wrapper's `none`, and it covered the toggle on a single frame,
+  // which a sampler can miss. So also ask, once, mid-flight: EVERY element inside the flying wrapper
+  // must compute to `none`.
+  await press() // close
+  await page.waitForTimeout(150)
+  const flyingTree = await page.evaluate(() => {
+    const wrapper = document.querySelector('[data-palette-flying]')
+    if (!wrapper) return null
+    const all = [wrapper, ...wrapper.querySelectorAll('*')]
+    const live = all.filter((el) => getComputedStyle(el).pointerEvents !== 'none')
+    return { total: all.length, live: live.length, first: live.slice(0, 3).map((el) => el.tagName + (el.getAttribute('aria-label') ? '[' + el.getAttribute('aria-label') + ']' : '')) }
+  })
+  if (!flyingTree) fail('150ms into a closing flight nothing carries data-palette-flying')
+  else if (flyingTree.total < 5) fail(`the flying pane has only ${flyingTree.total} elements — the check is not looking at the pane's contents`)
+  else if (flyingTree.live > 0) fail(`while the palette flies, ${flyingTree.live} of ${flyingTree.total} elements inside it still take the pointer: ${JSON.stringify(flyingTree.first)}`)
+  await settle(600)
+  await press() // open again: the reduced-motion block below starts from an open palette
+  await settle()
+
   // UNDER prefers-reduced-motion (review of #418): the flight is 1ms but `paletteAnim` lives for the
-  // 400ms timer. An OPENING pane has already landed and must take the pointer at once; a CLOSING
-  // one still sits invisible on the toggle until it unmounts and must not take it.
+  // 400ms timer. An OPENING pane takes the pointer once it has landed, but for the frame or two
+  // before that it is still shrunk onto the toggle and must not (round 2 of the review), so the
+  // opening is sampled on every frame too; a CLOSING one still sits invisible on the toggle until it
+  // unmounts and must not take it at all.
   await page.emulateMedia({ reducedMotion: 'reduce' })
   const closingReduced = await coverWhile(press, 500) // close, from open
   if (closingReduced.covered > 0) fail(`REDUCED MOTION, closing: the pane covered the toggle on ${closingReduced.covered} of ${closingReduced.frames} frames: ${JSON.stringify(closingReduced.first)}`)
   await settle(600)
-  await press() // open
-  await page.waitForTimeout(120)
+  const openingReduced = await coverWhile(press, 250) // open; still inside the 400ms timer when it ends
+  if (openingReduced.frames < 5) fail(`the reduced-motion opening sampler saw only ${openingReduced.frames} frames — it did not watch the flight`)
+  if (openingReduced.covered > 0) fail(`REDUCED MOTION, opening: the pane covered the toggle on ${openingReduced.covered} of ${openingReduced.frames} frames: ${JSON.stringify(openingReduced.first)}`)
   if (!(await paletteTakesPointer())) fail('REDUCED MOTION, opening: a settled palette ignored the pointer for the 400ms flight timer')
   await settle(600)
   await page.emulateMedia({ reducedMotion: 'no-preference' })

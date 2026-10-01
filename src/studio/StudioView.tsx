@@ -66,7 +66,8 @@ import type { Instrument, InstrumentId, Preset, Slot } from './instruments'
  *  space. Nothing waits on the timer except the unmount itself — and, since DS OB-264, the
  *  pane's `pointer-events: none`, which a CLOSING flight keeps for the whole timer (the pane
  *  sits invisible over the toggle until it unmounts) at any motion setting, while an OPENING
- *  flight drops it at once under reduced motion (see `paletteStyle`). */
+ *  flight drops it under reduced motion as soon as it has landed, the `grow` step (see
+ *  `paletteStyle`). */
 const PALETTE_ANIM_MS = 400
 
 /** where the palette is in its flight. `dir` is which way it is going; `phase` is
@@ -230,8 +231,10 @@ export default function StudioView() {
   // `WalkDock` reads the same query
   const reducedMotion = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
   /** the pane is in the air and may be on the toggle: the pointer rule below applies to it and to
-   *  everything inside it (`data-palette-flying` + the rule in index.css) */
-  const paletteFlying = paletteAnim !== null && !(reducedMotion && paletteAnim.dir === 'opening')
+   *  everything inside it (`data-palette-flying` + the rule in index.css). Under reduced motion an
+   *  OPENING pane has landed from `grow` on, so only then is it exempt; before that it sits shrunk
+   *  on the toggle for a few frames */
+  const paletteFlying = paletteAnim !== null && !(reducedMotion && paletteAnim.dir === 'opening' && paletteAnim.phase === 'grow')
   const paletteStyle: CSSProperties = {
     flex: 'none',
     width: 'var(--sidebar-w)',
@@ -274,8 +277,10 @@ export default function StudioView() {
        Keyed on `paletteAnim`, NOT `paletteAtRest`: `grow` counts as at rest for the style but IS
        the opening flight, when the pane is still over the button. */
     pointerEvents: paletteFlying ? 'none' : undefined,
+    /* an opening flight under reduced motion lands in the same commit as `grow`: its 1ms transition
+       still starts from the shrunk pose, so the first frame would hit-test the pane on the toggle */
     transition:
-      paletteSnap || (paletteAnim && paletteAnim.phase === 'shrink')
+      paletteSnap || (paletteAnim && paletteAnim.phase === 'shrink') || (reducedMotion && paletteAnim && paletteAnim.dir === 'opening')
         ? 'none'
         : 'transform var(--dur-flight) var(--ease-settle), opacity var(--dur-flight) var(--ease-settle), margin-right var(--dur-flight) var(--ease-settle)',
   }

@@ -308,7 +308,9 @@ try {
   ok('OB-261 (1): the optional stop under the cursor draws the BAND — a light face with an inset fill',
     row2.band && row2.faceFill === row2.raised && row2.bandFill === row2.walk, JSON.stringify(row2))
   ok('and its dash is WALK-COLOURED, not white', row2.dashStroke === row2.walk, `${row2.dashStroke} vs ${row2.walk}`)
-  // pillBand is (size/2 - ringW/2) * 0.22 per side, about 2.5px on the 24px dock dot: a rim all round
+  // pillBand is (size/2 - ringW/2) * 0.22 per side: 1.87px on the dock's 18px dot at rest, read as about
+  // 2.2px here because the row swells the dot (about 1.18x) while the pointer is on it and
+  // getBoundingClientRect reports the scaled box. A rim all round either way, over the 1.5px floor
   const rim = row2.faceBox && row2.bandBox ? { w: (row2.faceBox.width - row2.bandBox.width) / 2, h: (row2.faceBox.height - row2.bandBox.height) / 2 } : null
   ok('the inset fill is SMALLER than the face — a rim of light band on every side, not a same-size fill', !!rim && rim.w > 1.5 && rim.h > 1.5, JSON.stringify({ rim, faceBox: row2.faceBox, bandBox: row2.bandBox }))
   ok('OB-261 (2): the required stop at the same place keeps the unchanged solid pill — no band', !row3.band, JSON.stringify(row3))
