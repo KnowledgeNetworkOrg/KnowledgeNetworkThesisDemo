@@ -83,6 +83,31 @@ npm ci --prefix desktop
 
 Without them, `verify` stops at `Cannot find module 'electron'`.
 
+## Packaging a portable app
+
+The desktop app ships as one portable Windows `.exe` — no installer. Build it
+from a checkout, once both packages' dependencies are installed:
+
+```powershell
+npm ci
+npm ci --prefix desktop
+npm --prefix desktop run pack
+```
+
+`pack` builds the web app, builds the desktop host, then runs `electron-builder`
+against `desktop/electron-builder.yml`. The result is
+`desktop/release/GraphDisclosureLab-0.0.0-portable.exe` (the version tracks
+`desktop/package.json`). Copy that one file to a Windows x64 machine and
+double-click it — no repo, no Node, no install.
+
+The app is **not code-signed**, so Windows SmartScreen warns on first run
+("Windows protected your PC"). Click **More info**, then **Run anyway**. This is
+expected; the only alternatives are accepting it or buying a certificate.
+
+Packaging is a hand-run command and stays out of CI: it downloads Electron and is
+Windows-only, while `code-verify` is deliberately Electron-free (see #201). There
+are no macOS or Linux targets, and no auto-update.
+
 ## License
 
 BSD-2-Clause - see [LICENSE](LICENSE).

@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "start": "node start.mjs",
     "dev": "npm run build && electron .",
-    "smoke": "npm run build && node smoke.mjs"
+    "smoke": "npm run build && node smoke.mjs",
+    "pack": "node pack.mjs"
   },
   "engines": {
     "node": ">=22.13.0"
@@ -17,6 +18,7 @@
   "devDependencies": {
     "@types/node": "^24.10.1",
     "electron": "^44.0.0",
+    "electron-builder": "26.15.3",
     "esbuild": "^0.28.2",
     "playwright-core": "^1.62.1",
     "typescript": "~5.9.3"
