@@ -12,17 +12,19 @@
 // numbers themselves are pinned beside the code that owns them, in `ds/chrome/pane.test.ts`.
 //
 // Sits at the top of `src/` because it reads `instruments/` and `studio/`, which `ds/` may not
-// import — the same reason `unreachedmodule.test.ts` lives here.
+// import — the same reason `unreachedmodule.test.ts` lives here. It is also a node program (it reads
+// files with node:fs), so it builds under tsconfig.node.json and not the app's, like that test.
 import { describe, expect, it } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join, relative, sep } from 'node:path'
 
-import mapSource from './instruments/MapView.tsx?raw'
-import documentSource from './instruments/DocumentPanel.tsx?raw'
-import studioSource from './studio/StudioView.tsx?raw'
-
 const SRC = fileURLToPath(new URL('.', import.meta.url))
+
+// plain reads, not `?raw` imports: tsconfig.node.json does not know the `?raw` suffix
+const mapSource = readFileSync(join(SRC, 'instruments', 'MapView.tsx'), 'utf8')
+const documentSource = readFileSync(join(SRC, 'instruments', 'DocumentPanel.tsx'), 'utf8')
+const studioSource = readFileSync(join(SRC, 'studio', 'StudioView.tsx'), 'utf8')
 
 /** every non-test source file under src/, as a posix-style relative path and its text */
 const sources: { path: string; text: string }[] = []
