@@ -1644,17 +1644,16 @@ export function VersionedGroup({
               the description and the version name are wearing at that same moment, so the toggle
               and its effect are one colour. Not moss: moss means "this version is live" 30px
               below, on the check. Not a filled pond face either — pond also means SELECTED, and a
-              selection is a ring round the whole card. The DS's IconButton contract calls `style`
-              position-only; the pencil's pressed face is the one exception the DS draws itself.
-              ★ LOCAL: the edge is the whole `border`, where the DS passes `borderColor` alone.
-              IconButton sets `border` as a shorthand and re-sets it on every hover, and React
-              re-applies only what changed — so the pointer leaving the pencil re-set `border` to
-              transparent and wiped the untouched `borderColor` underneath it (the trap
-              adherence.test.ts pins for TreeRow). Same edge drawn; it just cannot be erased.
-              Drift-log #74. */}
+              selection is a ring round the whole card. The DS's IconButton contract lets `style`
+              carry position plus the three colours a held face needs; the pencil's pressed face is
+              the standing example. The edge is `borderColor` ALONE, as the DS passes it: IconButton
+              folds it into its own `border` shorthand (DS OB-258), so it holds through hover and
+              after the pointer leaves. This used to be the whole `border` here (★ LOCAL, drift-log
+              #74) because the shorthand re-set on hover wiped a separate `borderColor`; the fix
+              moved into the component and the deviation is retired. */}
           <IconButton label={editMode ? 'done editing' : 'edit'} glyphSize={10} onClick={() => setEditMode((m) => !m)}
             reachable={live || open || editMode}
-            style={editMode ? { color: 'var(--state-editing)', background: 'var(--state-editing-wash)', border: '1px solid var(--state-editing)' } : undefined}>
+            style={editMode ? { color: 'var(--state-editing)', background: 'var(--state-editing-wash)', borderColor: 'var(--state-editing)' } : undefined}>
             <EditMark />
           </IconButton>
           {/* glyphSize is explicit on both: the shared component derives 10px at this
