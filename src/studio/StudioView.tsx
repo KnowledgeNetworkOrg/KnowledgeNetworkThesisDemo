@@ -250,6 +250,15 @@ export default function StudioView() {
     transformOrigin: 'center center',
     transform: paletteAnim && !paletteAtRest ? `translate(${paletteAnim.dx}px,${paletteAnim.dy}px) scale(0.06)` : 'translate(0,0) scale(1)',
     opacity: paletteAtRest ? 1 : 0,
+    /* NO POINTER WHILE IT FLIES (DS OB-264). The flight's target IS the toggle's centre
+       (`paletteDelta` aims centre to centre), so closing shrinks the pane to `scale(0.06)` exactly
+       on the button and leaves it mounted until the timer unmounts it; opening starts there.
+       `opacity: 0` does not stop hit-testing, so for the whole 400ms an invisible box covered the
+       button — the cursor read the pane (arrow, not the button's pointer) and a press landed on
+       the pane, not the toggle: the owner's "the mouse icon flickers" and "I can't keep clicking".
+       Keyed on `paletteAnim`, NOT `paletteAtRest`: `grow` counts as at rest for the style but IS
+       the opening flight, when the pane is still over the button. */
+    pointerEvents: paletteAnim ? 'none' : undefined,
     transition:
       paletteSnap || (paletteAnim && paletteAnim.phase === 'shrink')
         ? 'none'

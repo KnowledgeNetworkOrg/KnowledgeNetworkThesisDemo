@@ -628,6 +628,69 @@ if (camOnReturn === camDefault) fail('the map came back at its whole-world defau
 await page.screenshot({ path: `${OUT}/12-return-from-presenter.png` })
 console.log('12-return-from-presenter.png taken')
 
+// ── 13. the palette's flight never covers its own toggle (DS OB-264) ──────────
+// The flight's target IS the toggle's centre, so for its 400ms an invisible pane sat on the
+// button: the cursor read the pane (arrow, not the button's pointer) and a press landed on the
+// pane, not the toggle. A Playwright `.click()` CANNOT see this — it waits for whatever covers
+// the button to go — so this uses the raw pointer and asks the page what is under it.
+{
+  const toggle = page.locator('[data-toolbar-hook="palette-toggle"]')
+  const centre = async () => {
+    const b = await toggle.boundingBox()
+    return { x: b.x + b.width / 2, y: b.y + b.height / 2 }
+  }
+  const press = async () => {
+    const c = await centre()
+    await page.mouse.click(c.x, c.y)
+  }
+  const toggleIsUnderPointer = async () => {
+    const c = await centre()
+    return await page.evaluate(({ x, y }) => {
+      const hit = document.elementFromPoint(x, y)
+      const t = document.querySelector('[data-toolbar-hook="palette-toggle"]')
+      return !!hit && !!t && (hit === t || t.contains(hit))
+    }, c)
+  }
+  const paletteIsOpen = async () => (await page.locator('[aria-label^="studio-inst-"]').count()) > 0
+
+  // start from a closed, settled palette
+  if (await paletteIsOpen()) { await press(); await page.waitForTimeout(800) }
+  if (await paletteIsOpen()) fail('could not start the palette-flight check from a closed palette')
+
+  await press() // open
+  await page.waitForTimeout(150)
+  if (!(await toggleIsUnderPointer())) fail('OPENING flight: the toggle is not what is under the pointer — the flying pane covers it')
+  await page.waitForTimeout(800)
+  if (!(await paletteIsOpen())) fail('a press on the toggle did not open the palette')
+
+  await press() // close
+  await page.waitForTimeout(150)
+  if (!(await toggleIsUnderPointer())) fail('CLOSING flight: the toggle is not what is under the pointer — the flying pane covers it')
+  await page.waitForTimeout(800)
+  if (await paletteIsOpen()) fail('a press on the toggle did not close the palette')
+
+  // EVERY PRESS IS ANSWERED: close then open again inside the flight must leave it open. With the
+  // pane covering the button the second press lands on the pane and the palette ends closed.
+  await press() // open
+  await page.waitForTimeout(800)
+  await press() // close
+  await page.waitForTimeout(100)
+  await press() // open again, mid-flight
+  await page.waitForTimeout(900)
+  if (!(await paletteIsOpen())) fail('a press during the closing flight was swallowed — close, then open inside 400ms must leave the palette OPEN')
+
+  // AT REST the pane takes the pointer again
+  const paletteTakesPointerAtRest = await page.evaluate(() => {
+    const row = document.querySelector('[aria-label^="studio-inst-"]')
+    if (!row) return false
+    const b = row.getBoundingClientRect()
+    const hit = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2)
+    return !!hit && (hit === row || row.contains(hit))
+  })
+  if (!paletteTakesPointerAtRest) fail('at rest the palette pane no longer takes the pointer (pointer-events left off)')
+  console.log('palette flight never covers its toggle — checked mid-open, mid-close, a quick re-press, and at rest')
+}
+
 await browser.close()
 vite.kill()
 if (errors.length) {
