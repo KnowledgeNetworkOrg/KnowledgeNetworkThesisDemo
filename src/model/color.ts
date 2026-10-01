@@ -456,5 +456,4 @@ export const inkStrongOf = (id: string): string => inkStrongMap.get(id) ?? FALLB
 /** the SELECTED cell's label ink: `inkStrongOf`, darkened only as far as 4.5:1 against the cell's
  *  own washed fill (`washedFillOf`) requires (OB-223, see "Selected label ink" above). Map-only. */
 export const selectedInkOf = (id: string): string => selectedInkMap.get(id) ?? inkStrongMap.get(id) ?? FALLBACK.inkStrong
-/** the assigned hue in degrees, for anything that derives its own swatch */
-export const hueOf = (id: string): number | null => slot.get(id)?.hue ?? null
+

@@ -13,16 +13,23 @@
 // comments go on asserting things about an app that has moved on. This is the cheapest
 // possible check that it cannot happen quietly again.
 //
-// It is deliberately narrow — the three folders that hold this app's own screens. It
-// does not police src/ds, where the barrel re-exports everything by design and
-// "ported, not yet adopted" is a tracked state with its own ledger in barrel.test.ts.
+// It watches the app's own folders — instruments/, present/, studio/, state/, and now
+// model/ and corpus/ (#333). It does not police src/ds, where the barrel re-exports
+// everything by design and "ported, not yet adopted" is a tracked state with its own
+// ledger in barrel.test.ts.
+//
+// IT CHECKS MODULES, NOT EXPORTS. A live module carrying dead exports passes here by
+// design: the question asked is "does anything import this file", not "is every symbol
+// in it used". Widening the watch to model/ and corpus/ closes the gap #333 found —
+// a whole unreached module could hide there — but an unused export inside a live file
+// is still a manual check, not this one's.
 import { describe, expect, it } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join, relative, sep } from 'node:path'
 
 const SRC = fileURLToPath(new URL('.', import.meta.url))
-const WATCHED = ['instruments', 'present', 'studio', 'state']
+const WATCHED = ['instruments', 'present', 'studio', 'state', 'model', 'corpus']
 
 /** Modules that nothing imports ON PURPOSE, each with the reason. Anything here is a
  *  decision somebody made, not an accident nobody noticed — which is the whole
@@ -61,7 +68,7 @@ const texts = new Map(allSources.map((f) => [f, readFileSync(f, 'utf8')]))
 
 const key = (abs: string) => relative(SRC, abs).split(sep).join('/')
 
-describe('every module in instruments/, present/ and studio/', () => {
+describe('every module in instruments/, present/, studio/, state/, model/ and corpus/', () => {
   it('is imported by something, or is written down as deliberately kept', () => {
     const orphans: string[] = []
     for (const m of modules) {

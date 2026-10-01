@@ -19,10 +19,10 @@
 // useSyncExternalStore compares snapshots by identity and would loop forever on
 // a getter that composed a fresh array every call.
 
-import { byId } from '../corpus/graph'
 import { WALKS } from '../corpus/walks'
 import type { Walk } from '../corpus/walks'
 import { platform } from '../platform'
+import { isObj, isTopic } from './persistguard'
 
 export type { Walk }
 
@@ -40,11 +40,6 @@ export const isAuthored = (id: string): boolean => id.startsWith(AUTHORED_PREFIX
 // reading order with no such state — a hole in it is just a broken stop — so a
 // stop that no longer resolves is DROPPED, and a walk left with nothing is
 // dropped whole.
-
-const isObj = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v)
-
-const isTopic = (id: unknown): boolean => typeof id === 'string' && !!byId.get(id)?.topic
 
 function readWalk(v: unknown): Walk | null {
   if (!isObj(v)) return null
@@ -109,9 +104,6 @@ function republish(next: Walk[]): void {
  * changes — see the note at the top about useSyncExternalStore. */
 export const listWalks = (): readonly Walk[] => cached
 
-/** just the ones the desk saved — the set the UI may offer to delete */
-export const savedWalks = (): readonly Walk[] => saved
-
 export const walkById = (id: string): Walk | undefined => cached.find((w) => w.id === id)
 
 export function subscribeWalks(fn: () => void): () => void {
@@ -149,7 +141,11 @@ export function saveWalk(w: Walk): Walk {
 
 /** forget an authored walk. Built-ins are not deletable — they are shipped data,
  * and a delete that silently did nothing would be worse than one that can't be
- * asked for. */
+ * asked for.
+ *
+ * Kept though no screen calls it yet: it is the store's delete API, and
+ * walkstore.test.ts exercises it. Delete it only if the saved-walk screen is
+ * settled as never offering deletion. */
 export function deleteWalk(id: string): void {
   if (!isAuthored(id)) return
   const next = saved.filter((w) => w.id !== id)

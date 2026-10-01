@@ -104,12 +104,13 @@ export const edges: GEdge[] = built.edges
 export const byId = built.byId
 export const childrenOf = built.childrenOf
 export const DEEP_DOC = built.deepDoc
+/** every container id except the root — no app module reads it, but the
+ *  relations audit (instruments/relations.test.ts, #342) walks it, so it stays */
 export const allContainerIds = built.allContainerIds
 /** the edge-bearing topics, in authoring order (the graph views' node set) */
 export const topicIds = built.topicIds
 export const domainIds = built.domainIds
 export const MAX_DEPTH = built.maxDepth
-export const isTopic = built.isTopic
 export const pathTo = built.pathTo
 export const domainOf = built.domainOf
 export const topicHueOf = built.topicHueOf
