@@ -24,12 +24,12 @@ const at = (x: number, y: number): XY => ({ x, y })
 const node = (x: number, y: number) => ({ c: at(x, y) })
 
 /** a draw-ready pin whose key/visId are readable in a failure message */
-const pin = (c: XY, size = 22): WalkPin => ({ key: `k${c.x},${c.y}`, visId: `v${c.x},${c.y}`, step: 1, stepEnd: 1, c, size, optional: false })
+const pin = (c: XY, size = 22): WalkPin => ({ key: `k${c.x},${c.y}`, visId: `v${c.x},${c.y}`, step: 0, stepEnd: 0, c, size, optional: false })
 
 /** `n` pins 100 world units apart along +x, in walk order — long enough that the
  *  band's trailing edge actually bites somewhere in the middle of it */
 const row = (n: number, size = 22): WalkPin[] =>
-  Array.from({ length: n }, (_, i) => ({ key: `k${i}`, visId: `v${i}`, step: i + 1, stepEnd: i + 1, c: at(i * 100, 0), size, optional: false }))
+  Array.from({ length: n }, (_, i) => ({ key: `k${i}`, visId: `v${i}`, step: i, stepEnd: i, c: at(i * 100, 0), size, optional: false }))
 
 /** how close curve A ever comes to curve B along A's own length — the nearest
  *  point on B to each sampled point of A, minimised.
@@ -156,9 +156,9 @@ describe('walkArrowDraws — the per-arrow record the renderer places', () => {
   // hairpin: ~18° between the two lines at each twin, under BOW_CLOSE_DEG.
   const twins = (): WalkPin[] => [
     { ...pin(at(0, 0)), visId: 'a' },
-    { ...pin(at(200, 0)), visId: 'x', step: 2, stepEnd: 2 },
-    { ...pin(at(197, 1)), visId: 'x', step: 3, stepEnd: 3, optional: true },
-    { ...pin(at(400, 0)), visId: 'b', step: 4, stepEnd: 4 },
+    { ...pin(at(200, 0)), visId: 'x', step: 1, stepEnd: 1 },
+    { ...pin(at(197, 1)), visId: 'x', step: 2, stepEnd: 2, optional: true },
+    { ...pin(at(400, 0)), visId: 'b', step: 3, stepEnd: 3 },
   ]
 
   test('a split spot draws no arrow between its twins, only into and out of the pair', () => {
