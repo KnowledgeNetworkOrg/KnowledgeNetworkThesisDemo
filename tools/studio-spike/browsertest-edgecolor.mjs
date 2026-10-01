@@ -22,12 +22,11 @@
 // Spawns vite ITSELF — backgrounded dev servers die on this machine.
 // Run:  node tools/studio-spike/browsertest-edgecolor.mjs
 import { createRequire } from 'node:module'
-import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { startVite } from './devserver.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
-const PORT = 5226
 
 // What src/corpus/graph.ts held until 2026-09-03, as the browser reports them.
 //
@@ -66,21 +65,7 @@ const NATURAL = [
 const require = createRequire(REPO + '/package.json')
 const { chromium } = require('playwright-core')
 
-const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(PORT), '--strictPort'], {
-  cwd: REPO,
-  stdio: ['ignore', 'pipe', 'pipe'],
-})
-let viteOut = ''
-await new Promise((res, rej) => {
-  const t = setTimeout(() => rej(new Error('vite did not become ready:\n' + viteOut)), 30000)
-  const watch = (d) => {
-    viteOut += String(d)
-    if (viteOut.includes('localhost:')) { clearTimeout(t); res() }
-  }
-  vite.stdout.on('data', watch)
-  vite.stderr.on('data', watch)
-  vite.on('exit', (c) => rej(new Error('vite exited early ' + c + ':\n' + viteOut)))
-})
+const { vite, port: PORT } = await startVite()
 
 const errors = []
 const checks = []

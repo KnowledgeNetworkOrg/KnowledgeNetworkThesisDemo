@@ -46,6 +46,7 @@ const isCollected = (f: string) => f.startsWith('browsertest-') || f.startsWith(
  *  moved underneath it. */
 const NOT_IN_THE_RUN: Record<string, string> = {
   'run-browsertests.mjs': 'the runner itself',
+  'devserver.mjs': 'the helper every driver starts its vite through (#364) — imported by them, never run on its own',
   'probe-maplag.mjs': 'a MEASUREMENT — prints a speed ratio, which is the assertion that fails randomly on a loaded machine',
   'probe-walkpop.mjs': 'a MEASUREMENT for #374 — prints one pin\'s scale per drawn frame across a play-through and the driver\'s own reading beside it; it measures, it does not assert',
   'probe-walkdockbox.mjs': 'a MEASUREMENT for #365 — prints the map\'s box per change beside every font landing and dock change, under held, blocked and plain fonts; it measures, it does not assert',
@@ -238,6 +239,69 @@ describe('no tool spells a checkout it does not live in', () => {
         `run — a worktree, a second clone — and nothing about the run says so. ` +
         `Derive the root from the file's own location: ` +
         `join(dirname(fileURLToPath(import.meta.url)), '..', '..').`,
+    ).toEqual([])
+  })
+})
+
+// ── the port a driver serves on ─────────────────────────────────────────────
+// The same shape of problem, one step along: a driver that chooses its own PORT. Every
+// driver used to start vite on a number written into its own script, with --strictPort, so
+// two checkouts running the suite at the same time reached the same number and the second
+// failed for a reason that had nothing to do with the app (#364). The fix is one helper,
+// devserver.mjs, that asks the operating system for a free port. A driver written in
+// parallel, against the convention that was true when it was written, would bring the fixed
+// port back without anyone deciding to — so it is checked here, in the unit suite.
+
+/** What a driver that picks its own port, or starts vite without the helper, looks like:
+ *  the flags and binary vite is started with, a PORT given a literal (or a literal fallback),
+ *  and a literal port in a URL. `localhost:${PORT}` is fine — the port is whatever the
+ *  helper returned. */
+const CHOOSES_A_PORT: Array<[RegExp, string]> = [
+  [/--strictPort|['"`]--port['"`]/, 'passes vite a port of its own'],
+  [/vite\/bin\/vite\.js|\bnpx\s+vite\b/, 'starts vite without the helper'],
+  [/\bPORT\s*=\s*(?:Number\([^)]*\|\|\s*)?\d/, 'declares a PORT it chose'],
+  [/localhost:\d/, 'names a literal port in a URL'],
+]
+
+/** Files in the driver folder allowed to choose a port or start vite, each with the reason.
+ *  One, on purpose: the helper IS the place that does it. Same name → reason shape as
+ *  NOT_IN_THE_RUN and MAY_NAME_A_CHECKOUT above, so "this one is allowed" stays a decision. */
+const MAY_CHOOSE_A_PORT: Record<string, string> = {
+  'devserver.mjs': 'the helper every driver starts its vite through — it is where the port is chosen',
+}
+
+describe('no driver picks its own port', () => {
+  it('walked a believable number of files', () => {
+    // "nothing found" and "nothing wrong" look the same, so the walk keeps a floor.
+    expect(driverFiles.length, 'the driver folder walk found suspiciously few files').toBeGreaterThanOrEqual(40)
+  })
+
+  it('does not list a file that has since been renamed or deleted', () => {
+    const stale = Object.keys(MAY_CHOOSE_A_PORT).filter((f) => !driverFiles.includes(f))
+    expect(stale, `MAY_CHOOSE_A_PORT names files that are no longer there: ${stale.join(', ')}`).toEqual([])
+  })
+
+  it('names every offending file AND line in one failure', () => {
+    const offenders: string[] = []
+    for (const f of driverFiles) {
+      if (f in MAY_CHOOSE_A_PORT) continue
+      readFileSync(join(DRIVER_DIR, f), 'utf8')
+        .split('\n')
+        .forEach((line, i) => {
+          // a comment about a port is prose, not a choice — the same reason the two checks above skip them
+          if (/^\s*(\/\/|\*|\/\*)/.test(line)) return
+          for (const [pattern, what] of CHOOSES_A_PORT)
+            if (pattern.test(line)) offenders.push(`tools/studio-spike/${f}:${i + 1} ${what}`)
+        })
+    }
+    expect(
+      offenders,
+      `these drivers choose a port themselves or start vite without the helper:\n  ` +
+        offenders.join('\n  ') +
+        `\nA port written into a driver is a port that two checkouts running the suite at the same ` +
+        `time both reach for — the second fails for a reason that has nothing to do with the app (#364). ` +
+        `Start the server through the helper and use the port it returns: ` +
+        `import { startVite } from './devserver.mjs'; const { vite, port: PORT } = await startVite().`,
     ).toEqual([])
   })
 })
