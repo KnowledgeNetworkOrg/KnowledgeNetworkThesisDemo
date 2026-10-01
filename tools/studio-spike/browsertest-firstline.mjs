@@ -7,8 +7,12 @@
 // WHAT IS MEASURED. For each pane, the distance from the frame's top edge to the top of the first
 // line's text, taken the way `browsertest-legendinset.mjs` takes its glyph edge: a DOM Range over
 // the first non-empty text node, whose bounding rect starts at the glyph box. The frame has a 1px
-// border, so BOTH readings are printed — from the outer edge (what the card's "frame's top edge"
-// most plainly says, and what is asserted) and from the inside of the border.
+// border, so BOTH readings are printed — from the outer edge and from the inside of the border —
+// and the INSIDE one is what is asserted. That is the edge the design side's own figures add up
+// from (the 11px legend row + the 14px first-row pad = 25), and the only one that does: from the
+// outer edge every line reads a pixel more, and the breadcrumb (whose last crumb adds a pixel of
+// its own padding to the row it is centred in) would land near 26.7, outside 25 ±1 though the
+// padding is exactly the shared constant. The outer reading is printed so the receipt can say both.
 //
 //   the Explorer rail's head   — the "Explorer" eyebrow, in the map pane's left rail
 //   the map's breadcrumb       — the first crumb, in the bar over the map canvas
@@ -171,7 +175,7 @@ const m = await page.evaluate(() => {
 })
 
 const num = (v) => (v == null ? 'n/a' : v.toFixed(2))
-const say = (r) => `${num(r.fromOuter)}px from the frame's outer top, ${num(r.fromInner)}px inside its ${r.border}px border · "${r.text}"`
+const say = (r) => `${num(r.fromInner)}px inside the frame's ${r.border}px border (asserted), ${num(r.fromOuter)}px from its outer top · "${r.text}"`
 
 // ── the guard: all four panes and the three frames were found, and docked level ─────────────
 ok('the palette, the map and the document are all on screen', m.frames.every((t) => t != null), JSON.stringify(m.frames))
@@ -185,22 +189,22 @@ for (const [name, key] of [
 ]) {
   const r = m[key]
   if (!r) { ok(`${name} has a first line of text to measure`, false, 'none found'); continue }
-  ok(`${name} sits ${FIRST_LINE}px below its frame's top (±${TOLERANCE})`, Math.abs(r.fromOuter - FIRST_LINE) <= TOLERANCE, say(r))
+  ok(`${name} sits ${FIRST_LINE}px below its frame's top, inside the border (±${TOLERANCE})`, Math.abs(r.fromInner - FIRST_LINE) <= TOLERANCE, say(r))
 }
 
 // the document: counted from the preview row's bottom edge — see the decision at the top of this file
 ok('the document pane draws its preview row above the header, mounted always', m.bannerH > 0, `${num(m.bannerH)}px tall`)
 if (!m.eyebrow) ok('the document\'s eyebrow has a first line of text to measure', false, 'none found')
 else {
-  const belowRow = m.eyebrow.fromOuter - m.bannerH
-  ok(`the document's eyebrow sits ${FIRST_LINE}px below its preview row's bottom edge (±${TOLERANCE}), the row being the pane's own always-drawn ${num(m.bannerH)}px`,
+  const belowRow = m.eyebrow.fromInner - m.bannerH
+  ok(`the document's eyebrow sits ${FIRST_LINE}px below its preview row's bottom edge, inside the border (±${TOLERANCE}), the row being the pane's own always-drawn ${num(m.bannerH)}px`,
     Math.abs(belowRow - FIRST_LINE) <= TOLERANCE, `${say(m.eyebrow)} · ${num(belowRow)}px once the row is taken out`)
 }
 
 if (!m.palette) ok('the palette\'s presets line has text to measure', false, 'none found')
 else {
-  ok(`the palette's presets line sits at ${FIRST_LINE}px, give or take the label's own style (reported, bounded ±${PALETTE_SLACK})`,
-    Math.abs(m.palette.fromOuter - FIRST_LINE) <= PALETTE_SLACK, say(m.palette))
+  ok(`the palette's presets line sits at ${FIRST_LINE}px inside the border, give or take the label's own style (reported, bounded ±${PALETTE_SLACK})`,
+    Math.abs(m.palette.fromInner - FIRST_LINE) <= PALETTE_SLACK, say(m.palette))
 }
 
 // ── the relations rail's head is where it was ──────────────────────────────────────────────

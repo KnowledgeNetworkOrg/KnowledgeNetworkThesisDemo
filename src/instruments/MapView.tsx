@@ -952,7 +952,8 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
                 so its first line sits on the shared line with the Explorer's head and the panes
                 beside this one. It was `FIRST_ROW_PAD - 1` to absorb the crumb's own box; the
                 design side's amended text asks for the constant itself, and the pixel is inside
-                the clause's ±1. */}
+                the clause's ±1 when counted from inside the frame's border, the edge the 25 is
+                built from (browsertest-firstline.mjs asserts it that way). */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: FIRST_ROW_PAD + 'px var(--space-3) 5px', borderBottom: '1px solid var(--border-hair)', minWidth: 0 }}>
               <span data-explorer-corner="1" style={{ display: 'contents' }}>
                 <ExplorerRailCorner paneW={paneW} open={railOpen} onOpenChange={setRailOpen} style={{ flex: '0 0 auto' }} />
