@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { WALKS } from '../corpus/walks'
-import { deleteWalk, isAuthored, listWalks, mintId, parseSaved, saveWalk, subscribeWalks, walkById } from './walkstore'
+import { deleteWalk, isAuthored, listWalks, mintId, parseSavedData, saveWalk, subscribeWalks, walkById } from './walkstore'
 import type { Walk } from './walkstore'
 
 const A = 'stk-dns-naming'
@@ -24,42 +24,45 @@ const walk = (id: string, stops: string[]): Walk => ({
   stops: stops.map((s) => ({ id: s, note: '' })),
 })
 
-describe('parseSaved — a stored payload cannot break the app', () => {
+describe('parseSavedData — a stored payload cannot break the app', () => {
   it('reads authored walks back', () => {
     const w = walk('authored-x', [A, B])
-    expect(parseSaved(JSON.stringify([w]))).toEqual([w])
+    expect(parseSavedData([w])).toEqual([w])
   })
 
   it('drops a stop the corpus no longer has, and keeps the rest of the walk', () => {
-    const got = parseSaved(JSON.stringify([walk('authored-x', [A, 'was-a-topic-once', B])]))
+    const got = parseSavedData([walk('authored-x', [A, 'was-a-topic-once', B])])!
     expect(got[0].stops.map((s) => s.id)).toEqual([A, B])
   })
 
   it('drops a walk left with no stops at all', () => {
-    expect(parseSaved(JSON.stringify([walk('authored-x', ['gone-1', 'gone-2'])]))).toEqual([])
+    expect(parseSavedData([walk('authored-x', ['gone-1', 'gone-2'])])).toEqual([])
   })
 
   it('refuses an id that is not in the authored namespace', () => {
     // otherwise a stored payload could shadow a shipped walk by claiming its id
-    expect(parseSaved(JSON.stringify([walk(WALKS[0].id, [A])]))).toEqual([])
-    expect(parseSaved(JSON.stringify([walk('loading-a-webpage', [A])]))).toEqual([])
+    expect(parseSavedData([walk(WALKS[0].id, [A])])).toEqual([])
+    expect(parseSavedData([walk('loading-a-webpage', [A])])).toEqual([])
   })
 
   it('keeps the first of two walks sharing an id — walkById must not be ambiguous', () => {
-    const got = parseSaved(JSON.stringify([walk('authored-x', [A]), walk('authored-x', [B])]))
+    const got = parseSavedData([walk('authored-x', [A]), walk('authored-x', [B])])!
     expect(got).toHaveLength(1)
     expect(got[0].stops[0].id).toBe(A)
   })
 
   it('one bad member costs that walk, not the others', () => {
-    const got = parseSaved(JSON.stringify([{ nope: true }, walk('authored-y', [A])]))
+    const got = parseSavedData([{ nope: true }, walk('authored-y', [A])])!
     expect(got.map((w) => w.id)).toEqual(['authored-y'])
   })
 
-  it('junk is empty, not a throw', () => {
-    expect(parseSaved('not json {')).toEqual([])
-    expect(parseSaved(JSON.stringify({ walks: [] }))).toEqual([])
-    expect(parseSaved(JSON.stringify([null, 3, 'x']))).toEqual([])
+  it('a payload that is not an array is NOT the saved-walk shape — corrupt, not empty', () => {
+    // #170: "nothing stored" and "something unreadable stored" are different
+    // answers, so junk no longer collapses into an empty list
+    expect(parseSavedData({ walks: [] })).toBeNull()
+    expect(parseSavedData('nope')).toBeNull()
+    // a bag of junk MEMBERS is still just an empty set of valid walks
+    expect(parseSavedData([null, 3, 'x'])).toEqual([])
   })
 })
 

@@ -36,9 +36,13 @@ const ok = (name, cond, detail = '') => {
 
 const browser = await chromium.launch({ channel: 'msedge', headless: true })
 const page = await browser.newPage({ viewport: { width: 1750, height: 950 } })
+// a corrupt payload is warned about, never thrown (#170) — collected so the
+// boot case below can assert the report happened
+const warns = []
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message))
 page.on('console', (m) => {
   if (m.type() === 'error') errors.push('console: ' + m.text())
+  if (m.type() === 'warning') warns.push(m.text())
 })
 
 /** the Plan preset is where the walk editor lives; the preset is NOT persisted, so
@@ -108,6 +112,48 @@ const trail = await page.$eval('[aria-label="trail-strip"]', (el) => el.innerTex
 ok('the Trail offers the walk the desk saved', trail.includes(NAME), JSON.stringify(trail.slice(0, 220)))
 
 await page.screenshot({ path: OUT + '/persistence.png' })
+
+// ── 6. a v0 (unversioned) draft MIGRATES forward instead of reseeding ────────
+// #170's whole point. Before the envelope this payload had no version, and its
+// group-level `optional` was a field the current reader had to guess about. The
+// v0→v1 migration pushes that flag down onto the group's leaves and re-writes
+// the whole thing as `{ v, data }`. It must LOAD, not seed.
+const LEGACY_DRAFT = {
+  stops: [
+    { node: 'stk-dns-naming', variants: [] },
+    {
+      key: 'draft-0',
+      title: 'an older build wrote me',
+      optional: true,
+      variants: [{ id: 'v0', label: '', steps: [{ node: 'stk-ip-routing', variants: [] }] }],
+    },
+    { node: 'stk-tcp-udp', variants: [] },
+  ],
+  choices: {},
+  withOptionals: true,
+}
+await page.evaluate((draft) => {
+  localStorage.clear()
+  localStorage.setItem('pkt.walkdesk.draft', JSON.stringify(draft))
+}, LEGACY_DRAFT)
+await page.reload()
+await openPlan()
+const migratedStages = await stageCount()
+ok('a v0 draft loads — the migration runs instead of the seed', migratedStages === 1, `stages=${migratedStages}`)
+const migrated = await page.evaluate(() => JSON.parse(localStorage.getItem('pkt.walkdesk.draft') || 'null'))
+ok('and it is re-written as a v1 envelope', !!migrated && migrated.v === 1 && !!migrated.data, JSON.stringify(migrated && Object.keys(migrated)))
+const migratedBox = migrated && migrated.data && migrated.data.stops[1]
+ok('the old group flag is pushed down to its leaf and removed from the group',
+  !!migratedBox && !('optional' in migratedBox) && migratedBox.variants[0].steps[0].optional === true, JSON.stringify(migratedBox))
+
+// ── 7. a CORRUPT draft is REPORTED, and the app boots on the seed ────────────
+warns.length = 0
+await page.evaluate(() => { localStorage.clear(); localStorage.setItem('pkt.walkdesk.draft', '{not json') })
+await page.reload()
+await openPlan()
+const corruptStages = await stageCount()
+ok('a corrupt draft boots the app on the seed rather than throwing', corruptStages === stages0, `stages=${corruptStages}`)
+ok('and the read warns, naming the key', warns.some((w) => w.includes('pkt.walkdesk.draft') && /corrupt/i.test(w)), JSON.stringify(warns.slice(-4)))
 
 // ── leave no draft behind: the shot drivers next to this one photograph the
 // seed, and a walk this script authored would sit in their frames forever ─────

@@ -59,8 +59,8 @@ try {
   await page.waitForTimeout(600)
 
   // ── OB-164: THE PILL'S THREE CHANGES, ON THE WALK DESK'S ACTION BAR ──────────────────
-  // The one pill surface in this app that draws GLYPHS beside labels (New walk, Add node, Group,
-  // Optional, Extract, Reset data), so the one where all three read: the row aligns on the
+// The one pill surface in this app that draws GLYPHS beside labels (New walk, Add node, Group,
+// Optional, Extract), so the one where all three read: the row aligns on the
   // BASELINE (a drawn mark needs a text baseline to land on, not its box centred against the
   // label's line height), the glyph gap is --space-1, and every glyph gets the same 1px optical
   // lift. Asserted off the computed style of the Group pill; the bar is photographed for the
