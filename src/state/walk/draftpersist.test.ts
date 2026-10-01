@@ -200,6 +200,19 @@ describe('loadDraft / saveDraft — never throw', () => {
     expect(loadDraft()).toEqual(s)
   })
 
+  it('upgrades an old draft in place WITHOUT erasing a stop the corpus no longer knows', () => {
+    // the exact data-loss case: the running app repairs the dead binding into a
+    // placeholder, but the one-time format upgrade must only re-envelope the
+    // payload. If it committed the repaired value, switching back to the
+    // catalogue that knows this topic could never revive the author's stop.
+    const legacy = snap([leaf('was-a-topic-once', 'keep my prose'), leaf(A)])
+    const store = stubStore({ 'pkt.walkdesk.draft': legacy })
+    const got = loadDraft()!
+    expect(got.stops[0].unset).toBe(true)
+    expect(got.stops[0].note).toBe('keep my prose')
+    expect(JSON.parse(store.get('pkt.walkdesk.draft')!)).toEqual({ v: 1, data: JSON.parse(legacy) })
+  })
+
   it('returns null when nothing is stored', () => {
     stubStore()
     expect(loadDraft()).toBeNull()

@@ -57,13 +57,27 @@ describe('the envelope — one shape, one naming rule', () => {
 
   it('treats an envelope-less payload as v0 and migrates it forward', () => {
     const store = stubStore({ 'pkt.x': JSON.stringify('hello') })
-    expect(readPersisted('pkt.x', SPEC)).toEqual({ status: 'migrated', from: 0, data: 'hello!?' })
+    expect(readPersisted('pkt.x', SPEC)).toEqual({ status: 'migrated', from: 0, data: 'hello!?', writeBack: 'hello!?' })
     // the migration is written back once, as the current envelope
     expect(JSON.parse(store.get('pkt.x')!)).toEqual({ v: 2, data: 'hello!?' })
   })
 
   it('runs the chain in order from whatever version was stored', () => {
-    expect(decodePersisted(JSON.stringify({ v: 1, data: 'hi' }), SPEC)).toEqual({ status: 'migrated', from: 1, data: 'hi?' })
+    expect(decodePersisted(JSON.stringify({ v: 1, data: 'hi' }), SPEC)).toEqual({ status: 'migrated', from: 1, data: 'hi?', writeBack: 'hi?' })
+  })
+
+  it('commits the migrated value BEFORE parse repairs it, so an upgrade cannot erase data', () => {
+    // `parse` here drops a member it cannot read — the same repair draftpersist
+    // and walkstore do. The one-time format upgrade must still keep that member
+    // on disk, or a first load under a narrower reader would discard it forever.
+    const dropBad: PersistedSpec<string[]> = {
+      version: 1,
+      migrations: { 0: (d) => d },
+      parse: (d) => (Array.isArray(d) ? d.filter((x) => x !== 'bad') : null),
+    }
+    const store = stubStore({ 'pkt.list': JSON.stringify(['good', 'bad']) })
+    expect(readPersisted('pkt.list', dropBad)).toMatchObject({ status: 'migrated', data: ['good'] })
+    expect(JSON.parse(store.get('pkt.list')!)).toEqual({ v: 1, data: ['good', 'bad'] })
   })
 
   it('reports corrupt when a step has no migration to the next', () => {

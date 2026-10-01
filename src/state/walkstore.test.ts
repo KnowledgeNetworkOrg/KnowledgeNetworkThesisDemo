@@ -8,7 +8,7 @@
 // it is a finished flat reading order — so a broken stop is dropped and a walk
 // with nothing left is dropped whole.
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { WALKS } from '../corpus/walks'
 import { deleteWalk, isAuthored, listWalks, mintId, parseSavedData, saveWalk, subscribeWalks, walkById } from './walkstore'
@@ -125,5 +125,38 @@ describe('the registry — built-ins plus what the desk saved', () => {
   it('a built-in cannot be deleted', () => {
     deleteWalk(WALKS[0].id)
     expect(walkById(WALKS[0].id)).toEqual(WALKS[0])
+  })
+})
+
+describe('an old saved-walks list upgrades without erasing what this corpus cannot read', () => {
+  // The read rewarded a fresh module: walkstore reads storage at import, so a
+  // seeded list has to meet a newly-evaluated copy.
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.resetModules()
+  })
+
+  it('re-envelopes the payload as written, not the parsed repair', async () => {
+    // `was-a-topic-once` is dropped from the in-memory list by parseSavedData,
+    // but the one-time format upgrade must keep it on disk so a corpus that
+    // still knows it can revive the stop later.
+    const stored = [{
+      id: 'authored-x',
+      title: 'a walk',
+      description: '',
+      stops: [{ id: A, note: '' }, { id: 'was-a-topic-once', note: 'mine' }, { id: B, note: '' }],
+    }]
+    const map = new Map<string, string>([['pkt.walks.saved', JSON.stringify(stored)]])
+    vi.stubGlobal('localStorage', {
+      get length() { return map.size },
+      key: (i: number) => [...map.keys()][i] ?? null,
+      getItem: (k: string) => map.get(k) ?? null,
+      setItem: (k: string, v: string) => void map.set(k, v),
+      removeItem: (k: string) => void map.delete(k),
+    })
+    vi.resetModules()
+    const mod = await import('./walkstore')
+    expect(mod.savedWalks()[0].stops.map((s) => s.id)).toEqual([A, B])
+    expect(JSON.parse(map.get('pkt.walks.saved')!)).toEqual({ v: 1, data: stored })
   })
 })
