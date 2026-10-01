@@ -5,8 +5,9 @@
 // it is going, and a band with nothing moving would hide the past for no reason.
 //
 // Pure, so MapView's wall mode and the projector window read one rule. A map pin can
-// stand for a RUN of stops at a coarse level (walkpins.ts: `step`..`stepEnd`, 1-based);
-// the wall's facts are 0-based stop indices, the presenter's own.
+// stand for a RUN of stops at a coarse level (walkpins.ts: `step`..`stepEnd`); the pins'
+// indices and the wall's facts are both 0-based stop indices, the presenter's own, so
+// they compare directly.
 
 /** what the wall knows: the stop the room is looking at, and the stops actually presented */
 export interface WallView {
@@ -82,9 +83,8 @@ export function wallFit(frame: WallFrame, box: { w: number; h: number }, inset =
 /** a pin's face on the wall: `current` when the lit stop is inside its run, `done` when
  *  every stop of its run was covered, `ahead` otherwise */
 export function wallPinState(pin: { step: number; stepEnd: number }, wall: WallView): 'current' | 'done' | 'ahead' {
-  const lit = wall.lit + 1
-  if (lit >= pin.step && lit <= pin.stepEnd) return 'current'
-  for (let s = pin.step; s <= pin.stepEnd; s++) if (!wall.covered.includes(s - 1)) return 'ahead'
+  if (wall.lit >= pin.step && wall.lit <= pin.stepEnd) return 'current'
+  for (let s = pin.step; s <= pin.stepEnd; s++) if (!wall.covered.includes(s)) return 'ahead'
   return 'done'
 }
 

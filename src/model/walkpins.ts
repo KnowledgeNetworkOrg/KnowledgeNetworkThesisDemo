@@ -75,9 +75,10 @@ export interface WalkPin {
   key: string
   /** the cell this pin's stop resolved to at this level */
   visId: string
-  /** 1-based index of the first walk stop this pin stands for */
+  /** 0-based index of the first walk stop this pin stands for — the DS's own convention
+   *  (`WalkMark.from`, the player's `position`), so nothing converts on the way to either */
   step: number
-  /** 1-based index of the LAST stop it stands for — `step` itself unless the pin is a
+  /** 0-based index of the LAST stop it stands for — `step` itself unless the pin is a
    *  merged run. `pinPosition` reads both: a walk anywhere inside the run is ON this pin. */
   stepEnd: number
   c: XY
@@ -133,7 +134,7 @@ function resolved(route: string[], level: number, optional: readonly boolean[]):
   const out: Resolved[] = []
   for (let i = 0; i < route.length; i++) {
     const anchor = walkAnchorAt(route[i], level)
-    if (anchor) out.push({ visId: anchor.visId, c: anchor.c, step: i + 1, optional: optional[i] === true })
+    if (anchor) out.push({ visId: anchor.visId, c: anchor.c, step: i, optional: optional[i] === true })
   }
   return out
 }
@@ -299,17 +300,16 @@ export function walkPins({ route, level, px, labelBoxes, optional = [] }: WalkPi
  *  the whole run is "you are here" — and a position between two pins' runs is the same
  *  fraction of the way between the two PINS, which is what carries the arrow between them.
  *  At a level fine enough for one pin per stop this is the identity and the map reads
- *  exactly the DS's rule. `position` is the player's 0-based fractional stop;
- *  `step`/`stepEnd` are 1-based. ★ LOCAL, reported on the receipt. */
+ *  exactly the DS's rule. `position` is the player's 0-based fractional stop, and
+ *  `step`/`stepEnd` are 0-based too, so they compare directly. ★ LOCAL, reported on the receipt. */
 export function pinPosition(pins: readonly { step: number; stepEnd: number }[], position: number): number {
   if (pins.length === 0) return 0
-  const s = position + 1
   for (let k = 0; k < pins.length; k++) {
     const p = pins[k]
-    if (s > p.stepEnd) continue
-    if (s >= p.step || k === 0) return k
+    if (position > p.stepEnd) continue
+    if (position >= p.step || k === 0) return k
     const prev = pins[k - 1]
-    return k - 1 + (s - prev.stepEnd) / (p.step - prev.stepEnd)
+    return k - 1 + (position - prev.stepEnd) / (p.step - prev.stepEnd)
   }
   return pins.length - 1
 }

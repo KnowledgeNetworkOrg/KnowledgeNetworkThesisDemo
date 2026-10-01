@@ -26,8 +26,8 @@
 //   restored tree rather than storing them alongside means the two can never
 //   disagree: the tree is the only thing that could be wrong about its own ids.
 
-import { byId } from '../../corpus/graph'
 import { platform } from '../../platform'
+import { isObj, isTopic } from '../persistguard'
 import { forEachStop, isBox, withOptional } from './mockwalk'
 import type { Stop, Variant } from './mockwalk'
 
@@ -44,13 +44,6 @@ export interface DraftSnapshot {
   choices: Record<string, string>
   withOptionals: boolean
 }
-
-const isObj = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v)
-
-/** a real, bindable corpus stop — the same gate walks.ts applies at module load,
- * asked as a question instead of as a throw */
-const isTopic = (id: unknown): boolean => typeof id === 'string' && !!byId.get(id)?.topic
 
 /** rebuild one stop from stored JSON, or null if its SHAPE is unusable. An
  * unknown corpus id is not unusable — it comes back as a placeholder. */

@@ -103,7 +103,7 @@
   --color-berry-50: #fbf0ee;
   --color-berry-100: #f5dcd8;
   --color-berry-500: #b4574a;
-  --color-berry-600: #99453a;
+  --color-berry-600: #99453a;   /* berry = the act will not proceed: destruction AND refusal (scope widened 2026-09-18) */
 
   /* ══ Colour · data · THE HUE RING ═════════════════════════════════════════
      Sixteen hues, five roles each — the whole data palette. `bg-hue-teal`,
@@ -309,6 +309,15 @@
   --color-editing: #2e86c8;        /* the line you are typing into — pond's vivid step, drawn on TEXT at 1px */
   --color-danger: #b4574a;
   --color-danger-wash: #fbf0ee;
+  /* the DRAG VERDICT, and the asymmetry is deliberate — a valid drop is silent, so green is one
+     value (the landing line) and never writes; the refusal has a pill to draw, so red keeps four
+     rungs. Do not add a yes-wash or yes-ink to balance them. Mirrors `--verdict-*` in
+     `tokens/colors.css`; both files change together. */
+  --color-verdict-yes: #558148;
+  --color-verdict-no: #b4574a;
+  --color-verdict-no-wash: #fbf0ee;
+  --color-verdict-no-hair: #f5dcd8;
+  --color-verdict-no-ink: #99453a;
   /* `--color-optional` was deleted on 2026-08-21j with its token twin, OB-042's receipt having
      landed at `aac8764`. Use `border-walk`; an optional node dashes its own border. */
 

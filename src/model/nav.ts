@@ -99,13 +99,3 @@ export function descendantCount(id: string): number {
   for (const k of childrenOf.get(id) ?? []) n += 1 + descendantCount(k.id)
   return n
 }
-
-/** Container ids that should start expanded: `rootId` and its direct
- * container children — two levels of container structure open by default. */
-export function depth2Expanded(rootId: string): Set<string> {
-  const out = new Set<string>([rootId])
-  for (const c of childrenOf.get(rootId) ?? []) {
-    if (c.kind === 'container') out.add(c.id)
-  }
-  return out
-}
