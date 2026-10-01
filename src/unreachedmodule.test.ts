@@ -23,6 +23,12 @@
 // in it used". Widening the watch to model/ and corpus/ closes the gap #333 found —
 // a whole unreached module could hide there — but an unused export inside a live file
 // is still a manual check, not this one's.
+//
+// A TEST DOES NOT COUNT AS AN IMPORTER (#333). A module whose only reader is its own
+// test is not reached by the app: the test proves the rule, it does not put it on
+// screen. When such a module is kept on purpose it belongs in KEPT_UNREACHED with the
+// reason — `model/topichue.ts` is there for exactly this, and before this rule it was
+// invisible here.
 import { describe, expect, it } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -35,6 +41,11 @@ const WATCHED = ['instruments', 'present', 'studio', 'state', 'model', 'corpus']
  *  decision somebody made, not an accident nobody noticed — which is the whole
  *  difference this file is trying to make. */
 const KEPT_UNREACHED: Record<string, string> = {
+  'model/topichue.ts':
+    'Topic hue assignment at creation — the rule that a topic is handed the next free ring hue and keeps it ' +
+    'through renames. No screen creates a top-level topic yet (the corpus is authored), so its only caller is ' +
+    'the test that proves the rule; the header says so. Kept as the single statement of that rule for the day a ' +
+    'screen does.',
   'present/session.ts':
     'The presenting/fullscreen split — `presenting` is ours, `fullscreen` is only ever mirrored from the host, ' +
     'because the host can refuse fullscreen and the user can leave it with F11 without walking off stage. ' +
@@ -67,16 +78,20 @@ walkAll(SRC)
 const texts = new Map(allSources.map((f) => [f, readFileSync(f, 'utf8')]))
 
 const key = (abs: string) => relative(SRC, abs).split(sep).join('/')
+const isTest = (abs: string) => /\.test\.tsx?$/.test(abs)
 
 describe('every module in instruments/, present/, studio/, state/, model/ and corpus/', () => {
-  it('is imported by something, or is written down as deliberately kept', () => {
+  it('is imported by the app, or is written down as deliberately kept', () => {
     const orphans: string[] = []
     for (const m of modules) {
       const base = m.split(sep).pop()!.replace(/\.tsx?$/, '')
       // an import always ends in the module's own name, whatever the path in front
       const imported = new RegExp(`from\\s+['"][^'"]*(?:^|/)${base}['"]`)
       const bare = new RegExp(`from\\s+['"]\\.{1,2}/${base}['"]`)
-      const reached = allSources.some((f) => f !== m && (imported.test(texts.get(f)!) || bare.test(texts.get(f)!)))
+      // a test is not the app: only a non-test importer counts as reaching (#333)
+      const reached = allSources.some(
+        (f) => f !== m && !isTest(f) && (imported.test(texts.get(f)!) || bare.test(texts.get(f)!)),
+      )
       if (!reached && !(key(m) in KEPT_UNREACHED)) orphans.push(key(m))
     }
     expect(
@@ -98,7 +113,7 @@ describe('every module in instruments/, present/, studio/, state/, model/ and co
       }
       const base = k.split('/').pop()!.replace(/\.tsx?$/, '')
       const imported = new RegExp(`from\\s+['"][^'"]*(?:^|/)${base}['"]`)
-      if (allSources.some((f) => f !== abs && imported.test(texts.get(f)!)))
+      if (allSources.some((f) => f !== abs && !isTest(f) && imported.test(texts.get(f)!)))
         stale.push(`${k} — something imports it now, so the exception is spent`)
     }
     expect(stale, `KEPT_UNREACHED has gone out of date:\n  ${stale.join('\n  ')}`).toEqual([])

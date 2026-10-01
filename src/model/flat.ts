@@ -372,8 +372,7 @@ function embed(): Record<string, XY> {
 export const leafPos: Record<string, XY> = embed()
 
 /** The centre of a set of places: the mean of their map positions, the raw
- *  centroid the map's region labels and road anchors are placed from. Shared by
- *  atlas.ts and star.ts so a region lands on the same point in both views. */
+ *  centroid the map's region labels and road anchors are placed from (atlas.ts). */
 export const centroidOf = (ids: string[]): XY => ({
   x: ids.reduce((s, id) => s + leafPos[id].x, 0) / ids.length,
   y: ids.reduce((s, id) => s + leafPos[id].y, 0) / ids.length,

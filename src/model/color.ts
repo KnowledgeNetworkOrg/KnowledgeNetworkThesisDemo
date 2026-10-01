@@ -442,7 +442,9 @@ export const territorySlotOf = (id: string): number | null => territorySlotMap.g
 /** the regions a map region shares a border with, as `regionAdjacency` found
  *  them — the topology the slot assignment was fed. Same audience as above. */
 export const territoryNeighboursOf = (id: string): readonly string[] => territoryNeighbourMap.get(id) ?? []
-/** the domain a node descends from — the family its territory fill is pinned to */
+/** the domain a node descends from — the family its territory fill is pinned to. Same
+ *  audience as above: `territoryfill.test.ts`'s audit, which is its only caller, not
+ *  drawing. */
 export const familyOf = (id: string): string | null => familyMap.get(id) ?? null
 /** dark hue-tinted text color — labels on the node's own fill */
 export const inkOf = (id: string): string => inkMap.get(id) ?? FALLBACK.ink
