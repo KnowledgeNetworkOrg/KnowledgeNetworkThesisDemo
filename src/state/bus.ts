@@ -73,8 +73,9 @@ export interface BusState {
   /** A LOOK — the one channel that MAY move a camera. Hover answers "recolour
    * what I'm pointing at"; a look asks "take me to WHERE this lives" — the map
    * flies to the node's territory at its tier and keeps it highlighted, with
-   * the selection unchanged. Published by CLICKS in the Connections pane
-   * (SelfNotes: hover must never pan the map), so there is no fly-home: a look
+   * the selection unchanged. Published by CLICKS — the Connections pane's rows
+   * until #339 retired it, the walk palette and the Studio now; #404 asks whether
+   * the Explorer rail's should be one (SelfNotes: hover must never pan the map), so there is no fly-home: a look
    * holds until the next look, a focus change, or the user grabbing the camera.
    * `seq` makes re-looking at the same id a fresh command — after panning away,
    * clicking the same row again must still fly. */

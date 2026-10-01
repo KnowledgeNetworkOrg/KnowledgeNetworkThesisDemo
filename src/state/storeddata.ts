@@ -14,10 +14,11 @@
 //                                corrections to its stops' prepared notes — lecturenotes.ts
 //   pkt.lecture.categories.v1    the note categories a presenter minted — lecturenotes.ts
 //   pkt.lecture.habits.v1        the presenter's deck and notes-pane layout — lecturenotes.ts
-//   kn-connections_leftWidth     the Connections pane's divider and its collapse.
-//   kn-connections_collapsed     ConnectionsPane.tsx hands `kn-connections` to the DS's
-//                                ConnectionsSplitPane, which appends these suffixes (and
-//                                `_narrow` in its narrow layout) and writes them itself
+//   kn-connections_leftWidth     the retired Connections pane's divider and its collapse —
+//   kn-connections_collapsed     ORPHANS since #339 unmounted it: the DS's ConnectionsSplitPane
+//                                appended these suffixes (and `_narrow`) to the `kn-connections`
+//                                it was handed, and nothing writes them now. The prefix stays
+//                                so Reset still sweeps what an older build left behind
 //
 // plus one key with no writer left: `pkt.floating-panel.<id>`, the rect
 // WalkToolbox's FloatingPanel last saved before #144 retired both.

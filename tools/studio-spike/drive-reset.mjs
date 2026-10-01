@@ -85,8 +85,9 @@ const LECTURE = {
   'pkt.lecture.habits.v1': JSON.stringify({ duringWidth: 320 }),
 }
 // a divider width no drag or default produces, so its survival is unambiguous.
-// The pane writes its DEFAULT back as soon as it mounts, so after the reset the
-// key may well exist again — the check is that THIS value is gone.
+// Since #339 nothing writes this key — the Connections pane that did is retired — so it is
+// exactly the orphan an OLDER build leaves behind, which is what a reset prefix exists for.
+// The check is that THIS value is gone.
 const CONNECTIONS_WIDTH_KEY = 'kn-connections_leftWidth'
 const SEEDED_WIDTH = '237'
 
@@ -95,8 +96,8 @@ const SEEDED_WIDTH = '237'
 // but NO `key`. readStop() rejects that as structural damage — correctly, it
 // cannot hang choice/collapse/rename off a container with no identity — and the
 // rejection takes the whole plan with it. Plus an ORPHAN panel rect from the
-// retired WalkToolbox, which no current module knows the name of, a saved
-// Connections width, and a presenter's lecture data.
+// retired WalkToolbox, which no current module knows the name of, a saved width
+// from the retired Connections pane, and a presenter's lecture data.
 await page.goto(`http://localhost:${PORT}/`)
 await page.evaluate(({ lecture, widthKey, width }) => {
   localStorage.clear()
@@ -165,8 +166,8 @@ if (lost.length) fail(`the reset changed or removed a presenter's lecture data: 
 else pass("a presenter's notes, categories and deck layout survive the reset, byte for byte")
 
 const widthAfter = await page.evaluate((k) => localStorage.getItem(k), CONNECTIONS_WIDTH_KEY)
-if (widthAfter === SEEDED_WIDTH) fail(`the Connections pane's saved width survived the reset (${CONNECTIONS_WIDTH_KEY} = ${widthAfter})`)
-else pass("the Connections pane's saved width is gone", `(now ${widthAfter ?? 'unset'})`)
+if (widthAfter === SEEDED_WIDTH) fail(`the retired Connections pane's saved width survived the reset (${CONNECTIONS_WIDTH_KEY} = ${widthAfter})`)
+else pass("the retired Connections pane's saved width is gone", `(now ${widthAfter ?? 'unset'})`)
 
 // ── 3. and the app comes back up clean ─────────────────────────────────────
 await page.waitForTimeout(400)
