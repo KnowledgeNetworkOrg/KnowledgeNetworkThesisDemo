@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import { ARROW_BOW_MAX_DEG, ARROW_MIN_SHAFT_HEADS, Bullet, labelCase, LabelCut, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, ExplorerRail, ExplorerRailCorner, ExplorerRailMath, explorerRailWidth, FindMark, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_DIVIDER_METRICS, PaneDivider, paneFit, clampDesk, deskBounds, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, REPLAY_PATH, STOP_CARD_METRICS, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StepDotMath, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkComplete, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
-import { ORBIT_METRICS, OrbitMath, PANE_PLACEHOLDER_METRICS, PREVIEW_BANNER_METRICS, RELATION_STATS_METRICS, RelationOrbit, RelationStats, RelationsRailMath, StatsMath, orbitKinds, orbitMarks, orbitWedge, statKindRows } from '@/ds'
+import { CONNECTIONS_BODY_STYLE, ConnectionsSplitPane, OpenAncestors, RelationCards } from '@/ds'
+import { ORBIT_METRICS,OrbitMath, PANE_PLACEHOLDER_METRICS, PREVIEW_BANNER_METRICS, RELATION_STATS_METRICS, RelationOrbit, RelationStats, RelationsRailMath, StatsMath, orbitKinds, orbitMarks, orbitWedge, statKindRows } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -55,6 +56,20 @@ describe('ported but not adopted DS components', () => {
   // this as that issue being finished.
   it('EdgeEntry — its host arrived (#253) and composed the parts instead; nothing pending', () => {
     expect(typeof EdgeEntry).toBe('function')
+  })
+
+  // RETIRED, NOT REMOVED — #339 (OB-226). The connections pane was these components' only
+  // host; it is unmounted and its file deleted, its tree now the map's Explorer rail and its
+  // relations the document's Relations rail. #339 keeps the split pane in src/ds for ONE
+  // RELEASE so a rollback is restoring `src/instruments/ConnectionsPane.tsx` from d8dd6ce
+  // and re-registering it, not rebuilding the split. `RelationCards`
+  // and `OpenAncestors` are listed with it because the split was what drew them. When that
+  // release is over, this is the entry to delete with them.
+  it('ConnectionsSplitPane / CONNECTIONS_BODY_STYLE / RelationCards / OpenAncestors — retired with the connections pane (#339), kept one release', () => {
+    expect(typeof ConnectionsSplitPane).toBe('function')
+    expect(typeof CONNECTIONS_BODY_STYLE).toBe('object')
+    expect(typeof RelationCards).toBe('function')
+    expect(typeof OpenAncestors).toBe('function')
   })
 
   // #127 shipped this port (OB-037 for NodeChip's disclosure mark, OB-038 for the rail

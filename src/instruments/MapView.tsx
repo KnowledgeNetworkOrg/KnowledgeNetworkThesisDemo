@@ -238,8 +238,8 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
   // act of watching it. The owner asked for the hover's treatment instead, and the hover's
   // treatment already exists: the spotlight another pane's hover lights a cell with.
   //
-  // FOCUS ITSELF STAYS. It is the app's "where am I": the document pane reads the stop, the
-  // connections pane re-aims, the breadcrumb follows. Taking it away to fix a drawing would
+  // FOCUS ITSELF STAYS. It is the app's "where am I": the document pane reads the stop and its
+  // relations rail re-aims, the breadcrumb follows. Taking it away to fix a drawing would
   // stop all of that. What changes is only what THIS pane draws for it — the item's own
   // instruction was to separate the legitimate half from the dimming rather than keep both.
   //
@@ -313,14 +313,14 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
     setHover(null)
   }, [level, busEndHover])
 
-  // ── LOOK: the Connections pane's click-to-fly is the camera's now
+  // ── LOOK: the (retired, #339) Connections pane's click-to-fly is the camera's now
   // (`map/mapcamera.ts`); what stays here is the CHANNEL — the spotlight below
   // keeps the looked-at node lit until the next look or a focus change.
   const peek = bus.peek
 
   // Esc clears the selection overlay without touching the camera. It also
   // clears the FOCUS — "nothing selected" has to be a real, reachable state
-  // for the Connections pane's hover preview to have anywhere to live.
+  // for the reading pane's hover preview to have anywhere to live.
   const onWall = !!wall
   useEffect(() => {
     // the wall (#267) is a picture inside the presenter, whose own keys own the window
@@ -517,7 +517,7 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
 
   /* THE HEADER ROW'S PATH (OB-241 + OB-243): the selection's ancestry, walkable back up. The
      aim keeps its resting reading after a deselect while the LIT state goes out — the same
-     split the connections pane draws — because the breadcrumb is the readout for where the
+     split the retired connections pane drew — because the breadcrumb is the readout for where the
      pane is AIMED, not for what is selected. */
   const restId = bus.history.cursor >= 0 ? bus.history.stack[bus.history.cursor] : ROOT_ID
   const aimId = bus.focus ?? (byId.has(restId) ? restId : ROOT_ID)

@@ -177,12 +177,14 @@ if (cellPoint && rowCount > 0) {
 // ── 4. THE SURVIVING TREE: a contains row publishes it too (#272, DS OB-142) ──
 // OB-142 asks that a tree row publish a HOVER as well as the focus it already
 // publishes, so the map lights that territory on the way past without selecting
-// anything. Every clause is asserted here except "click still focuses and selects",
-// which `browsertest-connections.mjs` already owns (a row click re-aims the pane).
+// anything. Every clause is asserted here.
 //
-// THE CARD CLAUSE IS ABOUT THE MAP'S CARD, and only that one. The connections pane
-// raises its OWN preview beside the row — that is the split pane's design and not a
-// map tooltip — so what must stay absent here is `[data-maptip]`.
+// THE TREE LIVES IN THE MAP'S EXPLORER RAIL since #339 retired the connections pane that
+// used to host it (#341 mounted the rail, OB-238); the clauses did not change with the host.
+//
+// THE CARD CLAUSE IS ABOUT THE MAP'S CARD, and only that one. The tree may raise its OWN
+// preview beside the row — that is the tree's design and not a map tooltip — so what must
+// stay absent here is `[data-maptip]`.
 // PICKING A PRESET CLOSES THE SIDEBAR IT WAS PICKED FROM (OB-106), so the second
 // preset of a run has to reopen it first. Same two lines every driver here uses.
 if ((await page.locator('[aria-label="studio-sidebar"]').count()) === 0) {
@@ -191,16 +193,20 @@ if ((await page.locator('[aria-label="studio-sidebar"]').count()) === 0) {
 }
 await page.getByLabel('studio-preset-explore').click()
 await page.waitForTimeout(800)
-ok('the explore desk puts the map and the connections pane side by side',
-  (await has('svg[data-nested]')) && (await has('[aria-label="connections-pane"]')))
+ok('the explore desk shows the map', await has('svg[data-nested]'))
+if (!(await has('[data-explorer-rail] [data-node-id]'))) {
+  await page.locator('[data-explorer-corner] button').click()
+  await page.waitForTimeout(400)
+}
+ok('the map\'s Explorer rail opens on its tree', await has('[data-explorer-rail] [data-node-id]'))
 
 // open a few levels, so the sweep has rows under the six domains. ONE CARET PER RENDER:
 // the tree is controlled by its host, which resolves the next open map from the last
 // RENDERED one, so a batch of clicks all compute from the same base and only the last
-// survives. Documented at length in browsertest-connections.mjs.
+// survives.
 for (let i = 0; i < 6; i++) {
   const opened = await page.evaluate(() => {
-    const pane = document.querySelector('[aria-label="connections-pane"]')
+    const pane = document.querySelector('[data-explorer-rail]')
     const closed = [...pane.querySelectorAll('[data-node-id]')].filter((r) => r.getAttribute('data-open') === '0' && r.querySelector('[data-caret]'))
     if (!closed.length) return false
     closed[closed.length - 1].querySelector('[data-caret]').click()
@@ -210,7 +216,7 @@ for (let i = 0; i < 6; i++) {
   if (!opened) break
 }
 
-const treeRows = page.locator('[aria-label="connections-pane"] [data-node-id]')
+const treeRows = page.locator('[data-explorer-rail] [data-node-id]')
 const treeCount = Math.min(await treeRows.count(), ROWS)
 ok('the contains column has hoverable rows', treeCount > 0, `${treeCount} swept`)
 
