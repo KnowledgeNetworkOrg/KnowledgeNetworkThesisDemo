@@ -162,7 +162,7 @@ function HoldRing({ size, n, holdMs, onMakeActive, title }: { size: number; n?: 
       style={{
         position: 'relative', width: size, height: size, borderRadius: '50%', flexShrink: 0,
         display: 'grid', placeItems: 'center', padding: 0, boxSizing: 'border-box', cursor: 'pointer',
-        border: '1.6px solid var(--acorn-600)', background: '#fff',
+        border: '1.6px solid var(--acorn-600)', background: 'var(--surface-raised)',
         boxShadow: progress > 0 ? 'inset 0 0 0 ' + fillR.toFixed(1) + 'px var(--acorn-200)' : 'none',
         transition: progress > 0 ? 'none' : 'box-shadow 200ms var(--ease-soft)',
       }}>

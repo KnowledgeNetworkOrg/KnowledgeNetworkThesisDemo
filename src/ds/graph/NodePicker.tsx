@@ -117,7 +117,9 @@ export function NodePicker({
 
   useEffect(() => {
     if (!open) return undefined
-    if (search) requestAnimationFrame(() => inputRef.current?.focus())
+    /* the focus frame is CANCELLED with the menu (DS OB-251): a picker closed or unmounted inside
+       that one frame would otherwise run `focus()` on a search box that is no longer there */
+    const focusFrame = search ? requestAnimationFrame(() => inputRef.current?.focus()) : null
     const away = (e: MouseEvent) => {
       const t = e.target as Node
       if (anchorRef.current?.contains(t)) return
@@ -128,6 +130,7 @@ export function NodePicker({
     document.addEventListener('mousedown', away)
     document.addEventListener('keydown', esc)
     return () => {
+      if (focusFrame != null) cancelAnimationFrame(focusFrame)
       document.removeEventListener('mousedown', away)
       document.removeEventListener('keydown', esc)
     }

@@ -23,9 +23,9 @@ function CloseButton({ onClick, revealed }: { onClick?: () => void; revealed: bo
       onClick={(e) => { e.stopPropagation(); if (onClick) onClick() }}
       onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)} style={{
         position: 'absolute', right: 10, top: 10, zIndex: 3, width: 30, height: 30, borderRadius: 'var(--radius-pill)',
-        display: 'grid', placeItems: 'center', background: hot ? 'var(--bark-800)' : 'rgba(255,255,255,.92)',
+        display: 'grid', placeItems: 'center', background: hot ? 'var(--bark-800)' : 'color-mix(in srgb, var(--surface-raised) 92%, transparent)',
         border: '1px solid ' + (hot ? 'var(--bark-800)' : 'var(--border-rule)'),
-        color: hot ? '#fff' : 'var(--text-1)', boxShadow: hot ? 'var(--lift-2)' : 'var(--lift-1)',
+        color: hot ? 'var(--text-inverse)' : 'var(--text-1)', boxShadow: hot ? 'var(--lift-2)' : 'var(--lift-1)',
         cursor: 'pointer', fontSize: 13, lineHeight: 1,
         opacity: revealed ? 1 : 0, pointerEvents: revealed ? 'auto' : 'none',
         transition: 'var(--transition-wash), opacity var(--dur-fade) var(--ease-soft)',
