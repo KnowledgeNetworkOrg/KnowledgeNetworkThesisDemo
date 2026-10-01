@@ -224,7 +224,17 @@ function DocumentBody({ bus, currentId, previewId, paneW, railOpen, onRailOpenCh
 
   return (
     <>
-      {/* OB-209: mounted unconditionally, first in the pane, above the header */}
+      {/* OB-209: mounted unconditionally, first in the pane, above the header.
+          DECISION, taken at the #358 gate on 2026-10-01 (OB-249): THIS ROW STAYS, and so the header under it
+          opens one preview row lower than the other panes' first line — `PREVIEW_BANNER_METRICS.height` more,
+          not at `FIRST_LINE`. The 25 is counted from this row's bottom edge, which is how the document is
+          measured in browsertest-firstline.mjs. Why not pull the header up to 25: the row is the pane's
+          always-drawn first element, and the chip fills it, so a header under it at 25 would sit against the
+          chip; and the header would then start 16 higher than the placeholder does, which is the reflow under
+          a sweeping cursor that browsertest-relationsrail.mjs forbids. Moving the row below the header
+          instead makes the chip jump between the placeholder and a previewed node. The design shell's
+          document has no such row, which is why its 25 holds there. If the design side rules otherwise,
+          this is the one place to change. */}
       <PreviewBanner node={previewNode} style={{ padding: '0 var(--space-5)' }} />
       {/* THE UPPER ROW SPANS THE PANE, and the rail sits UNDER it. With the header inside the prose
           column the rail started above the title of the thing it is about and scrolled away with

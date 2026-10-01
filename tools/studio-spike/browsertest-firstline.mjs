@@ -15,7 +15,16 @@
 //   the document's eyebrow     — the kind word ("topic" / "container" / "leaf") over its title
 //   the palette's presets      — the "presets" section label
 //
-// THE FIRST THREE ARE ASSERTED AT 25 ±1. THE PALETTE IS REPORTED AND BOUNDED, NOT HELD TO ±1: its
+// THE DOCUMENT IS COUNTED FROM ITS PREVIEW ROW'S BOTTOM EDGE, by decision (#358 gate, 2026-10-01).
+// The document pane always draws a preview row (OB-209, `[data-preview-banner]`) above its header, empty
+// at rest and a fixed height so a hover never reflows the pane. The design shell's document has no such
+// row, which is why its 25 holds there; here the eyebrow sits one row lower. Pulling the header up
+// under the row would put it against the preview chip and would reflow the pane against
+// browsertest-relationsrail.mjs; moving the row below the header makes the chip jump. So the row stays,
+// and this test takes its measured height out of the document's reading (never a restated 16) and holds
+// what is left to 25 ±1. The raw reading is printed beside it so the receipt can state the real number.
+//
+// THE OTHER TWO ARE ASSERTED AT 25 ±1 FROM THE FRAME. THE PALETTE IS REPORTED AND BOUNDED, NOT HELD TO ±1: its
 // "presets" label is 12px where the others are smaller, so the label's own box sits about a pixel
 // and a third low even with the pad exactly right. The owner saw that on 2026-09-22 and said to
 // leave it; nudging it here to make the number round would undo that decision. It is bounded so a
@@ -144,7 +153,9 @@ const m = await page.evaluate(() => {
 
   const relLine = firstText(relHead)
   const docFrame = frameOf(doc)
+  const banner = doc && doc.querySelector('[data-preview-banner]')
   return {
+    bannerH: banner ? banner.getBoundingClientRect().height : 0,
     palette: read(frameOf(palette), firstText(paletteBody)),
     explorer: read(frameOf(rail), firstText(rail)),
     crumb: read(frameOf(crumbRow), firstText(crumbRow)),
@@ -171,11 +182,19 @@ ok('the three frames start at the same top edge (±1px), so the readings compare
 for (const [name, key] of [
   ['the Explorer rail\'s head', 'explorer'],
   ['the map\'s first crumb', 'crumb'],
-  ['the document\'s eyebrow', 'eyebrow'],
 ]) {
   const r = m[key]
   if (!r) { ok(`${name} has a first line of text to measure`, false, 'none found'); continue }
   ok(`${name} sits ${FIRST_LINE}px below its frame's top (±${TOLERANCE})`, Math.abs(r.fromOuter - FIRST_LINE) <= TOLERANCE, say(r))
+}
+
+// the document: counted from the preview row's bottom edge — see the decision at the top of this file
+ok('the document pane draws its preview row above the header, mounted always', m.bannerH > 0, `${num(m.bannerH)}px tall`)
+if (!m.eyebrow) ok('the document\'s eyebrow has a first line of text to measure', false, 'none found')
+else {
+  const belowRow = m.eyebrow.fromOuter - m.bannerH
+  ok(`the document's eyebrow sits ${FIRST_LINE}px below its preview row's bottom edge (±${TOLERANCE}), the row being the pane's own always-drawn ${num(m.bannerH)}px`,
+    Math.abs(belowRow - FIRST_LINE) <= TOLERANCE, `${say(m.eyebrow)} · ${num(belowRow)}px once the row is taken out`)
 }
 
 if (!m.palette) ok('the palette\'s presets line has text to measure', false, 'none found')
