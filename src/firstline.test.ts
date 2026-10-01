@@ -39,7 +39,9 @@ walk(SRC)
 describe('OB-249 — no host restates the shared first line', () => {
   it('the map\'s breadcrumb bar pads its top with FIRST_ROW_PAD itself, not a pixel off it', () => {
     expect(mapSource).toContain("padding: FIRST_ROW_PAD + 'px var(--space-3) 5px'")
-    expect(mapSource).not.toMatch(/FIRST_ROW_PAD\s*-\s*1/)
+    // the old code wrote the subtraction in parentheses; the comment above the bar quotes it without
+    // them, and the raw import includes comments, so the pattern is the code shape only
+    expect(mapSource).not.toMatch(/\(FIRST_ROW_PAD\s*-\s*1\)/)
   })
 
   it('the palette\'s presets block pads its top with FIRST_SCROLL_PAD, not the old pt-2', () => {
