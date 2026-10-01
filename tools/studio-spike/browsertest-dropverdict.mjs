@@ -11,11 +11,13 @@
 // resolved stops, so its menu greys exactly those two; [7] and [8] each have a picker on one
 // side, so each greys only its one resolved neighbour.
 //
-// THE DRAG IS SYNTHETIC, AND SPLIT ACROSS TWO TICKS, on purpose (the card's own warning).
-// A driver's native drag is one opaque gesture that cannot be paused over a gap to read what the
-// road is drawing, and a synthetic drag delivered in one tick can land its dragover before the
-// dragstart's work has settled — it then reports "no handler" and looks like a broken port. So
-// dragstart is dispatched, the page gets a tick, and only then do the dragovers arrive.
+// SECTIONS 1–5 DRIVE A SYNTHETIC DRAG, SPLIT ACROSS TWO TICKS, on purpose (the card's own warning).
+// A synthetic drag reads the road at each of ten gaps in turn, which a native drag is slow to do,
+// and one delivered in a single tick can land its dragover before the dragstart's work has
+// settled — it then reports "no handler" and looks like a broken port. So dragstart is
+// dispatched, the page gets a tick, and only then do the dragovers arrive.
+// What a synthetic drag cannot show is what the BROWSER does with the road's answers, so section 6
+// repeats the two cases that matter with a real mouse: a refused gap and a valid one.
 //
 // THE DRAGOVERS CARRY AN EMPTY DataTransfer, which is what a real browser hands a page during a
 // drag (the spec's protected mode: the payload reads '' until the drop). That is the case the
@@ -81,15 +83,19 @@ page.on('console', (m) => {
   if (m.type() === 'error') errors.push('console: ' + m.text())
 })
 
-await page.goto(`http://localhost:${PORT}/`)
-await page.evaluate(({ key, stops }) => {
-  localStorage.clear()
-  localStorage.setItem(key, JSON.stringify({ stops, choices: {}, withOptionals: true }))
-}, { key: DRAFT_KEY, stops: FIXTURE })
-await page.reload()
-await page.waitForTimeout(700)
-await page.locator('[aria-label="studio-preset-plan"]').click()
-await page.waitForTimeout(700)
+/** open the app on the fixture road, in the plan preset — from scratch each time it is called */
+const openFixture = async () => {
+  await page.goto(`http://localhost:${PORT}/`)
+  await page.evaluate(({ key, stops }) => {
+    localStorage.clear()
+    localStorage.setItem(key, JSON.stringify({ stops, choices: {}, withOptionals: true }))
+  }, { key: DRAFT_KEY, stops: FIXTURE })
+  await page.reload()
+  await page.waitForTimeout(700)
+  await page.locator('[aria-label="studio-preset-plan"]').click()
+  await page.waitForTimeout(700)
+}
+await openFixture()
 
 /** the road, top to bottom: a node id per bound stop, `·` per empty slot */
 const roadOrder = () =>
@@ -346,6 +352,88 @@ if (ok('the slot between a picker and TLS opens its menu', await openPicker(8)))
   want.splice(2, 0, ...want.splice(3, 1))
   const now = await roadOrder()
   ok('…and it does', JSON.stringify(now) === JSON.stringify(want), JSON.stringify(now))
+}
+
+// ── 6. a REAL drag — a real mouse, so the BROWSER runs the drag itself ───────
+// Sections 1–5 dispatch their events, which cannot show what the browser does with the road's
+// answers. This one presses, moves and releases a real mouse over the same fixture, and reads:
+//  · the payload is '' on every dragover (the protected mode the in-flight record exists for);
+//  · a refused gap leaves its dragover uncancelled, so the browser fires NO drop there;
+//  · releasing over a refused gap leaves the road, the saved draft and the screen as they were;
+//  · a valid gap takes the drop, the node moves, and the line is gone afterwards.
+// Playwright's mouse sends the first dragover over a new gap only with the NEXT move (a real hand
+// never holds perfectly still, and the browser keeps sending dragovers while it drags), so every
+// hold ends with a 1px nudge before the screen is read.
+await openFixture()
+await page.evaluate(() => {
+  window.__drag = []
+  for (const t of ['dragstart', 'dragover', 'drop', 'dragend']) {
+    window.addEventListener(t, (e) => {
+      const rec = { t, trusted: e.isTrusted, readable: e.dataTransfer ? e.dataTransfer.getData('text/plain') : null }
+      window.__drag.push(rec)
+      setTimeout(() => { rec.cancelled = e.defaultPrevented }, 0)
+    }, true)
+  }
+})
+const draftAtStart = await storedDraft() // this section starts from a fresh fixture, so it keeps its own copy
+const dragSeen = () => page.evaluate(() => window.__drag)
+const centreOf = (sel) =>
+  page.evaluate((sel) => {
+    const r = document.querySelector(sel).getBoundingClientRect()
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+  }, sel)
+/** pick up the second DNS with the mouse and hold it over a gap; releasing is the caller's */
+const holdOver = async (gapSel) => {
+  const from = await centreOf(SOURCE)
+  const to = await centreOf(gapSel)
+  await page.mouse.move(from.x, from.y)
+  await page.mouse.down()
+  await page.mouse.move(from.x + 12, from.y + 12, { steps: 4 }) // past the browser's drag threshold
+  await page.mouse.move(to.x, to.y, { steps: 14 })
+  await page.mouse.move(to.x + 1, to.y)
+  await page.waitForTimeout(200)
+}
+
+// a refused gap: the twin's lower side
+await holdOver(slot(1))
+{
+  const d = await drawn('b.1')
+  ok('real drag: over the twin the road draws a STRUCK line', d.verdict === 'refused' && d.dashed === true, JSON.stringify(d))
+  ok('real drag: …and says "already adjacent"', !!d.pill && d.pill.includes('already adjacent'), String(d.pill))
+  const last = (await dragSeen()).filter((e) => e.t === 'dragover').pop()
+  ok('real drag: the browser hides the payload during the drag', !!last && last.trusted && last.readable === '', JSON.stringify(last))
+  ok('real drag: the refused gap does not cancel its dragover', !!last && last.cancelled === false, JSON.stringify(last))
+}
+await page.mouse.up()
+await page.waitForTimeout(400)
+{
+  const seen = await dragSeen()
+  const d = await drawn('b.1')
+  ok('real drag: the browser fires no drop on a refused gap', !seen.some((e) => e.t === 'drop') && seen.some((e) => e.t === 'dragend'), seen.map((e) => e.t).join(' '))
+  ok('real drag: after a refused release the road is as it was', JSON.stringify(await roadOrder()) === JSON.stringify(FIXTURE_ORDER), JSON.stringify(await roadOrder()))
+  ok('real drag: …the saved draft is untouched', (await storedDraft()) === draftAtStart)
+  ok('real drag: …and the line and the pill are gone', d.verdict === null && d.pill === null && d.arrow === 1, JSON.stringify(d))
+}
+
+// a valid gap: between IP and TCP
+await page.evaluate(() => { window.__drag = [] })
+await holdOver(slot(2))
+{
+  const d = await drawn('b.2')
+  ok('real drag: a valid gap draws a SOLID line and says nothing', d.verdict === 'ok' && d.solid === true && d.pill === null, JSON.stringify(d))
+  const last = (await dragSeen()).filter((e) => e.t === 'dragover').pop()
+  ok('real drag: a valid gap cancels its dragover', !!last && last.cancelled === true, JSON.stringify(last))
+}
+await page.mouse.up()
+await page.waitForTimeout(400)
+{
+  const seen = await dragSeen()
+  const want = [...FIXTURE_ORDER]
+  want.splice(2, 0, ...want.splice(3, 1))
+  const d = await drawn('b.2')
+  ok('real drag: a valid gap takes the drop', seen.some((e) => e.t === 'drop' && e.trusted), seen.map((e) => e.t).join(' '))
+  ok('real drag: …the node moves', JSON.stringify(await roadOrder()) === JSON.stringify(want), JSON.stringify(await roadOrder()))
+  ok('real drag: …and the line is gone', d.verdict === null && d.pill === null, JSON.stringify(d))
 }
 
 ok('no page or console errors', errors.filter((e) => /^(pageerror|console):/.test(e)).length === 0,
