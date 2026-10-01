@@ -35,7 +35,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
 import {
-  DocHeader, groupViaBySource, LEGEND_INSET, NodePreviewCard, NodePreviewLayer, orbitBox, ORBIT_SELF,
+  DocHeader, FIRST_ROW_PAD, groupViaBySource, LEGEND_INSET, NodePreviewCard, NodePreviewLayer, orbitBox, ORBIT_SELF,
   PaneScroller, PanePlaceholder, PreviewBanner, previewGutter, railFits, REL_CARD_PARTS, relationLook,
   RelationsRail, RelationsRailCorner, relationStats, RelSourceGroup, SectionLabel, usePaneWidth,
   viaSourceDomain, WalkCard,
@@ -234,7 +234,7 @@ function DocumentBody({ bus, currentId, previewId, paneW, railOpen, onRailOpenCh
         <div style={{ flex: '1 1 auto', minWidth: 0 }}>
           <DocHeader kind={node.topic ? 'topic' : node.kind} title={node.title} domain={topicHueOf(currentId) ?? ''} ancestry={ancestry} />
         </div>
-        <RelationsRailCorner paneW={paneW} open={railOpen} onOpenChange={onRailOpenChange} count={relCount} style={{ flex: '0 0 auto', margin: '14px var(--space-3) 0 0' }} />
+        <RelationsRailCorner paneW={paneW} open={railOpen} onOpenChange={onRailOpenChange} count={relCount} style={{ flex: '0 0 auto', margin: FIRST_ROW_PAD + 'px var(--space-3) 0 0' }} />
       </div>
       <div style={{ display: 'flex', flex: 1, minHeight: 0, width: '100%', position: 'relative' }}>
         {/* the prose scrolls under the header: no top inset, because the scroller starts far from

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ElementType, PointerEvent, ReactNode, Ref, RefObject } from 'react'
-import { PaneHeader, PaneFrameContext } from './PaneHeader'
+import { PaneHeader, PaneFrameContext, LEGEND_ROW } from './PaneHeader'
 import { Grip } from './Grip'
 
 /** How far a scrolling body holds off the pane's edge, so the scrollbar's end
@@ -19,17 +19,28 @@ import { Grip } from './Grip'
  *  it for you. */
 export const SCROLLER_INSET = 12
 
-/** THE FIRST ROW'S OWN TOP PADDING, when that row sits directly under the legend in a
- *  `scroll="none"` body with no margin — the pad that puts a pane's first line of text on
- *  the shared `FIRST_LINE` (25) below the frame's top edge, so panes docked side by side
- *  read level (DS OB-249, #358).
+/** THE LINE EVERY PANE'S FIRST ROW OF TEXT SITS ON: this far below the frame's top edge, so
+ *  panes docked side by side read level (DS OB-249). Measured at scale 1 off the design's own
+ *  shell, the palette sat at 31, the map's Explorer rail and breadcrumb at 17 and the document
+ *  at 25 — every first row had set its own top padding and nothing made them agree.
  *
- *  ONLY THIS ONE CONSTANT IS HERE SO FAR: `RailFrame` imports it for the left rail's head,
- *  which opens its pane and must sit on that line (#340). OB-249's other two exports
- *  (`FIRST_LINE` 25 and `FIRST_SCROLL_PAD` 2, for a first row inside a scrolling body),
- *  `PaneHeader`'s `LEGEND_ROW`, `DocHeader`'s pad and the host pads are #358's — do not
- *  restate any of them from here. */
-export const FIRST_ROW_PAD = 14
+ *  25 is CHOSEN, and the design side says explicitly not to recompute it: a scrolling body
+ *  cannot start above 23 (the legend's `LEGEND_ROW` plus `SCROLLER_INSET`), and the document
+ *  header already sat at 25. The other two numbers below are DERIVED from it, so there is one
+ *  decision here and two consequences. NO HOST MAY RESTATE 25, 14 OR 2 FOR THIS PURPOSE —
+ *  import the one that fits the body the row is in. */
+export const FIRST_LINE = 25
+
+/** THE FIRST ROW'S OWN TOP PADDING, for a row that sits directly under the legend in a
+ *  `scroll="none"` body with no margin: `FIRST_LINE` less the legend's own row. 14. Read by
+ *  `RailFrame` (the left rail's head), `DocHeader`, the map's breadcrumb bar and the closed
+ *  Relations button, which all open a pane that way. */
+export const FIRST_ROW_PAD = FIRST_LINE - LEGEND_ROW
+
+/** THE FIRST ROW'S OWN TOP PADDING, for a row that sits INSIDE a scrolling body: the body
+ *  already holds off the frame by `SCROLLER_INSET`, so it needs that much less than
+ *  `FIRST_ROW_PAD`. 2. Read by the palette's presets block. */
+export const FIRST_SCROLL_PAD = FIRST_ROW_PAD - SCROLLER_INSET
 
 /** WHAT A SCROLLBAR TAKES OUT OF A SCROLLING BOX — MEASURED ONCE, never assumed. 12 under
  *  this project's own styled bars, 15-17 under an unstyled Windows/Linux bar, and ZERO

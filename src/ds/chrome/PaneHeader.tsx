@@ -14,6 +14,12 @@ import { Grip } from './Grip'
  *  answer and still needs the header to be a direct child. */
 export const PaneFrameContext = createContext<RefObject<HTMLElement | null> | null>(null)
 
+/** HOW TALL THE LEGEND'S ROW IS, below the frame's top edge — the hat the title straddles the
+ *  border with, and the first thing a body is measured from. 11, as it already was: published
+ *  (OB-249) so `Pane`'s `FIRST_ROW_PAD` is DERIVED from it (`FIRST_LINE` less this) instead of
+ *  typed beside it, and a change here moves every first row with it. */
+export const LEGEND_ROW = 11
+
 /** THE TWO NUMBERS THE LEGEND IS DRAWN WITH, named so the inset below can be derived from
  *  them rather than typed beside them: the legend row is placed this far in from the frame,
  *  and the title span pads this much more. Used in the JSX below and nowhere else. */
@@ -176,7 +182,7 @@ export function PaneHeader({
     const cutBottom: CSSProperties = { position: 'absolute', left: 0, right: 0, top: '50%', height: 1, background: frameBg, zIndex: 0 }
     const over: CSSProperties = { position: 'relative', zIndex: 1 }
     return (
-      <div ref={rootRef} style={{ position: 'relative', flexShrink: 0, height: 11 }}>
+      <div ref={rootRef} style={{ position: 'relative', flexShrink: 0, height: LEGEND_ROW }}>
         <div
           style={{
             position: 'absolute',

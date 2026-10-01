@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { adjacentDuplicates, DropVerdict, verdictPaint, ARROW_BOW_MAX_DEG, ARROW_MIN_SHAFT_HEADS, Bullet, labelCase, LabelCut, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, ExplorerRail, ExplorerRailCorner, ExplorerRailMath, explorerRailWidth, FindMark, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_DIVIDER_METRICS, PaneDivider, paneFit, clampDesk, deskBounds, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, REPLAY_PATH, STOP_CARD_METRICS, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StepDotMath, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkComplete, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
+import { adjacentDuplicates, DropVerdict, verdictPaint, ARROW_BOW_MAX_DEG, ARROW_MIN_SHAFT_HEADS, Bullet, labelCase, LabelCut, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, ExplorerRail, ExplorerRailCorner, ExplorerRailMath, explorerRailWidth, FindMark, FIRST_LINE, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_DIVIDER_METRICS, PaneDivider, paneFit, clampDesk, deskBounds, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, REPLAY_PATH, STOP_CARD_METRICS, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StepDotMath, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkComplete, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
 import { CONNECTIONS_BODY_STYLE, ConnectionsSplitPane, OpenAncestors, RelationCards } from '@/ds'
+import { LEGEND_ROW } from '@/ds'
 import { ORBIT_METRICS,OrbitMath, PANE_PLACEHOLDER_METRICS, PREVIEW_BANNER_METRICS, RELATION_STATS_METRICS, RelationOrbit, RelationStats, RelationsRailMath, StatsMath, orbitKinds, orbitMarks, orbitWedge, statKindRows } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
@@ -269,8 +270,9 @@ describe('ported but not adopted DS components', () => {
   // src/ds. The two rails that render it are now BOTH mounted (#341's Explorer rail on the map,
   // #342's Relations rail on the document), but they assemble it by relative import, so no app
   // file imports these from the barrel directly. Listed so adopting one is a deliberate edit
-  // here, not an audit miss. `FIRST_ROW_PAD` is read by RailFrame itself; it crosses the barrel
-  // for #358, which completes OB-249.
+  // here, not an audit miss. `FIRST_ROW_PAD` is read by RailFrame itself and by the two hosts that
+  // open a pane with a row (the map's breadcrumb bar, the document's closed Relations button); it
+  // is listed here for the value it pins, as `FIRST_LINE` and `LEGEND_ROW` below are.
   it('RailFrame / RailOpenButton / RailCorner / OutlineMark / RelationsMark — assembled inside the two mounted rails (#341, #342)', () => {
     expect(typeof RailFrame).toBe('function')
     expect(typeof RailOpenButton).toBe('function')
@@ -293,6 +295,16 @@ describe('ported but not adopted DS components', () => {
     expect(railWidth('left', 400)).toBe(PANE_RAIL_METRICS.left.max)
     expect(typeof RailMath.width).toBe('function')
     expect(typeof usePaneWidth).toBe('function')
+  })
+
+  // #358 (OB-249) — the shared first line. `FIRST_LINE` is the one CHOSEN number and `LEGEND_ROW` the
+  // legend's own height; `Pane` derives `FIRST_ROW_PAD` and `FIRST_SCROLL_PAD` from them, so no app
+  // file reads either of the two directly. They cross the barrel so a host that needs the line itself
+  // imports it rather than restating 25 (the acceptance test forbids that).
+  it('FIRST_LINE / LEGEND_ROW — the chosen line and the legend row, read by Pane to derive the two pads', () => {
+    expect(FIRST_LINE).toBe(25)
+    expect(LEGEND_ROW).toBe(11)
+    expect(FIRST_ROW_PAD).toBe(FIRST_LINE - LEGEND_ROW)
   })
 
   // #341 (OB-253) — the rail's seam drags, so the desk's drag handle came with the frame it

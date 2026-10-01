@@ -948,9 +948,12 @@ export default function MapView({ bus, wall }: { bus: MapViewBus; wall?: WallVie
           <div style={{ flex: '1 1 260px', minWidth: 200, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             {/* THE MAP'S OWN UPPER ROW — where the selection SITS, as a path you can walk back
                 up, with the closed rail's way back as the row's first item rather than floating
-                over it. `FIRST_ROW_PAD` less 1 at the top: a crumb's own box sits 1px above its
-                text, so the row reads level with the Explorer's head beside it. */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: (FIRST_ROW_PAD - 1) + 'px var(--space-3) 5px', borderBottom: '1px solid var(--border-hair)', minWidth: 0 }}>
+                over it. `FIRST_ROW_PAD` exactly at the top (OB-249): this row opens the map pane,
+                so its first line sits on the shared line with the Explorer's head and the panes
+                beside this one. It was `FIRST_ROW_PAD - 1` to absorb the crumb's own box; the
+                design side's amended text asks for the constant itself, and the pixel is inside
+                the clause's ±1. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: FIRST_ROW_PAD + 'px var(--space-3) 5px', borderBottom: '1px solid var(--border-hair)', minWidth: 0 }}>
               <span data-explorer-corner="1" style={{ display: 'contents' }}>
                 <ExplorerRailCorner paneW={paneW} open={railOpen} onOpenChange={setRailOpen} style={{ flex: '0 0 auto' }} />
               </span>
