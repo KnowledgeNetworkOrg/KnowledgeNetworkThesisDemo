@@ -29,7 +29,9 @@ import { DomainDot, IconButton, PaneScroller, wrapTip } from '@/ds'
 import { byId, nodes, pathTo } from '../../corpus/graph'
 import { topicHueOf } from '../../corpus/graph'
 import type { AuthorState } from '../../state/walk/authordraft'
-import { DT } from '../../state/walk/authordnd'
+// beginDrag, not a bare setData: the road judges each gap WHILE the pointer moves
+// (OB-219), and a real drag's payload is unreadable until the drop
+import { beginDrag, endDrag } from '../../state/walk/authordnd'
 import type { HoverBinding } from '../../state/bus'
 
 // ── Recent searches — a module-level ring so it survives a remount within the
@@ -239,8 +241,9 @@ export default function Palette({
                   data-pal-active={on ? '' : undefined}
                   draggable
                   onClick={() => selectOnMap(id)}
-                  onDragStart={(e) => e.dataTransfer.setData(DT, 'pal:' + id)}
+                  onDragStart={(e) => beginDrag(e, 'pal:' + id)}
                   onDragEnd={(e) => {
+                    endDrag()
                     if (e.dataTransfer.dropEffect !== 'none') noteResolved(id)
                   }}
                   className={[
@@ -326,9 +329,10 @@ function RecentsEmptyState({
                 e.preventDefault()
                 return
               }
-              e.dataTransfer.setData(DT, 'pal:' + id)
+              beginDrag(e, 'pal:' + id)
             }}
             onDragEnd={(e) => {
+              endDrag()
               // A landed drag freshens the recent — same "acting on it moves it
               // to the front" the commit paths get.
               if (e.dataTransfer.dropEffect !== 'none') pushRecent(r)
