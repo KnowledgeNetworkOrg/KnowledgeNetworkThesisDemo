@@ -19,7 +19,10 @@
 //   absent    nothing stored — the store opens on its seed / empty value
 //   ok        the current version, read cleanly
 //   migrated  an older version, brought forward by the migration chain, and
-//             re-written as the current envelope so the work happens once
+//             re-written as the current envelope so the work happens once. The
+//             bytes committed are the migrated payload BEFORE the store's parse
+//             repaired it, so a format upgrade never discards data the current
+//             build merely could not read
 //   corrupt   not JSON, not an envelope-bearing payload the current reader can
 //             use, or a version with no migration to the next
 //   future    a version NEWER than this build writes (an older build opening a
@@ -80,6 +83,10 @@ export interface PersistedRead<T> {
   data?: T
   from?: number
   detail?: string
+  /** For `migrated`: the value AFTER the migration chain but BEFORE the store's
+   *  `parse` repair. `readPersisted` commits THIS back, so the one-time format
+   *  upgrade cannot erase what `parse` would have dropped while repairing. */
+  writeBack?: unknown
 }
 
 /** Bring data at exactly version `from` forward to `from + 1`. Returns the next
@@ -155,7 +162,12 @@ export function decodePersisted<T>(raw: string, spec: PersistedSpec<T>, key = '<
     report(key, 'corrupt', detail)
     return { status: 'corrupt', detail }
   }
-  return from < spec.version ? { status: 'migrated', from, data: value } : { status: 'ok', data: value }
+  // `data` here is post-migration but pre-parse: `value` may have been repaired
+  // (a stop dropped, a walk discarded). Hand both back so the caller can use the
+  // clean value while the seam commits the un-repaired one — see readPersisted.
+  return from < spec.version
+    ? { status: 'migrated', from, data: value, writeBack: data }
+    : { status: 'ok', data: value }
 }
 
 /** Read `key` and classify it — the storage half of `decodePersisted`, without
@@ -167,10 +179,18 @@ export function decodeStored<T>(key: string, spec: PersistedSpec<T>): PersistedR
 }
 
 /** Read `key`, and on a successful migration write the current envelope back so
- *  the migration runs once. `corrupt` and `future` reads change nothing. */
+ *  the migration runs once. `corrupt` and `future` reads change nothing.
+ *
+ *  What goes back is the migrated data BEFORE `parse` repaired it. A store's
+ *  `parse` is allowed to drop what the current build cannot read — a walk stop
+ *  the corpus no longer has, a draft leaf pointing at a renamed topic — and
+ *  writing THAT back would turn a format upgrade into permanent data loss the
+ *  user never asked for. Only the envelope changes; the payload is preserved. */
 export function readPersisted<T>(key: string, spec: PersistedSpec<T>): PersistedRead<T> {
   const result = decodeStored(key, spec)
-  if (result.status === 'migrated' && result.data !== undefined) writePersisted(key, spec.version, result.data)
+  if (result.status === 'migrated' && result.writeBack !== undefined) {
+    writePersisted(key, spec.version, result.writeBack)
+  }
   return result
 }
 
