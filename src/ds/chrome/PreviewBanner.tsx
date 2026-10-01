@@ -32,7 +32,8 @@ export interface PreviewBannerNode {
  *       reflows the pane under a cursor that is somewhere else. Rendering it only while
  *       previewing throws that away and is the one way to get this wrong.
  *    2. DECIDE `node` FROM A FOREIGN HOVER ONLY, and only while nothing is selected. The rule the
- *       app's Connections pane arrived at, stated as an expression:
+ *       app's Connections pane arrived at (that pane is retired now, #405; the rule stands),
+ *       stated as an expression:
  *       `focus == null && !pointerInside && hover != null` — a pane must not re-aim itself at its
  *       own cursor, and a selection pins the pane.
  *    3. HAVE SOMEWHERE TO GO BACK TO. A preview is temporary by definition, so the pane needs a

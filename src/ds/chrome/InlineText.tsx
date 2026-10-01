@@ -127,7 +127,7 @@ export const INLINE_EDIT_STYLE: React.CSSProperties = {
  *  AN EMPTY LINE WHILE OPEN CARRIES ONE TOO, and it lives in the STYLESHEET, not here (DS
  *  OB-273, 2026-10-01). Open, this renders no children, so an empty field is a box with no line
  *  box again. Chromium synthesises a baseline for an empty editable anyway; Firefox does not, so
- *  in Firefox the row around it grew on the pencil \u2014 the DS's own card, dpr 1.5: +4.57 at the
+ *  in Firefox the row around it grew on the pencil — the DS's own card, dpr 1.5: +4.57 at the
  *  foot, +5.12 at the index; Chrome 0.00. The fix is
  *  `.kn-inline-edit-selection:empty::before { content: '\200b' }` in `tokens/base.css`, on the
  *  class this component already puts on an open line: generated content, so it never enters

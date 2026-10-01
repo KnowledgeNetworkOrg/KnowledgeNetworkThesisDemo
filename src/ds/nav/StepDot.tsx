@@ -132,9 +132,11 @@ export interface StepDotProps {
    *  pills — and the pill used to be CSS-drawn and dashless, documented as a shape `optional`
    *  never reached. The dock's open row had been passing `optional` into it since the address
    *  landed; the prop was read, the dash never drawn, and nothing errored. The pill's face is
-   *  one SVG now, like the circle's. ITS DASH STROKES IN `ink` IN EVERY STATE, where the circle's
-   *  `current` dash strokes in `bd` — that swap exists only because the circle SHRINKS its fill
-   *  and repaints the band behind the dash, and a pill's fill does not shrink.
+   *  one SVG now, like the circle's. ITS DASH STROKES IN `ink`, EXCEPT AT optional + `current`:
+   *  there the pill takes the circle's band (DS OB-261) — a light face, a smaller fill inset in
+   *  it — and the dash strokes in `bd` on that band, as the circle's does. (This used to say
+   *  "in `ink` in every state" and that a pill's fill does not shrink; the dock's open row
+   *  draws a rail pill at `current`, and white dashes on its solid walk fill read as texture.)
    *
    *  A MERGED PIN IS HOMOGENEOUS BY CONSTRUCTION — a rule about the CALLER (DS OB-214 clause 5,
    *  policy C): a run never merges across an optionality boundary (`model/walkpins.ts`, stage 2),

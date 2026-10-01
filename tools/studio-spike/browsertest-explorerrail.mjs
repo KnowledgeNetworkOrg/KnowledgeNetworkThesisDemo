@@ -283,6 +283,31 @@ if (railBox && (await sep.count()) === 1) {
   await page.waitForTimeout(400)
   const regrown = (await page.locator('[data-explorer-rail]').boundingBox()).width
   ok('a click on the seam leaves the rail on its own fit', narrow < railBox.width - 2 && Math.abs(regrown - railBox.width) <= 2, `${narrow} at 1100 -> ${regrown} at 1750`)
+
+  /* A CANCELLED DRAG REVERTS (OB-257 done-when 1). The browser can take a pointer away mid-drag (a
+     touch claimed for a scroll, a lost capture): `pointercancel` fires and `pointerup` never does.
+     `PaneDivider` must end the gesture at zero travel — `onDrag(0)` then `onDragEnd(0)` — so the
+     rail is back at the width it had before the drag and nothing is stored. The drag is started with
+     the real mouse; only the cancel is synthetic, because Playwright cannot make a browser cancel a
+     pointer. HONEST SCOPE: this app's only divider host (`RailFrame`) already reverted on
+     `onDragEnd(0)` alone, so this passes on the code before the change too — it guards the contract
+     (a regression that stops the drag from ending on a cancel would leave the rail stuck wide). */
+  const before = (await page.locator('[data-explorer-rail]').boundingBox()).width
+  const cb = await sep.first().boundingBox()
+  await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(cb.x + cb.width / 2 + 60, cb.y + cb.height / 2, { steps: 8 })
+  await page.waitForTimeout(150)
+  const mid = (await page.locator('[data-explorer-rail]').boundingBox()).width
+  await page.evaluate(() => window.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true })))
+  await page.waitForTimeout(250)
+  const cancelled = (await page.locator('[data-explorer-rail]').boundingBox()).width
+  await page.mouse.up() // a late pointerup must find the gesture already over
+  await page.waitForTimeout(250)
+  const afterUp = (await page.locator('[data-explorer-rail]').boundingBox()).width
+  ok('mid-drag the rail follows the pointer (so the cancel below has something to revert)', mid > before + 40, `${before} -> ${mid}`)
+  ok('a pointercancel mid-drag puts the rail back at the width it had', Math.abs(cancelled - before) <= 2, `${before} -> ${mid} -> ${cancelled}`)
+  ok('and the pointer coming up afterwards changes nothing — the gesture had already ended', Math.abs(afterUp - before) <= 2, `${cancelled} -> ${afterUp}`)
 }
 
 // ── 9. a bare leaf is exactly a container's box (OB-247's trap, reviewer-asked on #372) ──

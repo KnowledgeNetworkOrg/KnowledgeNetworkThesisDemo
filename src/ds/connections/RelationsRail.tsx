@@ -78,8 +78,10 @@ export interface RelationsRailProps {
    *  card: `<targetId>|<kind>` is one relationship, `<targetId>` the neighbour, `ORBIT_SELF` the
    *  hub. A host may also light a mark from ANOTHER surface's pointer by passing that key here */
   hot?: string | null
-  /** the pointer moved onto a different mark, or off every one (null, and no event) */
-  onHot?: (key: string | null, e?: ReactPointerEvent<Element>) => void
+  /** the pointer moved onto a different mark, or off every one (null). The event is the pointer's
+   *  own and is always present: on the leave that ends the hover it is the leave's own event
+   *  (DS OB-262 — the design source types `e` as required here too) */
+  onHot?: (key: string | null, e: ReactPointerEvent<Element>) => void
   /** put on the figure's wrapper, so the pane's layer can keep its card off the drawing */
   figureRef?: Ref<HTMLDivElement>
   /** the rail's name, on the header and the closed button. Default `"Relations"` */

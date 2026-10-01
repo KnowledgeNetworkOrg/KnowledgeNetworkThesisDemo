@@ -78,18 +78,18 @@ export interface IconButtonProps {
   stopPropagation?: boolean
   /** POSITION, AND THE THREE COLOUR PROPERTIES A HELD FACE NEEDS — `marginLeft: auto`,
    *  `position: absolute`, `zIndex`, `alignSelf`, plus `color`, `background` and `borderColor`
-   *  for a mark whose
-   *  PRESSED or HELD face this component has no tone for (the group card's pencil is the standing
-   *  example, and has passed them since it was written). Nothing else: no border, no radius, no
-   *  padding, no size — the tones are the component's, and a fifth hand-written variant is what
-   *  this replaced.
+   *  for a mark whose PRESSED or HELD face this component has no tone for (the group card's pencil
+   *  is the standing example, and has passed them since it was written). Nothing else: no border,
+   *  no radius, no padding, no size — the tones are the component's, and a fifth hand-written
+   *  variant is what this replaced.
    *  Widened 2026-09-06 from "POSITION ONLY", which the app's OB-110 port rightly asked about
    *  (`receipts/c968155.md`): the DS's own caller had been outside the contract since the day it
    *  was drawn, and the honest fix is the contract rather than the caller — a held face is a real
    *  need, and the alternative is a `tone` for every one-off pressed state.
    *  `borderColor` added 2026-09-26 (DS OB-258): the component FOLDS it into its own `border`
-   *  shorthand, so it holds through hover. Pass the colour alone — never a `border` shorthand of
-   *  your own. */
+   *  shorthand, so it holds through hover. Pass ONE colour (the fold builds `1px solid <colour>`, so
+   *  a four-value `borderColor` would make the shorthand invalid) alone — never a `border`
+   *  shorthand of your own. */
   style?: CSSProperties
   /** FADED, NOT RECEDED (OB-072). `reveal={false}` is for a control that isn't
    *  relevant right now and goes fully invisible + untabbable; `disabled` is for
