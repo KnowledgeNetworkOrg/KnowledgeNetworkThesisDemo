@@ -2,7 +2,7 @@
 
 The question: could `oxlint` (a Rust linter) replace ESLint here, with nothing we
 rely on going dark? Not blocking #57. Decided on evidence, by running both tools
-over the same planted violations — not by comparing rule lists.
+over planted violations and over the real tree — not by comparing rule lists.
 
 **The answer is the first line of "Measured" below.** It is generated, not typed:
 `node tools/oxlint-spike/parity.mjs --write` runs both tools and rewrites that block.
@@ -22,15 +22,28 @@ The card describes the config as "the stock Vite template". It has grown past th
 | `react-refresh/only-export-components` | `reactRefresh.configs.vite`; switched off for `src/ds/**` and `tools/**` | `eslint.config.js` comments explain both exemptions |
 | `no-restricted-syntax` selectors: the host-shape ban (#211, all of `src/**`) and the raw-hex / raw-px bans (#61, three files) | custom esquery selectors written in `eslint.config.js` | the config comments (#211 is "the machine half" of a sentence in `src/platform/types.ts`); `design-handoff/PROTOCOL.md` lists the #61 bans as one of the two guards that exist |
 
-That is 34 `eslint-disable` comments in 24 files (counted 2026-10-01). Each sits on
-a line where an ESLint rule fires, so each is a free test of whether a second tool
-fires there too.
+That is 34 `eslint-disable` comments in 24 files (counted 2026-10-01). Each is meant
+to sit on a line where an ESLint rule fires, which would make each a free test of
+whether a second tool fires there too. That is assumed until the run checks it:
+ESLint only warns about an unused disable comment (so `npm run lint` passes with a
+stale one), and the script re-runs ESLint with `--no-inline-config` to find out which
+comments really cover a finding. A stale one is reported as stale and is not held
+against oxlint.
 
 ## The bar for "parity"
 
 Every row of the planted-violations table must fire in **oxlint's own built-in
-rules**. Three further conditions: every rule active in ESLint for a `src` file has
-a same-named oxlint rule, and oxlint reports none of the disable comments as unused.
+rules**. Five further conditions, all checked by the script:
+
+1. Every rule active in ESLint for a `src` file has a same-named oxlint rule.
+2. The config `@oxlint/migrate` writes from `eslint.config.js` carries every one of
+   those rules, without leaving ESLint plugins in it.
+3. For every disable comment where ESLint itself reports a finding on the covered
+   line, oxlint's rule of the same name fires on that same line.
+4. Every rule ESLint reports on the real tree (comments neutralised) is also reported
+   by oxlint.
+5. With the comments in place, oxlint reports nothing on the real tree that ESLint
+   does not — otherwise swapping the linters turns `npm run lint` red.
 
 Native rules only, because the card's step 3 drops the ESLint devDependencies. oxlint
 can load ESLint plugins and run them, but a setup that does so still needs the plugins
@@ -61,15 +74,29 @@ node tools/oxlint-spike/parity.mjs --write
   ESLint uses this repo's own `eslint.config.js`. An ESLint cell reading `SILENT`
   makes the verdict TEST INVALID: the planted code is wrong, and oxlint's column
   means nothing until it is fixed.
-- **B** compares rule *names* from `eslint --print-config` against `oxlint --rules`.
+- **B** compares rule *names* from `eslint --print-config` against `oxlint --rules`,
+  and then against the rules `@oxlint/migrate` actually wrote into the oxlint config.
   A same-named rule can still behave differently (the TypeScript flavour of
   `no-unused-vars` is the usual example), which is why A exists; B only finds rules
-  that are missing outright.
-- **C** runs oxlint over the real `src`, `tools` and `desktop` with unused-directive
-  reporting on. A comment oxlint calls unused is a rule that did not fire on that
-  line for oxlint, though it does for ESLint.
-- oxlint is installed into a temp folder and is not added to `package.json`. Pin the
-  version with `OXLINT_VERSION=1.2.3`; the run records the version it used.
+  that are missing outright or that the translation dropped.
+- **C** shows what `@oxlint/migrate` made of `eslint.config.js`: the ESLint plugins it
+  left in (stripped, since only native rules count) and the rules oxlint does not know
+  (dropped so the run can proceed), plus the tool's own output.
+- **D** is the card's "diff its findings against `eslint .`". ESLint runs over the real
+  tree plain and with `--no-inline-config`; oxlint runs the migrated config over two
+  copies of the repo's lintable files in a temp folder (one as is, one with every
+  `eslint-disable` rewritten so there is nothing to obey; the repo itself gains no
+  config file). It reports ESLint's own errors, warnings and unused-comment warnings;
+  a per-comment table (stale in ESLint / oxlint fires on the line / fires elsewhere in
+  the file / silent); findings per rule for both tools; and the files where they differ.
+  "Fires elsewhere in the file" is kept apart from "silent" on purpose: it means oxlint
+  has the rule but reports it on a different line than ESLint does, so the comment
+  would have to move — a different problem from a rule that is missing.
+- oxlint and `@oxlint/migrate` are installed into a temp folder and are not added to
+  `package.json`. Pin them with `OXLINT_VERSION=1.2.3` and
+  `OXLINT_MIGRATE_VERSION=1.2.3`; the run records the versions it used.
+- Exit code 2 means the script could not measure everything (a section above says
+  "Could not run") or the planted test is invalid; the verdict line says which.
 
 ## If the verdict is "keep ESLint"
 
@@ -92,5 +119,9 @@ move forecloses type-aware typescript-eslint rules later; the card names this co
 - It plants one violation per family, not one per rule. A rule that fires on the
   planted shape and misses a variant of it would not show up in A.
 - B is by name only, as above.
+- The script has not yet been run end to end (see "Measured"). The oxlint and
+  `@oxlint/migrate` command-line flags and the shape of oxlint's JSON output are
+  taken from their documentation, not exercised, so the first real run may need the
+  script itself fixed before its numbers mean anything.
 - It measures the oxlint version it installs, on the day it runs; the result is
   only as current as the stamp on the block.

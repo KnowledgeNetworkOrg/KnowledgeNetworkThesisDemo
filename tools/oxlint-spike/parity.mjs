@@ -2,43 +2,55 @@
 //
 // WHY THIS EXISTS. The card asks for a decision on evidence, and the evidence has to be
 // something anyone can reproduce, not a reading of two rule lists. Linting a tree that
-// already passes `eslint .` proves almost nothing — both tools report "clean" — so the
-// real test is to PLANT one violation per rule family this repo relies on and see which
-// tool says so. Three measurements, all of them native-only (see below):
+// already passes `eslint .` proves almost nothing on its own — both tools report "clean" —
+// so there are two kinds of measurement, all of them native-only (see below):
 //
-//   A. PLANTED VIOLATIONS. One tiny file per family, written to a scratch folder in the
-//      OS temp directory — never into the repo, so `npm run lint` can never see them.
-//      ESLint runs over it with THIS repo's `eslint.config.js` (so the scoped bans land
-//      on the paths they are scoped to); oxlint runs with every category and plugin on,
-//      the most generous setting there is. An ESLint cell that says "silent" means the
-//      planted code is wrong, not that ESLint is — the verdict is then TEST INVALID.
+//   A. PLANTED VIOLATIONS. One tiny file per family this repo relies on, written to a
+//      scratch folder in the OS temp directory — never into the repo, so `npm run lint`
+//      can never see them. ESLint runs over it with THIS repo's `eslint.config.js` (so the
+//      scoped bans land on the paths they are scoped to); oxlint runs with every category
+//      and plugin on, the most generous setting there is. An ESLint cell that says
+//      "silent" means the planted code is wrong, not that ESLint is — the verdict is then
+//      TEST INVALID.
 //   B. RULE INVENTORY. Every rule `eslint --print-config` says is active for a src .tsx
-//      file, checked by name against `oxlint --rules`. Names only: a same-named rule can
-//      still behave differently, which is exactly why A exists.
-//   C. DISABLE COMMENTS. The repo carries `eslint-disable` comments, each sitting on a
-//      line where an ESLint rule really fires. oxlint is run over the real tree with
-//      unused-directive reporting on; a directive it calls unused is a rule that is not
-//      firing there for oxlint.
+//      file, checked by name against `oxlint --rules`, and then against what
+//      `@oxlint/migrate` actually carried across from `eslint.config.js`. Names only: a
+//      same-named rule can still behave differently, which is why A exists.
+//   C. THE REAL TREE, TOOL AGAINST TOOL. The card's "diff its findings against
+//      `eslint .`". oxlint gets the config `@oxlint/migrate` writes from
+//      `eslint.config.js` — a setup comparable to ESLint's, where "every rule on" would
+//      be noise — and is run over a COPY of the repo's lintable files, because oxlint
+//      reads the config's per-folder overrides relative to where the config sits and the
+//      repo must not gain a config file. Two copies: one as it is, and one with every
+//      `eslint-disable` turned into `eslint_disable` (same line numbers, nothing to
+//      obey). ESLint runs over the real tree plain and with `--no-inline-config`. That
+//      gives, per rule and per file, what each tool reports with and without the
+//      repo's disable comments — and, for each comment, whether the rule it silences
+//      really fires on that line (ESLint) and whether oxlint's rule fires there too.
 //
 // NATIVE RULES ONLY. oxlint can also be pointed at ESLint plugins and run them, but that
 // keeps the ESLint packages installed, and the card's step 3 is to drop them. A rule that
-// only fires through an ESLint plugin is not parity.
+// only fires through an ESLint plugin is not parity; plugins in the migrated config are
+// stripped, and rules oxlint does not know are dropped, both recorded in the report.
 //
-// oxlint is installed into a temp folder and never added to package.json.
+// oxlint and @oxlint/migrate are installed into a temp folder and never added to
+// package.json.
 //
 // Run:  node tools/oxlint-spike/parity.mjs           — print the tables
 //       node tools/oxlint-spike/parity.mjs --write   — also write them into RESULTS.md
 //       node tools/oxlint-spike/parity.mjs --keep    — leave the temp folder for inspection
-// Env:  OXLINT_VERSION=1.2.3  pins the version (default: latest; the run records which)
-//       OXLINT_BIN=<path>     uses an oxlint launcher already on disk instead of installing
+// Env:  OXLINT_VERSION=1.2.3          pins oxlint (default: latest; the run records which)
+//       OXLINT_MIGRATE_VERSION=1.2.3  pins @oxlint/migrate (default: latest)
+//       OXLINT_BIN=<path>             uses an oxlint launcher already on disk
 // Needs `npm ci` first, for the repo's own ESLint. Exit 2 means the harness could not
-// measure (or the test is invalid); 0 means it measured, whatever the verdict is.
+// measure everything (or the planted test is invalid); 0 means it measured, whatever the
+// verdict is.
 import {
   closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync, writeFileSync,
 } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -51,11 +63,14 @@ const args = process.argv.slice(2)
 const WRITE = args.includes('--write')
 const KEEP = args.includes('--keep')
 const VERSION = process.env.OXLINT_VERSION ?? 'latest'
+const MIGRATE_VERSION = process.env.OXLINT_MIGRATE_VERSION ?? 'latest'
 
 const fail = (message) => { throw new Error(message) }
-const rel = (f) => f.replace(/\\/g, '/')
+const rel = (f) => f.replace(/\\/g, '/').replace(/^\.\//, '')
 const cell = (s) => String(s).replace(/\|/g, '\\|')
-const tail = (r) => ((r.stderr || r.stdout || '').trim().split('\n').slice(-8).join('\n'))
+const shortName = (id) => id.slice(id.lastIndexOf('/') + 1)
+const tail = (r, n = 8) =>
+  `${r.error ? `${r.error}\n` : ''}${(r.stderr || r.stdout || '').trim().split('\n').slice(-n).map((l) => l.slice(0, 300)).join('\n')}`
 
 // ---- the planted violations ---------------------------------------------------------
 // `eslint` decides whether a message from ESLint is the one we planted for; `oxlint` is
@@ -227,18 +242,50 @@ const isNodeScript = (file) => {
   return /^#!.*\bnode\b/.test(buf.toString('latin1'))
 }
 
-const installOxlint = (root) => {
-  if (process.env.OXLINT_BIN) return resolve(process.env.OXLINT_BIN)
-  const dir = join(root, 'oxlint')
+const launch = (launcher, a, cwd) => {
+  const [cmd, pre] = isNodeScript(launcher) ? [process.execPath, [launcher]] : [launcher, []]
+  return spawnSync(cmd, [...pre, ...a], { cwd, encoding: 'utf8', maxBuffer: 1 << 29 })
+}
+
+// oxlint is required; @oxlint/migrate is not — without it the real-tree comparison cannot
+// run, but the planted-violation table still can, so its failure is recorded, not thrown.
+const installTools = (root) => {
+  const dir = join(root, 'tools')
   mkdirSync(dir)
   writeFileSync(join(dir, 'package.json'), '{"private":true}\n')
-  const r = spawnSync(`npm install oxlint@${VERSION} --no-audit --no-fund --loglevel=error`, {
-    cwd: dir, shell: true, encoding: 'utf8',
-  })
-  if (r.status !== 0) fail(`could not install oxlint@${VERSION}:\n${tail(r)}`)
-  const pkgDir = join(dir, 'node_modules', 'oxlint')
-  const { bin } = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8'))
-  return join(pkgDir, typeof bin === 'string' ? bin : bin.oxlint)
+  const install = (spec) =>
+    spawnSync(`npm install ${spec} --no-audit --no-fund --loglevel=error`, { cwd: dir, shell: true, encoding: 'utf8' })
+  const installed = (name) => {
+    const pkgDir = join(dir, 'node_modules', ...name.split('/'))
+    const pkg = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8'))
+    const bin = typeof pkg.bin === 'string' ? pkg.bin : (pkg.bin?.[name] ?? Object.values(pkg.bin ?? {})[0])
+    if (!bin) fail(`${name} declares no executable`)
+    return { launcher: join(pkgDir, bin), version: pkg.version }
+  }
+
+  const tools = { oxlint: null, oxlintVersion: null, migrate: null, migrateVersion: null, migrateError: null }
+  if (process.env.OXLINT_BIN) {
+    tools.oxlint = resolve(process.env.OXLINT_BIN)
+  } else {
+    const r = install(`oxlint@${VERSION}`)
+    if (r.status !== 0) fail(`could not install oxlint@${VERSION}:\n${tail(r)}`)
+    const o = installed('oxlint')
+    tools.oxlint = o.launcher
+    tools.oxlintVersion = o.version
+  }
+  const m = install(`@oxlint/migrate@${MIGRATE_VERSION}`)
+  if (m.status !== 0) {
+    tools.migrateError = `could not install @oxlint/migrate@${MIGRATE_VERSION}:\n${tail(m)}`
+  } else {
+    try {
+      const o = installed('@oxlint/migrate')
+      tools.migrate = o.launcher
+      tools.migrateVersion = o.version
+    } catch (e) {
+      tools.migrateError = e.message
+    }
+  }
+  return tools
 }
 
 const diagnosticsOf = (r, what) => {
@@ -251,17 +298,189 @@ const diagnosticsOf = (r, what) => {
   return Array.isArray(parsed) ? parsed : (parsed.diagnostics ?? [])
 }
 
+// Both tools' findings reduced to the same shape: { file, line, rule } with the rule as
+// its short name ("exhaustive-deps"), whatever plugin or scope prefix each tool gives it.
+const fromOxlint = (diags) => {
+  const out = diags.map((d) => ({
+    file: rel(d.filename ?? ''),
+    line: d.labels?.[0]?.span?.line ?? 0,
+    rule: /\(([^)]+)\)\s*$/.exec(d.code ?? '')?.[1] ?? null,
+  }))
+  if (out.length && out.every((x) => !x.line)) {
+    fail('oxlint reported findings but its JSON carries no line numbers, so nothing can be matched to a disable comment')
+  }
+  return out
+}
+
+const eslintOnTree = (extra) => {
+  const r = spawnSync(process.execPath, [eslintBin, '.', '--format', 'json', ...extra], {
+    cwd: REPO, encoding: 'utf8', maxBuffer: 1 << 29,
+  })
+  let files
+  try { files = JSON.parse(r.stdout) } catch { fail(`eslint gave no JSON over the real tree (exit ${r.status}):\n${tail(r)}`) }
+  return files.flatMap((f) => f.messages.map((m) => ({
+    file: rel(relative(REPO, f.filePath)),
+    line: m.line ?? 0,
+    rule: m.ruleId ? shortName(m.ruleId) : null,
+    severity: m.severity,
+    unused: /^Unused eslint-disable directive/.test(m.message ?? ''),
+  })))
+}
+
 const severity = (v) => {
   const s = Array.isArray(v) ? v[0] : v
   return s === 'error' ? 2 : s === 'warn' ? 1 : s === 'off' ? 0 : Number(s)
 }
 
+const isOn = (v) => !['off', 'allow', 0, '0'].includes(Array.isArray(v) ? v[0] : v)
+
+// The same files `eslint .` reads: everything under the repo bar the folders ESLint (or
+// this repo's config) ignores.
 const walk = (dir, visit) => {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     if (['node_modules', '.venv', 'dist', '.git'].includes(e.name)) continue
     const p = join(dir, e.name)
     if (e.isDirectory()) walk(p, visit)
-    else if (/\.(ts|tsx|js|mjs)$/.test(e.name)) visit(p)
+    else if (/\.(ts|tsx|js|mjs|cjs)$/.test(e.name)) visit(p)
+  }
+}
+
+// A copy of the lintable tree. `neutralise` rewrites every `eslint-disable` to
+// `eslint_disable`: the same line numbers, so what a tool reports lines up with the
+// comment's target, and nothing for oxlint to obey.
+const copyTree = (dest, neutralise) => {
+  walk(REPO, (file) => {
+    const to = join(dest, relative(REPO, file))
+    mkdirSync(dirname(to), { recursive: true })
+    const text = readFileSync(file, 'utf8')
+    writeFileSync(to, neutralise ? text.replace(/eslint-disable/g, 'eslint_disable') : text)
+  })
+}
+
+// Every `eslint-disable…` comment in the real .ts/.tsx files, as the lines it silences:
+// `-next-line` is the line after the comment ENDS (several are multi-line block
+// comments), `-line` is its own line, and a plain `/* eslint-disable x */` runs to the
+// matching `eslint-enable` (or the end of the file).
+const readDirectives = () => {
+  const found = []
+  walk(REPO, (file) => {
+    if (!/\.tsx?$/.test(file)) return
+    const lines = readFileSync(file, 'utf8').split(/\r?\n/)
+    const events = []
+    lines.forEach((text, i) => {
+      const m = /(\/\/|\/\*)\s*eslint-(disable|enable)(-next-line|-line)?(?=\s|\*\/|$)(.*)$/.exec(text)
+      if (!m) return
+      let end = i
+      if (m[1] === '/*') {
+        while (end < lines.length - 1 && !lines[end].includes('*/', end === i ? m.index + 2 : 0)) end++
+      }
+      const rules = m[4].replace(/\*\/.*$/, '').split(/\s+--(?:\s|$)/)[0].split(',').map((s) => s.trim()).filter(Boolean)
+      events.push({ kind: m[2], scope: m[3] ?? '', rules: rules.length ? rules : ['*'], line: i + 1, end: end + 1 })
+    })
+    events.forEach((e, k) => {
+      if (e.kind !== 'disable') return
+      let from
+      let to
+      if (e.scope === '-next-line') {
+        from = to = e.end + 1
+      } else if (e.scope === '-line') {
+        from = to = e.line
+      } else {
+        from = e.end
+        to = Infinity
+        const closer = events.slice(k + 1).find((x) =>
+          x.kind === 'enable' && x.scope === '' && (x.rules.includes('*') || x.rules.some((r) => e.rules.includes(r))))
+        if (closer) to = closer.line
+      }
+      found.push({ file: rel(relative(REPO, file)), line: e.line, rules: e.rules, from, to })
+    })
+  })
+  return found
+}
+
+// ---- the real-tree comparison -------------------------------------------------------
+const countBy = (list, keep) => {
+  const m = new Map()
+  for (const x of list) {
+    if (!keep(x)) continue
+    const k = x.rule ?? '(no rule id)'
+    m.set(k, (m.get(k) ?? 0) + 1)
+  }
+  return m
+}
+
+// Where `a` has more findings of one (file, rule) than `b` does.
+const surplus = (a, b) => {
+  const tally = (list) => {
+    const m = new Map()
+    for (const x of list) {
+      const k = `${x.file}\u0000${x.rule ?? '(no rule id)'}`
+      m.set(k, (m.get(k) ?? 0) + 1)
+    }
+    return m
+  }
+  const bm = tally(b)
+  return [...tally(a)]
+    .map(([k, n]) => ({ file: k.split('\u0000')[0], rule: k.split('\u0000')[1], n: n - (bm.get(k) ?? 0) }))
+    .filter((x) => x.n > 0)
+    .sort((x, y) => y.n - x.n || x.file.localeCompare(y.file))
+}
+
+const summariseEslint = (esActive, esNeutral) => {
+  const real = esActive.filter((x) => !x.unused)
+  return {
+    errors: real.filter((x) => x.severity === 2).length,
+    warnings: real.filter((x) => x.severity !== 2).length,
+    unused: esActive.filter((x) => x.unused).length,
+    byRule: countBy(esActive, (x) => !x.unused),
+    suppressed: esNeutral.filter((x) => !x.unused).length,
+  }
+}
+
+const compareWithOxlint = ({ directives, esActive, esNeutral, oxActive, oxNeutral }) => {
+  const covers = (d, x) => x.file === d.file && x.line >= d.from && x.line <= d.to
+  const byRule = new Map()
+  let stale = 0
+  let confirmed = 0
+  let lost = 0
+  for (const d of directives) {
+    for (const raw of d.rules) {
+      const rule = raw === '*' ? '*' : shortName(raw)
+      const is = (x) => rule === '*' || x.rule === rule
+      let state
+      if (!esNeutral.some((x) => covers(d, x) && is(x))) state = 'stale'
+      else if (oxNeutral.some((x) => covers(d, x) && is(x))) state = 'fires'
+      else state = oxNeutral.some((x) => x.file === d.file && is(x)) ? 'elsewhere' : 'silent'
+      const t = byRule.get(rule) ?? { comments: 0, stale: 0, fires: 0, elsewhere: 0, silent: 0 }
+      t.comments++
+      t[state]++
+      byRule.set(rule, t)
+      if (state === 'stale') {
+        stale++
+      } else {
+        confirmed++
+        if (state !== 'fires') lost++
+      }
+    }
+  }
+
+  const esN = countBy(esNeutral, (x) => !x.unused)
+  const oxN = countBy(oxNeutral, () => true)
+  const perRule = [...new Set([...esN.keys(), ...oxN.keys()])]
+    .map((rule) => ({ rule, es: esN.get(rule) ?? 0, ox: oxN.get(rule) ?? 0 }))
+    .sort((a, b) => b.es - a.es || a.rule.localeCompare(b.rule))
+  const extra = surplus(oxActive, esActive.filter((x) => !x.unused))
+  return {
+    byRule,
+    stale,
+    confirmed,
+    lost,
+    perRule,
+    dark: perRule.filter((r) => r.es > 0 && r.ox === 0).map((r) => r.rule),
+    fewer: surplus(esNeutral.filter((x) => !x.unused), oxNeutral),
+    extra,
+    extraTotal: extra.reduce((a, x) => a + x.n, 0),
+    oxActiveTotal: oxActive.length,
   }
 }
 
@@ -269,6 +488,7 @@ const walk = (dir, visit) => {
 const measure = () => {
   if (!existsSync(eslintBin)) fail('eslint is not installed here — run `npm ci` first')
   if (!/^[\w.-]+$/.test(VERSION)) fail(`OXLINT_VERSION must look like 1.2.3 or latest, not "${VERSION}"`)
+  if (!/^[\w.-]+$/.test(MIGRATE_VERSION)) fail(`OXLINT_MIGRATE_VERSION must look like 1.2.3 or latest, not "${MIGRATE_VERSION}"`)
 
   const root = mkdtempSync(join(tmpdir(), 'oxlint-parity-'))
   try {
@@ -278,11 +498,8 @@ const measure = () => {
     const cfg = join(root, 'oxlintrc.json')
     writeFileSync(cfg, `${JSON.stringify(OXLINT_CONFIG, null, 2)}\n`)
 
-    const launcher = installOxlint(root)
-    const oxlint = (a, cwd) => {
-      const [cmd, pre] = isNodeScript(launcher) ? [process.execPath, [launcher]] : [launcher, []]
-      return spawnSync(cmd, [...pre, ...a], { cwd, encoding: 'utf8', maxBuffer: 1 << 29 })
-    }
+    const tools = installTools(root)
+    const oxlint = (a, cwd) => launch(tools.oxlint, a, cwd)
     // `-c` makes ESLint take its base path from the cwd, so the scratch files sit at
     // `src/...` exactly where the config's globs are written for the repo.
     const eslint = (a) =>
@@ -293,7 +510,8 @@ const measure = () => {
     const versions = {
       node: process.version,
       eslint: JSON.parse(readFileSync(join(REPO, 'node_modules', 'eslint', 'package.json'), 'utf8')).version,
-      oxlint: (oxlint(['--version'], scratch).stdout || '').replace(/^\s*(oxlint\s+)?version:?\s*/i, '').trim(),
+      oxlint: tools.oxlintVersion ?? (oxlint(['--version'], scratch).stdout || '').match(/\d+\.\d+\.\d+\S*/)?.[0] ?? 'unknown',
+      migrate: tools.migrateVersion ?? 'not installed',
     }
 
     // A. planted violations
@@ -320,8 +538,7 @@ const measure = () => {
       }
     })
 
-    // B. rule inventory
-    let inventory = null
+    // B. rule inventory — by name against oxlint, then against what migrate carried over
     const pc = eslint(['--print-config', 'src/plant-exhaustive-deps.tsx'])
     const rl = oxlint(['--rules', '-c', cfg], scratch)
     const oxRules = new Map()
@@ -331,56 +548,93 @@ const measure = () => {
       const name = cells[0].replace(/^\[([^\]]+)\]\([^)]*\)$/, '$1')
       oxRules.set(name, [...(oxRules.get(name) ?? []), cells[1]])
     }
+    let active = null
+    let inventory
     if (pc.status === 0 && oxRules.size > 0) {
-      const active = Object.entries(JSON.parse(pc.stdout).rules ?? {})
+      active = Object.entries(JSON.parse(pc.stdout).rules ?? {})
         .filter(([, v]) => severity(v) > 0)
         .map(([n]) => n)
-      const short = (n) => n.slice(n.lastIndexOf('/') + 1)
       inventory = {
         total: active.length,
         oxTotal: oxRules.size,
-        missing: active.filter((n) => !oxRules.has(short(n))),
+        missing: active.filter((n) => !oxRules.has(shortName(n))),
+        notMigrated: null,
       }
     } else {
       inventory = { unavailable: `eslint --print-config exit ${pc.status}; oxlint --rules listed ${oxRules.size} rules (exit ${rl.status})\n${tail(rl)}` }
     }
 
-    // C. disable comments, over the real tree
-    const directives = new Map()
-    for (const top of ['src', 'tools', 'desktop']) {
-      if (!existsSync(join(REPO, top))) continue
-      walk(join(REPO, top), (file) => {
-        for (const line of readFileSync(file, 'utf8').split('\n')) {
-          const m = /eslint-disable(?:-next-line|-line)?\s+([\w@/-]+)/.exec(line)
-          if (m) directives.set(m[1], (directives.get(m[1]) ?? 0) + 1)
-        }
-      })
-    }
-    let disables = null
-    const rr = oxlint([
-      '-c', cfg, '--format', 'json', '--report-unused-disable-directives',
-      '--ignore-pattern', '**/.venv/**', '--ignore-pattern', 'dist', 'src', 'tools', 'desktop',
-    ], REPO)
-    try {
-      const diags = diagnosticsOf(rr, 'the real tree')
-      const unusedBy = new Map()
-      for (const d of diags) {
-        const text = `${d.code ?? ''} ${d.message ?? ''}`
-        if (!/unused/i.test(text) || !/disable|directive/i.test(text)) continue
-        const lineNo = d.labels?.[0]?.span?.line
-        let rule = '(rule not read)'
-        try {
-          const src = readFileSync(resolve(REPO, d.filename), 'utf8').split('\n')[lineNo - 1] ?? ''
-          rule = /eslint-disable(?:-next-line|-line)?\s+([\w@/-]+)/.exec(src)?.[1] ?? rule
-        } catch { /* leave it unread */ }
-        unusedBy.set(rule, (unusedBy.get(rule) ?? 0) + 1)
+    // The config oxlint is given for the real-tree comparison: what @oxlint/migrate makes
+    // of eslint.config.js, restricted to native rules (see the header).
+    const migrate = () => {
+      if (!tools.migrate) fail(tools.migrateError)
+      const work = join(root, 'migrate')
+      mkdirSync(work)
+      const r = launch(tools.migrate, [join(REPO, 'eslint.config.js')], work)
+      const out = join(work, '.oxlintrc.json')
+      if (!existsSync(out)) {
+        fail(`@oxlint/migrate wrote no .oxlintrc.json (exit ${r.status}; the folder holds: ${readdirSync(work).join(', ') || 'nothing'})\n${tail(r, 12)}`)
       }
-      disables = { unusedBy }
+      const config = JSON.parse(readFileSync(out, 'utf8'))
+      const parts = [config, ...(config.overrides ?? [])]
+      const jsPlugins = parts
+        .flatMap((c) => c.jsPlugins ?? [])
+        .map((p) => (typeof p === 'string' ? p : (p.name ?? p.specifier ?? JSON.stringify(p))))
+      for (const c of parts) delete c.jsPlugins
+      // Only prune when the `--rules` parse is trustworthy (it knows a rule every oxlint has).
+      const pruned = []
+      if (oxRules.has('no-debugger')) {
+        for (const c of parts) {
+          for (const k of Object.keys(c.rules ?? {})) {
+            if (!oxRules.has(shortName(k))) {
+              pruned.push(k)
+              delete c.rules[k]
+            }
+          }
+        }
+      }
+      const carried = new Set(parts.flatMap((c) => Object.entries(c.rules ?? {}).filter(([, v]) => isOn(v)).map(([k]) => shortName(k))))
+      return { config, jsPlugins, pruned, carried, said: tail(r, 12) }
+    }
+    let migrated
+    try {
+      migrated = migrate()
     } catch (e) {
-      disables = { unavailable: e.message }
+      migrated = { unavailable: e.message }
+    }
+    if (migrated.carried && active) {
+      const missingSet = new Set(inventory.missing)
+      inventory.notMigrated = active.filter((n) => !migrated.carried.has(shortName(n)) && !missingSet.has(n))
     }
 
-    return { versions, rows, inventory, directives, disables }
+    // C. the real tree. ESLint's side does not need migrate, so it is measured first and
+    // stands on its own if oxlint's side cannot run.
+    let real
+    try {
+      const directives = readDirectives()
+      const esActive = eslintOnTree([])
+      const esNeutral = eslintOnTree(['--no-inline-config'])
+      real = { directives, es: summariseEslint(esActive, esNeutral), ox: null, oxError: null }
+      try {
+        if (migrated.unavailable) fail(migrated.unavailable)
+        const onCopy = (neutral) => {
+          const dir = join(root, neutral ? 'tree-neutral' : 'tree-plain')
+          copyTree(dir, neutral)
+          writeFileSync(join(dir, '.oxlintrc.json'), `${JSON.stringify(migrated.config, null, 2)}\n`)
+          const r = oxlint(['-c', '.oxlintrc.json', '--format', 'json', '.'], dir)
+          return fromOxlint(diagnosticsOf(r, `the ${neutral ? 'comment-neutralised' : 'plain'} copy of the real tree`))
+        }
+        const oxActive = onCopy(false)
+        const oxNeutral = onCopy(true)
+        real.ox = compareWithOxlint({ directives, esActive, esNeutral, oxActive, oxNeutral })
+      } catch (e) {
+        real.oxError = e.message
+      }
+    } catch (e) {
+      real = { unavailable: e.message }
+    }
+
+    return { versions, rows, inventory, migrated, real }
   } finally {
     if (KEEP) console.error(`kept ${root}`)
     else rmSync(root, { recursive: true, force: true })
@@ -388,62 +642,111 @@ const measure = () => {
 }
 
 // ---- the report ---------------------------------------------------------------------
-const report = ({ versions, rows, inventory, directives, disables }) => {
+const listed = (items, show = 15) => [
+  ...items.slice(0, show).map((x) => `- \`${x.file}\` — \`${x.rule}\`: ${x.n}`),
+  ...(items.length > show ? [`- … and ${items.length - show} more`] : []),
+]
+
+const report = ({ versions, rows, inventory, migrated, real }) => {
   const invalid = rows.filter((r) => !r.eslintHit)
   const silent = rows.filter((r) => !r.oxHit)
   const missing = inventory.missing ?? []
-  const unusedTotal = disables.unusedBy ? [...disables.unusedBy.values()].reduce((a, b) => a + b, 0) : null
-  const incomplete = !!inventory.unavailable || !!disables.unavailable
+  const notMigrated = inventory.notMigrated ?? []
+  const cmp = real.ox
+  const incomplete = !!(inventory.unavailable || real.unavailable || real.oxError)
 
   let verdict
   if (invalid.length) {
     verdict = `TEST INVALID — ESLint did not report the planted violation for: ${invalid.map((r) => r.key).join(', ')}. The planted code or the harness is wrong, not oxlint.`
-  } else if (silent.length || missing.length || unusedTotal > 0) {
-    const bits = []
-    if (silent.length) bits.push(`${silent.length} of ${rows.length} planted violations oxlint does not report (${silent.map((r) => r.key).join(', ')})`)
-    if (missing.length) bits.push(`${missing.length} active ESLint rules with no same-named oxlint rule`)
-    if (unusedTotal > 0) bits.push(`${unusedTotal} of ${[...directives.values()].reduce((a, b) => a + b, 0)} disable comments oxlint calls unused`)
-    verdict = `KEEP ESLINT — ${bits.join('; ')}.`
-  } else if (incomplete) {
-    verdict = 'INCONCLUSIVE — every planted violation fires in both tools, but the inventory or the disable-comment check could not run (see below).'
   } else {
-    verdict = `PARITY HOLDS — all ${rows.length} planted violations fire in both tools, every active ESLint rule has a same-named oxlint rule, and no disable comment is reported unused.`
+    const gaps = []
+    if (silent.length) gaps.push(`${silent.length} of ${rows.length} planted violations oxlint does not report (${silent.map((r) => r.key).join(', ')})`)
+    if (missing.length) gaps.push(`${missing.length} active ESLint rules with no same-named oxlint rule`)
+    if (notMigrated.length) gaps.push(`${notMigrated.length} active ESLint rules that @oxlint/migrate did not carry into the oxlint config`)
+    if (migrated.jsPlugins?.length) gaps.push(`@oxlint/migrate left ${migrated.jsPlugins.length} ESLint plugin(s) in the config (${migrated.jsPlugins.join(', ')}), which would have to stay installed`)
+    if (cmp?.dark.length) gaps.push(`${cmp.dark.length} rules ESLint reports on the real tree that oxlint does not (${cmp.dark.join(', ')})`)
+    if (cmp?.lost > 0) gaps.push(`${cmp.lost} of ${cmp.confirmed} disable comments sit where ESLint's rule fires but oxlint's does not fire on that line`)
+    if (cmp?.extraTotal > 0) gaps.push(`oxlint reports ${cmp.extraTotal} findings on the real tree that ESLint does not`)
+    if (gaps.length) {
+      verdict = `KEEP ESLINT — ${gaps.join('; ')}.`
+    } else if (incomplete) {
+      verdict = 'INCONCLUSIVE — every planted violation fires in both tools, but the inventory or the real-tree comparison could not run (see below).'
+    } else {
+      verdict = `PARITY HOLDS — all ${rows.length} planted violations fire in both tools, every active ESLint rule is carried into the oxlint config, every disable comment's rule fires on its line in both, and the two tools agree on the real tree.`
+    }
   }
 
   const md = []
   md.push(`**Verdict: ${verdict}**`, '')
-  md.push(`Measured ${new Date().toISOString().slice(0, 10)} with oxlint ${versions.oxlint || 'unknown'}, eslint ${versions.eslint}, node ${versions.node}.`, '')
+  md.push(`Measured ${new Date().toISOString().slice(0, 10)} with oxlint ${versions.oxlint}, @oxlint/migrate ${versions.migrate}, eslint ${versions.eslint}, node ${versions.node}.`, '')
 
   md.push('#### A. One planted violation per rule family', '')
   md.push('| family | what is planted | ESLint (this repo\'s config) | oxlint (native rules, everything on) |', '| --- | --- | --- | --- |')
   for (const r of rows) md.push(`| ${cell(r.key)} | ${cell(r.what)} | ${cell(r.eslintCell)} | ${cell(r.oxCell)} |`)
   md.push('')
 
-  md.push('#### B. Active ESLint rules that oxlint has no same-named rule for', '')
+  md.push('#### B. Active ESLint rules oxlint cannot run, or that the migrated config dropped', '')
   if (inventory.unavailable) {
     md.push(`Could not run: ${inventory.unavailable}`)
   } else {
-    md.push(`ESLint has ${inventory.total} rules active for a \`src\` .tsx file; oxlint lists ${inventory.oxTotal} rules. ${missing.length ? 'Without a same-named oxlint rule:' : 'Every active ESLint rule has a same-named oxlint rule.'}`, '')
+    md.push(`ESLint has ${inventory.total} rules active for a \`src\` .tsx file; oxlint lists ${inventory.oxTotal} rules.`, '')
+    md.push(missing.length ? 'No same-named oxlint rule exists for:' : 'Every active ESLint rule has a same-named oxlint rule.')
     for (const n of missing) md.push(`- \`${n}\``)
+    md.push('')
+    if (inventory.notMigrated) {
+      md.push(notMigrated.length ? 'oxlint has the rule, but `@oxlint/migrate` did not put it in the config it wrote:' : 'Every other active ESLint rule is in the config `@oxlint/migrate` wrote.')
+      for (const n of notMigrated) md.push(`- \`${n}\``)
+    } else {
+      md.push(`Whether the migrated config carries them: not checked (${migrated.unavailable ?? 'no migrated config'}).`)
+    }
   }
   md.push('')
 
-  md.push('#### C. `eslint-disable` comments in the real tree, run through oxlint', '')
-  if (disables.unavailable) {
-    md.push(`Could not run: ${disables.unavailable}`)
+  md.push('#### C. The config `@oxlint/migrate` made from `eslint.config.js`', '')
+  if (migrated.unavailable) {
+    md.push(`Could not run: ${migrated.unavailable}`)
   } else {
-    md.push('| rule named in the comment | comments in the tree | oxlint reports unused |', '| --- | ---: | ---: |')
-    for (const [rule, n] of [...directives].sort((a, b) => b[1] - a[1])) {
-      md.push(`| \`${cell(rule)}\` | ${n} | ${disables.unusedBy.get(rule) ?? 0} |`)
-    }
-    const other = [...disables.unusedBy].filter(([rule]) => !directives.has(rule))
-    for (const [rule, n] of other) md.push(`| \`${cell(rule)}\` (not matched above) | — | ${n} |`)
+    md.push(`ESLint plugins it left in the config (stripped here — native rules only): ${migrated.jsPlugins.length ? migrated.jsPlugins.map((p) => `\`${p}\``).join(', ') : 'none'}.`, '')
+    md.push(`Rules in it that oxlint does not know (dropped so the run could proceed): ${migrated.pruned.length ? migrated.pruned.map((p) => `\`${p}\``).join(', ') : 'none'}.`, '')
+    md.push('What the tool printed:', '', '```', migrated.said || '(nothing)', '```')
   }
-  return { markdown: md.join('\n'), verdict, invalid: invalid.length > 0 }
+  md.push('')
+
+  md.push('#### D. The real tree, ESLint against oxlint', '')
+  if (real.unavailable) {
+    md.push(`Could not run: ${real.unavailable}`)
+  } else {
+    const es = real.es
+    const files = new Set(real.directives.map((d) => d.file)).size
+    md.push(`ESLint over the real tree (\`eslint .\`, comments in place): ${es.errors} errors, ${es.warnings} warnings, and ${es.unused} of its own "unused eslint-disable" warnings. With the comments ignored (\`--no-inline-config\`) it reports ${es.suppressed} findings — that is what the repo's ${real.directives.length} \`eslint-disable\` comments in ${files} files are holding back.`, '')
+    if (es.byRule.size) {
+      md.push(`ESLint's own findings by rule: ${[...es.byRule].map(([r, n]) => `\`${r}\` ${n}`).join(', ')}.`, '')
+    }
+    if (real.oxError) {
+      md.push(`oxlint's side could not run: ${real.oxError}`)
+    } else {
+      md.push('**Each comment, checked against both tools.** A comment is *stale* when ESLint itself reports nothing on the line it covers (not oxlint\'s fault, and left out of the verdict). Otherwise the question is whether oxlint\'s rule of the same name fires on that line, with the comment neutralised.', '')
+      md.push('| rule named in the comments | comments | stale (ESLint finds nothing there) | oxlint fires on that line | oxlint fires elsewhere in the file | oxlint silent |', '| --- | ---: | ---: | ---: | ---: | ---: |')
+      for (const [rule, t] of [...cmp.byRule].sort((a, b) => b[1].comments - a[1].comments)) {
+        md.push(`| \`${cell(rule)}\` | ${t.comments} | ${t.stale} | ${t.fires} | ${t.elsewhere} | ${t.silent} |`)
+      }
+      md.push('')
+      md.push('**Findings per rule over the whole tree, comments neutralised in both tools.**', '')
+      md.push('| rule | ESLint | oxlint (migrated config) |', '| --- | ---: | ---: |')
+      for (const r of cmp.perRule) md.push(`| \`${cell(r.rule)}\` | ${r.es} | ${r.ox} |`)
+      md.push('')
+      md.push(cmp.fewer.length ? 'Per file, where ESLint reports more than oxlint (comments neutralised):' : 'No file where ESLint reports more than oxlint (comments neutralised).')
+      md.push(...listed(cmp.fewer))
+      md.push('')
+      md.push(`oxlint over the real tree with the comments in place reports ${cmp.oxActiveTotal} findings; ${cmp.extraTotal} of them are ones ESLint does not report.`)
+      md.push(...listed(cmp.extra))
+    }
+  }
+  return { markdown: md.join('\n'), verdict, failed: invalid.length > 0 || incomplete }
 }
 
 try {
-  const { markdown, invalid } = report(measure())
+  const { markdown, failed } = report(measure())
   console.log(markdown)
   if (WRITE) {
     const text = readFileSync(RESULTS, 'utf8')
@@ -453,7 +756,7 @@ try {
     writeFileSync(RESULTS, `${text.slice(0, a + BEGIN.length)}\n${markdown}\n${text.slice(b)}`)
     console.error(`wrote the tables into ${RESULTS}`)
   }
-  if (invalid) process.exitCode = 2
+  if (failed) process.exitCode = 2
 } catch (e) {
   console.error(e.message)
   process.exitCode = 2
