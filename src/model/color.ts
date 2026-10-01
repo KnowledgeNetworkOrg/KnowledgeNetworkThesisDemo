@@ -433,7 +433,7 @@ export const fillOf = (id: string): string => fillMap.get(id) ?? FALLBACK.fill
 /** the map's territory fill — the family's ring hue (±6°), in one of five
  *  lightness/chroma slots chosen by real geometric adjacency (see header) so
  *  touching regions are never confusable and never leave the family. Map-only:
- *  other `fillOf` consumers (ConnectionsPane) are unaffected. */
+ *  other `fillOf` consumers are unaffected. */
 export const territoryFillOf = (id: string): string => territoryFillMap.get(id) ?? FALLBACK.fill
 /** which of the five family slots a map region was given — null for a domain
  *  (which takes its own anchor) or an unknown id. Published for the audit that

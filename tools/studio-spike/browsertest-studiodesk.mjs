@@ -95,8 +95,8 @@ const fail = (msg) => {
 
 const LENS_TYPES = ['depends_on', 'see_also', 'uses']
 // The Studio header's focus readout. Scoped to the header because the
-// Connections pane now publishes data-focus too, which made a bare
-// [data-focus] locator a strict-mode violation.
+// (since retired, #339) Connections pane published data-focus too, which made a bare
+// [data-focus] locator a strict-mode violation — and another pane may again.
 const focusReadout = page.locator('[aria-label="studio-header"] [data-focus]')
 
 /** Step the map to a containment level. The old `nested-level-N` button row went
@@ -156,13 +156,13 @@ await page.waitForTimeout(600)
 const sidebar = page.locator('[aria-label="studio-sidebar"]')
 if (!(await sidebar.isVisible())) fail('sidebar not visible')
 
-// 15 views + one generated lens per relation type (4) = 19 rows. A DELIBERATE
+// 14 views + one generated lens per relation type (4) = 18 rows. A DELIBERATE
 // tripwire, not a fact about the registry: registering or retiring an instrument
 // is supposed to fail here once, so the change is acknowledged rather than
-// absorbed. It last moved on 2026-09-07 when the Tree panel was retired (#265).
+// absorbed. It last moved on 2026-09-30 when the Connections pane was retired (#339).
 const instCount = await page.locator('[aria-label^="studio-inst-"]').count()
-console.log('sidebar instruments =', instCount, '(expect 19)')
-if (instCount !== 19) fail(`expected 19 instrument entries, got ${instCount}`)
+console.log('sidebar instruments =', instCount, '(expect 18)')
+if (instCount !== 18) fail(`expected 18 instrument entries, got ${instCount}`)
 
 const presetCount = await page.locator('[aria-label^="studio-preset-"]').count()
 console.log('sidebar presets =', presetCount, '(expect 3 — teaching, cockpit, authoring)')
@@ -355,19 +355,20 @@ const slots = async () =>
 const paneSlots = await slots()
 const slotOf = (inst) => paneSlots[inst] === 'on'
 const mapOn = slotOf('map')
-const connOn = slotOf('connections')
 const docOn = slotOf('document')
 const contoursOn = slotOf('contours')
 const depsOn = slotOf('lens-depends_on')
 const refsOn = slotOf('lens-see_also')
 const dataflowOn = slotOf('lens-uses')
 console.log(
-  'explore preset: map=', mapOn, 'connections=', connOn, 'doc=', docOn,
+  'explore preset: map=', mapOn, 'doc=', docOn,
   '(all expect true) · off and benched: contours=', contoursOn, '· lenses=', depsOn, refsOn, dataflowOn,
 )
-if (!(mapOn && connOn && docOn)) fail('the explore preset did not activate map/connections/document')
+if (!(mapOn && docOn)) fail('the explore preset did not activate map/document')
+// #339 retired the connections pane: it is not benched, it is not registered at all
+if ('connections' in paneSlots) fail('the retired connections pane still has a slot on the desk')
 if (depsOn || refsOn || dataflowOn || contoursOn) fail('the explore preset left a hand-added pane active (all should be benched)')
-if (!(mapOn && connOn && docOn)) console.log('  panes seen:', JSON.stringify(paneSlots))
+if (!(mapOn && docOn)) console.log('  panes seen:', JSON.stringify(paneSlots))
 
 // BENCHED, NOT UNMOUNTED — the distinction scenario 9 depends on. A pane the
 // preset does not name keeps its DOM (and so its state); it is only switched off.
@@ -515,13 +516,14 @@ console.log('09-roundtrip.png taken')
 // button in the walk header, and a step-card click panning at constant zoom.
 // The bus has since narrowed which events may move a camera to exactly one
 // (bus.ts: "A LOOK — the one channel that MAY move a camera", published by
-// clicks in the Connections pane, explicitly never by hover). The ⤢ button
+// clicks in the Connections pane — retired since #339 — explicitly never by hover). The ⤢ button
 // no longer exists anywhere in src/, and neither an unfold open nor "teach me
 // this" nor a walk step moves the camera any more — which is why the camera
 // assertions in scenarios 7 and 8 came out with this one.
 //
-// The surviving camera contract IS covered: browsertest-mapconnections.mjs drives the
-// Connections pane and asserts the look-flight and its hover non-interference.
+// The look-flight was covered by browsertest-mapconnections.mjs driving the Connections
+// pane. With that pane retired (#339) the Explorer rail's row click publishes no look;
+// mapconnections now REPORTS whether the camera moved, and #404 asks whether it should.
 
 // ── 11. below the topic grain: the lenses say so, and say it honestly ──────
 // This used to expand the cs flagship spine in the Tree panel row by row to reach

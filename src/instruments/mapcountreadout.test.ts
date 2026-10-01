@@ -10,8 +10,8 @@ import { territories } from '../model/nested'
  * tooltip prints `subtreeCount(root)` — every descendant, the root excluded. Asserted on the real
  * corpus, not a fixture. */
 
-/** the connections pane's own tree shape (ConnectionsPane.buildContainTree), built here from the
- *  corpus so the assertion runs in the model layer */
+/** the Explorer rail's tree shape (`CORPUS_TREE` in corpustree.ts — once the retired connections
+ *  pane's `buildContainTree`), built here from the corpus so the assertion runs in the model layer */
 function tree(id: string): ContainNode {
   const kids = childrenOf.get(id) ?? []
   const node: ContainNode = { id, title: byId.get(id)!.title }

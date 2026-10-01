@@ -1,7 +1,7 @@
 // THE CORPUS ADAPTERS THE EXPLORER RAIL READS — the containment tree and the preview's one-line
 // summary, moved out of `ConnectionsPane` when the rail mounted on the map (#341, OB-238): two
-// hosts read the same tree now, and two copies are how the two ends of the dissolution would
-// drift. This is instruments-layer (it imports the DS for the `ContainNode` type it builds and
+// hosts read the same tree then, and two copies are how the two ends of the dissolution would
+// have drifted. (#339 has since retired that pane; the rail and the Document pane read it.) This is instruments-layer (it imports the DS for the `ContainNode` type it builds and
 // the corpus for the data it reads), so it belongs to no single instrument.
 import type { ContainNode } from '@/ds'
 

@@ -13,7 +13,8 @@
 // reads what the browser actually computed.
 //
 // THE SWEEP IS OVER EVERY ELEMENT, not a list of selectors. Five relation colours are
-// read by the map's arrows, the connections pane's curves and arrowheads, the lens
+// read by the map's arrows, the Relations rail's figure (the connections pane's curves
+// and arrowheads until #339 retired it), the lens
 // pane's lines, the flat SVG, and every legend swatch in all of them — a list would
 // go stale the first time one of those moved. So the page is asked the direct
 // question instead: is any drawn colour, anywhere, one of the five raw hexes?
@@ -35,7 +36,8 @@ const PORT = 5226
 // column was taken from Tailwind in the first place — so the app paints that exact
 // rgb in places that have nothing to do with relations: `text-slate-400` on ordinary
 // chrome, and three hardcoded literals found by the first run of this file
-// (ConnectionsPane.tsx:958 and :1086, both neutral leader lines, and LensPane.tsx:311,
+// (ConnectionsPane.tsx:958 and :1086 — that file deleted since, #339 — both neutral leader
+// lines, and LensPane.tsx:311,
 // a frontier label's ink). Forbidding the value outright would make this test claim
 // "no relation is drawn raw" while actually asserting "nobody uses slate-400", which
 // is a different and false claim.
@@ -116,7 +118,7 @@ const found = new Map()
 let swept = 0
 
 // three presets, because the relation colours live on different instruments: the
-// map draws arrows, connections draws curves and swatches, explore composes both
+// map draws arrows, the document's Relations rail draws its figure, explore composes both
 for (const preset of ['plan', 'explore', 'present']) {
   await page.getByLabel(`studio-preset-${preset}`).click()
   await page.waitForTimeout(700)
