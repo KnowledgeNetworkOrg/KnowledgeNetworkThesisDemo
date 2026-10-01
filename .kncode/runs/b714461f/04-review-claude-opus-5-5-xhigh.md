@@ -1,0 +1,15 @@
+MINOR
+
+**Must fix:**
+none
+
+The change does what the card asks. The edge-following explorer (the "Walk" pane, where you click from topic to topic along real links) now keeps its path on its own separate channel in the shared state hub (the "bus"). It can no longer replace the walk the editor published, which is the route the map draws. The rule is written at the top of `src/state/bus.ts`. The bus no longer offers any pane a way to publish a plain route. The wrong "three writers" comment in `src/state/walk/playback.ts` is fixed. A new browser test asserts the card's "done when" line.
+
+**Optional:**
+
+1. **The hidden "teach me this" action now opens the wrong pane** (`src/state/bus.ts:354-360`). It builds a prerequisite curriculum, puts it on the route, and then opens the explorer pane (`reveal('walk')`), so you could see the curriculum laid out step by step. The explorer no longer shows the route, so after this change "teach" would open an explorer that is blank, or showing some earlier exploration, instead of the curriculum. Nothing can call "teach" today because its button was removed, so nobody can see this yet. But the card warns it "becomes live again the moment anything calls it." A one-line follow-up would drop or change that reveal, and drop `'walk'` from the list of panes the bus may open (`BusRevealTarget`, `bus.ts:141`) if nothing else needs it.
+2. **The new rule in the header leaves out one place that starts saved walks** (`src/state/bus.ts:27-28`). It says a saved walk is "reached from the trail or a playback seek." But the document pane's "walks through here" cards also start one (`src/instruments/DocumentPanel.tsx:260`, calling `bus.activateWalk`), and that pane sits in all three layouts. The rule itself is still right, since saved-walk activation is listed as an allowed writer. Only this list of callers is incomplete, which is the same kind of mistake the card asked to fix in the playback comment.
+
+Verified this session: typecheck clean, lint clean, all 845 unit tests pass (61 files, which includes the guard that checks every browser test's page hooks still exist), and the new browser test passes all 12 checks. The map stayed at 7 stops and 3 pins while the explorer's path grew from 0 to 1 to 2 steps, and clearing the explorer emptied only the explorer. The test's network port (5266) is not used by any other test. Only the four planned files changed.
+
+Assumptions: The explorer no longer mirrors the editor's route, a saved walk or a curriculum when you open it; it starts blank. I treated that as an intended part of the card's preferred fix (Option 2), not a regression. I did not temporarily undo the change to watch the new test fail; I may not edit files in this step. Reading the test, it would fail against the old code: the old pane has no hook saying how long the explorer's path is, so the "starts empty" check fails, and the click that follows has no start buttons to find.
