@@ -175,6 +175,10 @@ describe('storage never throws', () => {
     expect('pkt.lecture.notes.v1:draft' in store).toBe(false)
     expect('pkt.lecture.categories.v1' in store).toBe(false)
     expect('pkt.lecture.habits.v1' in store).toBe(false)
+    // the moved bytes must be re-readable: categories are stored wrapped in
+    // `{list}`, so committing the parsed bare list would make the next read
+    // report the store's own fresh write as corrupt (#170)
+    expect(loadMintedCategories()).toHaveLength(1)
   })
 
   it('shape-guards the habits it reads instead of handing them on unchecked', () => {

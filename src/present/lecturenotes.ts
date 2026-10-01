@@ -149,7 +149,11 @@ function loadWithLegacy<T>(key: string, legacyKey: string | null, spec: Persiste
   if (legacyKey) {
     const legacy = decodeStored(legacyKey, spec)
     if (legacy.data !== undefined) {
-      writePersisted(key, spec.version, legacy.data)
+      // Commit the value as it was STORED, not as `parse` returned it — the same
+      // rule `readPersisted` follows. Otherwise a store whose parse unwraps writes
+      // back a shape its own reader rejects (categories: stored `{list}`, read as a
+      // bare list) and loses the data on the next load (#170).
+      writePersisted(key, spec.version, legacy.writeBack === undefined ? legacy.data : legacy.writeBack)
       removePersisted(legacyKey)
       return legacy.data
     }
