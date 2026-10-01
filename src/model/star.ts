@@ -10,7 +10,7 @@
 
 import { byId, domainIds, domainOf, pathTo, topicIds, topicsUnder } from '../corpus/graph'
 import type { EdgeType, GEdge } from '../corpus/graph'
-import { edgesTouching, leafPos, provinceIds, provinceOf } from './flat'
+import { centroidOf, edgesTouching, leafPos, provinceIds, provinceOf } from './flat'
 import type { XY } from './derive'
 import { EDGE_TYPES } from './nav'
 
@@ -141,14 +141,9 @@ export function starFor(currentId: string): Star {
 // same ids — and a summary node IS a region while every card's target is a topic.
 // Deleted rather than left unreachable. Its shape and the reasoning are on #290.
 
-// Region centres — the raw centroids the map's roads leave from (mirrors
-// atlas.ts:38-39). Recomputed here, not imported, to keep star a self-contained
-// pure model; the formula is identical, so a region lands on the same bearing in
-// both views.
-const centroidOf = (ids: string[]): XY => ({
-  x: ids.reduce((s, id) => s + leafPos[id].x, 0) / ids.length,
-  y: ids.reduce((s, id) => s + leafPos[id].y, 0) / ids.length,
-})
+// Region centres — the raw centroids the map's roads leave from. Shared with
+// atlas.ts (flat.ts's centroidOf), so a region lands on the same bearing in both
+// views.
 const regionCenter = new Map<string, XY>([
   ...domainIds.map((d) => [d, centroidOf(topicIds.filter((t) => domainOf(t) === d))] as const),
   ...provinceIds.map((m) => [m, centroidOf(topicIds.filter((t) => provinceOf(t) === m))] as const),

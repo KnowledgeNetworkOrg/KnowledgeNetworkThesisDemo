@@ -9,7 +9,7 @@
 // filtration. CNM community detection stays exported for Contours, which
 // draws detected-vs-authored disagreement over the same positions.
 
-import { byId, childrenOf, domainIds, domainOf, edges, pathTo, topicHueOf, topicIds, topicsUnder } from '../corpus/graph'
+import { byId, childrenOf, domainIds, domainOf, edges, pathTo, topicHueOf, topicIds } from '../corpus/graph'
 import { topicPaintValues } from '@/ds/values'
 import { oklchToHex } from './oklab'
 import type { GEdge } from '../corpus/graph'
@@ -121,7 +121,6 @@ function detectCommunities(): { groups: string[][]; Q: number } {
 }
 
 const detected = detectCommunities()
-export const modularityQ = detected.Q
 export const communities: string[][] = detected.groups
 export const communityOf = new Map<string, number>()
 communities.forEach((members, ci) => members.forEach((id) => communityOf.set(id, ci)))
@@ -372,29 +371,13 @@ function embed(): Record<string, XY> {
 }
 export const leafPos: Record<string, XY> = embed()
 
-// ── Max-weight spanning tree: the "road network" ZMLT filters along ─────────
-function maxSpanningTree(): Pair[] {
-  const sorted = [...pairs].sort((x, y) => y.w - x.w || pairKey(x.a, x.b).localeCompare(pairKey(y.a, y.b)))
-  const parent = new Map<string, string>(topicIds.map((id) => [id, id]))
-  const find = (x: string): string => {
-    while (parent.get(x) !== x) {
-      parent.set(x, parent.get(parent.get(x)!)!)
-      x = parent.get(x)!
-    }
-    return x
-  }
-  const out: Pair[] = []
-  for (const p of sorted) {
-    const ra = find(p.a)
-    const rb = find(p.b)
-    if (ra === rb) continue
-    parent.set(ra, rb)
-    out.push(p)
-    if (out.length === topicIds.length - 1) break
-  }
-  return out
-}
-export const treePairs: Pair[] = maxSpanningTree()
+/** The centre of a set of places: the mean of their map positions, the raw
+ *  centroid the map's region labels and road anchors are placed from (atlas.ts
+ *  and the relations star, star.ts). */
+export const centroidOf = (ids: string[]): XY => ({
+  x: ids.reduce((s, id) => s + leafPos[id].x, 0) / ids.length,
+  y: ids.reduce((s, id) => s + leafPos[id].y, 0) / ids.length,
+})
 
 /** Push overlapping ghost labels apart vertically (group/country names). */
 export function spreadLabels<T extends XY>(labels: T[]): T[] {
@@ -504,15 +487,8 @@ export const topicAnchorOf = (id: string): string => {
   return cur?.id ?? id
 }
 
-// ── Capitals and provinces: what the shallow zoom levels may name ───────────
-/** the busiest topic under a container — the one place named from afar */
-const capitalUnder = (id: string): string => {
-  const ts = topicsUnder(id)
-  return ts.reduce((best, t) => (degreeOf.get(t)! > degreeOf.get(best)! ? t : best), ts[0])
-}
-export const domainCapital = new Map(domainIds.map((d) => [d, capitalUnder(d)]))
+// ── Provinces: what the shallow zoom levels may name ────────────────────────
 /** provinces = the domains' direct modules (nested branches count under their module) */
 export const provinceIds = domainIds.flatMap((d) => (childrenOf.get(d) ?? []).map((m) => m.id))
-export const provinceCapital = new Map(provinceIds.map((m) => [m, capitalUnder(m)]))
 /** the province a topic renders under: its depth-3 ancestor */
 export const provinceOf = (id: string): string => pathTo(id)[2]
