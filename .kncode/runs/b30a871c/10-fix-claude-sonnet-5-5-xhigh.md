@@ -1,7 +1,0 @@
-1. Fixed. The test that guards the map's breadcrumb bar no longer fails on the map file's own comment. I narrowed its pattern so it only matches the old code form, `(FIRST_ROW_PAD - 1)` in parentheses. The comment quotes the same expression without parentheses, so it no longer trips the check. The test's other line, which requires the padding to be exactly `FIRST_ROW_PAD`, still catches a subtraction written any other way.
-
-**What I did and checked.** The reviewer was right. The test reads the map file as raw text, comments included, and the comment above the breadcrumb bar quoted the old padding. I changed one line in `src/firstline.test.ts` and added a two-line note there explaining why the pattern is narrow.
-
-I did not run the test through vitest, because this checkout has no packages installed, and installing them is outside what this step allows. Instead I ran the old and new patterns against the real map file with plain Node. The old pattern matched, which is the failure the reviewer described. The new pattern did not match. The positive check that the padding line reads `FIRST_ROW_PAD + 'px var(--space-3) 5px'` still found its line. That shows the specific clash is gone, but the full unit suite has not run yet, so the check step is the first real run.
-
-Assumptions: I took the reviewer's recommendation to narrow the pattern rather than reword the comment, because the repo's comments often record what a line used to be. I left all the Optional items alone, as allowed.
