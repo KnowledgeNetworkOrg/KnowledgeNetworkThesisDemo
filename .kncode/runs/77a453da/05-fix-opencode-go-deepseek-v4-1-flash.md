@@ -1,8 +1,0 @@
-Both Must fix findings are resolved. Verified with the guard test (2 passing) and `tsc -b` (clean).
-
-1. **fixed** — `familyOf` in `src/model/color.ts` now carries a reason: it is kept for `territoryfill.test.ts`, the fill audit (its only caller), same audience as its two neighbours.
-2. **fixed** — took the preferred option (a). The guard now excludes `*.test.ts(x)` from importers, in both the orphan check and the stale-exception check. That brought up two modules: `model/topichue.ts`, added to `KEPT_UNREACHED` with its own header's reason, and `model/star.ts`, deleted together with `star.test.ts` — genuinely orphaned (its only screen, the Connections pane, retired in #405; nothing records a decision to keep it, and the file's own comment states the project's convention of deleting rather than leaving unreachable code). The header now says plainly that tests do not count.
-
-Assumptions: I deleted `star.ts`/`star.test.ts` rather than record a keep-reason, because there is no real decision to record; I also corrected the `centroidOf` comment in `src/model/flat.ts`, which named the deleted `star.ts` as its second view.
-
-Noticed outside this card's scope: `src/instruments/MapView.tsx:47` and `src/model/atlas.ts:286` still point readers to "the Connections star … one pane away", retired in #405; and `src/instruments/ContoursView.tsx:124-125` still computes the averaged centre inline, which could use the shared `centroidOf`.
