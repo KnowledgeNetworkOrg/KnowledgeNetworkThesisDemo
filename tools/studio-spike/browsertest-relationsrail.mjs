@@ -10,8 +10,10 @@
 //   OB-230  the card and the map light each other — two channels: a relationship lights ONE road,
 //           the hub lights the centre only, a map cell lights the figure's mark without a card,
 //           and leaving clears both
-//   OB-209  (+OB-260) the Document pane follows a map hover while nothing is chosen, and with
-//           nothing chosen it is the placeholder — on first load and after a de-select alike
+//   OB-209  the Document pane follows a map hover while nothing is chosen, and a pane that has
+//           never had a selection is the placeholder
+//   OB-240  (clause 2, #386) clearing the selection — the Explorer row, empty water on the map, Esc —
+//           turns the pill and the ring off and leaves the Document on the node it was reading
 // and the seam's drag (OB-253), since the rail's card is sized against it.
 //
 // It runs against BOTH corpora, booting vite twice on its one port: the teaching corpus for the
@@ -248,8 +250,6 @@ await withApp('teaching', {}, async (page) => {
 
   await page.getByLabel('studio-preset-explore').click()
   await page.waitForTimeout(800)
-  const restRect = await rectOf(`${DOC} [data-pane-placeholder]`)
-  const restHtml = await page.evaluate((s) => document.querySelector(s)?.outerHTML ?? null, `${DOC} [data-pane-placeholder]`)
   const docBox = await rectOf(DOC)
   ok('Explore: the Document pane is wide enough for its rail (the rail\'s own floor is 396)', !!docBox && docBox.w >= 396, `${docBox && Math.round(docBox.w)}px`)
 
@@ -303,14 +303,84 @@ await withApp('teaching', {}, async (page) => {
     await park()
   }
 
-  // ── OB-260 / OB-209 clause 4: a de-select is the SAME state as first open ─────────────────────
-  await k.deselect(pick.a.id, pick.a.title)
-  ok('a de-select empties the Document pane: the placeholder, no node', (await has(`${DOC} [data-pane-placeholder]`)) && (await attr(DOC, 'data-current')) === null)
-  ok('…and it names no node, the corpus root included', !((await text(DOC)) ?? '').includes(pick.rootTitle))
-  const afterRect = await rectOf(`${DOC} [data-pane-placeholder]`)
-  const afterHtml = await page.evaluate((s) => document.querySelector(s)?.outerHTML ?? null, `${DOC} [data-pane-placeholder]`)
-  ok('"just opened" and "just de-selected" LOOK the same: one box, one markup',
-    !!restRect && !!afterRect && near(restRect.x, afterRect.x, 0.5) && near(restRect.y, afterRect.y, 0.5) && near(restRect.w, afterRect.w, 0.5) && near(restRect.h, afterRect.h, 0.5) && restHtml === afterHtml)
+  // ── OB-240 clause 2 (#386): clearing the selection turns the highlight off and keeps the page ──
+  /* Three gestures clear it — the Explorer's click on the selected row, a click on empty water on
+     the map, and Esc. Each starts from `pick.a` selected through the Explorer, so the node being
+     read is the same every time and the gesture is the only thing that varies. What each must do:
+     the Explorer pill and the map's ring both go OFF, and the Document pane stays on the node. */
+  const mapSel = () => attr('svg[data-nested]', 'data-sel')
+  /** the pill is the row's first child and its background IS the selection wash (the pair of
+   *  `browsertest-explorerrail.mjs`'s own `pillWash`) */
+  const pillWash = (id) => page.evaluate((id) => {
+    const row = document.querySelector(`[data-explorer-rail] [data-node-id="${id}"]`)
+    const pill = row && row.firstElementChild
+    return pill ? getComputedStyle(pill).backgroundColor : null
+  }, id)
+  /** a point where the topmost thing is the map's own svg — water, which is what the map's click
+   *  handler clears the selection on (`ev.target === svgRef.current`) */
+  const waterPoint = () => page.evaluate(() => {
+    const svg = document.querySelector('svg[data-nested]')
+    if (!svg) return null
+    const b = svg.getBoundingClientRect()
+    for (let y = b.y + 8; y < b.y + b.height - 8; y += 12) {
+      for (let x = b.x + 8; x < b.x + b.width - 8; x += 12) {
+        if (document.elementFromPoint(x, y) === svg) return { x, y }
+      }
+    }
+    return null
+  })
+  const gestures = [
+    ['clicking the selected row in the Explorer', async () => { await k.deselect(pick.a.id, pick.a.title) }],
+    ['clicking empty water on the map', async () => {
+      const w = await waterPoint()
+      ok('found empty water on the map to click', !!w, JSON.stringify(w))
+      if (w) await page.mouse.click(w.x, w.y)
+      await page.waitForTimeout(500)
+      await park()
+    }],
+    ['pressing Esc on the map', async () => {
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(500)
+      await park()
+    }],
+  ]
+  for (const [i, [gesture, clear]] of gestures.entries()) {
+    // the first pass arrives with `pick.a` already selected; the later ones re-select it, and in
+    // doing so check that a node cleared a moment ago selects again as it always did
+    if ((await mapSel()) !== pick.a.id) {
+      await k.select(pick.a.id, pick.a.title)
+      ok(`re-selecting the node just cleared moves the Document to it again (before ${gesture})`,
+        (await attr(DOC, 'data-current')) === pick.a.id && (await mapSel()) === pick.a.id, `pane ${await attr(DOC, 'data-current')}, map ${await mapSel()}`)
+    }
+    ok(`before ${gesture}: the node is selected on the map and read in the Document`, (await mapSel()) === pick.a.id && (await attr(DOC, 'data-current')) === pick.a.id)
+    const washOn = await pillWash(pick.a.id)
+    await clear()
+    ok(`${gesture} turns the map's ring off`, (await mapSel()) === null, String(await mapSel()))
+    const washOff = await pillWash(pick.a.id)
+    ok(`${gesture} turns the Explorer pill off`, !!washOn && !!washOff && washOn !== washOff, `${washOn} -> ${washOff}`)
+    ok(`${gesture} leaves the Document on the node it was reading`, (await attr(DOC, 'data-current')) === pick.a.id, String(await attr(DOC, 'data-current')))
+    const rested = (await text(DOC)) ?? ''
+    ok('  …with its page still drawn: the title, the walks list, the rail, and no placeholder',
+      rested.includes(pick.a.title) && rested.includes('walks through here') && (await has(`${DOC} [data-relation-orbit]`)) && !(await has(`${DOC} [data-pane-placeholder]`)))
+    ok('  …and no preview stands in for it', (await attr(`${DOC} [data-preview-banner]`, 'data-preview-banner')) === '')
+    if (i === gestures.length - 1) {
+      // a MAP hover still previews over the remembered page while nothing is selected, and the
+      // pane comes back to the remembered page, not to the placeholder, when the cursor leaves
+      const restCell = await findCell()
+      ok('found a map cell to hover over the resting page', !!restCell, JSON.stringify(restCell))
+      if (restCell) {
+        await glideTo({ x: restCell.x, y: restCell.y })
+        ok('hovering a map cell with nothing selected previews THAT node over the resting page', (await attr(DOC, 'data-current')) === restCell.id, `hovered ${restCell.id}, pane reads ${await attr(DOC, 'data-current')}`)
+        await park()
+        ok('leaving the cell returns the pane to the node it was resting on', (await attr(DOC, 'data-current')) === pick.a.id && !(await has(`${DOC} [data-pane-placeholder]`)), String(await attr(DOC, 'data-current')))
+      }
+    }
+  }
+  // the pane remembers the LAST node selected: select another, clear it, and it rests on THAT one
+  await k.select(pick.b.id, pick.b.title)
+  ok('selecting a different node moves the Document to it, from the one it was resting on', (await attr(DOC, 'data-current')) === pick.b.id, String(await attr(DOC, 'data-current')))
+  await k.deselect(pick.b.id, pick.b.title)
+  ok('clearing that one rests the pane on IT, the last node selected, not on the first', (await attr(DOC, 'data-current')) === pick.b.id && (await mapSel()) === null, `pane ${await attr(DOC, 'data-current')}, map ${await mapSel()}`)
 
   // ── OB-229 clause 1: the centre is the document's node, always ────────────────────────────────
   await k.select(pick.a.id, pick.a.title)

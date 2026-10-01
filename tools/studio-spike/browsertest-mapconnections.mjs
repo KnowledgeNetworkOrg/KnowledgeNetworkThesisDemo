@@ -480,14 +480,26 @@ if (rollupDups.length) errors.push('rollup collapse: pair drawn more than once �
 // map's own `data-sel`. The second half — ◀ back restores exactly the node you
 // deselected — went with the connections pane's history buttons (#339); #404 asks
 // whether they come back, and this is where that assertion would return.
+//
+// THE DOCUMENT STAYS (OB-240 clause 2, #386): Esc only turns the highlight off, so the
+// document pane is still on the node it was reading.
 {
   // PRECONDITION: something must be selected, or the Esc below would pass on nothing.
   if ((await page.locator('svg[data-nested][data-sel]').count()) !== 1)
     errors.push('deselect: nothing was selected going into 5e, so its Esc would test nothing')
+  const selected = await page.locator('svg[data-nested][data-sel]').getAttribute('data-sel')
+  // PARK THE CURSOR INSIDE THE DOCUMENT PANE: a map cell under it would be previewed in the
+  // document instead of the resting page this block means to ask about, and a pane under the
+  // pointer never previews a foreign hover
+  const docBox = await page.locator('[aria-label="document-panel"]').boundingBox()
+  await page.mouse.move(docBox.x + 6, docBox.y + 6)
+  await page.waitForTimeout(300)
   await page.keyboard.press('Escape')
   await page.waitForTimeout(200)
   if ((await page.locator('svg[data-nested][data-sel]').count()) !== 0)
     errors.push('deselect: Esc left the selection standing')
+  const restedOn = await page.locator('[aria-label="document-panel"]').getAttribute('data-current')
+  if (restedOn !== selected) errors.push(`deselect: after Esc the document pane is on ${restedOn}, expected it to stay on the node it was reading, ${selected}`)
 }
 
 // 5f — issue #6 (2026-07-17): a selection BELOW the topic grain draws NO roads
@@ -497,15 +509,12 @@ if (rollupDups.length) errors.push('rollup collapse: pair drawn more than once �
 // yanking it to the whole-map root reading.
 //
 // THE RESTING HALF MOVED SURFACES WITH #339. It was read off the connections pane's
-// `data-current`, and that pane rested on the node. The Document pane does NOT — on a
-// deselect it falls to its "Nothing chosen" placeholder (`bus.focus ?? previewId`, #342).
-// That is a BUG against the design, not the design: OB-240 clause 2 says the document
-// keeps the last node it was reading, and #386 is open for it. When #386 lands, the
-// document's `data-current` should rest on `deepId` here again, and this block should
-// assert it. #404 lists it with the other things the retired pane carried. What still
-// rests is the map's own header path (OB-241/243: "the aim keeps its resting reading
-// after a deselect while the LIT state goes out"), so that is what is read here: its
-// last crumb, which names the node, before and after the deselect.
+// `data-current`, and that pane rested on the node. The Document pane now rests on it
+// too (OB-240 clause 2, #386: it keeps the last node it was reading when the selection
+// is cleared), so the document's `data-current` is read here again, beside the map's
+// own header path (OB-241/243: "the aim keeps its resting reading after a deselect
+// while the LIT state goes out"): that path's last crumb, which names the node, before
+// and after the deselect.
 const crumbTail = () => page.evaluate(() => {
   const row = document.querySelector('[data-explorer-corner] + div')
   const leaves = [...(row?.querySelectorAll('span') ?? [])].filter((n) => !n.children.length && n.textContent.trim() && n.textContent.trim() !== '›')
@@ -548,6 +557,8 @@ const crumbTail = () => page.evaluate(() => {
   const crumbResting = await crumbTail()
   if (!crumbSelected) errors.push(`deselect: the map's header path named nothing while ${deepId} was selected`)
   else if (crumbResting !== crumbSelected) errors.push(`deselect: the map's header path rested on "${crumbResting}", expected "${crumbSelected}" (${deepId})`)
+  const docResting = await page.locator('[aria-label="document-panel"]').getAttribute('data-current')
+  if (docResting !== deepId) errors.push(`deselect: the document pane rested on ${docResting} after Esc, expected it to stay on the node it was reading, ${deepId}`)
   await goLevel(2) // leave the map roughly where 5e did
   await page.waitForTimeout(600)
 }

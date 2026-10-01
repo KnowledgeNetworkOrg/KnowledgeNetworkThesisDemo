@@ -14,14 +14,19 @@
 // THE CENTRE IS ALWAYS THE DOCUMENT'S NODE. The figure, the prose and the map's selection read
 // one id and cannot disagree about what is being read; the hub is not a third piece of state.
 //
-// AND WITH NOTHING CHOSEN IT IS EMPTY, NOT THE CORPUS ROOT (OB-209 clause 4, OB-260). "Just
-// opened" and "just de-selected" are one state, and it draws `PanePlaceholder` — the pane used to
-// fall back to the root, which read as though the root had been chosen. A hover on a MAP CELL
-// previews that node's document here while nothing is selected (`PreviewBanner`, mounted always so
-// the pane never reflows under a cursor that is somewhere else) and the pane returns to the
-// placeholder when the cursor leaves. A selection pins the pane. The pointer-inside test exists
-// because the pane now has hoverable content of its own, and must never re-aim itself at its own
-// cursor.
+// CLEARING A SELECTION DOES NOT BLANK THE PAGE BEING READ (OB-240 clause 2, #386). The Explorer's
+// de-select, a click on empty water and Esc on the map all turn the HIGHLIGHT off — the tree pill
+// and the map's ring — and the pane keeps the last node that was selected, because a gesture about
+// the highlight must not take the prose away. The pane remembers that node in its own state.
+//
+// A PANE THAT HAS NEVER HAD A SELECTION IS EMPTY, NOT THE CORPUS ROOT (OB-209 clause 4). With no
+// node to remember it draws `PanePlaceholder` — the pane used to fall back to the root, which read
+// as though the root had been chosen. A hover on a MAP CELL previews that node's document here
+// while nothing is selected (`PreviewBanner`, mounted always so the pane never reflows under a
+// cursor that is somewhere else) and the pane returns to the remembered node, or to the
+// placeholder when there is none, when the cursor leaves. A selection pins the pane. The
+// pointer-inside test exists because the pane now has hoverable content of its own, and must
+// never re-aim itself at its own cursor.
 //
 // The one navigation aid besides the rail is "Walks through here" — walks-as-content, made visible
 // instead of staying implicit history. The radial neighborhood diagram that used to sit above the
@@ -286,11 +291,19 @@ export default function DocumentPanel({ bus }: { bus: DocumentPanelBus }) {
   // Two ordinary pointer handlers on our own root answer the question with no synchronisation.
   const [pointerInside, setPointerInside] = useState(false)
 
+  // THE LAST NODE SELECTED, which is what the pane rests on once the selection is cleared (OB-240
+  // clause 2). It is kept in state and updated DURING RENDER, React's own pattern for state that
+  // follows a prop: an effect would paint one frame of the placeholder between the clear and the
+  // update, and `react-hooks/refs` forbids the ref that would avoid the effect. The guard makes it
+  // a no-op on every render but the one where the selection moved.
+  const [lastFocus, setLastFocus] = useState<string | null>(null)
+  if (bus.focus != null && bus.focus !== lastFocus) setLastFocus(bus.focus)
+
   // A selection pins the pane. With NOTHING selected a foreign hover previews that node here, and
-  // the pane goes back to the placeholder when the cursor moves off — there is no resting node to
-  // fall back to (OB-260), so `focus ?? preview` is the whole answer.
+  // the pane goes back to the last node selected when the cursor moves off — or to the placeholder
+  // when nothing has been, so `focus ?? preview ?? last` is the whole answer.
   const previewId = bus.focus == null && !pointerInside && bus.hover != null && byId.has(bus.hover) ? bus.hover : null
-  const currentId = bus.focus ?? previewId
+  const currentId = bus.focus ?? previewId ?? lastFocus
 
   // the rail starts OPEN. The Explorer starts closed only because opening it narrowed the map until
   // two labels met; nothing narrows here. The seam's width is a stored TARGET, null until dragged —
