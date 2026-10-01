@@ -61,7 +61,8 @@ describe('ported but not adopted DS components', () => {
   // RETIRED, NOT REMOVED — #339 (OB-226). The connections pane was these components' only
   // host; it is unmounted and its file deleted, its tree now the map's Explorer rail and its
   // relations the document's Relations rail. #339 keeps the split pane in src/ds for ONE
-  // RELEASE so rolling back is re-registering an instrument, not a revert. `RelationCards`
+  // RELEASE so a rollback is restoring `src/instruments/ConnectionsPane.tsx` from d8dd6ce
+  // and re-registering it, not rebuilding the split. `RelationCards`
   // and `OpenAncestors` are listed with it because the split was what drew them. When that
   // release is over, this is the entry to delete with them.
   it('ConnectionsSplitPane / CONNECTIONS_BODY_STYLE / RelationCards / OpenAncestors — retired with the connections pane (#339), kept one release', () => {

@@ -481,6 +481,9 @@ if (rollupDups.length) errors.push('rollup collapse: pair drawn more than once â
 // deselected â€” went with the connections pane's history buttons (#339); #404 asks
 // whether they come back, and this is where that assertion would return.
 {
+  // PRECONDITION: something must be selected, or the Esc below would pass on nothing.
+  if ((await page.locator('svg[data-nested][data-sel]').count()) !== 1)
+    errors.push('deselect: nothing was selected going into 5e, so its Esc would test nothing')
   await page.keyboard.press('Escape')
   await page.waitForTimeout(200)
   if ((await page.locator('svg[data-nested][data-sel]').count()) !== 0)
@@ -495,8 +498,11 @@ if (rollupDups.length) errors.push('rollup collapse: pair drawn more than once â
 //
 // THE RESTING HALF MOVED SURFACES WITH #339. It was read off the connections pane's
 // `data-current`, and that pane rested on the node. The Document pane does NOT â€” on a
-// deselect it shows its designed "Nothing chosen" placeholder (`bus.focus ?? previewId`,
-// #342) â€” so the reading pane no longer rests anywhere; #404 records that. What still
+// deselect it falls to its "Nothing chosen" placeholder (`bus.focus ?? previewId`, #342).
+// That is a BUG against the design, not the design: OB-240 clause 2 says the document
+// keeps the last node it was reading, and #386 is open for it. When #386 lands, the
+// document's `data-current` should rest on `deepId` here again, and this block should
+// assert it. #404 lists it with the other things the retired pane carried. What still
 // rests is the map's own header path (OB-241/243: "the aim keeps its resting reading
 // after a deselect while the LIT state goes out"), so that is what is read here: its
 // last crumb, which names the node, before and after the deselect.
@@ -524,6 +530,12 @@ const crumbTail = () => page.evaluate(() => {
   if ((await page.locator('[data-selconn]').count()) !== 0) errors.push('deep-sel: a below-topic selection tinted a neighbourhood')
   if ((await page.locator('[data-seloutline]').count()) !== 1) errors.push('deep-sel: the selected cell lost its own outline')
   const crumbSelected = await crumbTail()
+  // the crumb must NAME the deep node, not merely hold still: while it is selected the
+  // document pane is on it, and its header carries the same corpus title the crumb does
+  const docOnDeep = await page.locator('[aria-label="document-panel"]').getAttribute('data-current')
+  const docText = await page.locator('[aria-label="document-panel"]').innerText()
+  if (docOnDeep !== deepId) errors.push(`deep-sel: the document pane is on ${docOnDeep}, expected the selected ${deepId}`)
+  else if (!crumbSelected || !docText.includes(crumbSelected)) errors.push(`deep-sel: the map's header path ends "${crumbSelected}", which is not ${deepId}'s title in the document`)
   await page.keyboard.press('Escape')
   await page.waitForTimeout(300)
   // PARK THE CURSOR ON WATER FIRST, so no hover preview is standing in for the

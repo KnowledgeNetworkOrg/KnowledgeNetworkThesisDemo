@@ -224,9 +224,11 @@ const VIEWS = [
   },
   // #339 (OB-226): the Connections pane is RETIRED. Its tree became the Explorer rail on
   // the map and its relations the Relations rail in the document pane. The DS's
-  // `ConnectionsSplitPane` stays in src/ds for one release, unmounted, so rolling back is
-  // re-registering an entry here, not a revert. Its back/forward buttons had no other
-  // home — #404 asks whether they should get one.
+  // `ConnectionsSplitPane` stays in src/ds for one release, unmounted, so a rollback is
+  // restoring `src/instruments/ConnectionsPane.tsx` from d8dd6ce (the host that fed it its
+  // data, star and history buttons) and re-registering it here — two steps, not a revert of
+  // the rails. Its back/forward buttons had no other home — #404 asks whether they should
+  // get one.
   {
     id: 'document',
     label: 'Document',
@@ -350,8 +352,9 @@ export const PRESETS: Preset[] = [
     hint: 'map + document — territory with its explorer rail, prose with its relations rail',
     active: ['map', 'document'],
     /* TWO PANES SINCE #339 retired the connections pane (its tree is the map's Explorer
-       rail, its relations the document's Relations rail). The map keeps the 1.55 it had
-       under #295/OB-169 and the document takes the connections pane's share: the
+       rail, its relations the document's Relations rail). The ratio is unchanged
+       (map 1.55, document 1) with the connections pane's 1.25 simply gone, so BOTH panes
+       grow and the map gains more (at 1280: map 503→756px, document 324→488px). The
        document now hosts the Relations rail, whose floor is 396px
        (`browsertest-relationsrail.mjs`), and `browsertest-deskwidths.mjs` measures both
        widths at 1280 and 1512. A ratio, so a number that can move again — OB-170's
