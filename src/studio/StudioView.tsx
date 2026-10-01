@@ -98,6 +98,35 @@ export default function StudioView() {
   const [showPalette, setShowPalette] = useState(true)
   const paletteWrapRef = useRef<HTMLDivElement | null>(null)
   const [paletteAnim, setPaletteAnim] = useState<PaletteAnim | null>(null)
+  /* THE ONE TIMER THE FLIGHT OWNS (OB-218). Closing arms it to unmount the pane when the flight
+     lands; opening arms it to clear `paletteAnim` when the flight lands. It is held in a ref so that
+     opening, closing and unmounting can each cancel it: an unowned timer is how a palette closed a
+     moment after the user asked for it open — close, re-open inside 400ms, and the old timer still
+     fired `setShowPalette(false)`. */
+  const paletteTimer = useRef<number | null>(null)
+  const clearPaletteTimer = () => {
+    if (paletteTimer.current !== null) window.clearTimeout(paletteTimer.current)
+    paletteTimer.current = null
+  }
+  useEffect(() => () => { if (paletteTimer.current !== null) window.clearTimeout(paletteTimer.current) }, [])
+  /* THE CUT'S ONE FRAME (OB-218). A press that reverses a flight clears `paletteAnim`, but the
+     pane's style keeps `transform … var(--dur-flight)` in its resting state too — so on its own the
+     browser would happily animate the pane from wherever it is back to rest, which is a second
+     flight, just a CSS one. `snap` switches the transition OFF for exactly that commit (the same
+     transitions-off hop the opening FLIP uses) and is released a frame later, when nothing is
+     changing, so the next real flight has its transition back. */
+  const [paletteSnap, setPaletteSnap] = useState(false)
+  useEffect(() => {
+    if (!paletteSnap) return
+    const id = requestAnimationFrame(() => setPaletteSnap(false))
+    return () => cancelAnimationFrame(id)
+  }, [paletteSnap])
+  /* WHAT THE PALETTE IS BECOMING, not what is still mounted. `showPalette` stays true for the whole
+     closing flight because the unmount is deferred, so a toggle that read it repeated the close on
+     every press inside the 400ms — nothing changed on screen, a second timer was queued, and the
+     user waited out the rest of the animation for a press that did nothing. Both the toggle and the
+     toolbar button's pressed state read this, so the button stops lying during a close. */
+  const paletteOpen = showPalette && paletteAnim?.dir !== 'closing'
 
   /** WHERE THE PANE IS FLYING TO, MEASURED LIVE — not a fixed corner. The icon's
    *  x moves with the toolbar's own content, so a constant was wrong on the DS's
@@ -106,7 +135,14 @@ export default function StudioView() {
    *  The button is found by its `data-toolbar-hook` (OB-124). It used to be found
    *  by its tooltip, through a whole module of matching machinery, because the DS
    *  `Toolbar` had no stable handle to offer; it does now, so the machinery is
-   *  gone rather than repaired. */
+   *  gone rather than repaired.
+   *
+   *  MEASURE, THEN ANIMATE — NEVER THE OTHER WAY ROUND (OB-218). Do not call this while a flight
+   *  is in the air (`paletteAnim` set, other than the opening's own `measuring` hop, whose pane has
+   *  just mounted at its resting centre). `getBoundingClientRect()` returns the box AS TRANSFORMED
+   *  (`scale(0.06)`, translated), not the resting column, so a delta measured mid-flight aims the
+   *  pane at a point computed from a box that is already flying. `closePalette` and `openPalette`
+   *  therefore cut a flight before they would measure one; keep it that way. */
   const paletteDelta = () => {
     const wrap = paletteWrapRef.current
     const icon = document.querySelector(PALETTE_HOOK_SELECTOR)
@@ -118,14 +154,42 @@ export default function StudioView() {
       dy: ir.top + ir.height / 2 - (pr.top + pr.height / 2),
     }
   }
+  /* A PRESS THAT REVERSES A FLIGHT CUTS, and a press is never dropped (OB-218): the state tracks
+     presses one for one, and what an interrupting press gives up is its own flourish. With the
+     timer cancelled and the toggle reading `paletteOpen`, a mid-flight press means the opposite of
+     what is playing — and it must not start a second flight from a pane that is already mid-flight,
+     so it clears the animation and sets `showPalette` to the new value in the SAME commit: one
+     frame, no animation. THIS IS NOT A REQUEST TO DEBOUNCE, DISABLE OR GATE THE BUTTON: a toggle
+     that stops answering for 400ms is the delay that was reported. */
   const closePalette = () => {
+    /* already on its way out (the ✕ or a preset pressed again inside the flight): the state is
+       already "closing", so there is nothing to do — and the timer that will finish the job must
+       not be cleared on the way out */
+    if (paletteAnim && paletteAnim.dir === 'closing') return
+    clearPaletteTimer()
+    if (paletteAnim) {
+      setPaletteSnap(true)
+      setPaletteAnim(null)
+      setShowPalette(false)
+      return
+    }
+    setPaletteSnap(false)
     setPaletteAnim({ dir: 'closing', phase: 'go', ...paletteDelta() })
-    window.setTimeout(() => {
+    paletteTimer.current = window.setTimeout(() => {
+      paletteTimer.current = null
       setShowPalette(false)
       setPaletteAnim(null)
     }, PALETTE_ANIM_MS)
   }
   const openPalette = () => {
+    clearPaletteTimer()
+    if (paletteAnim) {
+      setPaletteSnap(true)
+      setPaletteAnim(null)
+      setShowPalette(true)
+      return
+    }
+    setPaletteSnap(false)
     setShowPalette(true)
     setPaletteAnim({ dir: 'opening', phase: 'measuring', dx: 0, dy: 0 })
   }
@@ -142,7 +206,19 @@ export default function StudioView() {
   }, [paletteAnim])
   useEffect(() => {
     if (paletteAnim && paletteAnim.dir === 'opening' && paletteAnim.phase === 'shrink') {
-      const id = requestAnimationFrame(() => setPaletteAnim((a) => (a && a.phase === 'shrink' ? { ...a, phase: 'grow' } : a)))
+      const id = requestAnimationFrame(() => {
+        setPaletteAnim((a) => (a && a.phase === 'shrink' ? { ...a, phase: 'grow' } : a))
+        /* THE OPENING FLIGHT IS IN THE AIR FROM HERE, and `paletteAnim` has to say so until it lands
+           (OB-218): it used to stay `grow` for good, which made "is a flight running" unanswerable
+           for the one direction that never armed a timer. It clears when the flight ends, on the
+           same owned timer the close uses, so a press inside the flight cuts it and a press after
+           it starts a fresh one. */
+        if (paletteTimer.current !== null) window.clearTimeout(paletteTimer.current)
+        paletteTimer.current = window.setTimeout(() => {
+          paletteTimer.current = null
+          setPaletteAnim(null)
+        }, PALETTE_ANIM_MS)
+      })
       return () => cancelAnimationFrame(id)
     }
   }, [paletteAnim])
@@ -175,7 +251,7 @@ export default function StudioView() {
     transform: paletteAnim && !paletteAtRest ? `translate(${paletteAnim.dx}px,${paletteAnim.dy}px) scale(0.06)` : 'translate(0,0) scale(1)',
     opacity: paletteAtRest ? 1 : 0,
     transition:
-      paletteAnim && paletteAnim.phase === 'shrink'
+      paletteSnap || (paletteAnim && paletteAnim.phase === 'shrink')
         ? 'none'
         : 'transform var(--dur-flight) var(--ease-settle), opacity var(--dur-flight) var(--ease-settle), margin-right var(--dur-flight) var(--ease-settle)',
   }
@@ -406,7 +482,7 @@ export default function StudioView() {
       </div>
 
       {/* #55: app-level operations, pinned directly under the app header */}
-      <AppToolbar present={{ state: presentState, onClick: pressPresent }} palette={{ on: showPalette, onToggle: () => (showPalette ? closePalette() : openPalette()) }} />
+      <AppToolbar present={{ state: presentState, onClick: pressPresent }} palette={{ on: paletteOpen, onToggle: () => (paletteOpen ? closePalette() : openPalette()) }} />
       </>
       )}
 
@@ -446,7 +522,7 @@ export default function StudioView() {
                       active={presetId === p.id}
                       onClick={() => {
                         applyPreset(p)
-                        if (showPalette) closePalette()
+                        if (paletteOpen) closePalette()
                       }}
                     />
                   </div>

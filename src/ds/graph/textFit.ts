@@ -76,8 +76,47 @@ export function textWidth(text: unknown, opts?: TextWidthOptions): number {
  *  clipped head worth drawing when the cut landed inside a word, `minWord` the shortest when
  *  it landed on a word boundary, and `minFragment` is the length under which a surviving tail
  *  word is dropped as an orphan (3, the same number `fitLines` uses at the other end of a
- *  wrap). */
-export const LabelCut = { floorPx: 10, shrinkStep: 0.9, minStub: 4, minWord: 2, minFragment: 3 }
+ *  wrap). `casePx` is the paper case's stroke width and `case` is that case as SVG props (see
+ *  `labelCase`, OB-223), carried here for the same reason as the rest: so no consumer retypes a
+ *  number or a paint order. */
+export const LabelCut = { floorPx: 10, shrinkStep: 0.9, minStub: 4, minWord: 2, minFragment: 3, casePx: 3.5, case: labelCase }
+
+/** THE SVG PROPS `labelCase` hands back — a paint order, a stroke, its width and its join */
+export interface LabelCaseProps {
+  paintOrder: 'stroke'
+  stroke: string
+  strokeWidth: number
+  strokeLinejoin: 'round'
+}
+
+/** THE PAPER CASE A CELL NAME IS DRAWN IN, as the SVG props to spread onto the `<text>` — never a
+ *  recipe to retype (OB-223). A map cell's name is written over its own fill, over its parent's
+ *  ghost heading, and (while selected) over a wash that darkens both; measured on the shipped map
+ *  on 2026-09-18, a selected name fell to 1.31:1 where it crossed a ghost stroke, which is the same
+ *  ink twice. The case is the answer the owner picked at 1:1: a paper stroke UNDER the glyphs, so
+ *  the word carries its own background wherever it lands.
+ *
+ *  `paintOrder: 'stroke'` is the load-bearing half — it draws the stroke first and the fill over it,
+ *  so the letterform keeps its exact weight; without it the case eats the glyph from both sides and
+ *  the name reads a half-weight heavier. A hand-written equivalent is how a paint order goes
+ *  missing.
+ *
+ *  3.5px is CHOSEN, judged at 1:1 against 2.5 and 5 on the same page: 2.5 leaves about a pixel of
+ *  paper each side of a stem and breaks up where a ghost stroke crosses, 5 fills the counters and
+ *  turns two nearby names into one blob. `LabelCut.casePx` carries the number.
+ *
+ *  THE ARGUMENT IS THE STROKE WIDTH IN THE CALLER'S OWN UNITS — a host that draws in world units
+ *  (the map) passes `px(LabelCut.casePx)` so the case tracks zoom the way the rest of its
+ *  hairlines do; omitted, it is the 3.5 screen px the DS draws in.
+ *
+ *  EVERY CELL NAME WEARS IT, SELECTED OR NOT (owner, 2026-09-18). A case that arrives on selection
+ *  makes the label's own drawing a second selection channel, blinking on and off as the user clicks
+ *  around, on top of the boundary and the wash that already say it. Worn always, the label's
+ *  drawing never changes and no name anywhere on the map depends on what is behind it being light
+ *  — which is what lets the ghost be an opaque mid-tone (`topicPaint().ghost`). */
+export function labelCase(strokeWidth?: number): LabelCaseProps {
+  return { paintOrder: 'stroke', stroke: 'var(--surface-paper)', strokeWidth: strokeWidth == null ? 3.5 : strokeWidth, strokeLinejoin: 'round' }
+}
 
 /** THE LAST RESORT FOR A NAME THAT STILL WILL NOT FIT — one line, ONE cut, at the end, and a
  *  floor on what is left (the owner's pick, 2026-09-17: treatment E-prime of

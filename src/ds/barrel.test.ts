@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { adjacentDuplicates, DropVerdict, verdictPaint, Bullet, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, ExplorerRail, ExplorerRailCorner, ExplorerRailMath, explorerRailWidth, FindMark, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_DIVIDER_METRICS, PaneDivider, paneFit, clampDesk, deskBounds, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, REPLAY_PATH, STOP_CARD_METRICS, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkComplete, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
+import { adjacentDuplicates, DropVerdict, verdictPaint, ARROW_BOW_MAX_DEG, ARROW_MIN_SHAFT_HEADS, Bullet, labelCase, LabelCut, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, ExplorerRail, ExplorerRailCorner, ExplorerRailMath, explorerRailWidth, FindMark, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_DIVIDER_METRICS, PaneDivider, paneFit, clampDesk, deskBounds, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, REPLAY_PATH, STOP_CARD_METRICS, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StepDotMath, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkComplete, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
+import { CONNECTIONS_BODY_STYLE, ConnectionsSplitPane, OpenAncestors, RelationCards } from '@/ds'
+import { ORBIT_METRICS,OrbitMath, PANE_PLACEHOLDER_METRICS, PREVIEW_BANNER_METRICS, RELATION_STATS_METRICS, RelationOrbit, RelationStats, RelationsRailMath, StatsMath, orbitKinds, orbitMarks, orbitWedge, statKindRows } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -54,6 +56,20 @@ describe('ported but not adopted DS components', () => {
   // this as that issue being finished.
   it('EdgeEntry — its host arrived (#253) and composed the parts instead; nothing pending', () => {
     expect(typeof EdgeEntry).toBe('function')
+  })
+
+  // RETIRED, NOT REMOVED — #339 (OB-226). The connections pane was these components' only
+  // host; it is unmounted and its file deleted, its tree now the map's Explorer rail and its
+  // relations the document's Relations rail. #339 keeps the split pane in src/ds for ONE
+  // RELEASE so a rollback is restoring `src/instruments/ConnectionsPane.tsx` from d8dd6ce
+  // and re-registering it, not rebuilding the split. `RelationCards`
+  // and `OpenAncestors` are listed with it because the split was what drew them. When that
+  // release is over, this is the entry to delete with them.
+  it('ConnectionsSplitPane / CONNECTIONS_BODY_STYLE / RelationCards / OpenAncestors — retired with the connections pane (#339), kept one release', () => {
+    expect(typeof ConnectionsSplitPane).toBe('function')
+    expect(typeof CONNECTIONS_BODY_STYLE).toBe('object')
+    expect(typeof RelationCards).toBe('function')
+    expect(typeof OpenAncestors).toBe('function')
   })
 
   // #127 shipped this port (OB-037 for NodeChip's disclosure mark, OB-038 for the rail
@@ -147,6 +163,23 @@ describe('ported but not adopted DS components', () => {
     expect(CARET_INK).toBe(0.964)
   })
 
+  // OB-197 (#343): the two RATIOS the short-relation fix is built on. The map reads them through
+  // `minShaft` and `capBow`, which apply them — so no app code needs the raw number, and none
+  // should type it: a px floor is a different arrow at every zoom, which is why the floor is
+  // three head-LENGTHS and the bow cap is an ANGLE.
+  it('ARROW_MIN_SHAFT_HEADS / ARROW_BOW_MAX_DEG — the floor and the cap, applied by minShaft and capBow', () => {
+    expect(ARROW_MIN_SHAFT_HEADS).toBe(3)
+    expect(ARROW_BOW_MAX_DEG).toBe(20)
+  })
+
+  // OB-223 (#343): the paper case a cell name is drawn in. The map spreads `LabelCut.case(...)`
+  // and never types the paint order; `labelCase` is the same function under its lower-case name,
+  // which is how the DS publishes it, so nothing in the app imports it by that name.
+  it('labelCase — the paper case, reached by the app through LabelCut.case', () => {
+    expect(LabelCut.case).toBe(labelCase)
+    expect(LabelCut.casePx).toBe(3.5)
+  })
+
   // OB-063 (#154's caret question, split into design-sync's OB-063): the nesting pair
   // as an element, replacing NodeRail's hand-rolled stack-of-two-Carets-plus-inline-UP —
   // exactly the shape that let CARET_INK above drift once already. NodeRail is its only
@@ -191,6 +224,15 @@ describe('ported but not adopted DS components', () => {
     expect(STOP_CARD_METRICS.width).toBe(264)
   })
 
+  // #344 (OB-214, OB-216): `StepDotMath` is the mark's two published measurements — the
+  // cap-compensated dash array and the numeral's oblique. `StepDot` reads both and
+  // `WalkPreview.StopCard` reads the angle for its address, all from inside src/ds; the app
+  // passes `optional` and draws no dash or slant of its own, so it has nothing to import.
+  it('StepDotMath — read by StepDot and StopCard from inside src/ds; no app importer', () => {
+    expect(StepDotMath.oblique).toEqual({ angle: 11, nudgeEm: -0.071 })
+    expect(typeof StepDotMath.dash).toBe('function')
+  })
+
   it('WalkPinHover — for HTML pins; the map binds the recipe on its SVG pins itself', () => {
     expect(typeof WalkPinHover).toBe('function')
   })
@@ -224,12 +266,12 @@ describe('ported but not adopted DS components', () => {
   })
 
   // #340 (OB-225, 234, 237, 239, 241, 243) — the dissolution's shared chrome, ported into
-  // src/ds and deliberately NOT adopted yet: the two rails that render it are #341's (the
-  // map's Explorer rail) and #342's (the document's Relations rail), and the panes they mount
-  // in are rewired there. Listed so mounting one is a deliberate edit here, not an audit miss.
-  // `FIRST_ROW_PAD` is read by RailFrame itself; it crosses the barrel for #358, which
-  // completes OB-249.
-  it('RailFrame / RailOpenButton / RailCorner / OutlineMark / RelationsMark — waiting on #341 and #342 to mount the rails', () => {
+  // src/ds. The two rails that render it are now BOTH mounted (#341's Explorer rail on the map,
+  // #342's Relations rail on the document), but they assemble it by relative import, so no app
+  // file imports these from the barrel directly. Listed so adopting one is a deliberate edit
+  // here, not an audit miss. `FIRST_ROW_PAD` is read by RailFrame itself; it crosses the barrel
+  // for #358, which completes OB-249.
+  it('RailFrame / RailOpenButton / RailCorner / OutlineMark / RelationsMark — assembled inside the two mounted rails (#341, #342)', () => {
     expect(typeof RailFrame).toBe('function')
     expect(typeof RailOpenButton).toBe('function')
     expect(typeof RailCorner).toBe('function')
@@ -285,6 +327,29 @@ describe('ported but not adopted DS components', () => {
     expect(verdictPaint(true)).toEqual({ line: 'var(--verdict-yes)' })
     expect(DropVerdict.paint).toBe(verdictPaint)
     expect(adjacentDuplicates(['a', 'b', 'b', null, null, 'a'])).toEqual([2])
+  })
+
+  // #342 (OB-229, OB-235, OB-209) — the Document pane's relations rail. `RelationsRail`,
+  // `RelationsRailCorner`, `orbitBox`, `ORBIT_SELF`, `relationStats`, `PreviewBanner`,
+  // `PanePlaceholder` and `groupViaBySource` are ADOPTED (DocumentPanel.tsx imports them), so they
+  // are not listed. These are the rail's two parts and their published helpers, which the rail
+  // assembles by relative import and no host draws separately, plus the metrics and capitalised
+  // aliases the DS publishes beside them.
+  it('RelationOrbit / RelationStats and their helpers — the relations rail\'s parts, published for a host that draws them apart (#342)', () => {
+    expect(typeof RelationOrbit).toBe('function')
+    expect(typeof RelationStats).toBe('function')
+    // one kind may not own the whole circle: the floor is a published function, not a division
+    expect(ORBIT_METRICS.minSectors).toBe(2)
+    expect(orbitWedge(1)).toBe(180)
+    expect(OrbitMath.wedge).toBe(orbitWedge)
+    expect(OrbitMath.marks).toBe(orbitMarks)
+    expect(OrbitMath.kinds).toBe(orbitKinds)
+    expect(StatsMath.rows).toBe(statKindRows)
+    expect(RELATION_STATS_METRICS.trackShare).toBe(52)
+    expect(typeof RelationsRailMath.orbitBox).toBe('function')
+    // the row a preview banner reserves, drawn or not (OB-209), and the placeholder's floor
+    expect(PREVIEW_BANNER_METRICS.height).toBe(16)
+    expect(PANE_PLACEHOLDER_METRICS.minHeight).toBe(120)
   })
 
   // `nestedFamilyPaint` / `familySlots` / `FAMILY_SLOTS` are NOT listed here because

@@ -236,30 +236,9 @@ try {
     .filter((b) => b.textContent.trim() === '✕' && b.getBoundingClientRect().width > 0).length)
   ok('OB-201: no button on the authoring desk shows a typed ✕ as its whole face', typedClose === 0, `${typedClose} found`)
 
-  // ── OB-195: relationship cards draw one rule per boundary ──────────────────
-  await fresh()
-  await openPalette()
-  await page.getByLabel('studio-inst-connections').click()
-  await page.waitForTimeout(900)
-  const cards = await page.evaluate(() => {
-    const pane = document.querySelector('[aria-label="connections-pane"]')
-    if (!pane) return null
-    const headers = [...pane.querySelectorAll('[data-rel-group-header]')]
-    const rows = []
-    for (const h of headers) {
-      let el = h.nextElementSibling
-      while (el && !el.hasAttribute('data-rel-group-header')) {
-        const cs = getComputedStyle(el)
-        if (cs.borderTopWidth === '1px') rows.push({ top: cs.borderTopWidth, bottom: cs.borderBottomWidth })
-        el = el.nextElementSibling
-      }
-    }
-    return { groups: headers.length, rows }
-  })
-  if (ok('OB-195: the relations column draws grouped cards', !!cards && cards.rows.length >= 2, JSON.stringify(cards && { groups: cards.groups, rows: cards.rows.length }))) {
-    ok('OB-195: no card carries a bottom border — two adjacent cards share one hairline',
-      cards.rows.every((r) => r.bottom === '0px'), JSON.stringify([...new Set(cards.rows.map((r) => r.bottom))]))
-  }
+  // (OB-195 — relationship cards share one hairline — was checked here in the connections
+  // pane until #339 unmounted it. `RelationCards` stays in src/ds for one release with no
+  // host to draw it, so there is nothing on screen to measure.)
 
   // ── OB-204: the stop finder and the category popover, in a live lecture ────
   await fresh()

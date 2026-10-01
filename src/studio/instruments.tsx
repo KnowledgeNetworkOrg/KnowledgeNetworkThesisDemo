@@ -21,7 +21,6 @@ import { EDGE_TYPES } from '../model/nav'
 import type { Bus } from '../state/bus'
 import type { Family } from './families'
 
-import ConnectionsPane, { CONNECTIONS_BODY_STYLE, ConnectionsPaneActions } from '../instruments/ConnectionsPane'
 import ContoursView from '../instruments/ContoursView'
 import ClustersView from '../instruments/ClustersView'
 import DocumentPanel from '../instruments/DocumentPanel'
@@ -114,8 +113,8 @@ const VIEWS = [
     // MAP_WATER face) — without body:'none' Pane ALSO wraps it in a PaneScroller,
     // whose plain block box gives the nested PaneCanvas's flex:1 nothing to fill
     // against, so the map only ever grows to the svg's intrinsic content size
-    // (roughly half the pane). Same class of bug 'connections' hit and fixed
-    // (OB-054/#143) — one instrument, one canvas, body:'none'.
+    // (roughly half the pane). Same class of bug the retired connections pane hit
+    // and fixed (OB-054/#143) — one instrument, one canvas, body:'none'.
     body: 'none',
     face: MAP_WATER,
     actions: () => <MapCountReadout />,
@@ -223,28 +222,23 @@ const VIEWS = [
     body: 'none',
     render: () => <ClustersView />,
   },
-  {
-    id: 'connections',
-    label: 'Connections',
-    family: 'reading',
-    slot: 'column',
-    body: 'none',
-    // #143 (OB-054): ConnectionsPane owns its own PaneCanvas/PaneScroller split
-    // internally now — wrapping it in one PaneCanvas here caught its bottom
-    // scrolling section in the canvas's own rounded, clipped box.
-    // #253: the split's two columns each own a scroller, so the pane BODY must not
-    // scroll — that is what CONNECTIONS_BODY_STYLE says, published by the DS beside
-    // the component rather than restated here.
-    bodyStyle: CONNECTIONS_BODY_STYLE,
-    // the split has no chrome row of its own, so back/forward live in the header
-    actions: (bus) => <ConnectionsPaneActions bus={bus} />,
-    render: (bus) => <ConnectionsPane bus={bus} />,
-  },
+  // #339 (OB-226): the Connections pane is RETIRED. Its tree became the Explorer rail on
+  // the map and its relations the Relations rail in the document pane. The DS's
+  // `ConnectionsSplitPane` stays in src/ds for one release, unmounted, so a rollback is
+  // restoring `src/instruments/ConnectionsPane.tsx` from d8dd6ce (the host that fed it its
+  // data, star and history buttons) and re-registering it here — two steps, not a revert of
+  // the rails. Its back/forward buttons had no other home — #404 asks whether they should
+  // get one.
   {
     id: 'document',
     label: 'Document',
     family: 'reading',
     slot: 'column',
+    // #342 (OB-229): the pane is prose BESIDE a relations rail, so it owns its own scrolling — the
+    // prose column is a `PaneScroller` and the rail scrolls itself. Under the default `y` the Pane
+    // would wrap the whole layout in one more scroller and the rail would scroll away with the
+    // text, which is exactly what putting the header across the pane exists to prevent.
+    body: 'none',
     render: (bus) => <DocumentPanel bus={bus} />,
   },
   {
@@ -355,19 +349,17 @@ export const PRESETS: Preset[] = [
   {
     id: 'explore',
     label: 'Explore',
-    hint: 'map + connections + document — territory, subtree wheel, and prose on one focus',
-    active: ['map', 'connections', 'document'],
-    /* THE MAP GIVES UP A LITTLE WIDTH (#295, DS OB-169, owner-ruled 2026-09-09). Was
-       1.8 / 1 / 1, which handed the connections pane a box of 325px at 1280 and 386 at
-       1512 — a measured content width (the pane's own padding off) of 315 and 376, both
-       under the 380 `ConnectionsSplitPane` publishes as the width below which it degrades:
-       the split reading the pane exists for could not be reached on a 13" laptop, and the
-       15" was under too. The map is the pane that can afford it — a picture reads at any
-       size — and the document stays a tall column and is not made smaller: the sum is
-       still 3.8, so its share is the same number it was. Measured after: 395 / 472 for the
-       connections content, 503 / 598 for the map (`browsertest-deskwidths.mjs`). A ratio,
-       so a number that can move again — OB-170's draggable dividers are the real answer. */
-    flex: { map: 1.55, connections: 1.25, document: 1 },
+    hint: 'map + document — territory with its explorer rail, prose with its relations rail',
+    active: ['map', 'document'],
+    /* TWO PANES SINCE #339 retired the connections pane (its tree is the map's Explorer
+       rail, its relations the document's Relations rail). The ratio is unchanged
+       (map 1.55, document 1) with the connections pane's 1.25 simply gone, so BOTH panes
+       grow and the map gains more (at 1280: map 503→756px, document 324→488px). The
+       document now hosts the Relations rail, whose floor is 396px
+       (`browsertest-relationsrail.mjs`), and `browsertest-deskwidths.mjs` measures both
+       widths at 1280 and 1512. A ratio, so a number that can move again — OB-170's
+       draggable dividers are the real answer. */
+    flex: { map: 1.55, document: 1 },
   },
   {
     // #20/#21 — the google-maps composition, read left to right as the work

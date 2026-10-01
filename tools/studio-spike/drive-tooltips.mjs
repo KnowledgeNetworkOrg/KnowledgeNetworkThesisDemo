@@ -84,12 +84,13 @@ const openPalette = async () => {
 }
 
 // open a few instruments so there is plenty of text on screen to measure.
-// THIS WAS THE TREE PANEL until #265 retired it; any pane with text does, and the
-// connections pane is the one that replaced it.
+// THIS WAS THE TREE PANEL until #265 retired it, then the connections pane until #339
+// retired that; any pane with text does, and Unfold·Graph is not in the Plan preset, so
+// clicking its row adds a column.
 await page.getByLabel('studio-preset-plan').click()
 await page.waitForTimeout(500)
 await openPalette()
-await page.getByLabel('studio-inst-connections').click()
+await page.getByLabel('studio-inst-unfoldgraph').click()
 await page.waitForTimeout(500)
 
 // ── 1. useClipped: a cut line is titled, the SAME line untitled when it fits ──
@@ -100,7 +101,7 @@ await page.waitForTimeout(500)
 // The width is forced rather than found. Whether a given label clips depends on the
 // corpus, the sidebar and the window, so a test that waits for a naturally clipped
 // row is a test that silently stops checking anything when a title is shortened.
-const ROW = '[aria-label="studio-inst-connections"]'
+const ROW = '[aria-label="studio-inst-unfoldgraph"]'
 const LABEL = ROW + ' span'
 
 // Which span in the row is the clipping one, and what does it say
@@ -166,7 +167,7 @@ const overLong = (measure) => page.evaluate((m) => {
 
 const PRESETS = ['present', 'explore', 'plan']
 const INSTRUMENTS = ['map', 'walk', 'walkpalette', 'walkeditor', 'walkcolumns', 'walkstack',
-  'unfold', 'unfoldgraph', 'contours', 'clusters', 'connections', 'document',
+  'unfold', 'unfoldgraph', 'contours', 'clusters', 'document',
   'neighborhood', 'trail']
 
 let swept = 0

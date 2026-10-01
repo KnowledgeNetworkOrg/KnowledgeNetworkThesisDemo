@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { familySlots } from '@/ds/values'
 import { domainIds, topicHueOf } from '../corpus/graph'
 import { provinceRings, territories } from './nested'
-import { familyOf, hexToOklch, inkOf, labelInkOf, territoryFillOf, territoryNeighboursOf, territorySlotOf } from './color'
+import { colorOf, familyOf, hexToOklch, inkOf, inkStrongOf, labelInkOf, SELECTION_WASH, selectedInkOf, territoryFillOf, territoryNeighboursOf, territorySlotOf } from './color'
 
 /* OB-119 (#250) — the map's territory fill, re-measured the way the item asks: every fill's
  * nearest ring stop IS its own family's hue; no two touching regions of one family share a slot;
@@ -115,6 +115,43 @@ describe('OB-119 — the territory fill is pinned to its family', () => {
     }
     console.log(`OB-119 labelInkOf over ${domains.size + regions.length} labels: below 4.5:1 ${below} | worst ${worst.toFixed(2)} | differs from inkOf ${moved}`)
     expect(below).toBe(0)
+  })
+
+  /* OB-223 clause 3 — a SELECTED cell's name is resolved against the cell AS WASHED. The selection
+   * wash darkens the fill, and the ink was resolved against the pre-wash fill: 5.52:1 at rest fell to
+   * 3.17:1 selected on the shipped map, under OB-102's own floor. The compositing is restated here
+   * (sRGB, glow tint then body wash, both in the cell's own colour) so the test cannot pass by reading
+   * the function it checks; the two opacities are the ones the map DRAWS, read from the same export.
+   * The glow is taken LIT (OB-230, the Document pane's hub pointed at), its heaviest: at 0.26 against
+   * an ink resolved for the resting 0.16, the worst cell fell to 4.28:1, under the floor. */
+  it('(6) the SELECTED name clears 4.5:1 against its cell as washed — and darkens only where it must', () => {
+    const rgb = (hex: string) => [16, 8, 0].map((s) => (parseInt(hex.slice(1), 16) >> s) & 255)
+    const blend = (top: string, alpha: number, under: string) => {
+      const t = rgb(top)
+      const u = rgb(under)
+      return '#' + t.map((v, i) => Math.round(v * alpha + u[i] * (1 - alpha)).toString(16).padStart(2, '0')).join('')
+    }
+    let worst = Infinity
+    let worstBefore = Infinity
+    let darkened = 0
+    let keptWhilePassing = 0
+    for (const id of [...domainIds, ...regions]) {
+      const tint = colorOf(id)
+      const washed = blend(tint, SELECTION_WASH.body, blend(tint, SELECTION_WASH.glowLit, territoryFillOf(id)))
+      const ink = selectedInkOf(id)
+      const r = contrast(ink, washed)
+      const before = contrast(inkStrongOf(id), washed)
+      worst = Math.min(worst, r)
+      worstBefore = Math.min(worstBefore, before)
+      if (ink !== inkStrongOf(id)) darkened++
+      // a name whose calm near-black already passes is not touched — this darkens only where it must
+      if (before >= 4.5) {
+        expect(ink, id).toBe(inkStrongOf(id))
+        keptWhilePassing++
+      }
+    }
+    console.log(`OB-223 selected ink over ${domains.size + regions.length} cells: worst before ${worstBefore.toFixed(2)} | worst now ${worst.toFixed(2)} | darkened ${darkened} | kept ${keptWhilePassing}`)
+    expect(worst).toBeGreaterThanOrEqual(4.5)
   })
 })
 

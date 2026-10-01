@@ -41,10 +41,11 @@ import {
 import type { NoteCategory, PresenterState, QuickAction } from '@/ds'
 
 import MapView from '../instruments/MapView'
+import type { MapViewBus } from '../instruments/MapView'
 import { useKeptWallFrame } from './wallframe'
 import { useWalkPlayback } from '../state/walk/playback'
+import type { PlaybackBus } from '../state/walk/playback'
 import { renderStopPreview } from '../state/walk/stoppreview'
-import type { Bus } from '../state/bus'
 import { BOOKED_SECONDS, clampStop, coveredBefore, lectureStart, lectureSteps, mmss } from './lecture'
 import { LectureSlide } from './LectureSlide'
 import {
@@ -70,8 +71,12 @@ const DECK_ACTIONS: QuickAction[] = [
   { id: 'end', label: 'End the lecture', dot: 'var(--state-danger)', title: 'end the lecture and show the recap' },
 ]
 
+/** the slice of the bus the presenter needs — playback's, plus the map's, because it hands its
+ *  bus to MapView. */
+export type PresenterScreenBus = PlaybackBus & MapViewBus
+
 export interface PresenterScreenProps {
-  bus: Bus
+  bus: PresenterScreenBus
   /** is the room watching — the toolbar ▶ (true) or the palette's Present (false, a preview:
    *  no clock, nothing projected). Flipping to true STARTS the lecture here and now. */
   projecting: boolean
@@ -234,8 +239,10 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
     count: N,
     mapUp: mapUp && !ended,
     ids: steps.map((st) => st.id),
+    // the lecture's stops are `play.steps` one for one, so the flags line up with `ids` (OB-214)
+    optional: play.steps.map((st) => st.optional === true),
     covered,
-  }), [projecting, ended, steps, shown, N, mapUp, covered])
+  }), [projecting, ended, steps, play.steps, shown, N, mapUp, covered])
   useProjectorSender(projected)
 
   /* ── WHAT THE LECTURE WRITES DOWN (parts 6-8) ────────────────────────────────────────────────
@@ -364,9 +371,13 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
         ) : (
           <>
             <div style={{ flex: 'none' }}>
+              {/* `stopIndex` IS THE STOP ACTUALLY ON THE WALL, roaming included (OB-203): the same `shown`
+                  `wall()` draws from, so a roam to another stop slides exactly like a step does — the
+                  arrows, the strip and the finder all reach the roll through this one number. Passing
+                  the ACTIVE stop instead would leave a roam silent. */}
               <FilmRoll height={286} projecting={projecting}
                 prev={shown > 0 ? nav(shown - 1) : null}
-                current={{ content: wall(shown), flagged: flags.indexOf(shown) >= 0, elapsed: roaming || !projecting ? undefined : mmss(onStopS) }}
+                current={{ content: wall(shown), flagged: flags.indexOf(shown) >= 0, elapsed: roaming || !projecting ? undefined : mmss(onStopS), stopIndex: shown }}
                 next={shown < N - 1 ? nav(shown + 1) : null}
                 onToggleFlag={(which) => toggleFlag(which === 'prev' ? shown - 1 : which === 'next' ? shown + 1 : shown)}
                 onExpand={() => setExpanded(true)} />

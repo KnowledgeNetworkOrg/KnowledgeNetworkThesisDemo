@@ -15,6 +15,17 @@
 // It lives in state/ because it is what every screen shares and no screen owns
 // it: a pane that reads the bus must not be importing the shell that composes
 // it, and studio/ is a reader like any other.
+//
+// Each instrument declares the slice of the bus it uses — a `Pick<Bus, …>` of
+// exactly the members it reads and writes — and the whole `Bus` belongs to the
+// shell (studio/), which builds it with `useStudioBus` and hands each pane its
+// slice.
+//
+// For #325: the route's writers are exactly the files whose slice names one of
+// six actions — `setRoute`, `setRouteSteps`, `activateWalk` (which calls
+// `setRoute`), `clearRoute`, `teach` (which calls `setRoute`), and `reset`
+// (which empties the route). The one exception is the projector window, which
+// writes `setRoute` on a bus of its own.
 
 import { useCallback, useMemo, useState } from 'react'
 
@@ -45,6 +56,14 @@ export interface BusState {
    * published lights up exactly the thing under its own cursor, which is what it
    * wanted anyway. There is no echo to suppress, so one id is the whole bus. */
   hover: string | null
+  /** THE CENTRE OF THE SELECTION IS BEING POINTED AT, from another pane (DS OB-230 clause 2, #342).
+   *  The relations rail's hub publishes it; the map answers with a modest emphasis on the selected
+   *  cell. TRANSIENT and display-only, like `hover`, and it is a SECOND CHANNEL rather than a
+   *  reading of `hover` for a reason that is the whole design: `hover` carries one id, and the
+   *  map lights the ROAD to whatever id it carries, so the centre's own id would light every road
+   *  at once — the highlight would then say only "something is hovered". The centre lights on its
+   *  own signal, never merely because something else is highlighted. */
+  hoverCenter: boolean
   /** THE WALK STOP ANOTHER PANE IS POINTING AT, by index into `route` (DS OB-189). The walk
    *  editor publishes it from a pill's hover; the map's dock draws a halo on that stop and pans
    *  its row to it if it is off-screen. TRANSIENT and display-only like `hover`, and it is a
@@ -54,8 +73,9 @@ export interface BusState {
   /** A LOOK — the one channel that MAY move a camera. Hover answers "recolour
    * what I'm pointing at"; a look asks "take me to WHERE this lives" — the map
    * flies to the node's territory at its tier and keeps it highlighted, with
-   * the selection unchanged. Published by CLICKS in the Connections pane
-   * (SelfNotes: hover must never pan the map), so there is no fly-home: a look
+   * the selection unchanged. Published by CLICKS — the Connections pane's rows
+   * until #339 retired it, the walk palette and the Studio now; #404 asks whether
+   * the Explorer rail's should be one (SelfNotes: hover must never pan the map), so there is no fly-home: a look
    * holds until the next look, a focus change, or the user grabbing the camera.
    * `seq` makes re-looking at the same id a fresh command — after panning away,
    * clicking the same row again must still fly. */
@@ -126,6 +146,8 @@ export interface BusActions<Id extends string = string> {
    * leave(X) then enter(X), and an unguarded leave would blank the id the enter
    * just set. Every hover participant needs this, so the bus owns it. */
   endHover(id: string): void
+  /** the cursor is on the centre of the selection (or has left it) — see BusState.hoverCenter */
+  setHoverCenter(on: boolean): void
   setHoverStep(index: number | null): void
   /** the cursor LEFT this stop — guarded like `endHover`, for the same reason */
   endHoverStep(index: number): void
@@ -164,6 +186,7 @@ export type Bus<Id extends string = string> = BusState & BusActions<Id>
 export function useStudioBus<Id extends string>(reveal: (inst: Id | BusRevealTarget) => void): Bus<Id> {
   const [focus, setFocusState] = useState<string | null>(null)
   const [hover, setHoverState] = useState<string | null>(null)
+  const [hoverCenter, setHoverCenterState] = useState(false)
   const [hoverStep, setHoverStepState] = useState<number | null>(null)
   const [peek, setPeekState] = useState<{ id: string; seq: number } | null>(null)
   const [matches, setMatchesState] = useState<ReadonlySet<string>>(NO_MATCHES)
@@ -243,6 +266,7 @@ export function useStudioBus<Id extends string>(reveal: (inst: Id | BusRevealTar
   // map's Esc listener (deps-bound) never re-subscribes.
   const setHover = useCallback((id: string | null) => setHoverState(id), [])
   const endHover = useCallback((id: string) => setHoverState((h) => (h === id ? null : h)), [])
+  const setHoverCenter = useCallback((on: boolean) => setHoverCenterState(on), [])
   const setHoverStep = useCallback((i: number | null) => setHoverStepState(i), [])
   const endHoverStep = useCallback((i: number) => setHoverStepState((h) => (h === i ? null : h)), [])
   const peekAt = useCallback((id: string) => setPeekState((p) => ({ id, seq: (p?.seq ?? 0) + 1 })), [])
@@ -257,6 +281,7 @@ export function useStudioBus<Id extends string>(reveal: (inst: Id | BusRevealTar
   return {
     focus,
     hover,
+    hoverCenter,
     hoverStep,
     peek,
     matches,
@@ -276,6 +301,7 @@ export function useStudioBus<Id extends string>(reveal: (inst: Id | BusRevealTar
     forward,
     setHover,
     endHover,
+    setHoverCenter,
     setHoverStep,
     endHoverStep,
     peekAt,
@@ -311,6 +337,7 @@ export function useStudioBus<Id extends string>(reveal: (inst: Id | BusRevealTar
       // "reset session" clears WHERE you are, not WHAT you have on screen
       setFocusState(null)
       setHoverState(null)
+      setHoverCenterState(false)
       setPeekState(null)
       setMatchesState(NO_MATCHES)
       setRouteStepsState([])
@@ -337,7 +364,10 @@ export interface HoverBinding {
   }
 }
 
-export function useHover(bus: Bus): HoverBinding {
+/** the slice of the bus the hover binding reads and writes */
+export type HoverBus = Pick<Bus, 'hover' | 'setHover' | 'endHover'>
+
+export function useHover(bus: HoverBus): HoverBinding {
   const { hover, setHover, endHover } = bus
   return useMemo(
     () => ({

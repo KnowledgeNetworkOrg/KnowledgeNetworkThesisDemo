@@ -145,6 +145,72 @@ describe('several stops on ONE cell — OB-087 sizing, and none of them touching
   })
 })
 
+// ── OB-214 — the pin says whether its stops may be skipped ─────────────────
+// Clause 2: the flag rides in beside `route` (a parallel list) and every pin says
+// so. Clause 5, policy C: a run NEVER merges across a change of flag, so a merged
+// pin is homogeneous — a mixed run becomes two pins, each honest about its stops.
+
+/** two different topics that resolve to the SAME cell at `level`, so a walk stepping
+ *  from one to the other is a contiguous run on one cell — the case stage 2 merges */
+function twoTogetherAt(level: number): [string, string] | null {
+  for (const a of topicIds) {
+    const cell = walkAnchorAt(a, level)?.visId
+    if (!cell) continue
+    const b = topicIds.find((id) => id !== a && walkAnchorAt(id, level)?.visId === cell)
+    if (b) return [a, b]
+  }
+  return null
+}
+
+describe('OB-214 — optional stops on the map', () => {
+  const level = 0
+  const px = pxAt(level, 1.2)
+  const shape = (pins: WalkPin[]) => pins.map((p) => ({ step: p.step, stepEnd: p.stepEnd, optional: p.optional }))
+
+  test('with no flags given every pin is required, and a run on one cell still merges — no caller moves', () => {
+    const [a, b] = twoTogetherAt(level)!
+    expect(shape(walkPins({ route: [a, b], level, px, labelBoxes: [] }))).toEqual([{ step: 1, stepEnd: 2, optional: false }])
+  })
+
+  test('an all-optional run merges, and the merged pin says optional', () => {
+    const [a, b] = twoTogetherAt(level)!
+    const pins = walkPins({ route: [a, b], optional: [true, true], level, px, labelBoxes: [] })
+    expect(shape(pins)).toEqual([{ step: 1, stepEnd: 2, optional: true }])
+  })
+
+  test('policy C: a run never merges across the boundary — a mixed run is two honest pins', () => {
+    const [a, b] = twoTogetherAt(level)!
+    const pins = walkPins({ route: [a, b], optional: [false, true], level, px, labelBoxes: [] })
+    expect(shape(pins)).toEqual([{ step: 1, stepEnd: 1, optional: false }, { step: 2, stepEnd: 2, optional: true }])
+    // …and each boundary is a cut, so required · optional · required on one cell is three pins
+    const three = walkPins({ route: [a, b, a], optional: [false, true, false], level, px, labelBoxes: [] })
+    expect(shape(three)).toEqual([
+      { step: 1, stepEnd: 1, optional: false },
+      { step: 2, stepEnd: 2, optional: true },
+      { step: 3, stepEnd: 3, optional: false },
+    ])
+  })
+
+  test('the accepted cost: the split buys a pin, so both take the crowded size', () => {
+    const [a, b] = twoTogetherAt(level)!
+    expect(walkPins({ route: [a, b], level, px, labelBoxes: [] }).map((p) => p.size)).toEqual([PIN_SIZE])
+    expect(walkPins({ route: [a, b], optional: [false, true], level, px, labelBoxes: [] }).map((p) => p.size)).toEqual([pinSizeFor(2), pinSizeFor(2)])
+  })
+
+  test('the flag moves nothing else — the same route with every stop optional lands every pin on the same spot', () => {
+    // stages 3-6 do not read the flag: only WHERE stage 2 cuts may change, and with every stop
+    // optional it cuts exactly where it would with none
+    const route = WALKS[0].stops.map((s) => s.id)
+    for (const lv of LEVELS) {
+      const p = pxAt(lv, 1.2)
+      const plain = walkPins({ route, level: lv, px: p, labelBoxes: [] })
+      const allOpt = walkPins({ route, optional: route.map(() => true), level: lv, px: p, labelBoxes: [] })
+      expect(allOpt.map((x) => ({ ...x, optional: false }))).toEqual(plain)
+      expect(allOpt.every((x) => x.optional)).toBe(true)
+    }
+  })
+})
+
 describe('pinSizeFor — OB-087’s formula, unchanged', () => {
   test('a lone pin is full size and the shrink is floored', () => {
     expect(pinSizeFor(1)).toBe(PIN_SIZE)
@@ -205,6 +271,7 @@ const pin = (step: number, x: number, y: number, size = PIN_SIZE): WalkPin => ({
   c: { x, y },
   stepEnd: step,
   size,
+  optional: false,
 })
 /** the identity scale — 1 world unit is 1 screen px, so the numbers below are
  *  the numbers a reader sees. */

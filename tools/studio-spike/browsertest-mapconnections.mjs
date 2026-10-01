@@ -1,5 +1,7 @@
-// browsertest-mapconnections.mjs — the map and the connections pane reading each
-// other, and the map reading the corpus (#294).
+// browsertest-mapconnections.mjs — the map and the reading pane beside it reading each
+// other, and the map reading the corpus (#294). The reading pane was the connections
+// pane until #339 retired it (its tree is the map’s Explorer rail now, its relations the
+// Document pane’s Relations rail); the Document pane is the one read here.
 //
 // A TEST. It opens the real app in a real browser and asserts what a person sees.
 //
@@ -20,12 +22,11 @@
 //   - hover sync driven from `[data-relrow]`, the `[data-hoverchip]` readouts, the
 //     region star and its grain toggle, the relationship list's height fraction.
 //     The rehaul (#253) replaced the pane's whole external view, and the new one's
-//     behaviour is covered in browsertest-connections.mjs.
+//     behaviour was covered in browsertest-connections.mjs, deleted with the pane (#339).
 //   - the old LOOK assertion, which said a click flies the camera and MUST NOT
-//     change the selection. That rule INVERTED: `ConnectionsPane`'s `onSelect` now
-//     publishes `setFocus` and `peekAt` together, deliberately — "every navigating
-//     click is a crumb click". Section 4b asserts the new rule instead, including
-//     the half no other test covers: that the camera actually moves.
+//     change the selection. That rule INVERTED with #253, and #339 moved the tree to
+//     the map's Explorer rail: a row click moves the one selection. Section 4b says
+//     what it asserts now, and what it only reports.
 //
 // Two things it drives are not where they used to be, and both are wrapped in a
 // helper rather than repeated: the map's level is chosen from a floating DS
@@ -126,12 +127,12 @@ const withPalette = async (fn) => {
   }
 }
 
-// 0 — with NOTHING selected, hovering a map cell PREVIEWS its connections in the
-// pane, and the preview clears when the cursor leaves. (This block also used to
-// assert the pane header was HEIGHT-STABLE while previewing, by measuring the
-// containment wheel below it. The wheel went with #290, so the measurement went
-// with it — the preview chip it shared the block with is still drawn, and is
-// still the only check that map hover reaches the pane at all.)
+// 0 — with NOTHING selected, hovering a map cell PREVIEWS it in the reading pane, and
+// the preview clears when the cursor leaves. The reading pane was the connections pane
+// (its `data-childpreview` chip) until #339 retired it; it is the Document pane now,
+// which declares the node it previews as `data-preview`. (The Relations rail's own
+// treatment of that preview is browsertest-relationsrail.mjs's to check.)
+const DOC = '[aria-label="document-panel"]'
 const dcell = await page.evaluate(() => {
   const cells = [...document.querySelectorAll('path[data-region][data-rtier="0"]')]
   for (const c of cells) {
@@ -147,13 +148,13 @@ if (!dcell) {
 } else {
   await page.mouse.move(dcell.x, dcell.y)
   await page.waitForTimeout(300)
-  const prev = await page.locator('[data-childpreview]').getAttribute('data-childpreview')
+  const prev = await page.locator(DOC).getAttribute('data-preview')
   if (prev !== dcell.id) errors.push(`preview: hovering ${dcell.id} previews ${prev}`)
   await page.screenshot({ path: OUT + '/0-hover-preview.png' })
   const mapBox = await page.locator('[data-nested]').boundingBox()
   await page.mouse.move(mapBox.x + 4, mapBox.y + 4) // map corner = water
   await page.waitForTimeout(300)
-  if ((await page.locator('[data-childpreview]').count()) !== 0) errors.push('preview: chip did not clear when the cursor left')
+  if ((await page.locator(`${DOC}[data-preview]`).count()) !== 0) errors.push('preview: the preview did not clear when the cursor left')
 }
 
 // 1 — atlas at L2 (topics): wrapped labels, no capital dots
@@ -203,104 +204,51 @@ if (conn.length === 0) errors.push('neighbourhood: selection tinted no connected
 if (conn.includes(picked)) errors.push('neighbourhood: the selected cell tinted itself as a counterpart')
 if (new Set(conn).size !== conn.length) errors.push('neighbourhood: a counterpart tinted twice')
 
-// 4 — the relations star, shot CLOSE UP: its type labels are ~8px on a 1750px
-// frame, far too small to judge from the full page — crop to the pane.
-//
-// This used to begin by clicking `connections-mode-relations`. The rehaul (#253)
-// replaced the pane's MODES with two columns that are both always on screen, so
-// there is no mode to switch into: the star is simply there. The block that
-// followed measured the relationship list at ~24% of the pane height; that
-// window is gone with the modes, and the two columns' own geometry is asserted
-// in browsertest-connections.mjs instead.
-await page.screenshot({ path: OUT + '/4-relations-star.png' })
-await page.getByLabel('connections-pane').screenshot({ path: OUT + '/4a-star-closeup.png' })
+// 4 / 4a2 — REMOVED with the connections pane (#339). They shot the pane's relations
+// STAR close up and drove its pan/zoom canvas (`data-relstar`, `data-cvz`, `data-cvg`);
+// the star was the split pane's, and nothing has drawn it since the pane was unmounted.
+// The Document pane's Relations rail is what shows a node's relations now, and
+// browsertest-relationsrail.mjs checks it.
 
-// 4a2 — SelfNotes: the star canvas pans and zooms. Wheel-in grows type with the
-// picture; wheel-out CLAMPS at the legibility floor (12-unit labels ≥ ~8 CSS px,
-// and never past ×1); double-click on water resets.
-{
-  const star = page.locator('[data-relstar]')
-  const sb = await star.boundingBox()
-  await page.mouse.move(sb.x + sb.width / 2, sb.y + sb.height / 2)
-  await page.mouse.wheel(0, -600)
-  await page.waitForTimeout(250)
-  const zIn = parseFloat(await star.getAttribute('data-cvz'))
-  if (!(zIn > 1)) errors.push(`canvas zoom: wheel-in left z at ${zIn}`)
-  await page.getByLabel('connections-pane').screenshot({ path: OUT + '/4a2-star-zoomed.png' })
-  await page.mouse.wheel(0, 8000)
-  await page.waitForTimeout(250)
-  const zf1 = parseFloat(await star.getAttribute('data-cvz'))
-  await page.mouse.wheel(0, 3000)
-  await page.waitForTimeout(250)
-  const zf2 = parseFloat(await star.getAttribute('data-cvz'))
-  if (Math.abs(zf1 - zf2) > 1e-6) errors.push(`canvas zoom floor: kept sliding (${zf1} → ${zf2})`)
-  if (!(zf1 <= 1 && zf1 >= 0.3)) errors.push(`canvas zoom floor: ${zf1} is not a plausible legibility floor`)
-  // pan: drag on water moves the picture
-  const t0 = await star.evaluate((s) => s.querySelector('[data-cvg]').getAttribute('transform'))
-  await page.mouse.move(sb.x + 30, sb.y + 30)
-  await page.mouse.down()
-  await page.mouse.move(sb.x + 110, sb.y + 80, { steps: 5 })
-  await page.mouse.up()
-  await page.waitForTimeout(150)
-  const t1 = await star.evaluate((s) => s.querySelector('[data-cvg]').getAttribute('transform'))
-  if (t0 === t1) errors.push('canvas pan: dragging the star moved nothing')
-  // double-click on water = home
-  await star.dblclick({ position: { x: 12, y: 12 } })
-  await page.waitForTimeout(150)
-  const zHome = await star.getAttribute('data-cvz')
-  if (zHome !== '1.00') errors.push(`canvas reset: double-click left z at ${zHome}`)
-}
-
-// 4b — ONE GESTURE: a navigating click both moves the selection and flies the
-// map to where that node lives. `ConnectionsPane`'s `onSelect` publishes
-// `setFocus` and `peekAt` together — "every navigating click is a crumb click".
+// 4b — A ROW CLICK MOVES THE ONE SELECTION. The tree lives in the map's Explorer rail
+// since #339 (it was the connections pane's contains column), and OB-227 clause 1 has
+// its clicks move the same focus the map's own cells move. Read off the map itself:
+// `data-sel` is the map's own declaration of what is selected.
 //
-// WHAT THIS BLOCK USED TO SAY, AND WHY IT NO LONGER SAYS IT. It drove hover sync
-// from `[data-relrow]` — hovering a relationship ROW lit the matching star node,
-// spotlit that topic's territory, lit the road to it, and named it in a
-// `[data-hoverchip]`. Then it asserted a LOOK: clicking that row flew the camera
-// and MUST NOT change the selection. The rehaul (#253) deleted the rows, the
-// chip and the region star, and — the part that matters — INVERTED the click
-// rule: a navigating click now deliberately moves the selection as well as the
-// camera. So this is not a re-pointing of the old assertions; the old ones
-// describe a pane that was replaced. The new pane's own behaviour (hover a star
-// node, the cards below it filter; clicking a star node PINS that filter and
-// does not navigate) is covered in browsertest-connections.mjs. What was never
-// covered there, and is asserted here, is the MAP half: that the click actually
-// moves the camera.
+// WHAT THIS BLOCK NO LONGER SAYS. It drove ◀ / ▶ through the pane's history buttons;
+// those buttons died with the pane and nothing else draws them — #404 asks whether they
+// should come back. It also asserted the click FLEW THE CAMERA, which the pane did by
+// publishing `peekAt` beside `setFocus`; the rail publishes only `setFocus`, so the
+// camera half is now measured and REPORTED below rather than required (see #404).
 {
-  const panel = page.locator('[aria-label="connections-pane"]')
+  const selOf = () => page.evaluate(() => document.querySelector('svg[data-nested]')?.getAttribute('data-sel') ?? null)
+  if (!(await page.locator('[data-explorer-rail] [data-node-id]').count())) {
+    await page.locator('[data-explorer-corner] button').click()
+    await page.waitForTimeout(400)
+  }
   const camBefore = await getCam()
-  const focusBefore = await panel.getAttribute('data-focus')
-  // A row the map can actually FLY to. `MapView`'s look effect resolves
-  // `flightTargetOf(peek.id)` and returns early when there is none, so the root —
-  // the contains column's first row — is a look that correctly moves nothing.
-  // Take the DEEPEST row instead: furthest from wherever the camera is standing.
+  const selBefore = await selOf()
+  // the DEEPEST row that is not the selection — the root moves nothing, and clicking the
+  // selected row would CLEAR it (the rail is mounted `deselectable`)
   const target = await page.evaluate((standing) => {
-    const rows = [...document.querySelectorAll('[aria-label="connections-pane"] [data-node-id]')]
+    const rows = [...document.querySelectorAll('[data-explorer-rail] [data-node-id]')]
       .map((r) => r.getAttribute('data-node-id'))
       .filter((id) => id && id !== 'root' && id !== standing)
     return rows.length ? rows[rows.length - 1] : null
-  }, focusBefore)
-  if (!target) errors.push('one gesture: the contains column offered no other row to click')
+  }, selBefore)
+  if (!target) errors.push('one selection: the Explorer rail offered no other row to click')
   else {
-    await page.locator(`[aria-label="connections-pane"] [data-node-id="${target}"]`).first().click()
-    await page.waitForTimeout(1100) // the look flight is 750ms (LOOK_FLY_MS)
-    if ((await panel.getAttribute('data-focus')) === focusBefore)
-      errors.push('one gesture: the click did not move the selection')
-    if ((await getCam()) === camBefore) errors.push('one gesture: the click did not fly the camera')
+    await page.locator(`[data-explorer-rail] [data-node-id="${target}"]`).first().click()
+    await page.waitForTimeout(1100)
+    const selAfter = await selOf()
+    if (selAfter !== target) errors.push(`one selection: clicking rail row ${target} left the map selecting ${selAfter}`)
+    console.log(`4b: a rail row click ${(await getCam()) === camBefore ? 'did NOT move' : 'moved'} the map camera (#404)`)
   }
-
-  // ◀ walks back to where you stood, ▶ re-walks forward. data-focus is the
-  // pane's own declaration of where it stands.
-  await page.getByLabel('connections-nav-back').click()
-  await page.waitForTimeout(300)
-  if ((await panel.getAttribute('data-focus')) !== focusBefore) errors.push('nav: back did not return to the previous focus')
-  await page.getByLabel('connections-nav-forward').click()
-  await page.waitForTimeout(300)
-  if ((await panel.getAttribute('data-focus')) === focusBefore) errors.push('nav: forward did not re-walk the hop')
-  await page.getByLabel('connections-nav-back').click()
-  await page.waitForTimeout(300)
+  // close the rail again so the frames below see the map as they always have
+  if (await page.locator('[data-explorer-rail] [data-node-id]').count()) {
+    await page.locator('[data-explorer-rail] button').first().click() // the open head's handle
+    await page.waitForTimeout(300)
+  }
 }
 
 // 4c — THE GENERATED LENS. `implements` is the corpus's fourth relation type
@@ -442,24 +390,82 @@ if (rollupDups.length) errors.push('rollup collapse: pair drawn more than once �
 // and the corpus's multi-word names mean at least one must have split lines.
 // #336 (OB-193): the domain names are now the picker's "L1" — its "L0" is the
 // corpus root's own single region, which is the one label this block must not read.
+//
+// #369: the same read, twice — with the Explorer rail closed (the default: every domain must
+// still be NAMED, the gate that drops a colliding name must not touch a screen that never had
+// one) and with it open, which narrows the canvas by the rail's width (196px at its default
+// fit), which is what put `sys` and `cs` 3.3 x 7.2px into each other at 1750x950. Open, a
+// name may be missing — that is the fix, the later of two colliding names is left out — but
+// no two drawn names may meet.
 {
-  const boxes = await page.$$eval('[data-regionlabel]', (ts) =>
-    ts
-      .filter((t) => Number(t.getAttribute('opacity')) > 0.3) // active-level names only
-      .map((t) => {
-        const b = t.getBoundingClientRect()
-        return { id: t.getAttribute('data-regionlabel'), x: b.x, y: b.y, w: b.width, h: b.height, lines: t.querySelectorAll('tspan').length }
-      }),
-  )
+  /** the ids of every region at one internal tier, off the cells the map mounts */
+  const regionIds = (tier) =>
+    page.$$eval(`path[data-region][data-rtier="${tier}"]`, (ps) => [...new Set(ps.map((p) => p.getAttribute('data-region')))])
+  /** the drawn names at one tier, as the boxes a person sees. Filtered to that tier's own
+   *  regions AND to opacity > 0.3: at L1 the domain names are still in the DOM as the parent's
+   *  faint watermark, and those are not the names being read. */
+  const readNames = async (tier) =>
+    page.$$eval(
+      '[data-regionlabel]',
+      (ts, ids) =>
+        ts
+          .filter((t) => ids.includes(t.getAttribute('data-regionlabel')) && Number(t.getAttribute('opacity')) > 0.3)
+          .map((t) => {
+            const b = t.getBoundingClientRect()
+            return { id: t.getAttribute('data-regionlabel'), x: b.x, y: b.y, w: b.width, h: b.height, lines: t.querySelectorAll('tspan').length }
+          }),
+      await regionIds(tier),
+    )
+  /** every pair of boxes that meet, with how far (both in px) */
+  const meetings = (boxes) => {
+    const out = []
+    for (let i = 0; i < boxes.length; i++)
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i]
+        const b = boxes[j]
+        if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h)
+          out.push({ a: a.id, b: b.id, w: Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), h: Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) })
+      }
+    return out
+  }
+  const openRail = async () => {
+    await page.locator('[data-explorer-corner] button').click()
+    await page.waitForTimeout(700) // the pane narrows, the map refits, the names re-fit with it
+  }
+  const closeRail = async () => {
+    await page.locator('[data-explorer-rail] button').first().click() // the open head's handle
+    await page.waitForTimeout(700)
+  }
+
+  const domainIds = await regionIds(0)
+  const boxes = await readNames(0)
   if (boxes.length < 2) errors.push(`region labels: expected the L0 domain names, found ${boxes.length}`)
-  for (let i = 0; i < boxes.length; i++)
-    for (let j = i + 1; j < boxes.length; j++) {
-      const a = boxes[i]
-      const b = boxes[j]
-      if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h)
-        errors.push(`region labels: ${a.id} and ${b.id} overlap at L0`)
-    }
+  for (const m of meetings(boxes)) errors.push(`region labels: ${m.a} and ${m.b} overlap at L0`)
   if (!boxes.some((b) => b.lines > 1)) errors.push('region labels: nothing wrapped at L0 despite multi-word domain names')
+  if (boxes.length !== domainIds.length)
+    errors.push(`region labels: the rail closed drew ${boxes.length} of ${domainIds.length} domain names — ${domainIds.filter((d) => !boxes.some((b) => b.id === d)).join(', ')} missing`)
+
+  await openRail()
+  await page.screenshot({ path: OUT + '/5b2-domain-names-rail-open.png' })
+  const openBoxes = await readNames(0)
+  if (openBoxes.length < 2) errors.push(`region labels: the rail open drew ${openBoxes.length} domain names`)
+  for (const m of meetings(openBoxes)) errors.push(`region labels: ${m.a} and ${m.b} overlap at L0 with the rail open (${m.w.toFixed(1)} x ${m.h.toFixed(1)}px)`)
+  console.log(`#369 domain names: ${boxes.length}/${domainIds.length} drawn rail closed, ${openBoxes.length}/${domainIds.length} rail open (left out: ${domainIds.filter((d) => !openBoxes.some((b) => b.id === d)).join(', ') || 'none'})`)
+
+  // THE MODULE NAMES ARE NOT GATED — the fix above is the L0 domain names only, and this
+  // grain is left as it was. Logged, not asserted, so a collision here is on record for a
+  // card of its own rather than found again by accident.
+  await goLevel(1)
+  await page.waitForTimeout(900)
+  const moduleIds = await regionIds(1)
+  const moduleOpen = await readNames(1)
+  await closeRail()
+  const moduleClosed = await readNames(1)
+  const describeMeetings = (bs) => meetings(bs).map((m) => `${m.a}/${m.b} ${m.w.toFixed(1)}x${m.h.toFixed(1)}px`).join('; ') || 'none'
+  console.log(`#369 module names at L1: rail closed ${moduleClosed.length}/${moduleIds.length} drawn, overlaps ${describeMeetings(moduleClosed)}`)
+  console.log(`#369 module names at L1: rail open ${moduleOpen.length}/${moduleIds.length} drawn, overlaps ${describeMeetings(moduleOpen)}`)
+  await goLevel(0) // leave the map at L0 with the rail closed, as this block found it
+  await page.waitForTimeout(900)
 }
 
 // 5c/5d — REMOVED. A domain selection used to draw a REGION STAR in the pane:
@@ -470,25 +476,41 @@ if (rollupDups.length) errors.push('rollup collapse: pair drawn more than once �
 // that the rolled-up roads collapse one pair to one road — is asserted just
 // above, and is the part that had no other home.
 
-// 5e — SelfNotes: Esc DESELECTS for real now (focus cleared with the overlay),
-// and ◀ back restores exactly the node you deselected.
+// 5e — SelfNotes: Esc DESELECTS for real (focus cleared with the overlay). Read off the
+// map's own `data-sel`. The second half — ◀ back restores exactly the node you
+// deselected — went with the connections pane's history buttons (#339); #404 asks
+// whether they come back, and this is where that assertion would return.
 {
-  const panel = page.locator('[aria-label="connections-pane"]')
+  // PRECONDITION: something must be selected, or the Esc below would pass on nothing.
+  if ((await page.locator('svg[data-nested][data-sel]').count()) !== 1)
+    errors.push('deselect: nothing was selected going into 5e, so its Esc would test nothing')
   await page.keyboard.press('Escape')
   await page.waitForTimeout(200)
-  if ((await page.locator('[aria-label="connections-pane"][data-focus]').count()) !== 0)
-    errors.push('deselect: Esc left the focus standing')
-  await page.getByLabel('connections-nav-back').click()
-  await page.waitForTimeout(300)
-  if ((await panel.getAttribute('data-focus')) !== domain)
-    errors.push('deselect: back did not restore the deselected domain')
+  if ((await page.locator('svg[data-nested][data-sel]').count()) !== 0)
+    errors.push('deselect: Esc left the selection standing')
 }
 
 // 5f — issue #6 (2026-07-17): a selection BELOW the topic grain draws NO roads
 // (the map-side twin of the pane's retired "via" lift — borrowing the owning
 // topic's arrows made every relation-less child look connected), and
-// de-selecting RESTS the pane on the node you were exploring instead of
+// de-selecting RESTS the map's breadcrumb on the node you were exploring instead of
 // yanking it to the whole-map root reading.
+//
+// THE RESTING HALF MOVED SURFACES WITH #339. It was read off the connections pane's
+// `data-current`, and that pane rested on the node. The Document pane does NOT — on a
+// deselect it falls to its "Nothing chosen" placeholder (`bus.focus ?? previewId`, #342).
+// That is a BUG against the design, not the design: OB-240 clause 2 says the document
+// keeps the last node it was reading, and #386 is open for it. When #386 lands, the
+// document's `data-current` should rest on `deepId` here again, and this block should
+// assert it. #404 lists it with the other things the retired pane carried. What still
+// rests is the map's own header path (OB-241/243: "the aim keeps its resting reading
+// after a deselect while the LIT state goes out"), so that is what is read here: its
+// last crumb, which names the node, before and after the deselect.
+const crumbTail = () => page.evaluate(() => {
+  const row = document.querySelector('[data-explorer-corner] + div')
+  const leaves = [...(row?.querySelectorAll('span') ?? [])].filter((n) => !n.children.length && n.textContent.trim() && n.textContent.trim() !== '›')
+  return leaves.length ? leaves[leaves.length - 1].textContent.trim() : null
+})
 {
   await goLevel(3)
   await page.waitForTimeout(900)
@@ -507,22 +529,25 @@ if (rollupDups.length) errors.push('rollup collapse: pair drawn more than once �
   if ((await page.locator('[data-seledge]').count()) !== 0) errors.push('deep-sel: a below-topic selection drew borrowed roads')
   if ((await page.locator('[data-selconn]').count()) !== 0) errors.push('deep-sel: a below-topic selection tinted a neighbourhood')
   if ((await page.locator('[data-seloutline]').count()) !== 1) errors.push('deep-sel: the selected cell lost its own outline')
+  const crumbSelected = await crumbTail()
+  // the crumb must NAME the deep node, not merely hold still: while it is selected the
+  // document pane is on it, and its header carries the same corpus title the crumb does
+  const docOnDeep = await page.locator('[aria-label="document-panel"]').getAttribute('data-current')
+  const docText = await page.locator('[aria-label="document-panel"]').innerText()
+  if (docOnDeep !== deepId) errors.push(`deep-sel: the document pane is on ${docOnDeep}, expected the selected ${deepId}`)
+  else if (!crumbSelected || !docText.includes(crumbSelected)) errors.push(`deep-sel: the map's header path ends "${crumbSelected}", which is not ${deepId}'s title in the document`)
   await page.keyboard.press('Escape')
   await page.waitForTimeout(300)
-  // PARK THE CURSOR ON WATER FIRST. With nothing selected the pane shows a
-  // PREVIEW of whatever the cursor is over (`previewId` in ConnectionsPane), and
-  // that preview is what the breadcrumb reads. Leaving the mouse wherever the
-  // last frame put it therefore asks the pane a different question than this
-  // block means to ask — "what are you pointing at" rather than "where do you
-  // rest". The map's top-left corner is water: nothing to hover.
+  // PARK THE CURSOR ON WATER FIRST, so no hover preview is standing in for the
+  // resting reading this block means to ask about — "where do you rest", not "what
+  // are you pointing at". The map's top-left corner is water: nothing to hover.
   const water = await page.locator('[data-nested]').boundingBox()
   await page.mouse.move(water.x + 4, water.y + 4)
   await page.waitForTimeout(300)
-  // `data-current` is the pane's OWN declaration of the node it is reading —
-  // `previewId ?? focusId`. This used to scrape the last breadcrumb chip, which
-  // is a lossy proxy for the same thing.
-  const tip = await page.locator('[aria-label="connections-pane"]').getAttribute('data-current')
-  if (tip !== deepId) errors.push(`deselect: pane rested on ${tip}, expected ${deepId}`)
+  if ((await page.locator('svg[data-nested][data-sel]').count()) !== 0) errors.push('deselect: Esc left the deep selection standing')
+  const crumbResting = await crumbTail()
+  if (!crumbSelected) errors.push(`deselect: the map's header path named nothing while ${deepId} was selected`)
+  else if (crumbResting !== crumbSelected) errors.push(`deselect: the map's header path rested on "${crumbResting}", expected "${crumbSelected}" (${deepId})`)
   await goLevel(2) // leave the map roughly where 5e did
   await page.waitForTimeout(600)
 }

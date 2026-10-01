@@ -18,8 +18,12 @@ export interface PaneActionBarItemSpec {
   /** hover tooltip, e.g. extra detail the label doesn't say — never the ONLY name of the action */
   title?: string
   disabled?: boolean
-  /** currently active / toggled on — e.g. "make optional" while the selection already is one */
-  selected?: boolean
+  /** currently active / toggled on — e.g. "make optional" while the selection already is one.
+   *  ★ LOCAL: `'mixed'` for a toggle whose subject is partly on — the walk editor's Optional
+   *  button over a group some of whose leaves are optional (DS OB-215). The DS gave that third
+   *  state to `Toolbar`'s `on`; this bar is where the button actually lives here, so `PillButton`
+   *  mirrors the same rung (its `selected`). */
+  selected?: boolean | 'mixed'
   tone?: 'quiet' | 'primary' | 'walk' | 'danger' | 'ghost'
   onClick?: () => void
 }

@@ -49,6 +49,7 @@ const NOT_IN_THE_RUN: Record<string, string> = {
   'probe-maplag.mjs': 'a MEASUREMENT — prints a speed ratio, which is the assertion that fails randomly on a loaded machine',
   'probe-walkpop.mjs': 'a MEASUREMENT for #374 — prints one pin\'s scale per drawn frame across a play-through and the driver\'s own reading beside it; it measures, it does not assert',
   'probe-walkdockbox.mjs': 'a MEASUREMENT for #365 — prints the map\'s box per change beside every font landing and dock change, under held, blocked and plain fonts; it measures, it does not assert',
+  'probe-roadstopclip.mjs': 'a MEASUREMENT for OB-217 (#343) — prints the Firefox and Chromium line-count pair the receipt carries, off the tools/studio-spike/roadstopclip fixture rather than the app',
   'shot-apptoolbar.mjs': 'screenshot instrument, holds assertions — see #299',
   'shot-cardhead.mjs': 'screenshot instrument, holds assertions — see #299',
   'shot-domaindot.mjs': 'screenshot instrument, holds assertions — see #299',
@@ -141,7 +142,7 @@ describe('this file can still read the registry it checks against', () => {
 
   it('and the ids it read are the ones the app actually has', () => {
     // named anchors, so a parse that returns SOMETHING but the wrong thing still fails
-    for (const id of ['map', 'document', 'connections', 'lens-depends_on'])
+    for (const id of ['map', 'document', 'lens-depends_on'])
       expect(INSTRUMENT_IDS.has(id), `instrument "${id}" missing from the parsed registry`).toBe(true)
     for (const id of ['present', 'explore', 'plan'])
       expect(PRESET_IDS.has(id), `preset "${id}" missing from the parsed registry`).toBe(true)

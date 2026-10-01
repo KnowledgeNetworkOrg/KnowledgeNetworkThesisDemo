@@ -19,7 +19,9 @@
 //                   shallow ones clamp onto their own centroid.
 //   2. MERGE        a contiguous run of stops on one cell becomes ONE pin spanning
 //                   `step`..`stepEnd`; a later return to the same cell stays a
-//                   separate pin (OB-069).
+//                   separate pin (OB-069). A run never merges across an
+//                   optionality boundary (OB-214 clause 5, policy C) — the ONE
+//                   place optionality moves anything. Stages 3-6 never read it.
 //   3. CROWD        how many pins are competing for the same piece of screen —
 //                   which fixes the size they are all drawn at.
 //   4. FAN          pins that want the exact same point get spread around it.
@@ -80,11 +82,20 @@ export interface WalkPin {
   stepEnd: number
   c: XY
   size: number
+  /** every stop this pin stands for may be skipped — `StepDot`'s `optional` (DS OB-214 clause 2).
+   *  HOMOGENEOUS BY CONSTRUCTION: stage 2 never merges across a change of flag, so a merged pin's
+   *  dash is an honest claim about every stop under it rather than a summary of some of them. */
+  optional: boolean
 }
 
 export interface WalkPinInput {
   /** the walk, as ordered corpus node ids — `bus.route` */
   route: string[]
+  /** which stops the walk may skip, INDEXED LIKE `route` — `routeOptionals(bus.routeSteps)`
+   *  (DS OB-214 clause 2; a parallel list, not objects on `route`, so every other reader of the
+   *  route keeps its `string[]`). Absent, or shorter than the route, means required: a route that
+   *  is not a walk (a `bus.teach` curriculum) has no optional stops. */
+  optional?: readonly boolean[]
   /** the map's current nesting level */
   level: number
   /** real screen px -> world units at the current zoom. The pins are sized in
@@ -103,23 +114,26 @@ interface Resolved {
   visId: string
   c: XY
   step: number
+  optional: boolean
 }
 
 interface Merged {
   visId: string
   c: XY
   steps: number[]
+  optional: boolean
 }
 
 // ── stage 1: resolve ────────────────────────────────────────────────────────
 /** each stop's cell at this level, in walk order. Stops the map cannot place at
  *  all are dropped. `walkAnchorAt` carries the whole rule, including OB-109's
- *  clamp for a stop shallower than the level — spelled out in atlas.ts. */
-function resolved(route: string[], level: number): Resolved[] {
+ *  clamp for a stop shallower than the level — spelled out in atlas.ts. Each
+ *  stop's optional flag is carried through untouched, for stage 2 to cut by. */
+function resolved(route: string[], level: number, optional: readonly boolean[]): Resolved[] {
   const out: Resolved[] = []
   for (let i = 0; i < route.length; i++) {
     const anchor = walkAnchorAt(route[i], level)
-    if (anchor) out.push({ visId: anchor.visId, c: anchor.c, step: i + 1 })
+    if (anchor) out.push({ visId: anchor.visId, c: anchor.c, step: i + 1, optional: optional[i] === true })
   }
   return out
 }
@@ -130,13 +144,24 @@ function resolved(route: string[], level: number): Resolved[] {
  *  sharing a cell is ONE pin with a range label, never three circles stacked on
  *  one point. A NON-adjacent return to a cell already pinned is always a SECOND
  *  pin, never a merged mark. The two cases are told apart by ADJACENCY, which is
- *  why this walks the list in order rather than bucketing by cell. */
+ *  why this walks the list in order rather than bucketing by cell.
+ *
+ *  A RUN NEVER MERGES ACROSS AN OPTIONALITY BOUNDARY (DS OB-214 clause 5, owner-
+ *  ruled 2026-09-17: policy C). A change of flag breaks the run exactly as a change
+ *  of cell does, so every merged pin is homogeneous and its dash means every stop
+ *  under it is skippable; a mixed run becomes two pins, each honest about what it
+ *  covers ("1.1–1.2" required, "1.3" optional). "Dash if any" and "dash if all"
+ *  were both rejected: each is a ring that is silent about something. THE COST IS
+ *  ACCEPTED: the split buys a pin, so that spot's crowd count rises and stage 3
+ *  drops every pin on it a size step (22 to 19 at one split, 16 where a third
+ *  joins). It depends on `StepDotMath.dash`'s cap fix — before it a 16px dash
+ *  painted with no gap at all. */
 function merged(stops: Resolved[]): Merged[] {
   const out: Merged[] = []
   for (const s of stops) {
     const last = out[out.length - 1]
-    if (last && last.visId === s.visId) last.steps.push(s.step)
-    else out.push({ visId: s.visId, c: s.c, steps: [s.step] })
+    if (last && last.visId === s.visId && last.optional === s.optional) last.steps.push(s.step)
+    else out.push({ visId: s.visId, c: s.c, steps: [s.step], optional: s.optional })
   }
   return out
 }
@@ -211,9 +236,9 @@ export function separate(pins: WalkPin[], px: (v: number) => number): void {
 }
 
 // ── the whole thing ─────────────────────────────────────────────────────────
-export function walkPins({ route, level, px, labelBoxes }: WalkPinInput): WalkPin[] {
+export function walkPins({ route, level, px, labelBoxes, optional = [] }: WalkPinInput): WalkPin[] {
   if (route.length === 0) return []
-  const groups = merged(resolved(route, level))
+  const groups = merged(resolved(route, level, optional))
   if (groups.length === 0) return []
 
   // 3 — crowd, off the cells' own centres, before anything has been moved
@@ -258,7 +283,7 @@ export function walkPins({ route, level, px, labelBoxes }: WalkPinInput): WalkPi
     // minted a top-level step number or a hyphenated range; the map now prints the
     // stop's two-number ADDRESS (`walkMarkLabel` over the walk's steps), so the
     // pin carries only the stop indices the label is composed from.
-    return { key: `${g.visId}-${g.steps[0]}`, visId: g.visId, step: g.steps[0], stepEnd: g.steps[g.steps.length - 1], c, size }
+    return { key: `${g.visId}-${g.steps[0]}`, visId: g.visId, step: g.steps[0], stepEnd: g.steps[g.steps.length - 1], c, size, optional: g.optional }
   })
 
   separate(pins, px)

@@ -53,11 +53,16 @@ export interface ProjectedState {
   mapUp: boolean
   /** the lecture's stops, as corpus ids — what the projector's own map draws the walk from */
   ids: string[]
+  /** which of those stops the walk may skip, INDEXED LIKE `ids` — the projected map's pins dash
+   *  and slant from it (DS OB-214 clause 4: "`ProjectedMap`'s lecture pins take the same flag").
+   *  Without it the room's map would rebuild the walk from bare ids and draw every optional stop
+   *  as required, which is the fault OB-214 exists for. */
+  optional: boolean[]
   /** the stops the record has covered, 0-based — the wall's line runs through them */
   covered: number[]
 }
 
-export const NOTHING_PROJECTED: ProjectedState = { live: false, slide: null, stop: 0, count: 0, mapUp: false, ids: [], covered: [] }
+export const NOTHING_PROJECTED: ProjectedState = { live: false, slide: null, stop: 0, count: 0, mapUp: false, ids: [], optional: [], covered: [] }
 
 export type ProjectorMessage =
   | { kind: 'connect' }

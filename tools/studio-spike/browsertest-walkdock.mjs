@@ -191,7 +191,9 @@ ok('still without moving the map', sameBox(before, afterClose), JSON.stringify({
   await page.waitForTimeout(400)
   const washed = await dock().locator('[data-walk-dock-stop]').evaluateAll((els) => els.map((e) => !!e.querySelector('[data-stepdot-wash]')))
   ok('OB-187 (2)+(4): at stop 3, the two dots behind the cursor carry the wash, the CURRENT dot does NOT (white on --accent-walk stays readable), and none ahead does', washed[0] && washed[1] && !washed[2] && !washed[3] && !washed[4], washed.map((w) => (w ? 'washed' : 'bare')).join(' '))
-  const curInk = await dock().locator('[data-walk-dock-stop="2"] button > span').evaluate((el) => getComputedStyle(el).color)
+  // the NUMBER is the dot's last span: since OB-214 (#344) a pill's face is an SVG in a wrapper
+  // span of its own, so `button > span` alone would match the wrapper too
+  const curInk = await dock().locator('[data-walk-dock-stop="2"] button > span:last-child').evaluate((el) => getComputedStyle(el).color)
   ok('the current dot\'s number is still the inverse ink', /25[0-5], 25[0-5], 25[0-5]|253, 252, 250/.test(curInk), curInk)
   await page.keyboard.press('Home')
   await page.waitForTimeout(300)
@@ -874,6 +876,9 @@ ok('OB-179 (5): after the room pans during playback, the next arrival leaves the
 // row's edge lights it and pans. Leaving clears and the row returns to the cursor. A click still
 // selects on the map and changes NOTHING in the dock. And OB-131 clause 3, open since 2026-09-05:
 // a hover published by another pane lights the stop and draws NO preview card.
+// The editor's pills also carry real corpus topic ids, and J below seeds its repeat walk from
+// two of them — kept here because this is the one section with the chips on screen.
+let repeatIds = []
 {
   await page.getByLabel('studio-inst-walkeditor').click()
   await page.waitForTimeout(500)
@@ -891,6 +896,8 @@ ok('OB-179 (5): after the room pans during playback, the next arrival leaves the
   ok('the open row is NARROWER than the walk, so a stop can be off-screen (the condition the pan needs)', rowW < stopCount * 68, `row ${rowW}px for ${stopCount} stops`)
   const halo = (i) => dock().locator(`[data-walk-dock-mark="${i}"]`).evaluateAll((els) => (els.length ? getComputedStyle(els[0]).boxShadow : 'no mark hook'))
   const chips = road.locator('[data-rnode][data-node]')
+  // #347's fixture: two real, distinct topic ids off the seed draft's own pills
+  repeatIds = [...new Set(await chips.evaluateAll((els) => els.map((el) => el.getAttribute('data-node')).filter(Boolean)))].slice(0, 2)
   const nChips = await chips.count()
   const scroll0 = await row().evaluate((el) => el.scrollLeft)
   await chips.first().hover()
@@ -959,6 +966,46 @@ ok('OB-179 (5): after the room pans during playback, the next arrival leaves the
   } else {
     ok('the presenter\'s strip draws the stop under test', false, sameCard ? `no [data-presenter-tick|dot="${k}"]` : 'no dock card was captured in C3')
   }
+}
+
+// ── J. #347: A WALK THAT VISITS ONE STOP TWICE — every row keys by POSITION ─────
+// A walk is an ordered list of stops, and the model allows a revisit: `walkPins` stage 2 says a
+// NON-adjacent return to a cell is always a SECOND pin. So the surfaces that render the stops —
+// the dock's closed ticks, the dock's open row, the viewer's strip — must key each row by its
+// PLACE in the walk, not by the node id alone. Keyed by the id, a repeated node makes React log
+// "Encountered two children with the same key" and is allowed to duplicate or omit a row.
+// The fixture is a SAVED walk: the store reads `pkt.walks.saved` at module load, so the walk is
+// seeded, the page reloaded, and the walk activated from Trail — the two topic ids come from the
+// walk editor's own pills (H), so they are real topics by construction. The console is watched
+// from just before the activation, and the case is proveable: the walk must really be 3 stops
+// with stop 1 and stop 3 the SAME node, or the check is passing for the wrong reason.
+{
+  const consoleErrors = []
+  const onConsole = (m) => { if (m.type() === 'error') consoleErrors.push(m.text()) }
+  ok('#347 fixture: the desk supplied two distinct topic ids for the repeat walk', repeatIds.length === 2 && repeatIds[0] !== repeatIds[1], repeatIds.join(', '))
+  await page.evaluate((ids) => {
+    localStorage.setItem('pkt.walks.saved', JSON.stringify([{
+      id: 'authored-repeat-stop', title: 'Repeat stop walk', description: '',
+      stops: [{ id: ids[0], note: '' }, { id: ids[1], note: '' }, { id: ids[0], note: '' }],
+    }]))
+  }, repeatIds)
+  page.on('console', onConsole)
+  await page.reload()
+  await page.waitForTimeout(800)
+  await page.evaluate(() => document.fonts.ready)
+  // the reload is the default composition again; add Trail and play the seeded walk from it
+  await page.getByLabel('studio-inst-trail').click()
+  await page.waitForTimeout(400)
+  await page.getByRole('button', { name: /Repeat stop walk/ }).click()
+  await page.waitForTimeout(600)
+  const rRepeat = await readout()
+  ok('#347: the seeded walk is the one playing — 3 stops, the middle one a different node', !!rRepeat && rRepeat.n === 3, JSON.stringify(rRepeat))
+  if ((await dock().getAttribute('data-walk-dock')) !== 'open') { await map.getByLabel('show every stop').click(); await page.waitForTimeout(450) }
+  const rowTitles = await dock().locator('[data-walk-dock-stop]').evaluateAll((els) => els.map((e) => ((e.lastElementChild && e.lastElementChild.textContent) || '').replace(/\s+/g, ' ').trim()))
+  ok('#347: the open row draws the repeat as its own row — stops 1 and 3 carry the same title, stop 2 a different one', rowTitles.length === 3 && !!rowTitles[0] && rowTitles[0] === rowTitles[2] && rowTitles[0] !== rowTitles[1], rowTitles.join(' | '))
+  const dupes = consoleErrors.filter((t) => /Encountered two children with the same key/i.test(t))
+  ok('#347: rendering the dock and the viewer\'s strip for a repeated stop logs NO React duplicate-key error', dupes.length === 0, dupes.length ? dupes[0] : `${consoleErrors.length} console error(s), ${rowTitles.length} rows`)
+  page.off('console', onConsole)
 }
 
 await browser.close()

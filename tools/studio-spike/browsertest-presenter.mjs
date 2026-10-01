@@ -257,6 +257,152 @@ try {
   await page.waitForTimeout(700)
   ok('▶ resumes: the lecture is live again, chrome gone, chip "Presenting stop 3"', (await page.locator('[aria-label="studio-header"]').count()) === 0 && (await chipText()) === 'Presenting stop 3', await chipText())
 
+  // ── OB-203: advancing the film roll plays a TRAVEL FRAME, so the direction is visible ────────────
+  // The roll used to CUT: all three cards swapped contents between two frames and nothing on screen
+  // said which way the lecture had just moved. Now every stop CHANGE slides the row of three cards one
+  // step — half the live card + the gap + half the neighbour it trades places with — from the side it
+  // came FROM, at half opacity, over `--dur-move`, and the chevron for that direction goes full weight
+  // and leans 3px. THE ONLY WAY TO TELL A SLIDE FROM A SNAP IS TO SAMPLE IT MID-MOVE: "it ends up at
+  // rest" is exactly what the broken build (a CSS transition that arrived after the row was home) also
+  // did, and a screenshot cannot tell them apart. So each press below is watched frame by frame and an
+  // INTERMEDIATE value has to exist.
+  //
+  // WHAT THESE PRESSES DO NOT DO IS MOVE THE RECORD: later checks (the wall's arrow count, "stop 3 of 7")
+  // are written against stop 3 having been active and nothing else covered, so everything here is a
+  // ROAM — which plays the slide exactly as a step does, because the roll is driven by the stop actually
+  // on the wall — and the roam is ended at the close.
+  const matrixTx = (m) => (!m || m === 'none' ? 0 : Number(m.match(/matrix\(([^)]+)\)/)[1].split(',')[4]))
+  /** run `act()` while the roll's row and both chevrons are sampled on every animation frame */
+  const sampleRoll = async (act, ms = 800) => {
+    const sampling = page.evaluate((span) => new Promise((res) => {
+      const row0 = document.querySelector('[data-filmroll-row]')
+      const live = document.querySelector('[data-filmroll-card="live"]')
+      const nb = document.querySelector('[data-filmroll-card="neighbour"]')
+      const gap = parseFloat(getComputedStyle(row0).columnGap) || 0
+      const step = (live.getBoundingClientRect().width + nb.getBoundingClientRect().width) / 2 + gap
+      const durMove = getComputedStyle(row0).getPropertyValue('--dur-move').trim()
+      const t0 = performance.now()
+      const frames = []
+      const tick = () => {
+        const row = document.querySelector('[data-filmroll-row]')
+        const cs = getComputedStyle(row)
+        const chev = (label) => { const el = document.querySelector(`[data-filmroll] [aria-label="${label}"]`); return el ? getComputedStyle(el) : null }
+        const nx = chev('next stop')
+        const pv = chev('previous stop')
+        frames.push({
+          row: cs.transform, op: cs.opacity, inline: row.getAttribute('style') || '',
+          next: nx ? nx.transform : 'none', nextOp: nx ? nx.opacity : null, prev: pv ? pv.transform : 'none', prevOp: pv ? pv.opacity : null,
+          durations: row.getAnimations().map((a) => a.effect.getTiming().duration),
+        })
+        if (performance.now() - t0 < span) requestAnimationFrame(tick)
+        else res({ frames, step, durMove })
+      }
+      requestAnimationFrame(tick)
+    }), ms)
+    await page.waitForTimeout(80)
+    await act()
+    return sampling
+  }
+  /** what a run of frames shows: the biggest displacement and its sign, whether an INTERMEDIATE value
+   *  exists, how many separate slides were played, and where it ended */
+  const readSlide = ({ frames, step, durMove }) => {
+    const tx = frames.map((f) => matrixTx(f.row))
+    const abs = tx.map(Math.abs)
+    const peak = Math.max(...abs)
+    let starts = 0
+    let resting = true
+    for (const a of abs) {
+      if (resting && a > 0.4 * step) { starts++; resting = false } else if (a < 0.05 * step) resting = true
+    }
+    const last = frames[frames.length - 1]
+    return {
+      step, durMove, peak, dir: Math.sign(tx[abs.indexOf(peak)]), starts,
+      mid: abs.some((a) => a > 0.1 * step && a < 0.9 * step),
+      opMin: Math.min(...frames.map((f) => Number(f.op))),
+      // the row's style may carry `will-change: transform` (a hint, moves nothing), so match the
+      // PROPERTIES `transform:` / `opacity:`, not the word — `will-change: transform` contains it
+      endsAtRest: matrixTx(last.row) === 0 && Number(last.op) === 1 && !/(^|;)\s*(transform|opacity)\s*:/.test(last.inline),
+      nextLean: Math.max(...frames.map((f) => matrixTx(f.next))), prevLean: Math.min(...frames.map((f) => matrixTx(f.prev))),
+      nextEnds: matrixTx(last.next), prevEnds: matrixTx(last.prev),
+      durations: [...new Set(frames.flatMap((f) => f.durations))],
+    }
+  }
+  const explain = (s) => `peak ${s.peak.toFixed(1)} of step ${s.step.toFixed(1)}, dir ${s.dir}, ${s.starts} slide(s), mid ${s.mid}, ends at rest ${s.endsAtRest}`
+  await page.mouse.move(4, 4)
+
+  // a ROAM to a non-adjacent stop, from the strip: stop 3 → stop 1, a jump BACK — it plays, toward the jump
+  const jump = readSlide(await sampleRoll(() => page.locator('[data-presenter-tick="0"]').click()))
+  ok('OB-203: a roam to a non-adjacent stop from the strip plays the slide, in the direction of the jump (back)', jump.starts === 1 && jump.peak >= 0.4 * jump.step && jump.dir === -1, explain(jump))
+  ok('OB-203: SAMPLED MID-MOVE there is an INTERMEDIATE value — a slide, not a snap', jump.mid, explain(jump))
+  ok('and the row ends at REST: no transform and no opacity of its own left in its style — kill the animation and the cards are home', jump.endsAtRest, explain(jump))
+  ok('the row also fades in — it starts at half opacity', jump.opMin <= 0.75, `lowest opacity sampled ${jump.opMin}`)
+  ok('the duration is the token\'s, `--dur-move`, read at play time', jump.durations.length > 0 && jump.durations.every((d) => `${d}ms` === (jump.durMove || '')), `animation durations ${JSON.stringify(jump.durations)} vs --dur-move ${jump.durMove}`)
+
+  // → with NO MOUSE anywhere near the roll: the clause that proves `stopIndex` is wired
+  await page.mouse.move(4, 4)
+  const fwd = readSlide(await sampleRoll(() => page.keyboard.press('ArrowRight')))
+  ok('OB-203: pressing → (no pointer near the roll) plays the SAME slide, in the matching direction (forward)', fwd.starts === 1 && fwd.dir === 1 && fwd.mid, explain(fwd))
+  ok('and the chevron for that direction is at full weight and leans 3px outward while it runs, then is released', fwd.nextLean >= 2 && fwd.nextEnds === 0, `next chevron peak lean ${fwd.nextLean.toFixed(2)}px, ends ${fwd.nextEnds}px`)
+  // ← has to LAND on a stop that still has one behind it: the previous chevron is only drawn when a
+  // previous stop exists, and the jump above went to stop 1, so a single → then ← would come back to
+  // stop 1 where there is no chevron to lean. One more → first (unsampled), so ← lands on stop 2.
+  await page.keyboard.press('ArrowRight')
+  await page.waitForTimeout(500)
+  const back = readSlide(await sampleRoll(() => page.keyboard.press('ArrowLeft')))
+  ok('OB-203: pressing ← plays it the other way, and leans the OTHER chevron', back.starts === 1 && back.dir === -1 && back.mid && back.prevLean <= -2 && back.prevEnds === 0, `${explain(back)}; previous chevron lean ${back.prevLean.toFixed(2)}px`)
+  ok('the chevrons are fixed furniture: they never travel with the row', fwd.nextEnds === 0 && back.prevEnds === 0)
+
+  // a CLICK on the chevron: with `stopIndex` passed the roll's own click path is off, so ONE press is ONE slide
+  const click = readSlide(await sampleRoll(() => page.locator('[data-filmroll] [aria-label="next stop"]').click()))
+  ok('OB-203: one chevron click plays the slide ONCE — not once for the click and once for the index change', click.starts === 1 && click.mid && click.dir === 1, explain(click))
+  await page.mouse.move(4, 4)
+
+  // REDUCED MOTION cuts: `--dur-move` collapses to 1ms, so the animation is one millisecond long
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.waitForTimeout(200)
+  const cut = readSlide(await sampleRoll(() => page.keyboard.press('ArrowLeft')))
+  // the token collapses, and whatever animation was caught is that long — a 1ms animation can be gone
+  // before the first frame samples it, so an EMPTY list is not a failure, but the token reading is
+  ok('OB-203: with prefers-reduced-motion the roll CUTS — `--dur-move` reads 1ms and the animation is that long, not the normal 200', cut.durMove === '1ms' && cut.durations.every((d) => d <= 2), `--dur-move ${cut.durMove}; animation durations ${JSON.stringify(cut.durations)}`)
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.waitForTimeout(200)
+
+  // end the roam: back on the record, which none of this moved
+  await page.keyboard.press('Backspace')
+  await page.waitForTimeout(700)
+  ok('the roam ends where the record is — the presses above never moved it (stop 3)', (await chipText()) === 'Presenting stop 3', await chipText())
+
+  // ── OB-246: the open strip SPANS THE ROW; `pitch` is a floor, not the spacing ────────────────────
+  // The closed rail has always spread its ticks across its own width, while the open row placed dots at
+  // the CONSTANT `PRESENTER_STRIP_METRICS.pitch` either side of centre, so its drawn span was a function
+  // of the stop COUNT and every pixel of spare width went unused: opening the strip made the same walk
+  // look squashed. Measured off the running page, in screen px, because the fault is a comparison of two
+  // modes' reach: the drawn spacing never falls under the floor (68) once the row is wide enough to label
+  // anything, and the outermost DRAWN stops sit as far out as the row lets a labelled (36) or unlabelled
+  // peek (9) end sit — where the constant pitch left this walk in a huddle in the middle of a 1.7k pane.
+  const closedTicks = await page.locator('[data-presenter-tick]').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return r.x + r.width / 2 }))
+  const railSpan = Math.max(...closedTicks) - Math.min(...closedTicks)
+  await page.keyboard.press('e')
+  await page.waitForTimeout(700)
+  ok('E opens the strip', (await strip().getAttribute('data-presenter-strip')) === 'open')
+  const rowBox = await page.locator('[data-presenter-row]').boundingBox()
+  const openDots = (await page.locator('[data-presenter-dot]').evaluateAll((els) => els.map((e) => {
+    const r = e.getBoundingClientRect()
+    return { i: Number(e.getAttribute('data-presenter-dot')), x: r.x + r.width / 2, op: Number(getComputedStyle(e).opacity) }
+  }))).filter((d) => d.op > 0.05).sort((a, b) => a.i - b.i)
+  const gaps = openDots.slice(1).map((d, k) => d.x - openDots[k].x)
+  ok('OB-246: the open row draws stops', openDots.length >= 2, `${openDots.length} drawn of ${closedTicks.length}`)
+  ok('the drawn spacing never falls below the published floor (68px) — `pitch` is a floor', gaps.every((g) => g >= 68 - 0.5), `spacings ${gaps.map((g) => g.toFixed(1)).join(', ')}`)
+  const leftReach = openDots[0].x - rowBox.x
+  const rightReach = rowBox.x + rowBox.width - openDots[openDots.length - 1].x
+  ok('the outermost drawn stops sit as close to the pane\'s edges as a labelled end (36) or a peek (9) allows — the walk SPANS the row, not a huddle at its centre', leftReach <= 40 && rightReach <= 40, `left reach ${leftReach.toFixed(1)}px, right reach ${rightReach.toFixed(1)}px of a ${Math.round(rowBox.width)}px row (closed rail spans ${Math.round(railSpan)}px)`)
+  ok('and the drawn span is most of the row it was given', (openDots[openDots.length - 1].x - openDots[0].x) / rowBox.width >= 0.9, `${Math.round(openDots[openDots.length - 1].x - openDots[0].x)} of ${Math.round(rowBox.width)}px`)
+  ok('the "back to the active node" marker is absent while the active stop is IN the drawn window — even where a spread row puts a dot a long way from the edge', (await page.locator('[data-presenter-strip="open"] [aria-label="back to the active node"]').count()) === 0)
+  await page.screenshot({ path: 'tools/studio-spike/shots/ob246-open-strip.png', clip: { x: rowBox.x - 20, y: rowBox.y - 60, width: rowBox.width + 40, height: 150 } })
+  await page.keyboard.press('e')
+  await page.waitForTimeout(500)
+  ok('E closes it again, to the closed height (64)', Math.round((await strip().boundingBox()).height) === 64, String((await strip().boundingBox()).height))
+
   // ── M puts the map on the wall; a second M takes it down (OB-139) ───────────
   const liveCard = () => page.locator('[data-filmroll-card="live"]')
   const caption = async () => ((await liveCard().locator('[data-projected-caption]').count()) ? (await liveCard().locator('[data-projected-caption]').innerText()).replace(/\s+/g, ' ') : '')
@@ -295,13 +441,26 @@ try {
   const camera = () => wallMap().locator('svg').first().evaluate((svg) => svg.querySelector('defs + g').getAttribute('transform'))
   const boxesOf = (sel) => liveCard().locator(sel).evaluateAll((els) => els.map((e) => { const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height } }))
   const inside = (b, r) => b.x >= r.x && b.y >= r.y && b.x + b.w <= r.x + r.w && b.y + b.h <= r.y + r.h
-  const overlaps = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+  /** how deep two boxes intersect, 0 or less when they do not — the caption's box ends on the
+   *  line box's descender edge, so a fit that is right to the pixel can still graze it by a
+   *  fraction; the check below allows 1px of this and nothing more */
+  const overlapDepth = (a, b) => Math.min(Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y))
   const svgBox = (await boxesOf('[data-projected-map] svg'))[0]
+  // THE VISIBLE CARD, not the svg's own box (what a pin must lie inside — the room cannot see
+  // an svg that runs past the card). `inside` wants w/h; boundingBox gives width/height.
+  const cardRect = await liveCard().boundingBox()
+  const cardBox = { x: cardRect.x, y: cardRect.y, w: cardRect.width, h: cardRect.height }
   const pinsUp = await boxesOf('[data-routestop]')
   const capBox = (await boxesOf('[data-projected-caption]'))[0]
   const wallFoot = (await boxesOf('[data-projected-map-foot]'))[0]
-  ok('OB-163 (1): with the map up, the frame already contains EVERY stop\'s pin', pinsUp.length >= 3 && pinsUp.every((b) => inside(b, svgBox)), `${pinsUp.filter((b) => !inside(b, svgBox)).length} of ${pinsUp.length} pins outside the ${Math.round(svgBox.w)}×${Math.round(svgBox.h)} frame`)
-  ok('clear of the caption and the foot', !!capBox && !!wallFoot && pinsUp.every((b) => !overlaps(b, capBox) && !overlaps(b, wallFoot)))
+  // THE MAP'S DRAWING BOX IS THE SLOT ABOVE THE FOOT, measured on screen. It used to be the
+  // svg's own 1440:960 viewBox ratio — 686×457 in a 686×365 slot — so the wall fit believed it
+  // had 92px more room than the card shows and stop 7's pin drew under the foot and off the
+  // card while every check here still passed: they measured the svg's box, not the card's.
+  const slotH = wallFoot ? wallFoot.y - svgBox.y : 0
+  ok('OB-163 (1): the map is sized to its slot above the foot, not to the viewBox\'s own 3:2 ratio', svgBox.h <= slotH + 1, `svg ${Math.round(svgBox.h)} tall in a ${Math.round(slotH)} tall slot`)
+  ok('OB-163 (1): with the map up, the VISIBLE card already contains EVERY stop\'s pin', pinsUp.length >= 3 && pinsUp.every((b) => inside(b, cardBox)), `${pinsUp.filter((b) => !inside(b, cardBox)).length} of ${pinsUp.length} pins outside the ${Math.round(cardBox.w)}×${Math.round(cardBox.h)} card`)
+  ok('clear of the caption and clear ABOVE the foot band — a pin below the foot is off the card, not clear of it', !!capBox && !!wallFoot && pinsUp.every((b) => overlapDepth(b, capBox) <= 1 && b.y + b.h <= wallFoot.y + 0.5), `${pinsUp.filter((b) => overlapDepth(b, capBox) > 1).length} pins overlap the caption, ${pinsUp.filter((b) => b.y + b.h > wallFoot.y + 0.5).length} dip below the foot`)
   const cx = pinsUp.map((b) => b.x + b.w / 2), cy = pinsUp.map((b) => b.y + b.h / 2)
   const extW = Math.max(...cx) - Math.min(...cx), extH = Math.max(...cy) - Math.min(...cy)
   ok('and the walk FILLS the wall rather than sitting in a corner: the pins\' extent spans at least 60% of the frame on one axis', extW / svgBox.w >= 0.6 || extH / svgBox.h >= 0.6, `extent ${Math.round(extW)}×${Math.round(extH)} in ${Math.round(svgBox.w)}×${Math.round(svgBox.h)}`)
@@ -310,7 +469,11 @@ try {
    *  library), skipping the masks — rects in CSS px relative to the slot */
   const maskedDiff = async (a, b, masks) => {
     const slot = (await boxesOf('[data-projected-map]'))[0]
-    const rel = masks.map((m) => ({ x: m.x - slot.x - 6, y: m.y - slot.y - 6, w: m.w + 12, h: m.h + 12 })) // padded: a stroke and a shadow draw outside a <g>'s geometric box
+    // PADDED: a stroke and a shadow draw outside a <g>'s geometric box. 10, not 6 — on the
+    // corrected wall box (the pin's box is now the real 22px at the fitted camera) the lit
+    // pin's own pill edge, changing face as the walk advances, lands up to 7px outside the
+    // box, and a 6px pad counted that allowed change as camera movement.
+    const rel = masks.map((m) => ({ x: m.x - slot.x - 10, y: m.y - slot.y - 10, w: m.w + 20, h: m.h + 20 }))
     return page.evaluate(async ({ a, b, masks, sw }) => {
       const load = (src) => new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.src = 'data:image/png;base64,' + src })
       const [ia, ib] = await Promise.all([load(a), load(b)])

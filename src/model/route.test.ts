@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { routeLeafIds, routeNumbers, routeOfIds, routeStepIsGroup } from './route'
+import { routeLeafIds, routeNumbers, routeOfIds, routeOptionals, routeStepIsGroup } from './route'
 import type { RouteStep } from './route'
 
 /* #228 (DS OB-114) — the route with its groups intact, and the numbering the map and the
@@ -16,6 +16,17 @@ describe('routeLeafIds — the flat projection every current reader keeps', () =
   it('round-trips a flat list', () => {
     expect(routeLeafIds(routeOfIds(['x', 'y']))).toEqual(['x', 'y'])
     expect(routeOfIds(['x']).map(routeStepIsGroup)).toEqual([false])
+  })
+})
+
+describe('routeOptionals — one flag per landed-on node, lined up with routeLeafIds (DS OB-214)', () => {
+  it('reads each leaf\'s own flag, through groups, in the same order as the ids', () => {
+    const steps = [leaf('a'), group('g', { node: 'b', optional: true }, leaf('c')), { node: 'd', optional: true }]
+    expect(routeLeafIds(steps)).toEqual(['a', 'b', 'c', 'd'])
+    expect(routeOptionals(steps)).toEqual([false, true, false, true])
+  })
+  it('a flat route of ids has no optional stops', () => {
+    expect(routeOptionals(routeOfIds(['x', 'y']))).toEqual([false, false])
   })
 })
 
