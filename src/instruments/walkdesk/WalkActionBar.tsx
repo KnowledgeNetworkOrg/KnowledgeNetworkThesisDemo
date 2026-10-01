@@ -14,39 +14,8 @@
 // no drag/resize/auto-hide of its own to carry.
 
 import { AddNodeMark, NewWalkMark, OptionalMark, PaneActionBar } from '@/ds'
-import { clearStoredData, listStoredData } from '../../state/storeddata'
 import { parsePath, stopAt, useAuthorDraft, useRoad } from '../../state/walk/authordraft'
 import { chosenIdx, isFork } from '../../state/walk/mockwalk'
-
-// TEMPORARY (2026-08-22) — the "Reset data" pill below, and this function with
-// it. Both go when the stale-payload question is closed; src/state/storeddata.ts
-// carries the same marker and the reasoning.
-//
-// Reports BEFORE it clears, because the bytes are the diagnosis and clearing
-// destroys them: a stale payload cannot say which build wrote it (none of the
-// three stored shapes carries a version field), so the only way to learn what
-// broke is to look at what is actually there. The console table survives the
-// reload — it is printed before navigation, and the devtools console persists
-// across a same-document reload.
-//
-// It clears the draft, the saved walks and panel layout, and KEEPS a presenter's
-// lecture notes, categories and deck layout (#331) — storeddata.ts's
-// RESET_PREFIXES is the list. The last line says what was kept, so a reset that
-// left something behind reads as a decision rather than a failure.
-function resetStoredData() {
-  const found = listStoredData()
-  console.log('[reset] stored before clearing:', found.length ? found : '(nothing stored)')
-  for (const entry of found) {
-    console.log(`[reset]   ${entry.key} — ${entry.bytes} bytes\n${entry.preview}`)
-  }
-  const cleared = clearStoredData()
-  console.log('[reset] cleared', cleared.length, 'key(s):', cleared)
-  const kept = found.map((e) => e.key).filter((key) => !cleared.includes(key))
-  console.log('[reset] kept', kept.length, 'key(s):', kept)
-  // the stores read their keys once at module load, so nothing on screen changes
-  // until the app boots again — see clearStoredData's own note
-  location.reload()
-}
 
 export default function WalkActionBar() {
   const state = useAuthorDraft()
@@ -94,18 +63,6 @@ export default function WalkActionBar() {
           onClick: state.toggleOptionalSelection,
         },
         { glyph: '⏏', label: 'Extract', title: 'extract the active version into its own group', disabled: !canExtract, onClick: extractActive },
-        // TEMPORARY (2026-08-22) — see resetStoredData above. `danger` because it
-        // throws away the saved plan AND every saved walk, and the system's rule
-        // is that a destructive control says so at rest rather than on hover. The
-        // title names what it keeps as well, because lecture notes share the
-        // storage namespace and a presenter would otherwise assume they go too.
-        {
-          glyph: '⟲',
-          label: 'Reset data',
-          title: 'TEMPORARY: forget the saved draft, saved walks and panel layout, then reload — lecture notes are kept',
-          tone: 'danger',
-          onClick: resetStoredData,
-        },
       ]}
     />
   )

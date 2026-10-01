@@ -151,8 +151,9 @@ try {
   ok('the button now reads fully ON', (await pressed()) === 'true', String(await pressed()))
   const onFace = await face()
 
+  // #170: the draft is stored as the `{ v, data }` envelope now
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('pkt.walkdesk.draft') || 'null'))
-  const box = stored && stored.stops[1]
+  const box = stored && stored.data && stored.data.stops[1]
   ok('OB-215 (1): the GROUP stores no `optional` field — only its leaves carry one', !!box && !('optional' in box) && box.variants[0].steps.every((s) => s.optional === true), JSON.stringify(box))
 
   await page.keyboard.press('Control+z')

@@ -137,7 +137,7 @@ try {
   const roamRows = await rows()
   ok('the note written while roaming shows on the ROAMED stop', roamRows.length === 1 && /needs an example/.test(roamRows[0] || ''), String(roamRows.length))
   ok('and it is stamped with the roamed stop, by the pane', await page.evaluate(() => {
-    const book = JSON.parse(localStorage.getItem('pkt.lecture.notes.v1:draft') || '{}')
+    const book = (JSON.parse(localStorage.getItem('pkt.lecture.notes:draft') || '{}').data || {})
     const hit = (book.notes || []).find((n) => /needs an example/.test(n.text))
     return !!hit && hit.stop === 3
   }))
@@ -158,7 +158,7 @@ try {
   await page.getByLabel('add this category').click()
   await page.waitForTimeout(400)
   ok('the minted category is stored against the professor, not the lecture',
-    await page.evaluate(() => (JSON.parse(localStorage.getItem('pkt.lecture.categories.v1') || '{}').list || []).some((c) => c.label === 'Homework')))
+    await page.evaluate(() => ((JSON.parse(localStorage.getItem('pkt.lecture.categories') || '{}').data || {}).list || []).some((c) => c.label === 'Homework')))
   await leaveField()
   await page.keyboard.press('ArrowRight')
   await page.waitForTimeout(400)
@@ -182,7 +182,7 @@ try {
   ok('the pencil commits the correction in place', /Say the handshake out loud/.test(await prepared().innerText()))
   ok('and the blank line between the two paragraphs survives the round trip',
     await page.evaluate(() => {
-      const book = JSON.parse(localStorage.getItem('pkt.lecture.notes.v1:draft') || '{}')
+      const book = (JSON.parse(localStorage.getItem('pkt.lecture.notes:draft') || '{}').data || {})
       return Object.values(book.prepared || {}).some((v) => /goes up\.\n\nSYN/.test(v))
     }))
   await page.reload()
@@ -191,7 +191,7 @@ try {
   await page.getByLabel('studio-preset-present').click()
   await page.waitForTimeout(800)
   ok('the correction survives a reload', /Say the handshake out loud/.test(await prepared().innerText()),
-    'prepared = ' + (await page.evaluate(() => JSON.stringify((JSON.parse(localStorage.getItem('pkt.lecture.notes.v1:draft') || '{}')).prepared)))
+    'prepared = ' + (await page.evaluate(() => JSON.stringify(((JSON.parse(localStorage.getItem('pkt.lecture.notes:draft') || '{}')).data || {}).prepared)))
     + ' · shown = ' + (await page.locator('[data-presenter-chip]').innerText()).replace(/\s+/g, ' ').trim())
   ok('and so do the notes taken', (await during().locator('[data-lecture-note]').count()) === 1)
   await page.locator('[data-note-composer]').locator('button').first().click()
@@ -258,8 +258,8 @@ try {
   const moved = await shelf.boundingBox()
   ok('the shelf can be dragged by its header', Math.round(shelfBox.x - moved.x) > 40, `${Math.round(shelfBox.x)} → ${Math.round(moved.x)}`)
   ok('and where it was dropped is saved as a delta, not a point',
-    await page.evaluate(() => { const h = JSON.parse(localStorage.getItem('pkt.lecture.habits.v1') || '{}'); return !!h.shelfPosition && h.shelfPosition.x < -40 }),
-    await page.evaluate(() => JSON.stringify(JSON.parse(localStorage.getItem('pkt.lecture.habits.v1') || '{}').shelfPosition)))
+    await page.evaluate(() => { const h = (JSON.parse(localStorage.getItem('pkt.lecture.habits') || '{}').data || {}); return !!h.shelfPosition && h.shelfPosition.x < -40 }),
+    await page.evaluate(() => JSON.stringify((JSON.parse(localStorage.getItem('pkt.lecture.habits') || '{}').data || {}).shelfPosition)))
   await page.reload()
   await page.waitForTimeout(1200)
   await openPalette()
