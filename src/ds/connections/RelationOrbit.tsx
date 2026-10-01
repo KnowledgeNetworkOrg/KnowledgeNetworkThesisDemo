@@ -47,8 +47,14 @@ export interface OrbitMark {
   /** `<targetId>|<kind>` — what the pointer reports and what the card is looked up by */
   key: string
   rel: Relation
-  /** the descendant the relationship was found through, or null for a direct one */
+  /** the descendant the relationship was found through, or null for a direct one. The FIRST of
+   *  `vias` */
   via: { id: string; title: string; domain?: string } | null
+  /** EVERY descendant that holds this key, in order — so a card can still name them all after the
+   *  figure has collapsed them to one mark. A direct mark carries the children that ALSO hold it,
+   *  though it draws on the inner ring (DIRECT WINS), so this can list more children than the
+   *  figure draws marks */
+  vias: { id: string; title: string; domain?: string }[]
 }
 
 /** ONE MARK PER RELATIONSHIP, NEVER PER NEIGHBOUR — the decision the whole figure rests on.
@@ -57,11 +63,31 @@ export interface OrbitMark {
  *  in another kind's wedge, which is the one thing an angle-is-the-kind layout promises never to
  *  do; it also made the figure's count disagree with the legend's. One mark per relationship fixes
  *  both, and the twin marks share a target id, so hovering either lights both and the card is the
- *  same — the figure saying "one neighbour, twice related" instead of a badge annotating it. */
+ *  same — the figure saying "one neighbour, twice related" instead of a badge annotating it.
+ *
+ *  ONE MARK PER KEY, AND THE KEY IS `<targetId>|<kind>` ON BOTH RINGS — so the figure collapses a
+ *  repeated key itself instead of drawing one mark twice on one spot under a duplicated React key
+ *  (the port's finding, `receipts/5ba8bec.md`). Two cases produce one: a node and one of its
+ *  children holding the same (target, kind), and two children relating to one outside node the
+ *  same way. DIRECT WINS: a relationship the node holds itself sits on the inner ring even when a
+ *  child also holds it. Every child that holds a key is kept, in order, on `vias`, so a card can
+ *  still name them all; `via` stays the first of them. */
 export function orbitMarks(direct?: readonly Relation[] | null, via?: readonly ViaRelation[] | null): OrbitMark[] {
   const out: OrbitMark[] = []
-  for (const r of direct || []) out.push({ key: r.targetId + '|' + r.kind, rel: r, via: null })
-  for (const v of via || []) out.push({ key: v.rel.targetId + '|' + v.rel.kind, rel: v.rel, via: v.path && v.path.length ? v.path[v.path.length - 1] : null })
+  const at: Record<string, number> = {}
+  for (const r of direct || []) {
+    const key = r.targetId + '|' + r.kind
+    if (at[key] !== undefined) continue
+    at[key] = out.length
+    out.push({ key, rel: r, via: null, vias: [] })
+  }
+  for (const v of via || []) {
+    const key = v.rel.targetId + '|' + v.rel.kind
+    const src = v.path && v.path.length ? v.path[v.path.length - 1] : null
+    if (at[key] !== undefined) { if (src) out[at[key]].vias.push(src); continue }
+    at[key] = out.length
+    out.push({ key, rel: v.rel, via: src, vias: src ? [src] : [] })
+  }
   return out
 }
 
@@ -76,8 +102,13 @@ export function orbitKinds(marks: readonly { rel: { kind: string } }[]): string[
 
 /** the capitalised way in to this file's resolvers, for a card or a raw page reading off
  *  `window.<Namespace>` (which carries no lower-case export). Same function objects, no second
- *  implementation: `OrbitMath.marks` IS `orbitMarks`, `OrbitMath.kinds` IS `orbitKinds`.
- *  Application code imports the named functions. */
+ *  implementation: `OrbitMath.marks` IS `orbitMarks`, `OrbitMath.kinds` IS `orbitKinds`,
+ *  `OrbitMath.wedge` IS `orbitWedge`. Application code imports the named functions.
+ *
+ *  PUBLISHED IN THE TURN THE LOWER-CASE HELPERS WERE WRITTEN, which is the rule and not a
+ *  courtesy: a card reading `NS.orbitMarks` gets `undefined` forever, and reports it in the
+ *  wording reserved for a bundle that is one turn behind — so the section reads "not in this
+ *  build" permanently, above a figure that is drawing perfectly. */
 export const OrbitMath = { marks: orbitMarks, kinds: orbitKinds, wedge: orbitWedge }
 
 /** THE NEIGHBOURHOOD AS AN ORBIT, ORDERED BY KIND — the figure the dissolution puts in a rail
@@ -129,11 +160,13 @@ export interface RelationOrbitProps {
   via?: ViaRelation[]
   /** WHAT IS POINTED AT, as a key: `<targetId>|<kind>` is one relationship, `<targetId>` is the
    *  neighbour (both of a twin-kinded pair), `ORBIT_SELF` is the hub. One piece of state for
-   *  three readings, split where it is read — a host wires one `onHot` and gets all three. */
+   *  three readings, split where it is read — a host wires one `onHot` and gets all three.
+   *  `e` IS ALWAYS PASSED, the leave included (it is the leave's own event). An undefined `hot`
+   *  is read as `null`, so a host that never sets it is not called on every move. */
   hot?: string | null
   /** the pointer moved onto a different mark (or off every one — null). The event is the pointer's
-   *  own, and is absent on the leave that ends the hover */
-  onHot?: (key: string | null, e?: ReactPointerEvent<Element>) => void
+   *  own, and is always present: on the leave that ends the hover it is the leave's own event */
+  onHot?: (key: string | null, e: ReactPointerEvent<Element>) => void
   /** the kind whose wedge is washed — the host's filter, mirrored here */
   kind?: string | number | null
   /** the ring zone the POINTER is in, reported back so a host can mirror it (`'own' | 'via'`) */
@@ -248,7 +281,7 @@ export function RelationOrbit({ width = 216, height = 240, direct, via, hot, onH
     : <path fillRule="evenodd" fill={HOP_WASH} pointerEvents="none"
         d={'M ' + (cx - rx) + ' ' + cy + ' A ' + rx + ' ' + ry + ' 0 1 0 ' + (cx + rx) + ' ' + cy + ' A ' + rx + ' ' + ry + ' 0 1 0 ' + (cx - rx) + ' ' + cy + ' Z M ' + (cx - rx * M.inner) + ' ' + cy + ' A ' + (rx * M.inner) + ' ' + (ry * M.inner) + ' 0 1 0 ' + (cx + rx * M.inner) + ' ' + cy + ' A ' + (rx * M.inner) + ' ' + (ry * M.inner) + ' 0 1 0 ' + (cx - rx * M.inner) + ' ' + cy + ' Z'} />
   return (
-    <svg data-relation-orbit="1" width={width} height={height} style={{ display: 'block' }} onPointerMove={onMove} onPointerLeave={() => { rectRef.current = null; onHot?.(null); onHop?.(null) }}>
+    <svg data-relation-orbit="1" width={width} height={height} style={{ display: 'block' }} onPointerMove={onMove} onPointerLeave={(ev) => { rectRef.current = null; onHot?.(null, ev); onHop?.(null) }}>
       <g>
         {kind ? kinds.map((k, ki) => (k === kind ? wedgePath(k, ki) : null)) : null}
         {hopSel ? ringWash(hopSel) : (hop ? ringWash(hop) : null)}
