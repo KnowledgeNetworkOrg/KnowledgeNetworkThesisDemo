@@ -1,0 +1,1 @@
+do not rely on the design side, let's make a call right now, and leave a note stating the decision we have made. We will record this as a receipt back to them.
