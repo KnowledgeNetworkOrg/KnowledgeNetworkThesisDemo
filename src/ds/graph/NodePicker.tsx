@@ -412,8 +412,11 @@ function renderRows(nodes: NodeOption[], depth: number, onPick: (id: string) => 
 function MenuItem({ node, depth, onPick, rowPad }: { node: NodeOption; depth: number; onPick: (id: string) => void; rowPad: number }) {
   const clip = useClipped<HTMLSpanElement>(node.title)
   const off = !!node.disabled
+  // the prop's contract: `reason` is IGNORED without `disabled`, so neither the row's
+  // alignment nor its second line may react to one
+  const reason = off ? node.reason : undefined
   const rowStyle: CSSProperties = {
-    display: 'flex', alignItems: node.reason ? 'flex-start' : 'center', gap: 8,
+    display: 'flex', alignItems: reason ? 'flex-start' : 'center', gap: 8,
     padding: rowPad + 'px 9px ' + rowPad + 'px ' + (9 + depth * 16) + 'px',
     borderRadius: 'var(--radius-sm)', cursor: off ? 'not-allowed' : 'pointer', fontSize: 'var(--fs-body)',
     color: off ? 'var(--text-3)' : 'var(--text-1)',
@@ -426,7 +429,7 @@ function MenuItem({ node, depth, onPick, rowPad }: { node: NodeOption; depth: nu
       onMouseEnter={(e) => { if (!off) e.currentTarget.style.background = 'var(--surface-hover)' }}
       onMouseLeave={(e) => { if (!off) e.currentTarget.style.background = 'transparent' }}
     >
-      <span style={{ flexShrink: 0, marginTop: node.reason ? 4 : 0 }}><DomainDot domain={node.domain} /></span>
+      <span style={{ flexShrink: 0, marginTop: reason ? 4 : 0 }}><DomainDot domain={node.domain} /></span>
       <span style={{ minWidth: 0 }}>
         <span {...clip} style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {node.title}
@@ -434,7 +437,7 @@ function MenuItem({ node, depth, onPick, rowPad }: { node: NodeOption; depth: nu
         {/* THE REASON IS NOT BERRY. A row that was never offered is not a refused act — the
            drag's `DropRefusal` answers a gesture the user MADE, while this only explains an
            absence, and `--text-3` is the register the rest of this menu already speaks in. */}
-        {node.reason ? <span style={{ display: 'block', fontSize: 'var(--fs-micro)', lineHeight: 'var(--lh-snug)', color: 'var(--text-3)' }}>{node.reason}</span> : null}
+        {reason ? <span style={{ display: 'block', fontSize: 'var(--fs-micro)', lineHeight: 'var(--lh-snug)', color: 'var(--text-3)' }}>{reason}</span> : null}
       </span>
     </div>
   )
