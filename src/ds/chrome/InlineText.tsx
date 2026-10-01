@@ -122,7 +122,17 @@ export const INLINE_EDIT_STYLE: React.CSSProperties = {
  *  the strings move"). The strut gives an empty line the baseline a full one has, so the row is
  *  in the same place whether the field is empty, full, open or shut. It is not a space: it
  *  cannot be seen, cannot be selected into a commit, and never reaches `readBack` (the editable
- *  DOM is seeded from `value` the moment editing starts). */
+ *  DOM is seeded from `value` the moment editing starts).
+ *
+ *  AN EMPTY LINE WHILE OPEN CARRIES ONE TOO, and it lives in the STYLESHEET, not here (DS
+ *  OB-273, 2026-10-01). Open, this renders no children, so an empty field is a box with no line
+ *  box again. Chromium synthesises a baseline for an empty editable anyway; Firefox does not, so
+ *  in Firefox the row around it grew on the pencil \u2014 the DS's own card, dpr 1.5: +4.57 at the
+ *  foot, +5.12 at the index; Chrome 0.00. The fix is
+ *  `.kn-inline-edit-selection:empty::before { content: '\200b' }` in `tokens/base.css`, on the
+ *  class this component already puts on an open line: generated content, so it never enters
+ *  `textContent`, a commit or the caret. A PORT THAT VENDORS THIS FILE AND NOT
+ *  `tokens/base.css` SHIPS THE FAULT IN FIREFOX, and passes every Chromium test. */
 const STRUT = '\u200b'
 
 /** the widest a placeholder may floor a field — a caller's invitation is copy, and copy can be
