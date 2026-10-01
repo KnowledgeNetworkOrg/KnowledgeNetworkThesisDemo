@@ -190,10 +190,12 @@ export const StepDotMath = {
   dash(size: number, strokeWidth: number): { ink: number; gap: number; period: number; array: string } {
     const ink = Math.max(1.5, size * 0.1)
     const gap = Math.max(1.5, size * 0.08)
-    /* the gap is what is LEFT of the period once the dash is taken, not `gap + strokeWidth`
-       on its own: the two agree until the dash floors at 0.01 (a stroke at or over `ink` —
-       the lit pin's 2.25 ring at 22px), where the old sum grew the period and the cycle
-       count round the ring drifted from the one promised above. ★ LOCAL — the DS sums. */
+    /* THE ARRAY SUMS TO ITS OWN PERIOD, ALWAYS. The gap is what the period leaves after the drawn
+       dash, not `gap + strokeWidth`: once `ink <= strokeWidth` the drawn dash floors at 0.01 and
+       the old gap no longer took that back, so a 22px pin's lit ring summed to 4.02 against a 3.96
+       period and the dashes crept round the ring (this port's finding, `receipts/e5b0460.md`). Above
+       the floor the two forms are the same number. The DS source now carries the same form (its
+       OB-261 clause 2), so what was a ★ LOCAL deviation here is retired. */
     const drawn = Math.max(0.01, ink - strokeWidth)
     return {
       ink, gap, period: ink + gap,
@@ -288,6 +290,16 @@ export function StepDot({ n, state = 'ahead', variant = 'rail', size = 24, arriv
      the rule the circle branch below follows for the same reason. */
   if (isPill) {
     const rx = (size - ringW) / 2
+    /* OPTIONAL + CURRENT ON A PILL TAKES THE CIRCLE'S BAND (DS OB-261, owner 2026-09-27). The dock's
+       open row draws a RAIL pill at `current`, the one dark face in the system, and white dashes on
+       a solid `--accent-walk` fill read as texture, not as a dashed edge — the fault the circle's
+       shrunk fill exists to avoid. So the pill does what the circle does: the face becomes a light
+       band, the fill is inset from it by the circle's own proportion (0.22 of the half-height, the
+       circle's 0.78 fill radius carried over — CHOSEN), and the dash is stroked in `bd` on that
+       band. `pillBand` is that inset in px. On `variant="pin"` the face is `--surface-paper` in
+       every state, so the band is paper on paper and draws nothing new. */
+    const pillBand = optional && state === 'current' ? (size / 2 - ringW / 2) * 0.22 : 0
+    const pillBandFill = variant === 'pin' ? 'var(--surface-paper)' : 'var(--surface-raised)'
     return (
       <button
         type="button"
@@ -327,7 +339,7 @@ export function StepDot({ n, state = 'ahead', variant = 'rail', size = 24, arriv
             offsets, and the SVG fills it at 100%/100%. */}
         <span aria-hidden="true" style={{ position: 'absolute', left: ringW / 2, top: ringW / 2, right: ringW / 2, bottom: ringW / 2 }}>
           <svg width="100%" height="100%" style={{ display: 'block', overflow: 'visible' }}>
-            <rect x="0" y="0" width="100%" height="100%" rx={rx} fill={skin.bg} stroke={optional ? 'none' : skin.bd} strokeWidth={ringW} />
+            <rect x="0" y="0" width="100%" height="100%" rx={rx} fill={pillBand ? pillBandFill : skin.bg} stroke={optional ? 'none' : skin.bd} strokeWidth={ringW} />
             {washable ? (
               <Fragment>
                 <clipPath id={washId}><rect x="0" y="0" width="100%" height="100%" rx={rx} /></clipPath>
@@ -335,17 +347,27 @@ export function StepDot({ n, state = 'ahead', variant = 'rail', size = 24, arriv
               </Fragment>
             ) : null}
             {optional ? (
-              /* STROKED IN `ink` IN EVERY STATE, where the circle's `current` dash strokes in `bd`:
-                 the circle's fill SHRANK and left a light band behind the dash; a pill's fill does
-                 not shrink, so `bd` would be a dash the colour of the ring it replaces. WHAT THIS
-                 COSTS, as the DS states it: a RAIL pill at `current` is the one dark face in the
-                 system, and white dashes on it read as texture rather than as a dashed edge. */
+              /* STROKED IN `ink`, EXCEPT ON THE BAND. A pill's fill reaches its edge, so `bd` would be
+                 a dash the colour of the ring it replaces; `ink` contrasts the fill in every state,
+                 being the number's own colour. The one exception is optional + `current`, whose
+                 fill is inset (`pillBand`, above): there the dash sits on the light band and takes
+                 `bd`, exactly as the circle's does. (This used to say no caller could build a rail
+                 pill at `current` and that white dashes there were the accepted cost — wrong: the
+                 dock's open row does, and the DS corrected its docblock in OB-261.) */
               <rect data-stepdot-dash="" x="0" y="0" width="100%" height="100%" rx={rx} fill="none"
-                stroke={skin.ink} strokeWidth={dashW} strokeLinecap="round"
+                stroke={pillBand ? skin.bd : skin.ink} strokeWidth={dashW} strokeLinecap="round"
                 strokeDasharray={StepDotMath.dash(size, dashW).array} />
             ) : null}
           </svg>
         </span>
+        {pillBand ? (
+          /* the inset fill, in its own wrapper for the same replaced-element reason the face has one */
+          <span aria-hidden="true" style={{ position: 'absolute', left: ringW / 2 + pillBand, top: ringW / 2 + pillBand, right: ringW / 2 + pillBand, bottom: ringW / 2 + pillBand }}>
+            <svg width="100%" height="100%" style={{ display: 'block', overflow: 'visible' }}>
+              <rect data-stepdot-band="" x="0" y="0" width="100%" height="100%" rx={Math.max(0, rx - pillBand)} fill={skin.bg} />
+            </svg>
+          </span>
+        ) : null}
         <span style={numeralStyle(optional)}>{n}</span>
       </button>
     )
