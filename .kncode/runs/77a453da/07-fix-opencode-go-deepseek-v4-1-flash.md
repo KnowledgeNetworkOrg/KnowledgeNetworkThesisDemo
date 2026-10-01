@@ -1,0 +1,5 @@
+1. **fixed** — restored `src/model/star.ts` and `src/model/star.test.ts`, keeping the shared centre helper (star now imports `centroidOf` from `./flat` instead of its private copy), and added `model/star.ts` to `KEPT_UNREACHED` with the reason that it exists only for #339's one-release rollback and is deleted with the split pane. Verified with `npx vitest run src/unreachedmodule.test.ts src/model/star.test.ts` — 2 files, 23 tests passed (the 21 restored star tests plus the 2 guard tests).
+
+Assumptions: git is denied to me, so I recovered the two deleted files byte-for-byte from a sibling worktree of the same repository (all eight sibling copies are identical, confirming the base version) and then applied the shared-helper change on top.
+
+Noticed outside this card's scope: the Optional finding about `src/instruments/ContoursView.tsx:124-125` computing the centre inline is left alone, as allowed; and the three stale "one pane away" pointers to the retired Connections star (`MapView.tsx:47`, `atlas.ts:286`, `mapselect.ts:51`) remain for another card.

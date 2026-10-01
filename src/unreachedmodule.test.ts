@@ -46,6 +46,12 @@ const KEPT_UNREACHED: Record<string, string> = {
     'through renames. No screen creates a top-level topic yet (the corpus is authored), so its only caller is ' +
     'the test that proves the rule; the header says so. Kept as the single statement of that rule for the day a ' +
     'screen does.',
+  'model/star.ts':
+    'The relations star — the ring layout the retired Connections pane read. Kept ONLY for #339 (OB-226), which ' +
+    'holds the split pane in src/ds for one release so a rollback is restoring `src/instruments/ConnectionsPane.tsx` ' +
+    'from d8dd6ce and re-registering it; that file fed on this module, so deleting it would silently add a third ' +
+    'step. Delete this entry and the module together with the split pane when the release is over; if the pane is ' +
+    'restored, the stale-exception check below flags the entry by itself.',
   'present/session.ts':
     'The presenting/fullscreen split — `presenting` is ours, `fullscreen` is only ever mirrored from the host, ' +
     'because the host can refuse fullscreen and the user can leave it with F11 without walking off stage. ' +
