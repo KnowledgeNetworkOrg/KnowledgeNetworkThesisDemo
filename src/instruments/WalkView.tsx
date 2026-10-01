@@ -77,9 +77,12 @@ export default function WalkView({ bus }: { bus: WalkViewBus }) {
   }, [explorePath.length])
 
   if (explorePath.length === 0) {
+    // OB-143: the heading's first letter sits under the legend's — left only, by the
+    // constant, and NOT centred: a centred column drifts right of the legend in any
+    // pane wider than it. This is the screen the pane opens on since #325.
     return (
-      <PaneScroller style={{ padding: 24 }} data-explore-path={explorePath.length}>
-        <div className="max-w-[900px] mx-auto">
+      <PaneScroller style={{ padding: `24px 24px 24px ${LEGEND_INSET}px` }} data-explore-path={explorePath.length}>
+        <div className="max-w-[900px]">
           <div className="text-[13px] font-bold text-slate-800">Start a walk</div>
           <div className="text-[11px] text-slate-500 mt-0.5 mb-4">
             pick a node, then follow its outgoing links one step at a time — this path is the explorer's own, not the desk's road

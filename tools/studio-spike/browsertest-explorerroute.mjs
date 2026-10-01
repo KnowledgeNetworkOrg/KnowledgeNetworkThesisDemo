@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
-const PORT = 5266
+const PORT = 5267 // 5266 is taken by #427's browsertest-firstline.mjs
 
 const require = createRequire(REPO + '/package.json')
 const { chromium } = require('playwright-core')

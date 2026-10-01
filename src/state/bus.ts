@@ -25,7 +25,8 @@
 // flat projection derived from it) belongs to the DESK. The only writers are the
 // presented road (`setRouteSteps`, published by the walk editor/viewer through
 // state/walk/presented.ts), an activated saved walk (`activateWalk`, reached from
-// the trail or a playback seek), the generated curriculum (`teach`), and the
+// the trail, a playback seek, or the document panel's "walks through here"
+// cards), the generated curriculum (`teach`), and the
 // explicit clears (`clearRoute`, `reset`). The edge-following explorer is NOT a
 // route writer: it keeps its own trail on `explorePath`/`setExplorePath`, so a
 // click there can no longer overwrite the road the desk published — the measured
@@ -355,7 +356,8 @@ export function useStudioBus<Id extends string>(reveal: (inst: Id | BusRevealTar
       if (!focus) return
       const c = curriculum(focus, 'depends_on', 3)
       setRoute(c.order)
-      reveal('walk')
+      // the map draws the curriculum; the edge-following explorer no longer
+      // mirrors the route (#325), so opening it would show nothing of this
       reveal('map')
     },
     reset: () => {
