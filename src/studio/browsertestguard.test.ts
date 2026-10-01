@@ -142,7 +142,7 @@ describe('this file can still read the registry it checks against', () => {
 
   it('and the ids it read are the ones the app actually has', () => {
     // named anchors, so a parse that returns SOMETHING but the wrong thing still fails
-    for (const id of ['map', 'document', 'connections', 'lens-depends_on'])
+    for (const id of ['map', 'document', 'lens-depends_on'])
       expect(INSTRUMENT_IDS.has(id), `instrument "${id}" missing from the parsed registry`).toBe(true)
     for (const id of ['present', 'explore', 'plan'])
       expect(PRESET_IDS.has(id), `preset "${id}" missing from the parsed registry`).toBe(true)

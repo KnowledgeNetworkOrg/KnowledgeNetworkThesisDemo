@@ -435,17 +435,9 @@ await withApp('teaching', {}, async (page) => {
     ok('leaving the map cell clears the figure', (await k.figureLit()).length === 0)
   }
 
-  // ── OB-242 clause 2, OB-224: the LIST headers and the multi-target bracket are unchanged ──────
-  const list = await page.evaluate(() => {
-    const h = document.querySelector('[aria-label="connections-pane"] [data-rel-group-header="direct"]')
-    return {
-      present: !!h, sentence: h ? h.hasAttribute('data-rel-sentence') : null,
-      upper: h ? getComputedStyle(h).textTransform : null,
-      brackets: document.querySelectorAll('[aria-label="connections-pane"] [data-rel-bracket]').length,
-    }
-  })
-  ok('the Connections pane\'s list header is UNCHANGED — caps, count, no sentence', list.present && list.sentence === false && list.upper === 'uppercase', JSON.stringify(list))
-  ok('a group of SEVERAL targets still draws its left bracket', list.brackets >= 1, `${list.brackets}`)
+  // (OB-242 clause 2 / OB-224 — "the Connections pane's LIST headers and bracket are
+  // unchanged" — were checked here until #339 unmounted that pane; `RelationCards`, which
+  // drew them, is kept in src/ds for one release with no host to measure it in.)
 
   // ── the seam (OB-253), because the card is sized against the figure the rail is drawing ────────
   const sepSel = `${DOC} [role="separator"]`
