@@ -20,8 +20,14 @@ productName: Graph Disclosure Lab
 # the two would share one storage folder: notes typed in the .exe would appear in
 # the checkout's app and the reverse. Writing productName into the packed
 # package.json gives the .exe its own folder, %APPDATA%\Graph Disclosure Lab.
+#
+# THE HANDED-OUT .EXE'S "File description". The portable wrapper (NSIS) takes it
+# from the package's `description`, not from productName, so without this line
+# Explorer's Properties and Task Manager show the developer note from
+# desktop/package.json. The app inside the wrapper already uses productName.
 extraMetadata:
   productName: Graph Disclosure Lab
+  description: Graph Disclosure Lab
 directories:
   output: release
 
