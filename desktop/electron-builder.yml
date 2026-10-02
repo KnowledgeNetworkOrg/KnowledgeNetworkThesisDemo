@@ -11,6 +11,15 @@
 
 appId: com.knowledgenetwork.thesisdemo # must match setAppUserModelId in main.ts
 productName: Graph Disclosure Lab
+# THE PACKED APP'S OWN NAME AT RUNTIME. `productName` above only names the
+# artifact; Electron reads its name from the package.json inside app.asar, which
+# has none, so it would fall back to `knowledge-network-thesis-demo-desktop`.
+# That is the name `npm start` runs under, on the same `app://local` origin, so
+# the two would share one storage folder: notes typed in the .exe would appear in
+# the checkout's app and the reverse. Writing productName into the packed
+# package.json gives the .exe its own folder, %APPDATA%\Graph Disclosure Lab.
+extraMetadata:
+  productName: Graph Disclosure Lab
 directories:
   output: release
 

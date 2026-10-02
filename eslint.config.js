@@ -31,7 +31,9 @@ const noHostBranch = {
 export default defineConfig([
   // the evoc spike carries a Python venv; eslint was walking into its vendored
   // matplotlib JS and reporting on it. Noise in every `npm run verify`.
-  globalIgnores(['dist', '**/.venv/**']),
+  // desktop/release is `npm --prefix desktop run pack`'s output (#203): it holds a
+  // second, minified copy of dist/ that lint would otherwise read after a pack.
+  globalIgnores(['dist', 'desktop/release', '**/.venv/**']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

@@ -103,6 +103,14 @@ double-click it — no repo, no Node, no install.
 The app is **not code-signed**, so Windows SmartScreen warns on first run
 ("Windows protected your PC"). Click **More info**, then **Run anyway**. This is
 expected; the only alternatives are accepting it or buying a certificate.
+Two machines behave differently: a copy that was not downloaded (handed over on
+a USB stick, or built on that machine) usually shows no warning at all, and on
+Windows 11 with **Smart App Control** turned on an unsigned app is blocked
+outright, with no Run anyway button — use another machine, or turn Smart App
+Control off.
+
+The packed app keeps its saved data (lecture notes, walks) in
+`%APPDATA%\Graph Disclosure Lab`, separate from the app run from a checkout.
 
 Packaging is a hand-run command and stays out of CI: it downloads Electron and is
 Windows-only, while `code-verify` is deliberately Electron-free (see #201). There
