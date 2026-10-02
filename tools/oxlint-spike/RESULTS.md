@@ -42,7 +42,7 @@ rules**. Five further conditions, all checked by the script:
    line, oxlint's rule of the same name fires on that same line, or fires on another
    line of the file while the comment, left in place, still silences it.
 4. Every rule ESLint reports on the real tree (comments neutralised) is also reported
-   by oxlint.
+   by oxlint, and in no file does ESLint report more of a rule than oxlint does.
 5. With the comments in place, oxlint reports nothing on the real tree that ESLint
    does not — otherwise swapping the linters turns `npm run lint` red.
 
@@ -58,7 +58,7 @@ that one was left switched off.
 ## Measured
 
 <!-- parity:begin -->
-**Verdict: KEEP ESLINT — 2 of 11 planted violations oxlint does not report (host-branch (#211), raw hex / px (#61)); 5 active ESLint rules with no same-named oxlint rule; 4 active ESLint rules that @oxlint/migrate did not carry into the oxlint config; 3 of 34 disable comments cover a rule that oxlint never reports in that file; ESLint reports more than oxlint in 6 file/rule pairs (set-state-in-effect); oxlint reports 1 finding on the real tree that ESLint does not.**
+**Verdict: KEEP ESLINT — 2 of 11 planted violations oxlint does not report (host-branch (#211), raw hex / px (#61)); 5 active ESLint rules with no same-named oxlint rule; 4 active ESLint rules that @oxlint/migrate did not carry into the oxlint config; 3 of 34 disable comments cover a rule that oxlint never reports in that file; ESLint reports more than oxlint in 6 file/rule pairs, on the copy with the comments renamed (set-state-in-effect); oxlint reports 1 finding on the real tree that ESLint does not.**
 
 Measured 2026-10-02 with oxlint 1.86.0, @oxlint/migrate 1.86.0, eslint 9.39.3, node v22.23.1.
 
@@ -113,7 +113,7 @@ What the tool printed:
 
 #### D. The real tree, ESLint against oxlint
 
-ESLint over the real tree (`eslint .`, comments in place): 0 errors, 0 warnings, and 0 of its own "unused eslint-disable" warnings. Over a copy of the tree with every `eslint-disable` renamed (so ESLint has nothing to obey, and the React-compiler rules have no comment to skip a function over) it reports 46 findings — that is what the repo's 34 `eslint-disable` comments in 24 files hold back, directly on the lines they cover and, for the React-compiler rules, by making the plugin skip the whole function around a `react-hooks/…` comment.
+ESLint over the real tree (`eslint .`, comments in place): 0 errors, 0 warnings, and 0 of its own "unused eslint-disable" warnings. Over a copy of the tree with every `eslint-disable` renamed (so ESLint has nothing to obey, and the React-compiler rules have no comment to skip a function over) it reports 46 findings — that is what the repo's 34 `eslint-disable` comments in 24 files hold back, directly on the lines they cover and, for the React-compiler rules, by making the plugin skip the whole function around an `exhaustive-deps` or `rules-of-hooks` comment.
 
 **Each comment, checked against both tools.** A comment is *stale* when ESLint itself reports nothing on the line it covers (not oxlint's fault, and left out of the verdict). Otherwise the question is whether oxlint's rule of the same name fires on that line, with the comment neutralised. Where it fires on a different line of the file, the run with the comments in place decides: still reported in that file means the comment would have to move; quiet means it still silences the rule where it stands.
 
@@ -172,7 +172,8 @@ node tools/oxlint-spike/parity.mjs --write
   not ESLint's `--no-inline-config`, is what "comments neutralised" means for ESLint:
   that flag stops ESLint obeying a comment, but the React-compiler rules in
   `eslint-plugin-react-hooks` read the comment text themselves and skip any function
-  that holds a `react-hooks/…` disable, so they would under-report and oxlint would
+  that holds a `react-hooks/exhaustive-deps` or `react-hooks/rules-of-hooks` disable,
+  so they would under-report and oxlint would
   look as if it found more. It reports ESLint's own errors, warnings and
   unused-comment warnings; a per-comment table (stale in ESLint / oxlint fires on the
   line / fires on another line and the comment still holds / fires on another line and
@@ -194,7 +195,9 @@ node tools/oxlint-spike/parity.mjs --write
 ## If the verdict is "keep ESLint"
 
 This file and the pull request description are the record the card asks for: the
-silent rows in table A are the gap, and the version is stamped on the block. Leave
+silent rows in table A, and the `set-state-in-effect` shortfall in D (found on the copy
+with the comments renamed, so a gap in what would be caught in future code, not a change
+to the tree as it stands), are the gap, and the version is stamped on the block. Leave
 `eslint.config.js` and the ESLint packages as they are. Re-running the command above
 is the whole re-evaluation, so revisit it when oxlint gains a rule that a silent row
 needs — not before.

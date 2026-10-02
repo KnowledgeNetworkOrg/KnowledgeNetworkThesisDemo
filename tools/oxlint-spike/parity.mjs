@@ -368,7 +368,8 @@ const copyTree = (dest, neutralise) => {
 // ESLint over a copy made by `copyTree`, with this repo's own config. This, not
 // `--no-inline-config`, is what "comments neutralised" has to mean for ESLint: that flag
 // stops ESLint OBEYING the comments, but the react-hooks plugin's React-compiler pass
-// reads the comment text itself and skips any function holding a `react-hooks/…` disable,
+// reads the comment text itself and skips any function holding a `react-hooks/exhaustive-deps`
+// or `react-hooks/rules-of-hooks` disable (its default list of suppressions),
 // so those rules (`refs`, `immutability`, `use-memo`, part of `set-state-in-effect`)
 // would report fewer findings than the code has, and oxlint's copy (nothing left to read)
 // would look as if it found more. The repo's own config is handed over with `-c`: ESLint
@@ -703,7 +704,7 @@ const report = ({ versions, rows, inventory, migrated, real }) => {
     if (cmp?.dark.length) gaps.push(`${cmp.dark.length} rules ESLint reports on the real tree that oxlint does not (${cmp.dark.join(', ')})`)
     if (cmp?.silentComments > 0) gaps.push(`${cmp.silentComments} of ${cmp.confirmed} disable comments cover a rule that oxlint never reports in that file`)
     if (cmp?.movedComments > 0) gaps.push(`${cmp.movedComments} of ${cmp.confirmed} disable comments would have to move, because oxlint reports the same rule on a different line of the file and still reports it there with the comments in place`)
-    if (cmp?.fewer.length) gaps.push(`ESLint reports more than oxlint in ${cmp.fewer.length} file/rule pairs (${[...new Set(cmp.fewer.map((x) => x.rule))].join(', ')})`)
+    if (cmp?.fewer.length) gaps.push(`ESLint reports more than oxlint in ${cmp.fewer.length} file/rule pairs, on the copy with the comments renamed (${[...new Set(cmp.fewer.map((x) => x.rule))].join(', ')})`)
     if (cmp?.extraTotal > 0) gaps.push(`oxlint reports ${findings(cmp.extraTotal)} on the real tree that ESLint does not`)
     if (gaps.length) {
       verdict = `KEEP ESLINT — ${gaps.join('; ')}.`
@@ -756,7 +757,7 @@ const report = ({ versions, rows, inventory, migrated, real }) => {
   } else {
     const es = real.es
     const files = new Set(real.directives.map((d) => d.file)).size
-    md.push(`ESLint over the real tree (\`eslint .\`, comments in place): ${es.errors} errors, ${es.warnings} warnings, and ${es.unused} of its own "unused eslint-disable" warnings. Over a copy of the tree with every \`eslint-disable\` renamed (so ESLint has nothing to obey, and the React-compiler rules have no comment to skip a function over) it reports ${findings(es.suppressed)} — that is what the repo's ${real.directives.length} \`eslint-disable\` comments in ${files} files hold back, directly on the lines they cover and, for the React-compiler rules, by making the plugin skip the whole function around a \`react-hooks/…\` comment.`, '')
+    md.push(`ESLint over the real tree (\`eslint .\`, comments in place): ${es.errors} errors, ${es.warnings} warnings, and ${es.unused} of its own "unused eslint-disable" warnings. Over a copy of the tree with every \`eslint-disable\` renamed (so ESLint has nothing to obey, and the React-compiler rules have no comment to skip a function over) it reports ${findings(es.suppressed)} — that is what the repo's ${real.directives.length} \`eslint-disable\` comments in ${files} files hold back, directly on the lines they cover and, for the React-compiler rules, by making the plugin skip the whole function around an \`exhaustive-deps\` or \`rules-of-hooks\` comment.`, '')
     if (es.byRule.size) {
       md.push(`ESLint's own findings by rule: ${[...es.byRule].map(([r, n]) => `\`${r}\` ${n}`).join(', ')}.`, '')
     }
