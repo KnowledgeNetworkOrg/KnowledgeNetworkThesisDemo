@@ -156,7 +156,7 @@ describe('an old saved-walks list upgrades without erasing what this corpus cann
     })
     vi.resetModules()
     const mod = await import('./walkstore')
-    expect(mod.savedWalks()[0].stops.map((s) => s.id)).toEqual([A, B])
+    expect(mod.walkById('authored-x')?.stops.map((s) => s.id)).toEqual([A, B])
     expect(JSON.parse(map.get('pkt.walks.saved')!)).toEqual({ v: 1, data: stored })
   })
 })
