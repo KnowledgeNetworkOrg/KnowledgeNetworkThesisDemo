@@ -1,3 +1,4 @@
+import { FIRST_ROW_PAD } from '../chrome/Pane'
 import { domainToken } from '../graph/DomainDot'
 
 /** The head of a node's document: three different KINDS of string stacked, each
@@ -27,7 +28,9 @@ export function DocHeader({ kind, title, domain, ancestry }: DocHeaderProps) {
      reads at --text-1, so this one case maps the fallback back to ink. */
   const titleInk = domainToken(domain) === 'var(--swatch-anchor-fallback)' ? 'var(--text-1)' : domainToken(domain)
   return (
-    <div style={{ padding: '14px var(--space-5) 12px', borderBottom: '1px solid var(--border-hair)' }}>
+    /* THE TOP PAD IS THE SHARED FIRST ROW'S (OB-249): this header opens its pane, so its eyebrow sits on
+       the same line as the panes beside it. The value is unchanged at 14; it is now read, not restated. */
+    <div style={{ padding: `${FIRST_ROW_PAD}px var(--space-5) 12px`, borderBottom: '1px solid var(--border-hair)' }}>
       <div
         style={{
           fontSize: 'var(--fs-micro)',

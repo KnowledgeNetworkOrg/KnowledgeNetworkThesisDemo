@@ -26,12 +26,16 @@
 //   restored tree rather than storing them alongside means the two can never
 //   disagree: the tree is the only thing that could be wrong about its own ids.
 
-import { byId } from '../../corpus/graph'
-import { platform } from '../../platform'
-import { forEachStop, isBox, withOptional } from './mockwalk'
+import { isObj, isTopic } from '../persistguard'
+import { readPersisted, writePersisted } from '../../platform/persisted'
+import type { PersistedSpec } from '../../platform/persisted'
+import { forEachStop, isBox } from './mockwalk'
 import type { Stop, Variant } from './mockwalk'
 
 const KEY = 'pkt.walkdesk.draft'
+/** the current envelope version. A payload with no envelope is v0 — the bare
+ *  `DraftSnapshot` an earlier build wrote — and migrateDraftFromV0 carries it. */
+const VERSION = 1
 
 /** what survives a reload. The stops tree, plus the road's VIEW of it — which
  * branch each fork takes and whether optionals are on the road. History is
@@ -45,13 +49,6 @@ export interface DraftSnapshot {
   withOptionals: boolean
 }
 
-const isObj = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v)
-
-/** a real, bindable corpus stop — the same gate walks.ts applies at module load,
- * asked as a question instead of as a throw */
-const isTopic = (id: unknown): boolean => typeof id === 'string' && !!byId.get(id)?.topic
-
 /** rebuild one stop from stored JSON, or null if its SHAPE is unusable. An
  * unknown corpus id is not unusable — it comes back as a placeholder. */
 function readStop(v: unknown): Stop | null {
@@ -59,7 +56,8 @@ function readStop(v: unknown): Stop | null {
   if (!Array.isArray(v.variants)) return null
 
   const note = typeof v.note === 'string' ? v.note : undefined
-  // a leaf's flag; on a container it is an older draft's group flag, pushed down below
+  // only leaves carry a flag in v1; a container's old group flag was already
+  // pushed down onto these leaves by migrateDraftFromV0
   const optional = v.optional === true ? true : undefined
 
   if (v.variants.length === 0) {
@@ -82,19 +80,13 @@ function readStop(v: unknown): Stop | null {
     if (!steps) return null
     variants.push({ id: raw.id, label: raw.label, steps })
   }
-  const box: Stop = {
+  return {
     key: v.key,
     title: v.title,
     description: typeof v.description === 'string' ? v.description : undefined,
     note,
     variants,
   }
-  // A CONTAINER NO LONGER CARRIES `optional` (DS OB-215): only leaves do, and "this group is
-  // optional" is read off them. A draft saved before that ruling may still hold the flag on a
-  // group, meaning "the road may skip all of this" — so it is PUSHED DOWN onto every leaf under
-  // the group, in every version, and not kept on the group. What the author meant survives, and
-  // no stored field is left that nothing honours.
-  return optional ? withOptional(box, true) : box
 }
 
 /** rebuild a sibling list, or null if any member's shape is unusable */
@@ -125,16 +117,64 @@ function uniqueKeys(stops: Stop[]): Set<string> | null {
   return dupe ? null : keys
 }
 
-/** parse a stored payload. Returns null when there is nothing usable in it —
- * the caller seeds instead. Exported for its test: this is the whole of the
- * risk in this file, and it is pure. */
-export function parseDraft(raw: string): DraftSnapshot | null {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    return null
+/** whether a stop is a container — one of its variants actually holds a step.
+ *  An emptied variant is "no content in it" here, so a group built and then
+ *  ungrouped back to a leaf is treated as a leaf, flag and all. */
+const hasContainerContent = (variants: unknown[]): boolean =>
+  variants.some(
+    (vr) => isObj(vr) && Array.isArray(vr.steps) && vr.steps.some((s) => isObj(s) || Array.isArray(s)),
+  )
+
+/** mark every leaf under `node` optional, descending into every version and
+ *  every depth. A container met on the way loses its own flag — the flag it may
+ *  carry is the same "skip all of this" meaning, already being applied. A leaf
+ *  is `variants: []` (the same test readStop uses), not any missing array. */
+function markAllLeavesOptional(node: unknown): unknown {
+  if (!isObj(node)) return node
+  if (Array.isArray(node.variants) && hasContainerContent(node.variants)) {
+    const next: Record<string, unknown> = { ...node }
+    delete next.optional
+    next.variants = node.variants.map((vr) =>
+      isObj(vr) && Array.isArray(vr.steps) ? { ...vr, steps: vr.steps.map(markAllLeavesOptional) } : vr,
+    )
+    return next
   }
+  return { ...node, optional: true }
+}
+
+/** remove a CONTAINER's own `optional`, pushing it down when it was set. A leaf
+ *  (`variants: []` with no content in it) already carries its flag the v1 way
+ *  and is returned as-is — only a container that emptied a variant loses a flag
+ *  that can no longer mean anything on the group. */
+function normaliseContainerOptional(node: unknown): unknown {
+  if (!isObj(node) || !Array.isArray(node.variants) || !hasContainerContent(node.variants)) return node
+  // a container: its own flag, if set, goes down onto the leaves
+  const optional = node.optional === true
+  const next: Record<string, unknown> = { ...node }
+  delete next.optional
+  next.variants = node.variants.map((vr) =>
+    isObj(vr) && Array.isArray(vr.steps)
+      ? { ...vr, steps: vr.steps.map((s) => (optional ? markAllLeavesOptional(s) : normaliseContainerOptional(s))) }
+      : vr,
+  )
+  return next
+}
+
+/** THE v0 → v1 DRAFT MIGRATION, and the first real shape change the version
+ *  field exists to carry (DS OB-215). Only leaves carry `optional` now; an
+ *  older draft may hold the flag on a GROUP, meaning "the road may skip all of
+ *  this". Pushing it down onto every leaf under the group, in every version,
+ *  keeps what the author meant and leaves no stored field nothing honours. Old
+ *  drafts therefore LOAD instead of being discarded as corrupt. */
+export function migrateDraftFromV0(data: unknown): unknown {
+  if (!isObj(data) || !Array.isArray(data.stops)) return data
+  return { ...data, stops: data.stops.map(normaliseContainerOptional) }
+}
+
+/** parse a v1 payload (already unwrapped from its envelope). Returns null when
+ *  there is nothing usable in it — the caller seeds instead. Exported for its
+ *  test: this is the whole of the risk in this file, and it is pure. */
+export function parseDraftData(parsed: unknown): DraftSnapshot | null {
   if (!isObj(parsed)) return null
 
   const stops = readStops(parsed.stops)
@@ -183,17 +223,25 @@ export function nextIds(stops: Stop[]): { box: number; vid: number } {
   return { box, vid }
 }
 
+/** the draft's storage contract: v1, an old v0 draft pushed forward by
+ *  migrateDraftFromV0, the result read by parseDraftData. */
+const SPEC: PersistedSpec<DraftSnapshot> = {
+  version: VERSION,
+  migrations: { 0: migrateDraftFromV0 },
+  parse: parseDraftData,
+}
+
 /** the stored draft, or null when there is none / storage is unavailable /
  * what is there is unusable. Never throws: a private-mode browser must open the
- * desk on a seed, not on a stack trace. */
+ * desk on a seed, not on a stack trace. An older-versioned draft arrives already
+ * migrated and is re-written as v1 by the seam; a corrupt/future one is reported
+ * there and reads as null, so the desk falls back to the seed. */
 export function loadDraft(): DraftSnapshot | null {
-  const raw = platform.storage.get(KEY)
-  return raw === null ? null : parseDraft(raw)
+  return readPersisted<DraftSnapshot>(KEY, SPEC).data ?? null
 }
 
 /** persist the draft. Never throws — a full or unavailable store must not break
  * an edit, it just means this session won't be there tomorrow. */
 export function saveDraft(s: DraftSnapshot): void {
-  // refused (quota or availability) — the desk keeps working, unpersisted
-  platform.storage.set(KEY, JSON.stringify(s))
+  writePersisted(KEY, VERSION, s)
 }

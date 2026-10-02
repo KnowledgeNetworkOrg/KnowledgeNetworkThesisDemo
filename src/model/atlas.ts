@@ -13,15 +13,10 @@ import { byId, domainIds, domainOf, pathTo, ROOT_ID, topicIds, topicsUnder } fro
 import type { EdgeType, GEdge } from '../corpus/graph'
 import type { XY } from './derive'
 import type { LabelBox } from './labelfit'
-import { edgesTouching, leafPos, provinceIds, provinceOf, topicAnchorOf } from './flat'
+import { centroidOf, edgesTouching, leafPos, provinceIds, provinceOf, topicAnchorOf } from './flat'
 import { countryPath, countryRings, pointInPoly, provincePath, provinceRings, rootPath, territories, topicPoly } from './nested'
 
 // ── Geography: the label anchors and region centres, derived once ────────────
-const centroidOf = (members: string[]) => ({
-  x: members.reduce((s, id) => s + leafPos[id].x, 0) / members.length,
-  y: members.reduce((s, id) => s + leafPos[id].y, 0) / members.length,
-})
-
 /** domain name anchors — RAW centroids. The overlap-spread nudge went with the
  * single-line rendering it served: names wrap INSIDE their regions now
  * (fitRegionLabel), and a wrap anchored off-centre defeats the fit. */

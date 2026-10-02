@@ -34,11 +34,19 @@ protocol.registerSchemesAsPrivileged([
   },
 ])
 
-// dist/ relative to the BUILT file, which lands at desktop/out/main.cjs — so two
-// levels up is the repo root. Packaging moves this (slice 2, #203); until then
-// the desktop build runs against the very same `npm run build` output the web
-// build ships, which is the point: one bundle, two hosts.
-const DIST = join(__dirname, '..', '..', 'dist')
+// WHERE dist/ LIVES — and it is two different places depending on how the app
+// was started, which is why this branches.
+//
+//   · Packaged (#203): electron-builder copies the root `dist/` to
+//     `<app>/resources/dist` via `extraResources` (see electron-builder.yml),
+//     so `process.resourcesPath` is the base. It is a real directory on disk,
+//     not inside app.asar, because the `net.fetch(file://)` below needs one.
+//   · From a checkout: the built file lands at desktop/out/main.cjs, so two
+//     levels up is the repo root — the very same `npm run build` output the web
+//     build ships. That is the point: one bundle, two hosts.
+const DIST = app.isPackaged
+  ? join(process.resourcesPath, 'dist')
+  : join(__dirname, '..', '..', 'dist')
 
 // The dev server unless we are told otherwise. `DESKTOP_LOAD=dist` is what lets
 // smoke.mjs exercise the REAL `app://` path without packaging anything — without

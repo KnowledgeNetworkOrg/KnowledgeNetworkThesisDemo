@@ -14,8 +14,12 @@ dependency is tracked in issue #66.
 **Do not hand-edit these files.** A value here is wrong the moment it disagrees
 with the design project. To change one, change it in the design project and
 re-vendor via `/design-pull`. This is issue #57 (roadmap #58); the drift guard
-that enforces "code only reaches these through `var(--token)`" is the DS
-adherence lint (`_adherence.oxlintrc.json`), wired in #61.
+that enforces "code only reaches these through `var(--token)`" is the raw-hex /
+raw-px bans in `eslint.config.js`, wired in #61. They port the DS's
+`_adherence.oxlintrc.json` reference spec into native ESLint rules, scoped to the
+files already token-clean; that oxlint file is not in this repo, and #65 asked
+whether oxlint could replace ESLint outright, and the answer was no
+(`tools/oxlint-spike/RESULTS.md`).
 
 ## What is imported
 

@@ -8,10 +8,10 @@
 // it is a finished flat reading order — so a broken stop is dropped and a walk
 // with nothing left is dropped whole.
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { WALKS } from '../corpus/walks'
-import { deleteWalk, isAuthored, listWalks, mintId, parseSaved, saveWalk, subscribeWalks, walkById } from './walkstore'
+import { deleteWalk, isAuthored, listWalks, mintId, parseSavedData, saveWalk, subscribeWalks, walkById } from './walkstore'
 import type { Walk } from './walkstore'
 
 const A = 'stk-dns-naming'
@@ -24,42 +24,45 @@ const walk = (id: string, stops: string[]): Walk => ({
   stops: stops.map((s) => ({ id: s, note: '' })),
 })
 
-describe('parseSaved — a stored payload cannot break the app', () => {
+describe('parseSavedData — a stored payload cannot break the app', () => {
   it('reads authored walks back', () => {
     const w = walk('authored-x', [A, B])
-    expect(parseSaved(JSON.stringify([w]))).toEqual([w])
+    expect(parseSavedData([w])).toEqual([w])
   })
 
   it('drops a stop the corpus no longer has, and keeps the rest of the walk', () => {
-    const got = parseSaved(JSON.stringify([walk('authored-x', [A, 'was-a-topic-once', B])]))
+    const got = parseSavedData([walk('authored-x', [A, 'was-a-topic-once', B])])!
     expect(got[0].stops.map((s) => s.id)).toEqual([A, B])
   })
 
   it('drops a walk left with no stops at all', () => {
-    expect(parseSaved(JSON.stringify([walk('authored-x', ['gone-1', 'gone-2'])]))).toEqual([])
+    expect(parseSavedData([walk('authored-x', ['gone-1', 'gone-2'])])).toEqual([])
   })
 
   it('refuses an id that is not in the authored namespace', () => {
     // otherwise a stored payload could shadow a shipped walk by claiming its id
-    expect(parseSaved(JSON.stringify([walk(WALKS[0].id, [A])]))).toEqual([])
-    expect(parseSaved(JSON.stringify([walk('loading-a-webpage', [A])]))).toEqual([])
+    expect(parseSavedData([walk(WALKS[0].id, [A])])).toEqual([])
+    expect(parseSavedData([walk('loading-a-webpage', [A])])).toEqual([])
   })
 
   it('keeps the first of two walks sharing an id — walkById must not be ambiguous', () => {
-    const got = parseSaved(JSON.stringify([walk('authored-x', [A]), walk('authored-x', [B])]))
+    const got = parseSavedData([walk('authored-x', [A]), walk('authored-x', [B])])!
     expect(got).toHaveLength(1)
     expect(got[0].stops[0].id).toBe(A)
   })
 
   it('one bad member costs that walk, not the others', () => {
-    const got = parseSaved(JSON.stringify([{ nope: true }, walk('authored-y', [A])]))
+    const got = parseSavedData([{ nope: true }, walk('authored-y', [A])])!
     expect(got.map((w) => w.id)).toEqual(['authored-y'])
   })
 
-  it('junk is empty, not a throw', () => {
-    expect(parseSaved('not json {')).toEqual([])
-    expect(parseSaved(JSON.stringify({ walks: [] }))).toEqual([])
-    expect(parseSaved(JSON.stringify([null, 3, 'x']))).toEqual([])
+  it('a payload that is not an array is NOT the saved-walk shape — corrupt, not empty', () => {
+    // #170: "nothing stored" and "something unreadable stored" are different
+    // answers, so junk no longer collapses into an empty list
+    expect(parseSavedData({ walks: [] })).toBeNull()
+    expect(parseSavedData('nope')).toBeNull()
+    // a bag of junk MEMBERS is still just an empty set of valid walks
+    expect(parseSavedData([null, 3, 'x'])).toEqual([])
   })
 })
 
@@ -122,5 +125,38 @@ describe('the registry — built-ins plus what the desk saved', () => {
   it('a built-in cannot be deleted', () => {
     deleteWalk(WALKS[0].id)
     expect(walkById(WALKS[0].id)).toEqual(WALKS[0])
+  })
+})
+
+describe('an old saved-walks list upgrades without erasing what this corpus cannot read', () => {
+  // The read rewarded a fresh module: walkstore reads storage at import, so a
+  // seeded list has to meet a newly-evaluated copy.
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.resetModules()
+  })
+
+  it('re-envelopes the payload as written, not the parsed repair', async () => {
+    // `was-a-topic-once` is dropped from the in-memory list by parseSavedData,
+    // but the one-time format upgrade must keep it on disk so a corpus that
+    // still knows it can revive the stop later.
+    const stored = [{
+      id: 'authored-x',
+      title: 'a walk',
+      description: '',
+      stops: [{ id: A, note: '' }, { id: 'was-a-topic-once', note: 'mine' }, { id: B, note: '' }],
+    }]
+    const map = new Map<string, string>([['pkt.walks.saved', JSON.stringify(stored)]])
+    vi.stubGlobal('localStorage', {
+      get length() { return map.size },
+      key: (i: number) => [...map.keys()][i] ?? null,
+      getItem: (k: string) => map.get(k) ?? null,
+      setItem: (k: string, v: string) => void map.set(k, v),
+      removeItem: (k: string) => void map.delete(k),
+    })
+    vi.resetModules()
+    const mod = await import('./walkstore')
+    expect(mod.walkById('authored-x')?.stops.map((s) => s.id)).toEqual([A, B])
+    expect(JSON.parse(map.get('pkt.walks.saved')!)).toEqual({ v: 1, data: stored })
   })
 })

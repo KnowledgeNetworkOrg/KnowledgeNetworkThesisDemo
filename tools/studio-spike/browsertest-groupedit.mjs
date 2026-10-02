@@ -27,31 +27,16 @@
 // Run from anywhere:  node tools/studio-spike/browsertest-groupedit.mjs
 // Exits nonzero on any failed check or any page error.
 import { createRequire } from 'node:module'
-import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { startVite } from './devserver.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
-const PORT = 5238
 
 const require = createRequire(REPO + '/package.json')
 const { chromium } = require('playwright-core')
 
-const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(PORT), '--strictPort'], {
-  cwd: REPO,
-  stdio: ['ignore', 'pipe', 'pipe'],
-})
-let viteOut = ''
-await new Promise((res, rej) => {
-  const t = setTimeout(() => rej(new Error('vite did not become ready:\n' + viteOut)), 30000)
-  const watch = (d) => {
-    viteOut += String(d)
-    if (viteOut.includes('localhost:')) { clearTimeout(t); res() }
-  }
-  vite.stdout.on('data', watch)
-  vite.stderr.on('data', watch)
-  vite.on('exit', (c) => rej(new Error('vite exited early ' + c + ':\n' + viteOut)))
-})
+const { vite, port: PORT } = await startVite()
 
 const errors = []
 const checks = []
@@ -75,7 +60,7 @@ try {
 
   // ── OB-164: THE PILL'S THREE CHANGES, ON THE WALK DESK'S ACTION BAR ──────────────────
   // The one pill surface in this app that draws GLYPHS beside labels (New walk, Add node, Group,
-  // Optional, Extract, Reset data), so the one where all three read: the row aligns on the
+  // Optional, Extract), so the one where all three read: the row aligns on the
   // BASELINE (a drawn mark needs a text baseline to land on, not its box centred against the
   // label's line height), the glyph gap is --space-1, and every glyph gets the same 1px optical
   // lift. Asserted off the computed style of the Group pill; the bar is photographed for the

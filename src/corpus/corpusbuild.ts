@@ -32,7 +32,6 @@ export interface BuiltCorpus {
   topicIds: string[]
   domainIds: string[]
   maxDepth: number
-  isTopic: (id: string) => boolean
   pathTo: (id: string) => string[]
   domainOf: (id: string) => string
   topicHueOf: (id: string) => string | undefined
@@ -78,7 +77,6 @@ export function buildCorpus(spec: CorpusSpec, rootId: string): BuiltCorpus {
 
   const allContainerIds = nodes.filter((n) => n.kind === 'container' && n.id !== rootId).map((n) => n.id)
   const topicIds = nodes.filter((n) => n.topic).map((n) => n.id)
-  const isTopic = (id: string) => byId.get(id)?.topic === true
 
   /** [root, …, node] — the containment path down to (and including) the node. */
   function pathTo(id: string): string[] {
@@ -152,7 +150,6 @@ export function buildCorpus(spec: CorpusSpec, rootId: string): BuiltCorpus {
     topicIds,
     domainIds,
     maxDepth,
-    isTopic,
     pathTo,
     domainOf,
     topicHueOf,

@@ -49,7 +49,7 @@ function worstOverlap(pins: WalkPin[], px: (v: number) => number): { a: WalkPin;
 }
 
 const describeOverlap = (o: { a: WalkPin; b: WalkPin; by: number }) =>
-  `stop ${o.a.step} (${o.a.visId}, ${o.a.size}px) and stop ${o.b.step} (${o.b.visId}, ${o.b.size}px) overlap by ${o.by.toFixed(2)} world units`
+  `stop index ${o.a.step} (${o.a.visId}, ${o.a.size}px) and stop index ${o.b.step} (${o.b.visId}, ${o.b.size}px) overlap by ${o.by.toFixed(2)} world units`
 
 describe('THE GUARANTEE — no two walk pins are ever drawn inside each other', () => {
   test('every authored walk, every level, every pane width', () => {
@@ -169,25 +169,25 @@ describe('OB-214 — optional stops on the map', () => {
 
   test('with no flags given every pin is required, and a run on one cell still merges — no caller moves', () => {
     const [a, b] = twoTogetherAt(level)!
-    expect(shape(walkPins({ route: [a, b], level, px, labelBoxes: [] }))).toEqual([{ step: 1, stepEnd: 2, optional: false }])
+    expect(shape(walkPins({ route: [a, b], level, px, labelBoxes: [] }))).toEqual([{ step: 0, stepEnd: 1, optional: false }])
   })
 
   test('an all-optional run merges, and the merged pin says optional', () => {
     const [a, b] = twoTogetherAt(level)!
     const pins = walkPins({ route: [a, b], optional: [true, true], level, px, labelBoxes: [] })
-    expect(shape(pins)).toEqual([{ step: 1, stepEnd: 2, optional: true }])
+    expect(shape(pins)).toEqual([{ step: 0, stepEnd: 1, optional: true }])
   })
 
   test('policy C: a run never merges across the boundary — a mixed run is two honest pins', () => {
     const [a, b] = twoTogetherAt(level)!
     const pins = walkPins({ route: [a, b], optional: [false, true], level, px, labelBoxes: [] })
-    expect(shape(pins)).toEqual([{ step: 1, stepEnd: 1, optional: false }, { step: 2, stepEnd: 2, optional: true }])
+    expect(shape(pins)).toEqual([{ step: 0, stepEnd: 0, optional: false }, { step: 1, stepEnd: 1, optional: true }])
     // …and each boundary is a cut, so required · optional · required on one cell is three pins
     const three = walkPins({ route: [a, b, a], optional: [false, true, false], level, px, labelBoxes: [] })
     expect(shape(three)).toEqual([
-      { step: 1, stepEnd: 1, optional: false },
-      { step: 2, stepEnd: 2, optional: true },
-      { step: 3, stepEnd: 3, optional: false },
+      { step: 0, stepEnd: 0, optional: false },
+      { step: 1, stepEnd: 1, optional: true },
+      { step: 2, stepEnd: 2, optional: false },
     ])
   })
 
@@ -372,19 +372,19 @@ describe('what the pins say, which the layout must not change', () => {
     const [home] = twoApartAt(level)!
     const pins = walkPins({ route: [home, home, home], level, px, labelBoxes: [] })
     expect(pins).toHaveLength(1)
-    expect([pins[0].step, pins[0].stepEnd]).toEqual([1, 3])
+    expect([pins[0].step, pins[0].stepEnd]).toEqual([0, 2])
   })
 
   test('a single stop is a one-stop pin', () => {
     const [home] = twoApartAt(level)!
     const pins = walkPins({ route: [home], level, px, labelBoxes: [] })
-    expect([pins[0].step, pins[0].stepEnd]).toEqual([1, 1])
+    expect([pins[0].step, pins[0].stepEnd]).toEqual([0, 0])
   })
 
   test('a merged run knows its LAST stop too, which is what puts the walk on the pin (OB-132)', () => {
     const [home, away] = twoApartAt(level)!
     const pins = walkPins({ route: [home, home, home, away], level, px, labelBoxes: [] })
-    expect(pins.map((p) => [p.step, p.stepEnd])).toEqual([[1, 3], [4, 4]])
+    expect(pins.map((p) => [p.step, p.stepEnd])).toEqual([[0, 2], [3, 3]])
   })
 
   test('an empty walk draws nothing', () => {
@@ -396,7 +396,7 @@ describe('pinPosition — the walk\'s position counted in PINS (OB-132)', () => 
   const run = (...runs: [number, number][]) => runs.map(([step, stepEnd]) => ({ step, stepEnd }))
 
   test('one pin per stop is the identity — the fine map reads exactly the DS\'s rule', () => {
-    const pins = run([1, 1], [2, 2], [3, 3], [4, 4])
+    const pins = run([0, 0], [1, 1], [2, 2], [3, 3])
     expect(pinPosition(pins, 0)).toBe(0)
     expect(pinPosition(pins, 2)).toBe(2)
     expect(pinPosition(pins, 1.25)).toBeCloseTo(1.25)
@@ -404,7 +404,7 @@ describe('pinPosition — the walk\'s position counted in PINS (OB-132)', () => 
   })
 
   test('anywhere inside a merged run is ON that pin — the whole run is "you are here"', () => {
-    const pins = run([1, 3], [4, 7])
+    const pins = run([0, 2], [3, 6])
     expect(pinPosition(pins, 0)).toBe(0)
     expect(pinPosition(pins, 1)).toBe(0)
     expect(pinPosition(pins, 2)).toBe(0)
@@ -413,20 +413,20 @@ describe('pinPosition — the walk\'s position counted in PINS (OB-132)', () => 
   })
 
   test('between two runs the position is the same fraction of the way between the two PINS', () => {
-    const pins = run([1, 3], [4, 7])
+    const pins = run([0, 2], [3, 6])
     expect(pinPosition(pins, 2.5)).toBeCloseTo(0.5)
     expect(pinPosition(pins, 2.1)).toBeCloseTo(0.1)
   })
 
   test('a stop the map dropped is crossed by the arrow, not by a missing pin', () => {
-    // stop 2 was unplaceable at this level: pin 0 ends at 1, pin 1 starts at 3
-    const pins = run([1, 1], [3, 3])
+    // the stop at index 1 was unplaceable at this level: pin 0 ends at 0, pin 1 starts at 2
+    const pins = run([0, 0], [2, 2])
     expect(pinPosition(pins, 1)).toBeCloseTo(0.5)
     expect(pinPosition(pins, 0.5)).toBeCloseTo(0.25)
   })
 
   test('past the ends it clamps to the first and the last pin; no pins is 0', () => {
-    const pins = run([2, 2], [3, 3])
+    const pins = run([1, 1], [2, 2])
     expect(pinPosition(pins, 0)).toBe(0)
     expect(pinPosition(pins, 9)).toBe(1)
     expect(pinPosition([], 3)).toBe(0)

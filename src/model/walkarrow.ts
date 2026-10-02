@@ -65,7 +65,10 @@ export const bowFor = (sign: number, length: number): number =>
  *  here.
  *
  *  This exists so "do these two arrows actually separate?" is a measurement
- *  taken on the drawn lines, and not an argument about signs. */
+ *  taken on the drawn lines, and not an argument about signs.
+ *
+ *  Exported as a measurement seam for walkarrow.test.ts and walkdraw.test.ts;
+ *  the map draws its curves through the DS recipe, not through this. */
 export function bowedPoint(tail: XY, head: XY, bow: number, t: number): XY {
   const dx = head.x - tail.x
   const dy = head.y - tail.y

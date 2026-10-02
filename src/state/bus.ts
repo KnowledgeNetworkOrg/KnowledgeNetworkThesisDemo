@@ -21,11 +21,18 @@
 // shell (studio/), which builds it with `useStudioBus` and hands each pane its
 // slice.
 //
-// For #325: the route's writers are exactly the files whose slice names one of
-// six actions — `setRoute`, `setRouteSteps`, `activateWalk` (which calls
-// `setRoute`), `clearRoute`, `teach` (which calls `setRoute`), and `reset`
-// (which empties the route). The one exception is the projector window, which
-// writes `setRoute` on a bus of its own.
+// For #325, THE ROUTE HAS ONE RULE. The route (`routeSteps`, and the `route`
+// flat projection derived from it) belongs to the DESK. The only writers are the
+// presented road (`setRouteSteps`, published by the walk editor/viewer through
+// state/walk/presented.ts), an activated saved walk (`activateWalk`, reached from
+// the trail, a playback seek, or the document panel's "walks through here"
+// cards), the generated curriculum (`teach`), and the
+// explicit clears (`clearRoute`, `reset`). The edge-following explorer is NOT a
+// route writer: it keeps its own trail on `explorePath`/`setExplorePath`, so a
+// click there can no longer overwrite the road the desk published — the measured
+// silent divergence on #16, removed by Option 2. The one exception is the
+// projector window, which publishes a route on a bus of its own
+// (present/ProjectorScreen.tsx) and is outside this conflict.
 
 import { useCallback, useMemo, useState } from 'react'
 
@@ -100,6 +107,15 @@ export interface BusState {
    * `routeSteps` (`routeLeafIds`), never written on its own: every reader that
    * never cared about groups keeps reading this, unchanged. */
   route: string[]
+  /** THE EXPLORER'S OWN TRAIL (#325, Option 2). The edge-following explorer
+   * (WalkView) walks the corpus one real link at a time; that ad-hoc path lives
+   * HERE and nowhere else, so following a link can never overwrite the desk's
+   * road. It is deliberately NOT the route: the explorer appears in no route
+   * writer's list, the map does not draw this path, and following a link still
+   * records a trail entry (`setExplorePath`), the one thing this pane shares
+   * with the rest of the app. Cleared by `reset`, like every other session
+   * channel. */
+  explorePath: string[]
   /** the unified history engine's value (model/nav.ts) — ALL navigation-order
    * state in one dataset: the append-only log and the browsable stack+cursor
    * that back/forward walk. One writer (the bus), any number of readers. */
@@ -157,11 +173,11 @@ export interface BusActions<Id extends string = string> {
   /** publish the current search hit set — see BusState.matches. One writer at a
    * time (whichever supply pane is live); an empty set clears the map. */
   setMatches(ids: ReadonlySet<string>): void
-  /** publish a FLAT route — every step a node, no groups (a saved walk's played
-   * prefix, a curriculum) */
-  setRoute(r: string[]): void
   /** publish a route with its groups intact — the desk's resolved road */
   setRouteSteps(steps: RouteStep[]): void
+  /** publish the explorer's own trail — see BusState.explorePath. The ONLY
+   *  writer of `explorePath`, and it never touches the route (#325). */
+  setExplorePath(path: string[]): void
   clearRoute(): void
   /** a trail entry with NO focus change — Unfold·Graph places a node on its own
    * canvas without dragging the rest of the Studio there */
@@ -191,6 +207,7 @@ export function useStudioBus<Id extends string>(reveal: (inst: Id | BusRevealTar
   const [peek, setPeekState] = useState<{ id: string; seq: number } | null>(null)
   const [matches, setMatchesState] = useState<ReadonlySet<string>>(NO_MATCHES)
   const [routeSteps, setRouteStepsState] = useState<RouteStep[]>([])
+  const [explorePath, setExplorePathState] = useState<string[]>([])
   // the flat projection, memoised on the tree so its identity moves only when
   // the route does — the map's pin layout keys its memo on it
   const route = useMemo(() => routeLeafIds(routeSteps), [routeSteps])
@@ -248,7 +265,16 @@ export function useStudioBus<Id extends string>(reveal: (inst: Id | BusRevealTar
     const ids = routeLeafIds(steps)
     if (ids.length > 0) markTrail(ids[ids.length - 1], 'walk')
   }
+  /** the flat-route publish is PRIVATE now (#325): `activateWalk` and `teach`
+   *  are its only callers, so no pane can publish a flat route directly. */
   const setRoute = (r: string[]) => setRouteSteps(routeOfIds(r))
+
+  /** the explorer's own trail — see BusState.explorePath. It writes `explorePath`
+   *  and the trail entry, and NOTHING else: the route is the desk's. */
+  const setExplorePath = (path: string[]) => {
+    setExplorePathState(path)
+    if (path.length > 0) markTrail(path[path.length - 1], 'walk')
+  }
 
   const setDraftCursor = (i: number) => setDraftCursorState(Math.max(0, i))
 
@@ -287,6 +313,7 @@ export function useStudioBus<Id extends string>(reveal: (inst: Id | BusRevealTar
     matches,
     routeSteps,
     route,
+    explorePath,
     history: hist,
     trail: hist.log,
     visited,
@@ -306,8 +333,8 @@ export function useStudioBus<Id extends string>(reveal: (inst: Id | BusRevealTar
     endHoverStep,
     peekAt,
     setMatches,
-    setRoute,
     setRouteSteps,
+    setExplorePath,
     setDraftCursor,
     reveal,
     visit: markTrail,
@@ -329,7 +356,8 @@ export function useStudioBus<Id extends string>(reveal: (inst: Id | BusRevealTar
       if (!focus) return
       const c = curriculum(focus, 'depends_on', 3)
       setRoute(c.order)
-      reveal('walk')
+      // the map draws the curriculum; the edge-following explorer no longer
+      // mirrors the route (#325), so opening it would show nothing of this
       reveal('map')
     },
     reset: () => {
@@ -341,6 +369,7 @@ export function useStudioBus<Id extends string>(reveal: (inst: Id | BusRevealTar
       setPeekState(null)
       setMatchesState(NO_MATCHES)
       setRouteStepsState([])
+      setExplorePathState([])
       setHist(HISTORY_EMPTY)
       setActiveWalk(null)
       setDraftCursorState(0)

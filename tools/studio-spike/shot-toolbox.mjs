@@ -19,37 +19,19 @@
 // it replaced) — it only dims on idle (PaneActionBar's own presence clock), which
 // does not block clicks, so this driver does not need to "wake" it first.
 import { createRequire } from 'node:module'
-import { spawn } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { startVite } from './devserver.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const OUT = REPO + '/tools/studio-spike/out'
-const PORT = 5199
 mkdirSync(OUT, { recursive: true })
 
 const require = createRequire(REPO + '/package.json')
 const { chromium } = require('playwright-core')
 
-const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(PORT), '--strictPort'], {
-  cwd: REPO,
-  stdio: ['ignore', 'pipe', 'pipe'],
-})
-let viteOut = ''
-await new Promise((res, rej) => {
-  const t = setTimeout(() => rej(new Error('vite did not become ready:\n' + viteOut)), 30000)
-  const watch = (d) => {
-    viteOut += String(d)
-    if (viteOut.includes('localhost:')) {
-      clearTimeout(t)
-      res()
-    }
-  }
-  vite.stdout.on('data', watch)
-  vite.stderr.on('data', watch)
-  vite.on('exit', (c) => rej(new Error('vite exited early ' + c + ':\n' + viteOut)))
-})
+const { vite, port: PORT } = await startVite()
 
 const errors = []
 const browser = await chromium.launch({ channel: 'msedge', headless: true })
@@ -76,30 +58,19 @@ if (!(await walkEditor.isVisible())) fail('walk editor pane not visible under th
 const actionBar = page.locator('[data-pane-actionbar]')
 if (!(await actionBar.isVisible())) fail('action bar not visible on the walk editor pane')
 
-// TEMPORARY (2026-08-22): "Reset data" is a debugging pill, not one of the bar's
-// real actions — src/instruments/walkdesk/WalkActionBar.tsx carries the marker.
-// Counted separately so this driver stays green while it exists AND goes back to
-// a bare 5 the moment it is deleted, without anyone having to remember to edit
-// a hardcoded 6 back down.
-const TEMP_LABELS = ['Reset data']
-const PERMANENT_LABELS = ['New walk', 'Add node', 'Group', 'Optional', 'Extract']
+const LABELS = ['New walk', 'Add node', 'Group', 'Optional', 'Extract']
 
 const buttons = actionBar.locator('button')
 // the whole point of #144: the WORD is what names the action now, not the title
 // tooltip. Assert on visible text, and check "Extract" explicitly — it is the one
 // pill with no drawn mark of its own and the easiest to drop silently in a port.
 const labels = await buttons.evaluateAll((els) => els.map((e) => e.textContent?.trim() || ''))
-const tempSeen = TEMP_LABELS.filter((t) => labels.some((l) => l.includes(t)))
 console.log('action bar labels =', JSON.stringify(labels))
-console.log(
-  'action bar buttons =',
-  labels.length,
-  `(expect ${PERMANENT_LABELS.length} real + ${tempSeen.length} temporary${tempSeen.length ? ' — ' + tempSeen.join(', ') : ''})`,
-)
-if (labels.length !== PERMANENT_LABELS.length + tempSeen.length) {
-  fail(`unaccounted action-bar buttons: got ${labels.length}, expected ${PERMANENT_LABELS.length} real + ${tempSeen.length} temporary`)
+console.log('action bar buttons =', labels.length, `(expect ${LABELS.length})`)
+if (labels.length !== LABELS.length) {
+  fail(`unaccounted action-bar buttons: got ${labels.length}, expected ${LABELS.length}`)
 }
-for (const need of PERMANENT_LABELS) {
+for (const need of LABELS) {
   if (!labels.some((t) => t.includes(need))) fail(`no action-bar button labelled "${need}"`)
 }
 await page.screenshot({ path: `${OUT}/toolbox-plan.png` })

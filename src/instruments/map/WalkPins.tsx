@@ -10,13 +10,14 @@
 // is unchanged from where it always drew — same `data-receded`, same opacity and
 // 120ms transition, same per-pin `foreignObject`, same coordinates.
 //
-// THE MARK'S 1-BASED/0-BASED SEAM LIVES HERE, once. A pin stands for stops
-// `step`..`stepEnd` — 1-BASED, the pin model's convention (and the drivers'
-// `data-step`) — while the DS's `WalkMark`, `walkProgress` and `walkLeadStop`
-// read a mark 0-BASED. That conversion is the seam the DS's own `walkMarkLabel`
-// got wrong (receipt 0ac3465), so it happens in the one memo below and nowhere
-// else: the dot's printed address, its wash and the hover card all take the one
-// object it builds.
+// ONE CONVENTION, COUNTED FROM 0 (#326). A pin stands for stops `step`..`stepEnd`,
+// 0-BASED like the DS's `WalkMark`, `walkProgress`, `walkLeadStop` and the player's
+// `position`, so the memo below builds the mark with no arithmetic at all. That used
+// to be a 1-based pin model converted by hand at every meeting — the seam the DS's
+// own `walkMarkLabel` got wrong (receipt 0ac3465). The one number counted from 1 is
+// what a person READS: `data-step` and `data-step-end` on each pin, which the drivers'
+// expected tables and three past receipts are written against, so the `+ 1` lives
+// there, at the attribute, and nowhere else.
 
 import { useMemo } from 'react'
 
@@ -60,14 +61,13 @@ export interface WalkPinsProps {
 }
 
 export function WalkPins({ pins, pinPos, play, f, viewS, wall, visible, receded, dockShown, dragging, onPinHover, onRegionClick }: WalkPinsProps) {
-  /* ONE MARK PER PIN, built ONCE — see the 1-based/0-based note in the header. THE
-     ADDRESS EVERY PIN PRINTS (DS OB-188) is `walkAddresses` over the same steps the
-     dock reads, capped at two numbers, en-dashed across a merged run — so the two
-     surfaces cannot disagree. */
+  /* ONE MARK PER PIN, built ONCE. THE ADDRESS EVERY PIN PRINTS (DS OB-188) is
+     `walkAddresses` over the same steps the dock reads, capped at two numbers,
+     en-dashed across a merged run — so the two surfaces cannot disagree. */
   const marks = useMemo(() => {
     const addresses = walkAddresses(play.steps)
     return new Map(pins.map((s) => {
-      const from = s.step - 1, to = s.stepEnd - 1
+      const from = s.step, to = s.stepEnd
       /* `label` is optional on the DS's mark; a map pin always prints one */
       const mark: WalkMark & { label: string } = { from, to, label: walkMarkLabel(play.steps, { from, to }), steps: play.steps.slice(from, to + 1), addresses: addresses.slice(from, to + 1) }
       return [s.key, mark] as const
@@ -97,14 +97,15 @@ export function WalkPins({ pins, pinPos, play, f, viewS, wall, visible, receded,
              during a drag. Entering a pin leaves the cell under it, so the cell's
              MapTooltip goes as this card comes — one card at a time. A click falls
              through to the cell the pin stands on, so a pin is still a way to select
-             its region. `s.step` is 1-based; `play.steps` is the walk `bus.route` is a
+             its region. `s.step` indexes `play.steps`, the walk `bus.route` is a
              prefix of. `data-pin` is the pin's index in walk order — what an arrow's
-             `data-routearrow` joins. */
+             `data-routearrow` joins. `data-step` and `data-step-end` are what a person
+             reads on screen, counted from 1 — the model's 0-based number plus one. */
           <g
             key={s.key}
             data-routestop={s.visId}
-            data-step={s.step}
-            data-step-end={s.stepEnd}
+            data-step={s.step + 1}
+            data-step-end={s.stepEnd + 1}
             data-pin={k}
             opacity={b.pinOpacity}
             transform={`translate(${s.c.x} ${s.c.y}) scale(${(f / viewS) * b.pinScale})`}

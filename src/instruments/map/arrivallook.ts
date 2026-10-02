@@ -73,7 +73,7 @@ export function useArrivalLook(
     if (arrival === null || prev === null) return // paused, or play just pressed: standing, not advancing
     if (cam.pannedRef.current) { cam.pannedRef.current = false; return }
     const { routeStops, clientBox: cb, dockOpen: open } = lookRef.current
-    const pin = routeStops.find((p) => p.step - 1 <= arrival && arrival <= p.stepEnd - 1)
+    const pin = routeStops.find((p) => p.step <= arrival && arrival <= p.stepEnd)
     if (!pin) return
     const v = cam.viewRef.current
     const rect = worldRectOf(v, cb)

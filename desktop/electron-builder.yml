@@ -1,0 +1,54 @@
+# The packaged shape of the desktop host (#203).
+#
+# PORTABLE, WINDOWS, X64, UNSIGNED — the owner decisions recorded on #203
+# (comment 2026-10-01). A portable .exe is the whole delivery mechanism: no
+# installer, no Start-menu entry, no uninstaller, no certificate. The README
+# states the SmartScreen warning that unsigned first-run produces.
+#
+# Read from this package root by `npm run pack` (pack.mjs). Only the built shell
+# and the built web app ship; `electron` is supplied by the runtime, not bundled,
+# so no devDependency tree is packaged.
+
+appId: com.knowledgenetwork.thesisdemo # must match setAppUserModelId in main.ts
+productName: Graph Disclosure Lab
+# THE PACKED APP'S OWN NAME AT RUNTIME. `productName` above only names the
+# executable inside the package and its Windows file properties (the handed-out
+# file's name is `artifactName`, below). Electron reads its name from the
+# package.json inside app.asar, which has none, so it would fall back to
+# `knowledge-network-thesis-demo-desktop`.
+# That is the name `npm start` runs under, on the same `app://local` origin, so
+# the two would share one storage folder: notes typed in the .exe would appear in
+# the checkout's app and the reverse. Writing productName into the packed
+# package.json gives the .exe its own folder, %APPDATA%\Graph Disclosure Lab.
+#
+# THE HANDED-OUT .EXE'S "File description". The portable wrapper (NSIS) takes it
+# from the package's `description`, not from productName, so without this line
+# Explorer's Properties and Task Manager show the developer note from
+# desktop/package.json. The app inside the wrapper already uses productName.
+extraMetadata:
+  productName: Graph Disclosure Lab
+  description: Graph Disclosure Lab
+directories:
+  output: release
+
+# The app asar is the esbuild output. electron-builder adds package.json on its
+# own so `main` resolves.
+files:
+  - out/**/*
+
+# THE WEB BUILD, OUTSIDE ASAR ON PURPOSE. main.ts serves dist/ through
+# `net.fetch(file://)`, which wants a real file on disk — so root `dist/` is
+# copied to `<app>/resources/dist` rather than packed into app.asar. main.ts
+# reads it from `process.resourcesPath` when packaged.
+extraResources:
+  - from: ../dist
+    to: dist
+
+win:
+  target:
+    - portable
+  # NO ICON. With none configured, electron-builder falls back to Electron's
+  # default icon. A real .ico is a later design task; swapping it in is one line
+  # (`icon:`) here.
+portable:
+  artifactName: 'GraphDisclosureLab-${version}-portable.exe'

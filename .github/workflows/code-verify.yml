@@ -37,6 +37,12 @@ jobs:
       # package. The ~100 MB Electron binary is NOT fetched here: electron 44's
       # package has no install script, and downloads the binary the first time
       # `require('electron')` runs, which a typecheck never does.
+      #
+      # This install also brings `electron-builder` and its tree (#203, about
+      # 70 MB, including installer tooling the portable build never uses). It
+      # is a devDependency beside the ones the typecheck needs, so it comes
+      # along. None of it downloads Electron, and the `pack` command it serves
+      # never runs here.
       - name: Install desktop dependencies
         run: npm ci --prefix desktop
 

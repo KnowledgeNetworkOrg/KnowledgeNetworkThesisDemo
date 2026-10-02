@@ -19,14 +19,19 @@
 // useSyncExternalStore compares snapshots by identity and would loop forever on
 // a getter that composed a fresh array every call.
 
-import { byId } from '../corpus/graph'
 import { WALKS } from '../corpus/walks'
 import type { Walk } from '../corpus/walks'
-import { platform } from '../platform'
+import { readPersisted, writePersisted } from '../platform/persisted'
+import type { PersistedSpec } from '../platform/persisted'
+import { isObj, isTopic } from './persistguard'
 
 export type { Walk }
 
 const KEY = 'pkt.walks.saved'
+/** the current envelope version. A payload with no envelope is v0 — the bare
+ *  `Walk[]` an earlier build wrote — and the identity migration carries it:
+ *  the saved-walk shape has not changed, only gained a version marker. */
+const VERSION = 1
 
 /** an id no built-in walk uses, so the two sets can never shadow each other */
 const AUTHORED_PREFIX = 'authored-'
@@ -40,11 +45,6 @@ export const isAuthored = (id: string): boolean => id.startsWith(AUTHORED_PREFIX
 // reading order with no such state — a hole in it is just a broken stop — so a
 // stop that no longer resolves is DROPPED, and a walk left with nothing is
 // dropped whole.
-
-const isObj = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v)
-
-const isTopic = (id: unknown): boolean => typeof id === 'string' && !!byId.get(id)?.topic
 
 function readWalk(v: unknown): Walk | null {
   if (!isObj(v)) return null
@@ -60,17 +60,13 @@ function readWalk(v: unknown): Walk | null {
   return { id: v.id, title: v.title, description: typeof v.description === 'string' ? v.description : '', stops }
 }
 
-/** parse a stored payload into the walks worth keeping. Never throws, never
- * rejects the whole set over one bad member: a corrupt entry costs you that
- * walk, not the others. Exported for its test — this is the risky part. */
-export function parseSaved(raw: string): Walk[] {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    return []
-  }
-  if (!Array.isArray(parsed)) return []
+/** parse a v1 payload (already unwrapped from its envelope) into the walks
+ *  worth keeping. Never throws, never rejects the whole set over one bad member:
+ *  a corrupt entry costs you that walk, not the others. A non-array is not the
+ *  saved-walk shape at all, so it is null — the seam reports THAT as corrupt and
+ *  the store opens empty. Exported for its test — this is the risky part. */
+export function parseSavedData(parsed: unknown): Walk[] | null {
+  if (!Array.isArray(parsed)) return null
   const out: Walk[] = []
   const seen = new Set(WALKS.map((w) => w.id))
   for (const v of parsed) {
@@ -82,16 +78,26 @@ export function parseSaved(raw: string): Walk[] {
   return out
 }
 
+/** the saved-walk storage contract. The v0 payload is the bare array the old
+ *  writer stored, so the guard is identity; the payload shape itself is
+ *  unchanged, and the version marker is what makes future changes migratable. */
+const SPEC: PersistedSpec<Walk[]> = {
+  version: VERSION,
+  migrations: { 0: (data) => data },
+  parse: parseSavedData,
+}
+
 // ── the store ───────────────────────────────────────────────────────────────
 
 function read(): Walk[] {
-  const raw = platform.storage.get(KEY)
-  return raw === null ? [] : parseSaved(raw)
+  // an older bare array is migrated to v1 and re-written by the seam; a corrupt
+  // or future payload is reported there and reads as [] so the registry opens
+  return readPersisted<Walk[]>(KEY, SPEC).data ?? []
 }
 
 function write(walks: Walk[]): void {
   // refused (quota or availability) — the walk still exists in this session
-  platform.storage.set(KEY, JSON.stringify(walks))
+  writePersisted(KEY, VERSION, walks)
 }
 
 let saved: Walk[] = read()
@@ -108,9 +114,6 @@ function republish(next: Walk[]): void {
 /** every walk, built-ins first. Referentially stable until the saved set
  * changes — see the note at the top about useSyncExternalStore. */
 export const listWalks = (): readonly Walk[] => cached
-
-/** just the ones the desk saved — the set the UI may offer to delete */
-export const savedWalks = (): readonly Walk[] => saved
 
 export const walkById = (id: string): Walk | undefined => cached.find((w) => w.id === id)
 
@@ -149,7 +152,11 @@ export function saveWalk(w: Walk): Walk {
 
 /** forget an authored walk. Built-ins are not deletable — they are shipped data,
  * and a delete that silently did nothing would be worse than one that can't be
- * asked for. */
+ * asked for.
+ *
+ * Kept though no screen calls it yet: it is the store's delete API, and
+ * walkstore.test.ts exercises it. Delete it only if the saved-walk screen is
+ * settled as never offering deletion. */
 export function deleteWalk(id: string): void {
   if (!isAuthored(id)) return
   const next = saved.filter((w) => w.id !== id)

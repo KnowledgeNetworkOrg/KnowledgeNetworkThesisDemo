@@ -151,11 +151,13 @@ export function clampCursor(raw: number, len: number): number {
 }
 
 /** whether the route the map draws IS the walk being played — the dock's mount
- *  condition (#246). `bus.route` has three writers: `activateWalk` publishes the
- *  played PREFIX of a saved walk, `presented.ts` publishes the desk draft's leaf
- *  ids whole, and `bus.teach` publishes a curriculum that is no walk at all. The
- *  first two are a prefix of the played steps (the whole list counts as a
- *  prefix); the third is not, and an empty route is nothing to dock onto. */
+ *  condition (#246). `bus.route` is written by the desk (`presented.ts` publishes
+ *  the draft's leaf ids whole), by `activateWalk` (the played PREFIX of a saved
+ *  walk), and by `bus.teach` (a curriculum that is no walk at all); the
+ *  edge-following explorer is NOT one of them — it keeps its own trail on
+ *  `bus.explorePath` (#325, Option 2). The first two are a prefix of the played
+ *  steps (the whole list counts as a prefix); teach's is not, and an empty route
+ *  is nothing to dock onto. */
 export function routeIsWalk(route: readonly string[], steps: readonly { id: string }[]): boolean {
   return route.length > 0 && route.length <= steps.length && route.every((id, i) => steps[i].id === id)
 }

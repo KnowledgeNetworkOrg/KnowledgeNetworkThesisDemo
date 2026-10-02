@@ -31,7 +31,9 @@ const noHostBranch = {
 export default defineConfig([
   // the evoc spike carries a Python venv; eslint was walking into its vendored
   // matplotlib JS and reporting on it. Noise in every `npm run verify`.
-  globalIgnores(['dist', '**/.venv/**']),
+  // desktop/release is `npm --prefix desktop run pack`'s output (#203): it holds a
+  // second, minified copy of dist/ that lint would otherwise read after a pack.
+  globalIgnores(['dist', 'desktop/release', '**/.venv/**']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -80,7 +82,10 @@ export default defineConfig([
   // #61 — DS-adherence ratchet. The Design System is the source of truth for
   // style; app code consumes its tokens as var(--…), never raw values. These
   // bans are the machine enforcement of that rule, authored as native ESLint
-  // (oxlint was declined — #65 — every rule here is stock esquery). The DS's
+  // rather than by adopting oxlint (every rule here is stock esquery; #65 asked
+  // whether oxlint could replace ESLint outright, and the answer was no —
+  // tools/oxlint-spike/parity.mjs is the re-runnable check, and
+  // tools/oxlint-spike/RESULTS.md holds what it last measured). The DS's
   // `_adherence` config is the reference SPEC; it is not vendored or run here.
   //
   // It is NOT repo-wide: ~84 raw hex + ~216 px still live in the un-migrated

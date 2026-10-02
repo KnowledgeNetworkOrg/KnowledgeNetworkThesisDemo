@@ -43,14 +43,13 @@
 // Frames land in tools/studio-spike/out/ (gitignored).
 // Exits nonzero on any failed assertion or any page error.
 import { createRequire } from 'node:module'
-import { spawn } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { startVite } from './devserver.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const OUT = REPO + '/tools/studio-spike/out'
-const PORT = 5198
 mkdirSync(OUT, { recursive: true })
 
 const require = createRequire(REPO + '/package.json')
@@ -59,25 +58,7 @@ const { chromium } = require('playwright-core')
 // Spawns vite ITSELF, same as browsertest-mapconnections.mjs beside this file: backgrounded
 // dev servers die on this machine, so the script owns the server lifecycle
 // (spawn, wait for readiness, drive, kill) instead of assuming one is up.
-const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(PORT), '--strictPort'], {
-  cwd: REPO,
-  stdio: ['ignore', 'pipe', 'pipe'],
-})
-let viteOut = ''
-await new Promise((res, rej) => {
-  const t = setTimeout(() => rej(new Error('vite did not become ready:\n' + viteOut)), 30000)
-  const watch = (d) => {
-    viteOut += String(d)
-    // the banner is ANSI-styled — 'Local:' is split by escape codes
-    if (viteOut.includes('localhost:')) {
-      clearTimeout(t)
-      res()
-    }
-  }
-  vite.stdout.on('data', watch)
-  vite.stderr.on('data', watch)
-  vite.on('exit', (c) => rej(new Error('vite exited early ' + c + ':\n' + viteOut)))
-})
+const { vite, port: PORT } = await startVite()
 
 const errors = []
 

@@ -15,38 +15,21 @@
 // THE MOUSE HAS TO TRAVEL (see browsertest-maphover.mjs): `mouse.move(x, y)` teleports, and the
 // preview card is placed from the previous move, so every approach steps.
 //
-// Spawns vite ITSELF on its own fixed port (--strictPort) — backgrounded dev servers die on
-// this machine, and one port per test is what lets two checkouts run at once.
+// Spawns vite ITSELF on a port the OS hands out (devserver.mjs) — backgrounded dev servers
+// die on this machine, and a fresh port per run is what lets two checkouts run at once.
 // Run from anywhere:  node tools/studio-spike/browsertest-explorerrail.mjs
 // Exits nonzero on any failed check or any page error.
 import { createRequire } from 'node:module'
-import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { startVite } from './devserver.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
-/* 5263, not 5262: 5262 is `browsertest-previewclamp.mjs`'s (review nit on #372). Each shared
-   port makes #364 — two checkouts at once — harder, and a free number costs nothing. */
-const PORT = 5263
 
 const require = createRequire(REPO + '/package.json')
 const { chromium } = require('playwright-core')
 
-const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(PORT), '--strictPort'], {
-  cwd: REPO,
-  stdio: ['ignore', 'pipe', 'pipe'],
-})
-let viteOut = ''
-await new Promise((res, rej) => {
-  const t = setTimeout(() => rej(new Error('vite did not become ready:\n' + viteOut)), 30000)
-  const watch = (d) => {
-    viteOut += String(d)
-    if (viteOut.includes('localhost:')) { clearTimeout(t); res() }
-  }
-  vite.stdout.on('data', watch)
-  vite.stderr.on('data', watch)
-  vite.on('exit', (c) => rej(new Error('vite exited early ' + c + ':\n' + viteOut)))
-})
+const { vite, port: PORT } = await startVite()
 
 const errors = []
 const checks = []

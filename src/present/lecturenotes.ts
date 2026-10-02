@@ -27,7 +27,8 @@
 // never their lecture.
 
 import type { NoteCategory } from '@/ds'
-import { platform } from '../platform'
+import { decodeStored, readPersisted, removePersisted, writePersisted } from '../platform/persisted'
+import type { Migration, PersistedSpec } from '../platform/persisted'
 
 /** one note taken during the lecture, as this store keeps it and the pane draws it */
 export interface LectureNoteRecord {
@@ -67,9 +68,18 @@ export interface LectureHabits {
   deck?: { groups: string[][]; library: string[] }
 }
 
-const NOTES_KEY = 'pkt.lecture.notes.v1'
-const CATEGORIES_KEY = 'pkt.lecture.categories.v1'
-const HABITS_KEY = 'pkt.lecture.habits.v1'
+// ONE NAMING RULE (#170): a version field inside the payload, not a `.v1` in
+// the key. The old names are kept here only so a read can move a lecture's data
+// over the one time; nothing new is written under them.
+const NOTES_KEY = 'pkt.lecture.notes'
+const CATEGORIES_KEY = 'pkt.lecture.categories'
+const HABITS_KEY = 'pkt.lecture.habits'
+const LEGACY_NOTES_KEY = 'pkt.lecture.notes.v1'
+const LEGACY_CATEGORIES_KEY = 'pkt.lecture.categories.v1'
+const LEGACY_HABITS_KEY = 'pkt.lecture.habits.v1'
+const VERSION = 1
+/** these payload shapes have not changed; the marker is what makes them migratable */
+const identity: Migration = (data) => data
 
 /** WHICH NOTEBOOK THIS LECTURE OPENS. A saved walk has an id and keeps its notes
  *  across sessions; the desk's draft is one moving target, so all of its lectures
@@ -81,54 +91,113 @@ export function notebookKey(source: string, walkId?: string | null): string {
 
 const EMPTY: LectureNotebook = { notes: [], prepared: {} }
 
-function readJson<T>(key: string, fallback: T): T {
-  const raw = platform.storage.get(key)
-  if (raw === null) return fallback
-  try {
-    const v = JSON.parse(raw)
-    return v && typeof v === 'object' ? (v as T) : fallback
-  } catch {
-    return fallback
+const isObj = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v)
+
+/** the pre-#170 name for a notebook key, derived from the versioned one so the
+ *  two can never drift apart. `null` for a key outside this module's namespace. */
+function legacyNotebookKey(key: string): string | null {
+  return key.startsWith(NOTES_KEY) ? LEGACY_NOTES_KEY + key.slice(NOTES_KEY.length) : null
+}
+
+/** repair a stored notebook — a missing half gets that half back, which is the
+ *  promise this store has always made. A non-object is null: not a notebook. */
+function parseNotebook(data: unknown): LectureNotebook | null {
+  if (!isObj(data)) return null
+  return {
+    notes: Array.isArray(data.notes)
+      ? (data.notes.filter((n) => isObj(n) && typeof n.text === 'string') as LectureNoteRecord[])
+      : [],
+    prepared: isObj(data.prepared) ? (data.prepared as Record<string, string>) : {},
   }
 }
 
-function writeJson(key: string, value: unknown): void {
-  // refused (quota or availability) — the lecture keeps working, unpersisted
-  platform.storage.set(key, JSON.stringify(value))
+function parseCategories(data: unknown): NoteCategory[] | null {
+  if (!isObj(data)) return null
+  return Array.isArray(data.list) ? data.list.filter((c) => c && c.key && c.glyph && c.label) : []
+}
+
+/** THE ONE SHAPE THAT WAS READ UNCHECKED (`#170`). Every field is kept only
+ *  when it has the right type, so a stray string cannot reach the layout
+ *  arithmetic; a non-object is corrupt, not an empty layout. */
+function parseHabits(data: unknown): LectureHabits | null {
+  if (!isObj(data)) return null
+  const out: LectureHabits = {}
+  if (typeof data.duringWidth === 'number') out.duringWidth = data.duringWidth
+  const shelf = data.shelfPosition
+  if (isObj(shelf) && typeof shelf.x === 'number' && typeof shelf.y === 'number')
+    out.shelfPosition = { x: shelf.x, y: shelf.y }
+  const deck = data.deck
+  if (isObj(deck) && Array.isArray(deck.groups) && Array.isArray(deck.library)) {
+    const groups = deck.groups.filter((g): g is string[] => Array.isArray(g) && g.every((id) => typeof id === 'string'))
+    const library = deck.library.filter((id): id is string => typeof id === 'string')
+    if (groups.length === deck.groups.length && library.length === deck.library.length) out.deck = { groups, library }
+  }
+  return out
+}
+
+const NOTEBOOK_SPEC: PersistedSpec<LectureNotebook> = { version: VERSION, migrations: { 0: identity }, parse: parseNotebook }
+const CATEGORIES_SPEC: PersistedSpec<NoteCategory[]> = { version: VERSION, migrations: { 0: identity }, parse: parseCategories }
+const HABITS_SPEC: PersistedSpec<LectureHabits> = { version: VERSION, migrations: { 0: identity }, parse: parseHabits }
+
+/** Read the versioned key; when NOTHING is stored under it, its pre-#170 name
+ *  ONCE, moving the value over and dropping the old key. A corrupt or
+ *  newer-build payload under the versioned name reads as the fallback — the seam
+ *  has already reported it — and is not a reason to go back to the old name:
+ *  that copy is older than whatever the new key holds, and moving it over would
+ *  overwrite a newer build's notes. */
+function loadWithLegacy<T>(key: string, legacyKey: string | null, spec: PersistedSpec<T>, fallback: T): T {
+  const current = readPersisted(key, spec)
+  if (current.data !== undefined) return current.data
+  if (current.status === 'absent' && legacyKey) {
+    const legacy = decodeStored(legacyKey, spec)
+    if (legacy.data !== undefined) {
+      // Only a bare, pre-envelope payload is moved — the one shape these old names
+      // ever held, which reads as `migrated`. Commit the value as it was STORED
+      // (`writeBack`), not as `parse` returned it, the same rule `readPersisted`
+      // follows: otherwise a store whose parse unwraps writes back a shape its own
+      // reader rejects (categories: stored `{list}`, read as a bare list) and loses
+      // the data on the next load (#170). Anything else under an old name is shown
+      // this session and left where it is, not moved in a shape nobody checked.
+      if (legacy.status === 'migrated' && legacy.writeBack !== undefined) {
+        const moved = writePersisted(key, spec.version, legacy.writeBack)
+        // the old key goes only once the new one has landed: a refused write (full
+        // storage) must not cost the person their only copy
+        if (moved) removePersisted(legacyKey)
+      }
+      return legacy.data
+    }
+  }
+  return fallback
 }
 
 /** the walk's notebook, or an empty one. Never throws and never returns a
  *  half-shaped value: a stored blob missing either half gets that half back */
 export function loadNotebook(key: string): LectureNotebook {
-  const v = readJson<Partial<LectureNotebook>>(key, EMPTY)
-  return {
-    notes: Array.isArray(v.notes) ? v.notes.filter((n) => n && typeof n.text === 'string') as LectureNoteRecord[] : [],
-    prepared: v.prepared && typeof v.prepared === 'object' ? v.prepared : {},
-  }
+  return loadWithLegacy(key, legacyNotebookKey(key), NOTEBOOK_SPEC, EMPTY)
 }
 
 export function saveNotebook(key: string, book: LectureNotebook): void {
-  writeJson(key, book)
+  writePersisted(key, VERSION, book)
 }
 
 /** the categories the professor has minted, appended to the system's own three.
  *  The defaults are NOT stored: they are the DS's and may change, and a stored
  *  copy would pin last month's set forever */
 export function loadMintedCategories(): NoteCategory[] {
-  const v = readJson<{ list?: NoteCategory[] }>(CATEGORIES_KEY, {})
-  return Array.isArray(v.list) ? v.list.filter((c) => c && c.key && c.glyph && c.label) : []
+  return loadWithLegacy(CATEGORIES_KEY, LEGACY_CATEGORIES_KEY, CATEGORIES_SPEC, [])
 }
 
 export function saveMintedCategories(list: NoteCategory[]): void {
-  writeJson(CATEGORIES_KEY, { list })
+  writePersisted(CATEGORIES_KEY, VERSION, { list })
 }
 
 export function loadHabits(): LectureHabits {
-  return readJson<LectureHabits>(HABITS_KEY, {})
+  return loadWithLegacy(HABITS_KEY, LEGACY_HABITS_KEY, HABITS_SPEC, {})
 }
 
 export function saveHabits(h: LectureHabits): void {
-  writeJson(HABITS_KEY, h)
+  writePersisted(HABITS_KEY, VERSION, h)
 }
 
 /* ── the arithmetic, pure ───────────────────────────────────────────────────

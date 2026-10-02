@@ -1,12 +1,17 @@
 // The Walk — rebuilt from the old Combined screen's path-builder, the one
 // piece of that screen worth keeping: a downstream, step-by-step walk along
 // REAL directed edges. One column per step: the step's node on top, its
-// outgoing links below. Clicking a choice extends the route; clicking a
-// choice in an EARLIER column forks the walk there; clicking a step card
-// backtracks to it. The route is a bus channel: every stop lands on the shared
-// focus, so the other instruments follow. (It is not drawn on a map — the flat
-// MapView painted the route amber and was deleted 2026-07-14; the nested atlas
-// has never drawn it. See model/atlas.ts if that comes back.)
+// outgoing links below. Clicking a choice extends the explorer's path; clicking
+// a choice in an EARLIER column forks the walk there; clicking a step card
+// backtracks to it.
+//
+// THE PATH HERE IS THE EXPLORER'S OWN (#325, Option 2). It publishes
+// `explorePath`, never the shared `bus.route`, so following a link can no longer
+// overwrite the road the desk published — the silent divergence measured on #16.
+// Following a link still records a trail entry, the one thing this pane shares
+// with the rest of the app. (It is still not drawn on a map — the flat MapView
+// painted the route amber and was deleted 2026-07-14; the nested atlas has never
+// drawn it. See model/atlas.ts if that comes back.)
 //
 // The corpus is one giant SCC on purpose, so walks WILL revisit nodes;
 // revisits are marked instead of forbidden.
@@ -58,25 +63,29 @@ const typeChips = (types: [EdgeType, number][]) => (
   </span>
 )
 
-/** the slice of the bus the edge-follower reads and writes */
-type WalkViewBus = Pick<Bus, 'route' | 'setRoute'>
+/** the slice of the bus the edge-follower reads and writes. It is the explorer's
+ *  OWN channel, not the route (#325). */
+type WalkViewBus = Pick<Bus, 'explorePath' | 'setExplorePath'>
 
 export default function WalkView({ bus }: { bus: WalkViewBus }) {
-  const { route, setRoute } = bus
+  const { explorePath, setExplorePath } = bus
   const scroller = useRef<HTMLDivElement>(null)
 
   // keep the newest column in view as the walk grows
   useEffect(() => {
     scroller.current?.scrollTo({ left: scroller.current.scrollWidth, behavior: 'smooth' })
-  }, [route.length])
+  }, [explorePath.length])
 
-  if (route.length === 0) {
+  if (explorePath.length === 0) {
+    // OB-143: the heading's first letter sits under the legend's — left only, by the
+    // constant, and NOT centred: a centred column drifts right of the legend in any
+    // pane wider than it. This is the screen the pane opens on since #325.
     return (
-      <PaneScroller style={{ padding: 24 }}>
-        <div className="max-w-[900px] mx-auto">
+      <PaneScroller style={{ padding: `24px 24px 24px ${LEGEND_INSET}px` }} data-explore-path={explorePath.length}>
+        <div className="max-w-[900px]">
           <div className="text-[13px] font-bold text-slate-800">Start a walk</div>
           <div className="text-[11px] text-slate-500 mt-0.5 mb-4">
-            pick a node, then follow its outgoing links one step at a time — every stop lands on the shared focus, so the other instruments follow
+            pick a node, then follow its outgoing links one step at a time — this path is the explorer's own, not the desk's road
           </div>
 
           <div className="text-[11px] text-slate-400 font-semibold mb-1.5">the busiest topics (computed hubs — good starting points)</div>
@@ -84,7 +93,7 @@ export default function WalkView({ bus }: { bus: WalkViewBus }) {
             {HUB_IDS.map((id) => (
               <button
                 key={id}
-                onClick={() => setRoute([id])}
+                onClick={() => setExplorePath([id])}
                 className="px-2.5 py-1 rounded-lg border-2 text-[12px] font-semibold bg-white hover:bg-amber-50"
                 style={{ borderColor: topicPaint(topicHueOf(id)).mark, color: topicPaint(topicHueOf(id)).mark }}
               >
@@ -104,7 +113,7 @@ export default function WalkView({ bus }: { bus: WalkViewBus }) {
                   {topicsUnder(d).map((id) => (
                     <button
                       key={id}
-                      onClick={() => setRoute([id])}
+                      onClick={() => setExplorePath([id])}
                       className="px-2 py-1 rounded border border-slate-200 bg-white text-left text-[11px] text-slate-600 hover:border-slate-400 hover:bg-slate-100"
                     >
                       {byId.get(id)!.title}
@@ -120,7 +129,7 @@ export default function WalkView({ bus }: { bus: WalkViewBus }) {
   }
 
   return (
-    <div className="relative h-full flex flex-col">
+    <div className="relative h-full flex flex-col" data-explore-path={explorePath.length}>
       {/* OB-143: the row's first letter sits under the legend's — left only, by the constant */}
       <div className="shrink-0 pr-4 pt-3 pb-2 flex items-center gap-3 text-[11px] text-slate-600" style={{ paddingLeft: LEGEND_INSET }}>
         <span className="font-bold text-slate-800 text-[12px]">Walk — step-by-step downstream</span>
@@ -128,26 +137,26 @@ export default function WalkView({ bus }: { bus: WalkViewBus }) {
           click a link to extend · click a link in an earlier column to fork there · click a step card to backtrack · ↺ marks a revisit
         </span>
         <span className="flex-1" />
-        <span className="text-amber-700 font-medium">{route.length} steps</span>
-        <button onClick={() => setRoute([])} className="px-2 py-0.5 rounded border border-slate-300 hover:bg-slate-100">
+        <span className="text-amber-700 font-medium">{explorePath.length} steps</span>
+        <button onClick={() => setExplorePath([])} className="px-2 py-0.5 rounded border border-slate-300 hover:bg-slate-100">
           ✕ clear walk
         </button>
       </div>
 
       <PaneScroller axis="x" forwardRef={scroller}>
         <div className="flex gap-3 px-4 pb-4 h-full items-stretch">
-          {route.map((stepId, i) => {
+          {explorePath.map((stepId, i) => {
             const choices = outgoing.get(stepId) ?? []
-            const chosen = route[i + 1]
+            const chosen = explorePath[i + 1]
             return (
               <div key={`${i}-${stepId}`} className="w-[240px] shrink-0 flex flex-col min-h-0">
-                {/* the step card — part of the amber route */}
+                {/* the step card — part of the explorer's amber path */}
                 <button
-                  onClick={() => setRoute(route.slice(0, i + 1))}
-                  title={wrapTip(i < route.length - 1 ? 'backtrack to this step' : 'current tip')}
+                  onClick={() => setExplorePath(explorePath.slice(0, i + 1))}
+                  title={wrapTip(i < explorePath.length - 1 ? 'backtrack to this step' : 'current tip')}
                   className={[
                     'shrink-0 rounded-lg border-2 border-amber-400 bg-amber-50 px-3 py-2 text-left',
-                    i < route.length - 1 ? 'hover:bg-amber-100' : 'cursor-default',
+                    i < explorePath.length - 1 ? 'hover:bg-amber-100' : 'cursor-default',
                   ].join(' ')}
                 >
                   <div className="text-[10px] font-bold text-amber-600">step {i + 1}</div>
@@ -166,12 +175,12 @@ export default function WalkView({ bus }: { bus: WalkViewBus }) {
 
                 <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1" style={{ paddingRight: 4 + scrollerPadRight() /* DS OB-210 */ }}>
                   {choices.map((c) => {
-                    const revisitAt = route.indexOf(c.target)
+                    const revisitAt = explorePath.indexOf(c.target)
                     const isChosen = c.target === chosen
                     return (
                       <button
                         key={c.target}
-                        onClick={() => setRoute([...route.slice(0, i + 1), c.target])}
+                        onClick={() => setExplorePath([...explorePath.slice(0, i + 1), c.target])}
                         className={[
                           'px-2 py-1.5 rounded border text-left text-[11px] flex items-center gap-1.5',
                           isChosen

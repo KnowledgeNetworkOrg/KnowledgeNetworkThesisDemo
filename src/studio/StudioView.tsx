@@ -21,7 +21,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 
-import { AppHeader, CountBadge, EDGE_TOKEN, FamilyColumn, InstrumentGroup, InstrumentRow, Pane, PresetButton, SectionLabel } from '@/ds'
+import { AppHeader, CountBadge, EDGE_TOKEN, FamilyColumn, FIRST_SCROLL_PAD, InstrumentGroup, InstrumentRow, Pane, PresetButton, SectionLabel } from '@/ds'
 import type { EdgeKind } from '@/ds'
 
 import { byId, topicHueOf } from '../corpus/graph'
@@ -537,7 +537,11 @@ export default function StudioView() {
           scroll="both"
           style={{ height: '100%' }}
         >
-            <div className="border-b border-hair p-3 pt-2">
+            {/* OB-249: the presets block opens a SCROLLING body, so its first line sits on the shared
+                line with `FIRST_SCROLL_PAD` — the scroller's own inset already supplies the rest. It
+                was `pt-2` (8px), which put "presets" at +31 against the document's +25. The label's
+                own 12px style keeps it about a pixel low; the owner accepted that, so it is not nudged. */}
+            <div className="border-b border-hair p-3" style={{ paddingTop: FIRST_SCROLL_PAD }}>
               <SectionLabel>presets</SectionLabel>
               <div className="flex flex-col gap-1">
                 {PRESETS.map((p) => (
