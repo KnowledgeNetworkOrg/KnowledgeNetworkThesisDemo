@@ -152,14 +152,19 @@ function loadWithLegacy<T>(key: string, legacyKey: string | null, spec: Persiste
   if (current.status === 'absent' && legacyKey) {
     const legacy = decodeStored(legacyKey, spec)
     if (legacy.data !== undefined) {
-      // Commit the value as it was STORED, not as `parse` returned it — the same
-      // rule `readPersisted` follows. Otherwise a store whose parse unwraps writes
-      // back a shape its own reader rejects (categories: stored `{list}`, read as a
-      // bare list) and loses the data on the next load (#170).
-      const moved = writePersisted(key, spec.version, legacy.writeBack === undefined ? legacy.data : legacy.writeBack)
-      // the old key goes only once the new one has landed: a refused write (full
-      // storage) must not cost the person their only copy
-      if (moved) removePersisted(legacyKey)
+      // Only a bare, pre-envelope payload is moved — the one shape these old names
+      // ever held, which reads as `migrated`. Commit the value as it was STORED
+      // (`writeBack`), not as `parse` returned it, the same rule `readPersisted`
+      // follows: otherwise a store whose parse unwraps writes back a shape its own
+      // reader rejects (categories: stored `{list}`, read as a bare list) and loses
+      // the data on the next load (#170). Anything else under an old name is shown
+      // this session and left where it is, not moved in a shape nobody checked.
+      if (legacy.status === 'migrated' && legacy.writeBack !== undefined) {
+        const moved = writePersisted(key, spec.version, legacy.writeBack)
+        // the old key goes only once the new one has landed: a refused write (full
+        // storage) must not cost the person their only copy
+        if (moved) removePersisted(legacyKey)
+      }
       return legacy.data
     }
   }

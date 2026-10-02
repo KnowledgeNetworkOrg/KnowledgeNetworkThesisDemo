@@ -215,6 +215,24 @@ describe('storage never throws', () => {
     }
   })
 
+  it('shows, but does not move, a value already in the new format under an old name', () => {
+    // no build wrote this, but if one did: categories are stored wrapped as `{list}`
+    // and read back as a bare list, so moving the READ value would store a shape
+    // the reader then calls corrupt
+    const OLD = 'pkt.lecture.categories.v1'
+    const stored = JSON.stringify({ v: 1, data: { list: [{ key: 'mine', glyph: '!', label: 'my own' }] } })
+    const store: Record<string, string> = { [OLD]: stored }
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => (k in store ? store[k] : null),
+      setItem: (k: string, v: string) => { store[k] = v },
+      removeItem: (k: string) => { delete store[k] },
+    })
+    expect(loadMintedCategories()).toHaveLength(1)
+    expect('pkt.lecture.categories' in store).toBe(false)
+    expect(store[OLD]).toBe(stored)
+    expect(loadMintedCategories()).toHaveLength(1) // and it still reads the same next time
+  })
+
   it('shape-guards the habits it reads instead of handing them on unchecked', () => {
     const store: Record<string, string> = {
       'pkt.lecture.habits': JSON.stringify({ v: 1, data: { duringWidth: 'wide', shelfPosition: { x: 1 }, deck: { groups: 'no', library: [3] }, unknown: true } }),
