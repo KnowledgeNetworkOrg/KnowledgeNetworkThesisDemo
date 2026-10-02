@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   addNote, applyDeck, deleteNote, editNote, loadHabits, loadMintedCategories, loadNotebook,
@@ -11,11 +11,12 @@ const note = (id: string, text: string, stop = 0) => ({ id, text, stop, when: '0
 
 describe('the notebook is keyed by the walk', () => {
   it('gives a saved walk its own notebook and every draft lecture the same one', () => {
-    expect(notebookKey('saved', 'w7')).toBe('pkt.lecture.notes.v1:walk:w7')
+    // #170: the version lives in the payload now, not in the key name
+    expect(notebookKey('saved', 'w7')).toBe('pkt.lecture.notes:walk:w7')
     expect(notebookKey('saved', 'w8')).not.toBe(notebookKey('saved', 'w7'))
-    expect(notebookKey('draft')).toBe('pkt.lecture.notes.v1:draft')
+    expect(notebookKey('draft')).toBe('pkt.lecture.notes:draft')
     // a saved source with no id is still a draft, not a notebook called "walk:null"
-    expect(notebookKey('saved', null)).toBe('pkt.lecture.notes.v1:draft')
+    expect(notebookKey('saved', null)).toBe('pkt.lecture.notes:draft')
   })
 })
 
@@ -115,7 +116,8 @@ describe('the deck layout survives as ids', () => {
 })
 
 describe('storage never throws', () => {
-  beforeEach(() => { vi.unstubAllGlobals() })
+  beforeEach(() => { vi.unstubAllGlobals(); vi.spyOn(console, 'warn').mockImplementation(() => {}) })
+  afterEach(() => vi.restoreAllMocks())
 
   it('reads an empty notebook when there is no store at all', () => {
     vi.stubGlobal('localStorage', undefined)
@@ -147,7 +149,99 @@ describe('storage never throws', () => {
   it('repairs a half-shaped stored notebook rather than handing it on', () => {
     vi.stubGlobal('localStorage', { getItem: () => '{"notes":"not an array"}', setItem: () => {} })
     expect(loadNotebook('k')).toEqual({ notes: [], prepared: {} })
+    // not JSON is CORRUPT — read as an empty notebook, but not silently repaired
     vi.stubGlobal('localStorage', { getItem: () => 'not json at all', setItem: () => {} })
     expect(loadNotebook('k')).toEqual({ notes: [], prepared: {} })
+  })
+
+  it('moves data off the pre-#170 `.v1` key once, under the versioned name', () => {
+    const store: Record<string, string> = {
+      'pkt.lecture.notes.v1:draft': JSON.stringify({ notes: [{ id: 'a', text: 'old note', stop: 0, when: '00:01', at: 1 }], prepared: {} }),
+      'pkt.lecture.categories.v1': JSON.stringify({ list: [{ key: 'mine', glyph: '!', label: 'my own' }] }),
+      'pkt.lecture.habits.v1': JSON.stringify({ duringWidth: 300 }),
+    }
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => (k in store ? store[k] : null),
+      setItem: (k: string, v: string) => { store[k] = v },
+      removeItem: (k: string) => { delete store[k] },
+    })
+    expect(loadNotebook(notebookKey('draft')).notes[0].text).toBe('old note')
+    expect(loadMintedCategories()).toHaveLength(1)
+    expect(loadHabits()).toEqual({ duringWidth: 300 })
+    // re-written under the versioned names as an envelope; the old keys are gone
+    const moved = JSON.parse(store['pkt.lecture.notes:draft'])
+    expect(moved.v).toBe(1)
+    expect(moved.data.notes[0].text).toBe('old note')
+    expect('pkt.lecture.notes.v1:draft' in store).toBe(false)
+    expect('pkt.lecture.categories.v1' in store).toBe(false)
+    expect('pkt.lecture.habits.v1' in store).toBe(false)
+    // the moved bytes must be re-readable: categories are stored wrapped in
+    // `{list}`, so committing the parsed bare list would make the next read
+    // report the store's own fresh write as corrupt (#170)
+    expect(loadMintedCategories()).toHaveLength(1)
+  })
+
+  it('keeps the old key when the move to the versioned name is refused', () => {
+    const OLD = 'pkt.lecture.notes.v1:draft'
+    const store: Record<string, string> = {
+      [OLD]: JSON.stringify({ notes: [{ id: 'a', text: 'old note', stop: 0, when: '00:01', at: 1 }], prepared: {} }),
+    }
+    // reads and removals work; every write is refused, as in a full store
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => (k in store ? store[k] : null),
+      setItem: () => { throw new Error('QuotaExceeded') },
+      removeItem: (k: string) => { delete store[k] },
+    })
+    expect(loadNotebook(notebookKey('draft')).notes[0].text).toBe('old note') // this session still has it
+    expect(OLD in store).toBe(true) // and so does the disk: the only copy was not deleted
+    expect('pkt.lecture.notes:draft' in store).toBe(false)
+  })
+
+  it('does not go back to the old name when the versioned key is corrupt or from a newer build', () => {
+    const OLD = 'pkt.lecture.notes.v1:draft'
+    const NEW = 'pkt.lecture.notes:draft'
+    const oldBook = JSON.stringify({ notes: [{ id: 'a', text: 'old note', stop: 0, when: '00:01', at: 1 }], prepared: {} })
+    const unreadable = ['{not json', JSON.stringify({ v: 2, data: { notes: [{ id: 'b', text: 'newer note' }], prepared: {} } })]
+    for (const stored of unreadable) {
+      const store: Record<string, string> = { [OLD]: oldBook, [NEW]: stored }
+      vi.stubGlobal('localStorage', {
+        getItem: (k: string) => (k in store ? store[k] : null),
+        setItem: (k: string, v: string) => { store[k] = v },
+        removeItem: (k: string) => { delete store[k] },
+      })
+      expect(loadNotebook(notebookKey('draft'))).toEqual({ notes: [], prepared: {} })
+      expect(store[NEW]).toBe(stored) // the load left the unreadable bytes where they were
+      expect(store[OLD]).toBe(oldBook) // and did not move the older copy over them
+    }
+  })
+
+  it('shows, but does not move, a value already in the new format under an old name', () => {
+    // no build wrote this, but if one did: categories are stored wrapped as `{list}`
+    // and read back as a bare list, so moving the READ value would store a shape
+    // the reader then calls corrupt
+    const OLD = 'pkt.lecture.categories.v1'
+    const stored = JSON.stringify({ v: 1, data: { list: [{ key: 'mine', glyph: '!', label: 'my own' }] } })
+    const store: Record<string, string> = { [OLD]: stored }
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => (k in store ? store[k] : null),
+      setItem: (k: string, v: string) => { store[k] = v },
+      removeItem: (k: string) => { delete store[k] },
+    })
+    expect(loadMintedCategories()).toHaveLength(1)
+    expect('pkt.lecture.categories' in store).toBe(false)
+    expect(store[OLD]).toBe(stored)
+    expect(loadMintedCategories()).toHaveLength(1) // and it still reads the same next time
+  })
+
+  it('shape-guards the habits it reads instead of handing them on unchecked', () => {
+    const store: Record<string, string> = {
+      'pkt.lecture.habits': JSON.stringify({ v: 1, data: { duringWidth: 'wide', shelfPosition: { x: 1 }, deck: { groups: 'no', library: [3] }, unknown: true } }),
+    }
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => (k in store ? store[k] : null),
+      setItem: (k: string, v: string) => { store[k] = v },
+      removeItem: (k: string) => { delete store[k] },
+    })
+    expect(loadHabits()).toEqual({})
   })
 })

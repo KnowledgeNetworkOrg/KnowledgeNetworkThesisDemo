@@ -170,8 +170,8 @@ value against them:
 Documented coupling drifts; tested coupling does not. The old `tokens.test.ts`
 value-for-value parity guard was removed with #44, and the guard that replaced it
 is **not** what this section used to claim. Oxlint was **not adopted** (#61 ported
-the rules into ESLint; whether oxlint could replace ESLint outright is #65, see
-`tools/oxlint-spike/RESULTS.md`), so there is no `_adherence.oxlintrc.json` in this
+the rules into ESLint; #65 asked whether oxlint could replace ESLint outright and
+the answer was no, see `tools/oxlint-spike/RESULTS.md`), so there is no `_adherence.oxlintrc.json` in this
 repo — that file lives in the design project as a reference spec only, and it was
 never wired into `npm run verify`. What actually exists:
 

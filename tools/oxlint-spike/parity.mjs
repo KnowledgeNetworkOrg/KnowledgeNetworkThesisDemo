@@ -23,7 +23,10 @@
 //      reads the config's per-folder overrides relative to where the config sits and the
 //      repo must not gain a config file. Two copies: one as it is, and one with every
 //      `eslint-disable` turned into `eslint_disable` (same line numbers, nothing to
-//      obey). ESLint runs over the real tree plain and with `--no-inline-config`. That
+//      obey). ESLint runs over the real tree plain and over the same renamed copy (not
+//      `--no-inline-config`: that flag stops ESLint obeying the comments, but the React-
+//      compiler rules in eslint-plugin-react-hooks read the comment text themselves and
+//      skip a function that holds a disable, so they would under-report). That
 //      gives, per rule and per file, what each tool reports with and without the
 //      repo's disable comments — and, for each comment, whether the rule it silences
 //      really fires on that line (ESLint) and whether oxlint's rule fires there too.
@@ -34,7 +37,10 @@
 // stripped, and rules oxlint does not know are dropped, both recorded in the report.
 //
 // oxlint and @oxlint/migrate are installed into a temp folder and never added to
-// package.json.
+// package.json. The one thing the script writes inside the repo folder is the migrate
+// tool's output, a temporary file under node_modules/.cache/oxlint-parity/ that is
+// removed as soon as it is read (the tool joins its output path onto its own folder, so
+// the file cannot go elsewhere).
 //
 // Run:  node tools/oxlint-spike/parity.mjs           — print the tables
 //       node tools/oxlint-spike/parity.mjs --write   — also write them into RESULTS.md
@@ -311,14 +317,14 @@ const fromOxlint = (diags) => {
   return out
 }
 
-const eslintOnTree = (extra) => {
+const eslintOnTree = (extra, cwd = REPO) => {
   const r = spawnSync(process.execPath, [eslintBin, '.', '--format', 'json', ...extra], {
-    cwd: REPO, encoding: 'utf8', maxBuffer: 1 << 29,
+    cwd, encoding: 'utf8', maxBuffer: 1 << 29,
   })
   let files
-  try { files = JSON.parse(r.stdout) } catch { fail(`eslint gave no JSON over the real tree (exit ${r.status}):\n${tail(r)}`) }
+  try { files = JSON.parse(r.stdout) } catch { fail(`eslint gave no JSON over ${cwd === REPO ? 'the real tree' : 'the renamed copy'} (exit ${r.status}):\n${tail(r)}`) }
   return files.flatMap((f) => f.messages.map((m) => ({
-    file: rel(relative(REPO, f.filePath)),
+    file: rel(relative(cwd, f.filePath)),
     line: m.line ?? 0,
     rule: m.ruleId ? shortName(m.ruleId) : null,
     severity: m.severity,
@@ -334,27 +340,43 @@ const severity = (v) => {
 const isOn = (v) => !['off', 'allow', 0, '0'].includes(Array.isArray(v) ? v[0] : v)
 
 // The same files `eslint .` reads: everything under the repo bar the folders ESLint (or
-// this repo's config) ignores.
+// this repo's config) ignores (`globalIgnores` in eslint.config.js: dist, desktop/release,
+// .venv).
 const walk = (dir, visit) => {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     if (['node_modules', '.venv', 'dist', '.git'].includes(e.name)) continue
     const p = join(dir, e.name)
+    if (p === join(REPO, 'desktop', 'release')) continue
     if (e.isDirectory()) walk(p, visit)
     else if (/\.(ts|tsx|js|mjs|cjs)$/.test(e.name)) visit(p)
   }
 }
 
 // A copy of the lintable tree. `neutralise` rewrites every `eslint-disable` to
-// `eslint_disable`: the same line numbers, so what a tool reports lines up with the
-// comment's target, and nothing for oxlint to obey.
+// `eslint_disable` (and every `eslint-enable` with it, or ESLint would report each one as
+// closing nothing): the same line numbers, so what a tool reports lines up with the
+// comment's target, and nothing for either tool to obey.
 const copyTree = (dest, neutralise) => {
   walk(REPO, (file) => {
     const to = join(dest, relative(REPO, file))
     mkdirSync(dirname(to), { recursive: true })
     const text = readFileSync(file, 'utf8')
-    writeFileSync(to, neutralise ? text.replace(/eslint-disable/g, 'eslint_disable') : text)
+    writeFileSync(to, neutralise ? text.replace(/eslint-(disable|enable)/g, 'eslint_$1') : text)
   })
 }
+
+// ESLint over a copy made by `copyTree`, with this repo's own config. This, not
+// `--no-inline-config`, is what "comments neutralised" has to mean for ESLint: that flag
+// stops ESLint OBEYING the comments, but the react-hooks plugin's React-compiler pass
+// reads the comment text itself and skips any function holding a `react-hooks/exhaustive-deps`
+// or `react-hooks/rules-of-hooks` disable (its default list of suppressions),
+// so those rules (`refs`, `immutability`, `use-memo`, part of `set-state-in-effect`)
+// would report fewer findings than the code has, and oxlint's copy (nothing left to read)
+// would look as if it found more. The repo's own config is handed over with `-c`: ESLint
+// then takes the working folder (the copy) as the base its `files` patterns are matched
+// against, and the plugins resolve from the config's own folder, so the copy needs no
+// config, no package.json and no link to node_modules.
+const eslintOnCopy = (dir) => eslintOnTree(['-c', join(REPO, 'eslint.config.js')], dir)
 
 // Every `eslint-disable…` comment in the real .ts/.tsx files, as the lines it silences:
 // `-next-line` is the line after the comment ENDS (several are multi-line block
@@ -450,8 +472,15 @@ const compareWithOxlint = ({ directives, esActive, esNeutral, oxActive, oxNeutra
       let state
       if (!esNeutral.some((x) => covers(d, x) && is(x))) state = 'stale'
       else if (oxNeutral.some((x) => covers(d, x) && is(x))) state = 'fires'
-      else state = oxNeutral.some((x) => x.file === d.file && is(x)) ? 'elsewhere' : 'silent'
-      const t = byRule.get(rule) ?? { comments: 0, stale: 0, fires: 0, elsewhere: 0, silent: 0 }
+      else if (!oxNeutral.some((x) => x.file === d.file && is(x))) state = 'silent'
+      // oxlint reports the rule in this file, but not on the line ESLint does. Whether the
+      // comment would have to move is then decided by the run with the comments IN PLACE:
+      // if oxlint still reports the rule in the file, the comment does not cover it
+      // ('elsewhere'); if it is quiet, the comment still silences it where it stands
+      // ('held') and only the position of oxlint's first mark differs. Per file and rule,
+      // so a file with several comments for one rule is judged as a whole.
+      else state = oxActive.some((x) => x.file === d.file && is(x)) ? 'elsewhere' : 'held'
+      const t = byRule.get(rule) ?? { comments: 0, stale: 0, fires: 0, held: 0, elsewhere: 0, silent: 0 }
       t.comments++
       t[state]++
       byRule.set(rule, t)
@@ -616,20 +645,24 @@ const measure = () => {
     let real
     try {
       const directives = readDirectives()
+      // two copies of the lintable files: as they are, and with every `eslint-disable`
+      // rewritten so there is nothing to obey (or, for the React-compiler pass, to read)
+      const plainDir = join(root, 'tree-plain')
+      const neutralDir = join(root, 'tree-neutral')
+      copyTree(plainDir, false)
+      copyTree(neutralDir, true)
       const esActive = eslintOnTree([])
-      const esNeutral = eslintOnTree(['--no-inline-config'])
+      const esNeutral = eslintOnCopy(neutralDir)
       real = { directives, es: summariseEslint(esActive, esNeutral), ox: null, oxError: null }
       try {
         if (migrated.unavailable) fail(migrated.unavailable)
-        const onCopy = (neutral) => {
-          const dir = join(root, neutral ? 'tree-neutral' : 'tree-plain')
-          copyTree(dir, neutral)
+        const onCopy = (dir, what) => {
           writeFileSync(join(dir, '.oxlintrc.json'), `${JSON.stringify(migrated.config, null, 2)}\n`)
           const r = oxlint(['-c', '.oxlintrc.json', '--format', 'json', '.'], dir)
-          return fromOxlint(diagnosticsOf(r, `the ${neutral ? 'comment-neutralised' : 'plain'} copy of the real tree`))
+          return fromOxlint(diagnosticsOf(r, `the ${what} copy of the real tree`))
         }
-        const oxActive = onCopy(false)
-        const oxNeutral = onCopy(true)
+        const oxActive = onCopy(plainDir, 'plain')
+        const oxNeutral = onCopy(neutralDir, 'comment-neutralised')
         real.ox = compareWithOxlint({ directives, esActive, esNeutral, oxActive, oxNeutral })
       } catch (e) {
         real.oxError = e.message
@@ -670,7 +703,8 @@ const report = ({ versions, rows, inventory, migrated, real }) => {
     if (migrated.jsPlugins?.length) gaps.push(`@oxlint/migrate left ${migrated.jsPlugins.length} ESLint plugin(s) in the config (${migrated.jsPlugins.join(', ')}), which would have to stay installed`)
     if (cmp?.dark.length) gaps.push(`${cmp.dark.length} rules ESLint reports on the real tree that oxlint does not (${cmp.dark.join(', ')})`)
     if (cmp?.silentComments > 0) gaps.push(`${cmp.silentComments} of ${cmp.confirmed} disable comments cover a rule that oxlint never reports in that file`)
-    if (cmp?.movedComments > 0) gaps.push(`${cmp.movedComments} of ${cmp.confirmed} disable comments would have to move, because oxlint reports the same rule on a different line of the file`)
+    if (cmp?.movedComments > 0) gaps.push(`${cmp.movedComments} of ${cmp.confirmed} disable comments would have to move, because oxlint reports the same rule on a different line of the file and still reports it there with the comments in place`)
+    if (cmp?.fewer.length) gaps.push(`ESLint reports more than oxlint in ${cmp.fewer.length} file/rule pairs, on the copy with the comments renamed (${[...new Set(cmp.fewer.map((x) => x.rule))].join(', ')})`)
     if (cmp?.extraTotal > 0) gaps.push(`oxlint reports ${findings(cmp.extraTotal)} on the real tree that ESLint does not`)
     if (gaps.length) {
       verdict = `KEEP ESLINT — ${gaps.join('; ')}.`
@@ -723,20 +757,20 @@ const report = ({ versions, rows, inventory, migrated, real }) => {
   } else {
     const es = real.es
     const files = new Set(real.directives.map((d) => d.file)).size
-    md.push(`ESLint over the real tree (\`eslint .\`, comments in place): ${es.errors} errors, ${es.warnings} warnings, and ${es.unused} of its own "unused eslint-disable" warnings. With the comments ignored (\`--no-inline-config\`) it reports ${findings(es.suppressed)} — that is what the repo's ${real.directives.length} \`eslint-disable\` comments in ${files} files are holding back.`, '')
+    md.push(`ESLint over the real tree (\`eslint .\`, comments in place): ${es.errors} errors, ${es.warnings} warnings, and ${es.unused} of its own "unused eslint-disable" warnings. Over a copy of the tree with every \`eslint-disable\` renamed (so ESLint has nothing to obey, and the React-compiler rules have no comment to skip a function over) it reports ${findings(es.suppressed)} — that is what the repo's ${real.directives.length} \`eslint-disable\` comments in ${files} files hold back, directly on the lines they cover and, for the React-compiler rules, by making the plugin skip the whole function around an \`exhaustive-deps\` or \`rules-of-hooks\` comment.`, '')
     if (es.byRule.size) {
       md.push(`ESLint's own findings by rule: ${[...es.byRule].map(([r, n]) => `\`${r}\` ${n}`).join(', ')}.`, '')
     }
     if (real.oxError) {
       md.push(`oxlint's side could not run: ${real.oxError}`)
     } else {
-      md.push('**Each comment, checked against both tools.** A comment is *stale* when ESLint itself reports nothing on the line it covers (not oxlint\'s fault, and left out of the verdict). Otherwise the question is whether oxlint\'s rule of the same name fires on that line, with the comment neutralised.', '')
-      md.push('| rule named in the comments | comments | stale (ESLint finds nothing there) | oxlint fires on that line | oxlint fires elsewhere in the file | oxlint silent |', '| --- | ---: | ---: | ---: | ---: | ---: |')
+      md.push('**Each comment, checked against both tools.** A comment is *stale* when ESLint itself reports nothing on the line it covers (not oxlint\'s fault, and left out of the verdict). Otherwise the question is whether oxlint\'s rule of the same name fires on that line, with the comment neutralised. Where it fires on a different line of the file, the run with the comments in place decides: still reported in that file means the comment would have to move; quiet means it still silences the rule where it stands.', '')
+      md.push('| rule named in the comments | comments | stale (ESLint finds nothing there) | oxlint fires on that line | on another line, comment still holds | on another line, comment would have to move | oxlint silent |', '| --- | ---: | ---: | ---: | ---: | ---: | ---: |')
       for (const [rule, t] of [...cmp.byRule].sort((a, b) => b[1].comments - a[1].comments)) {
-        md.push(`| \`${cell(rule)}\` | ${t.comments} | ${t.stale} | ${t.fires} | ${t.elsewhere} | ${t.silent} |`)
+        md.push(`| \`${cell(rule)}\` | ${t.comments} | ${t.stale} | ${t.fires} | ${t.held} | ${t.elsewhere} | ${t.silent} |`)
       }
       md.push('')
-      md.push('**Findings per rule over the whole tree, comments neutralised in both tools.**', '')
+      md.push('**Findings per rule over the whole tree, on the renamed copy for both tools (ESLint with this repo\'s config, oxlint with the migrated one).**', '')
       md.push('| rule | ESLint | oxlint (migrated config) |', '| --- | ---: | ---: |')
       for (const r of cmp.perRule) md.push(`| \`${cell(r.rule)}\` | ${r.es} | ${r.ox} |`)
       md.push('')
