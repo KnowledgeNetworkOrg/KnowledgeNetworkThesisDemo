@@ -83,6 +83,41 @@ npm ci --prefix desktop
 
 Without them, `verify` stops at `Cannot find module 'electron'`.
 
+## Packaging a portable app
+
+The desktop app ships as one portable Windows `.exe` — no installer. Build it
+from a checkout, once both packages' dependencies are installed:
+
+```powershell
+npm ci
+npm ci --prefix desktop
+npm --prefix desktop run pack
+```
+
+`pack` builds the web app, builds the desktop host, then runs `electron-builder`
+against `desktop/electron-builder.yml`. The result is
+`desktop/release/GraphDisclosureLab-0.0.0-portable.exe` (the version tracks
+`desktop/package.json`). Copy that one file to a Windows x64 machine and
+double-click it — no repo, no Node, no install.
+
+The app is **not code-signed**, so Windows SmartScreen warns on first run
+("Windows protected your PC"). Click **More info**, then **Run anyway**. This is
+expected; the only alternatives are accepting it or buying a certificate.
+Two machines behave differently. A copy that was not downloaded (handed over on
+a USB stick, or built on that machine) usually shows no SmartScreen warning at
+all. But on Windows 11 with **Smart App Control** turned on, an unsigned app is
+blocked outright, however it was copied there, with no Run anyway button: use
+another machine, or turn Smart App Control off. On an up-to-date Windows 11 it
+can be switched back on afterwards; on older builds, or with optional
+diagnostic data off, turning it back on needs a reset of Windows.
+
+The packed app keeps its saved data (lecture notes, walks) in
+`%APPDATA%\Graph Disclosure Lab`, separate from the app run from a checkout.
+
+Packaging is a hand-run command and stays out of CI: it downloads Electron and is
+Windows-only, while `code-verify` is deliberately Electron-free (see #201). There
+are no macOS or Linux targets, and no auto-update.
+
 ## License
 
 BSD-2-Clause - see [LICENSE](LICENSE).
