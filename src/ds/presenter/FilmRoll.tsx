@@ -30,14 +30,20 @@ export interface FlagButtonProps {
   lift?: number
   /** flip the flag */
   onClick?: () => void
-  /** default "flag this slide" / "unflag this slide" */
+  /** default "flag this slide" / "unflag this slide". Also the button's spoken name
+   *  (`aria-label`); `aria-pressed` follows `flagged` whenever `onClick` is passed. */
   title?: string
+  /** Pass -1 while the reveal around it has it HIDDEN (opacity 0), so the keyboard cannot land
+   *  on an invisible control; 0 or omit while shown. The card does this itself. */
+  tabIndex?: number
 }
 
-export function FlagButton({ flagged, dim, glyphSize = 12, size = 24, lift = 0, onClick, title }: FlagButtonProps) {
+export function FlagButton({ flagged, dim, glyphSize = 12, size = 24, lift = 0, onClick, title, tabIndex }: FlagButtonProps) {
   const [hot, setHot] = useState(false)
+  const name = title || (flagged ? 'unflag this slide' : 'flag this slide')
   return (
-    <button type="button" title={wrapTip(title || (flagged ? 'unflag this slide' : 'flag this slide'))} aria-label={flagged ? 'unflag this slide' : 'flag this slide'}
+    <button type="button" title={wrapTip(name)} aria-label={name}
+      aria-pressed={onClick ? !!flagged : undefined} tabIndex={tabIndex}
       onClick={(e) => { e.stopPropagation(); if (onClick) onClick() }}
       onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)} style={{
         display: 'grid', placeItems: 'center', width: size, height: size, borderRadius: 'var(--radius-pill)', padding: 0,
@@ -55,13 +61,13 @@ export function FlagButton({ flagged, dim, glyphSize = 12, size = 24, lift = 0, 
 function ExpandButton({ onClick, revealed }: { onClick?: () => void; revealed: boolean }) {
   const [hot, setHot] = useState(false)
   return (
-    <button type="button" title={wrapTip('full screen')} aria-label="full screen"
+    <button type="button" title={wrapTip('full screen')} aria-label="full screen" tabIndex={revealed ? 0 : -1}
       onClick={(e) => { e.stopPropagation(); if (onClick) onClick() }}
       onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)} style={{
         position: 'absolute', right: 9, bottom: 9, zIndex: 3, width: 26, height: 26, borderRadius: 7,
-        display: 'grid', placeItems: 'center', background: hot ? 'var(--bark-800)' : 'rgba(255,255,255,.92)',
+        display: 'grid', placeItems: 'center', background: hot ? 'var(--bark-800)' : 'color-mix(in srgb, var(--surface-raised) 92%, transparent)',
         border: '1px solid ' + (hot ? 'var(--bark-800)' : 'var(--border-rule)'),
-        color: hot ? '#fff' : 'var(--text-1)', boxShadow: hot ? 'var(--lift-2)' : 'var(--lift-1)',
+        color: hot ? 'var(--text-inverse)' : 'var(--text-1)', boxShadow: hot ? 'var(--lift-2)' : 'var(--lift-1)',
         opacity: revealed ? 1 : 0, pointerEvents: revealed ? 'auto' : 'none',
         cursor: 'pointer', transition: 'var(--transition-wash), opacity var(--dur-fade) var(--ease-soft)',
       }}>
@@ -148,7 +154,7 @@ function Mirror({ width, content, cornerLabel, live, projecting = true, dim, fla
          state that isn't true. */}
       {onToggleFlag ? (
         <span style={{ position: 'absolute', right: 6, top: 5, zIndex: 3, opacity: flagged ? (dim ? (hot ? 0.85 : 0.7) : 1) : (revealed ? 1 : 0), pointerEvents: flagged || revealed ? 'auto' : 'none', transition: 'opacity var(--dur-fade) var(--ease-soft)' }}>
-          <FlagButton flagged={flagged} dim={dim} glyphSize={glyphSize} onClick={onToggleFlag} />
+          <FlagButton flagged={flagged} dim={dim} glyphSize={glyphSize} onClick={onToggleFlag} tabIndex={flagged || revealed ? 0 : -1} />
         </span>
       ) : flagged ? (
         <span style={{ position: 'absolute', right: 6, top: 5, zIndex: 3, opacity: dim ? 0.7 : 1, transition: 'var(--transition-wash)' }}>

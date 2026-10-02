@@ -21,7 +21,11 @@ import { PaneDivider, PANE_DIVIDER_METRICS } from '../chrome/PaneDivider'
  *  must be mounted in a body with no top margin. The right rail sits under a header row of its
  *  own and keeps 6. `pad`'s first value IS `top` — read `top`, never parse `pad`. (DS OB-249;
  *  `FIRST_LINE` and `FIRST_SCROLL_PAD` sit beside `FIRST_ROW_PAD` in `Pane` — do not restate
- *  any of them here.) */
+ *  any of them here.)
+ *
+ *  `inset` is the scroller's own right inset (left 6, right 8, CHOSEN). The right padding the rail
+ *  DRAWS is `inset + scrollerPadRight()`, never `pad`'s right value alone: an overlay scrollbar
+ *  takes no layout space and sits on the content (DS OB-210). The rail applies this itself. */
 export interface RailMetrics {
   /** the narrowest the column may draw and still be read */
   min: number
@@ -37,13 +41,17 @@ export interface RailMetrics {
    *  start at the same height. LEFT: `Pane`'s `FIRST_ROW_PAD` (14). RIGHT: 6, that rail sitting
    *  under a header row of its own */
   top: number
+  /** THE SCROLLER'S OWN RIGHT INSET (left 6, right 8) — CHOSEN. The right padding the rail DRAWS is
+   *  `inset + scrollerPadRight()`, never `pad`'s right value alone: an overlay scrollbar takes no
+   *  layout space and sits on the content. The rail applies this itself */
+  inset: number
   /** the rail body's padding. Its first value IS `top` */
   pad: string
 }
 
 export const PANE_RAIL_METRICS: Record<'left' | 'right', RailMetrics> = {
-  left: { min: 140, max: 196, stretch: 360, keep: 190, top: FIRST_ROW_PAD, pad: FIRST_ROW_PAD + 'px 6px 10px' },
-  right: { min: 186, max: 250, stretch: 420, keep: 210, top: 6, pad: '6px 8px 12px' },
+  left: { min: 140, max: 196, stretch: 360, keep: 190, top: FIRST_ROW_PAD, inset: 6, pad: FIRST_ROW_PAD + 'px 6px 10px' },
+  right: { min: 186, max: 250, stretch: 420, keep: 210, top: 6, inset: 8, pad: '6px 8px 12px' },
 }
 
 /** the column's width at this pane width — it SHRINKS to its floor before it goes. `want` is a
@@ -278,6 +286,8 @@ export interface RailFrameProps {
   /** PASS THIS AND THE SEAM DRAGS: a `PaneDivider` straddles the rail's border, drawing nothing
    *  at rest. Called ONCE per gesture, on release (and after each key nudge), with the width to
    *  store; with `null` on the reset gesture (double-click, Enter), meaning "back to the fit".
+   *  NOT CALLED for a gesture that did not move — a click on the seam, or a cancelled pointer —
+   *  so a width the user never chose is never stored, and an unset rail keeps tracking its fit.
    *  Omit it and the seam is not a handle — the rail fits itself, as before */
   onWidthChange?: (width: number | null) => void
   /** content, or a function of the column's DRAWN width — for content that must track the seam
@@ -343,10 +353,13 @@ export function RailFrame({ side = 'left', label, count, mark, open, onOpenChang
       flex: '0 0 ' + shown + 'px', minWidth: 0, minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column',
       [side === 'left' ? 'borderRight' : 'borderLeft']: '1px solid var(--border-hair)',
     }}>
-      {/* ★ LOCAL, DS OB-210 (the `.jsx` still uses `m.pad` alone): the rail SCROLLS, so its right
-          padding is the table's own inset plus `scrollerPadRight()` — 0 where the bar takes real
-          space, the overlay-bar room in Firefox. The inset stays the content's; the room is the bar's. */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: m.pad, paddingRight: parseFloat(m.pad.split(' ')[1]) + scrollerPadRight() }}>
+      {/* THE RIGHT PADDING IS THE TABLE'S INSET PLUS THE SCROLLBAR'S ROOM (DS OB-210): where the bar
+          is an overlay (Firefox, macOS, touch) it takes no layout space and would sit on the
+          content. The inset stays the content's; the room is the bar's. This port found the `.jsx`
+          still padding with `m.pad` alone (`receipts/8f8c5ef.md`) and the DS source now matches —
+          the deviation that stood here is retired, and `m.inset` is the number it used to parse
+          out of `pad`. */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: m.pad, paddingRight: m.inset + scrollerPadRight() }}>
         {/* THE HANDLE SITS AT THE SEAM END OF THE HEAD — beside the content, pointing the way the
             rail will go. The eyebrow's `flex: 1` is what puts it there, on both sides. This is
             the approved drawing (`ideas/connections-dissolved-into-map-and-document.html`), not

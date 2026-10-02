@@ -128,9 +128,12 @@ export interface PaneDividerProps {
   onDrag?: (delta: number) => void
   /** the gesture ended, and it hands back the gesture's TOTAL TRAVEL in px. THE ONLY MOMENT TO
    *  PERSIST — a store written on every move records a hundred widths for one drag. Also fires
-   *  after each keyboard nudge, which is one whole gesture. A CANCELLED POINTER (the browser
-   *  took the gesture over) fires it too, with travel 0: the gesture is over and nothing moved,
-   *  so re-running the clamp from the gesture's start leaves the stored width standing.
+   *  after each keyboard nudge, which is one whole gesture.
+   *
+   *  A CANCELLED POINTER (`pointercancel`: a touch the browser took, a lost capture) ENDS THE
+   *  GESTURE AT ZERO: `onDrag(0)` then `onDragEnd(0)`. Treat 0 as "nothing was chosen" — a host
+   *  that stores on every end re-stores the width it started with; one that stores only on a real
+   *  move (as `RailFrame` does) stores nothing.
    *
    *  RE-RUN THE CLAMP WITH THIS DELTA; DO NOT READ YOUR OWN STATE HERE. On a key nudge both
    *  callbacks fire inside one event, so the `setState` from `onDrag` has not rendered and a host
@@ -192,22 +195,24 @@ export function PaneDivider({ orientation = 'vertical', onDrag, onDragEnd, onRes
       travel.current = (vertical ? ev.clientX : ev.clientY) - start.current
       if (onDrag) onDrag(travel.current)
     }
-    const end = (travel: number) => {
+    /* A CANCELLED POINTER ENDS THE GESTURE TOO, AT ZERO TRAVEL. A touch the browser takes for a
+       scroll, or a lost capture, fires `pointercancel` and never `pointerup`; listening for the
+       second alone left the drag live, following the next pointer that came by. The cancel path
+       fires `onDrag(0)` THEN `onDragEnd(0)`: the first reverts a host that draws the drag live
+       to where the gesture began, the second closes the gesture, and zero travel means the host
+       re-runs its clamp from there so the stored width stands. Reported by this app's port
+       (reviewer-measured on #372, 2026-09-24; `receipts/b7692ec.md`) and now the DS's own shape —
+       the port used to skip the `onDrag(0)`, which is the one line it differed by. */
+    const end = (cancelled: boolean) => {
       setDragging(false)
-      if (onDragEnd) onDragEnd(travel)
+      if (cancelled) { travel.current = 0; if (onDrag) onDrag(0) }
+      if (onDragEnd) onDragEnd(travel.current)
       window.removeEventListener('pointermove', mv)
       window.removeEventListener('pointerup', up)
       window.removeEventListener('pointercancel', cancel)
     }
-    const up = () => end(travel.current)
-    /* A CANCELLED POINTER IS STILL A GESTURE THAT ENDED. The browser cancels one when it takes
-       the pointer over — a touch or pen gesture claimed for a scroll, or the pointer lost
-       mid-drag — and `pointerup` then never fires: the window listeners stayed attached,
-       `dragging` stayed true, and the host was never told, so a half-dragged width stayed live
-       and the next gesture measured from a stale origin (reviewer-measured on #372, 2026-09-24).
-       Travel 0 is the report that says "over, and nothing moved": the host re-derives from where
-       the drag began (see `onDragEnd`), so the width it had already stored is what stands. */
-    const cancel = () => end(0)
+    const up = () => end(false)
+    const cancel = () => end(true)
     window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cancel)
   }
   const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {

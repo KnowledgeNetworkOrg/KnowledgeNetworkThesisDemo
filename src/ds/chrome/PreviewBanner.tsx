@@ -13,7 +13,9 @@ export const PREVIEW_BANNER_METRICS = { height: 16, chipRadius: 3 }
 
 /** the previewed node, as little of it as this row needs */
 export interface PreviewBannerNode {
-  /** published as `data-preview-banner` so a driver can locate the row by what it reports */
+  /** published as `data-preview-banner` so a driver can locate the row by what it reports. THE
+   *  ATTRIBUTE IS ON THE ROW AT REST TOO, EMPTY: "is it previewing" is `getAttribute() !== ''`,
+   *  never `hasAttribute()`. */
   id?: string
   title: string
   /** the node's own topic, resolved through `topicPaint` for the name's ink. A DATA field, not a
@@ -29,14 +31,20 @@ export interface PreviewBannerNode {
  *       height (`PREVIEW_BANNER_METRICS.height`) precisely so a preview arriving or leaving never
  *       reflows the pane under a cursor that is somewhere else. Rendering it only while
  *       previewing throws that away and is the one way to get this wrong.
- *    2. DECIDE `node` FROM A FOREIGN HOVER ONLY, and only while nothing is selected:
- *       `focus == null && !pointerInside && hover != null`. A pane must not re-aim itself at its
+ *    2. DECIDE `node` FROM A FOREIGN HOVER ONLY, and only while nothing is selected. The rule the
+ *       app's Connections pane arrived at (that pane is retired now, #405; the rule stands),
+ *       stated as an expression:
+ *       `focus == null && !pointerInside && hover != null` — a pane must not re-aim itself at its
  *       own cursor, and a selection pins the pane.
  *    3. HAVE SOMEWHERE TO GO BACK TO. A preview is temporary by definition, so the pane needs a
- *       RESTING reading to snap back to when the cursor leaves. Since OB-209's ruling that
- *       resting reading is the placeholder ("Nothing chosen"), not the last node.
+ *       RESTING reading to snap back to when the cursor leaves — the node the session's cursor
+ *       still stands on, not the corpus root. With nothing chosen that reading is the pane's
+ *       "Nothing chosen" placeholder, exactly as on a fresh open (OB-209, OB-260). Two panes
+ *       previewing the same hover must rest on the same thing, or leaving the hover leaves them
+ *       disagreeing.
  *    4. The click this row promises is the pane's, not this component's: it renders no button and
- *       takes no handler, because the thing you click is the node out there under the cursor.
+ *       takes no handler, because the thing you click is the node out there under the cursor, not
+ *       a control in here.
  *
  *  POND, BECAUSE A PREVIEW IS CROSS-PANE CORRESPONDENCE. `tokens/colors.css` reserves the pond
  *  ramp for "selection and cross-pane correspondence only", which is exactly what this row
@@ -65,11 +73,10 @@ export function PreviewBanner({ node, action = 'click to select it', verb = 'hov
   const M = PREVIEW_BANNER_METRICS
   const paint = topicPaint(node && node.domain)
   return (
-    /* ★ LOCAL — `data-preview-banner` is ALWAYS present, and empty at rest. The DS draws it only
-       while previewing (`undefined` otherwise), but its own done-when for OB-209 asks a driver to
-       assert `[data-preview-banner]` EXISTS while nothing is hovered, which a missing attribute
-       cannot satisfy. The value still reports the previewed node's id, so "is it previewing" is
-       `getAttribute() !== ''`. */
+    /* THE ATTRIBUTE IS ALWAYS PRESENT, EMPTY AT REST — like the slot itself. A driver finds the row
+       whether or not anything is previewed, and "is it previewing" is `getAttribute() !== ''`.
+       (This port found the DS drew it only while previewing and said so in `receipts/5ba8bec.md`;
+       the DS source now matches, so what was a ★ LOCAL deviation here is retired.) */
     <div data-preview-banner={node ? node.id || '' : ''} aria-live="polite" style={{
       flex: 'none', boxSizing: 'border-box', height: M.height, display: 'flex', alignItems: 'center', gap: 6,
       fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-micro)', lineHeight: 'var(--lh-snug)',

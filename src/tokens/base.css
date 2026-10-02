@@ -188,5 +188,20 @@ a:hover { color: var(--moss-700); text-decoration-color: var(--moss-400); }
    browser's default selection blue landed close enough to that wash in hue and
    lightness to be hard to tell apart mid-drag (owner-reported 2026-08-28). Scoped to
    one class, applied only to a line that is actually open for editing — not a general
-   styling hook, just the one pseudo-element inline styles cannot express. */
+   styling hook, just the pseudo-elements inline styles cannot express. */
 .kn-inline-edit-selection::selection { background: var(--state-editing); color: var(--surface-raised); }
+
+/* AN EMPTY OPEN LINE STILL HAS A BASELINE (OB-273, 2026-10-01). While editing, `InlineText`
+   renders no children, so an empty field is an inline-block with NO line box. Chromium
+   synthesises a text baseline for an empty editable box anyway; Firefox does not, and
+   aligns the box by its bottom margin edge. Every host lines this field up on a baseline
+   (VersionedGroup's head row is `alignItems: 'baseline'`), so in Firefox the empty box
+   rose a full line above the text and the row grew by the descent: measured on our own
+   card, dpr 1.5, Firefox 157 — card +4.57, the index +5.12, Chrome 0.00. The rest state
+   never had the fault because it draws a zero-width-space strut as real text.
+   This is that strut for the open state, drawn as GENERATED content so it never enters
+   the field: not in `textContent`, not in a commit, not under the caret, zero width.
+   `:empty` lets it go on the first keystroke (and on the `<br>` Firefox inserts into an
+   emptied editable, which carries a line box of its own). Port it with the rule above;
+   a port that keeps `InlineText` and drops this moves every empty field in Firefox. */
+.kn-inline-edit-selection:empty::before { content: '\200b'; }

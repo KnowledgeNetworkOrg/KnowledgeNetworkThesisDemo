@@ -37,3 +37,14 @@ describe('railWidth — the fit, the stretch cap and the pane clamp', () => {
     expect(PANE_RAIL_METRICS.right.stretch).not.toBe(L.stretch)
   })
 })
+
+describe('PANE_RAIL_METRICS.inset — the scroller\'s own right inset (DS OB-262 item 3)', () => {
+  it('is 6 on the left rail and 8 on the right, and is the second value of `pad` (so reading it never needs parsing `pad`)', () => {
+    expect(L.inset).toBe(6)
+    expect(PANE_RAIL_METRICS.right.inset).toBe(8)
+    for (const side of ['left', 'right'] as const) {
+      const m = PANE_RAIL_METRICS[side]
+      expect(parseFloat(m.pad.split(' ')[1])).toBe(m.inset)
+    }
+  })
+})

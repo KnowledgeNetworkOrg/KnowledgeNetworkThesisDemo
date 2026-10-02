@@ -64,6 +64,42 @@ describe('orbitMarks — one mark per RELATIONSHIP, never per neighbour', () => 
     expect(orbitMarks(undefined, undefined)).toEqual([])
     expect(orbitMarks([], [])).toEqual([])
   })
+
+  // DS OB-262 item 1 — one mark per KEY (`<targetId>|<kind>`), collapsed by the figure itself
+  it('DIRECT WINS: a child holding the node\'s own (target, kind) draws no second mark, and is kept on `vias`', () => {
+    const marks = orbitMarks([rel('t1', 'uses')], [viaRel('child', rel('t1', 'uses'))])
+    expect(marks).toHaveLength(1)
+    expect(marks[0].via).toBeNull() // still on the inner ring
+    expect(marks[0].vias).toEqual([{ id: 'child', title: 'child' }])
+  })
+
+  it('two children relating to one outside node the same way are ONE mark; `via` is the first, `vias` has both in order', () => {
+    const marks = orbitMarks([], [viaRel('c1', rel('t9', 'uses')), viaRel('c2', rel('t9', 'uses'))])
+    expect(marks).toHaveLength(1)
+    expect(marks[0].via).toEqual({ id: 'c1', title: 'c1' })
+    expect(marks[0].vias.map((v) => v.id)).toEqual(['c1', 'c2'])
+  })
+
+  it('a repeated DIRECT key is one mark, and the same target with a different kind is still its own mark', () => {
+    const marks = orbitMarks([rel('t1', 'uses'), rel('t1', 'uses'), rel('t1', 'see_also')], [])
+    expect(marks.map((m) => m.key)).toEqual(['t1|uses', 't1|see_also'])
+  })
+
+  it('no mark key repeats, whatever the input (a repeated key was one mark drawn twice under a duplicated React key)', () => {
+    const marks = orbitMarks(
+      [rel('a', 'uses'), rel('a', 'uses')],
+      [viaRel('c1', rel('a', 'uses')), viaRel('c1', rel('b', 'uses')), viaRel('c2', rel('b', 'uses'))],
+    )
+    const keys = marks.map((m) => m.key)
+    expect(new Set(keys).size).toBe(keys.length)
+    expect(keys).toEqual(['a|uses', 'b|uses'])
+  })
+
+  it('a via entry with no path leaves `via` null and `vias` empty', () => {
+    const marks = orbitMarks([], [{ path: [], rel: rel('t1', 'uses') }])
+    expect(marks[0].via).toBeNull()
+    expect(marks[0].vias).toEqual([])
+  })
 })
 
 describe('orbitKinds — the wedges are cut in first-appearance order, the corpus\'s own', () => {

@@ -76,10 +76,20 @@ export interface IconButtonProps {
   /** on by default: these sit inside rows and cards that answer to clicks of
    *  their own */
   stopPropagation?: boolean
-  /** POSITION ONLY — `marginLeft: auto`, `position: absolute`, `zIndex`,
-   *  `alignSelf`. Do not restyle the face, the border or the ink from here: the
-   *  tones are the component's, and a fifth hand-written variant is what this
-   *  replaced */
+  /** POSITION, AND THE THREE COLOUR PROPERTIES A HELD FACE NEEDS — `marginLeft: auto`,
+   *  `position: absolute`, `zIndex`, `alignSelf`, plus `color`, `background` and `borderColor`
+   *  for a mark whose PRESSED or HELD face this component has no tone for (the group card's pencil
+   *  is the standing example, and has passed them since it was written). Nothing else: no border,
+   *  no radius, no padding, no size — the tones are the component's, and a fifth hand-written
+   *  variant is what this replaced.
+   *  Widened 2026-09-06 from "POSITION ONLY", which the app's OB-110 port rightly asked about
+   *  (`receipts/c968155.md`): the DS's own caller had been outside the contract since the day it
+   *  was drawn, and the honest fix is the contract rather than the caller — a held face is a real
+   *  need, and the alternative is a `tone` for every one-off pressed state.
+   *  `borderColor` added 2026-09-26 (DS OB-258): the component FOLDS it into its own `border`
+   *  shorthand, so it holds through hover. Pass ONE colour (the fold builds `1px solid <colour>`, so
+   *  a four-value `borderColor` would make the shorthand invalid) alone — never a `border`
+   *  shorthand of your own. */
   style?: CSSProperties
   /** FADED, NOT RECEDED (OB-072). `reveal={false}` is for a control that isn't
    *  relevant right now and goes fully invisible + untabbable; `disabled` is for
@@ -107,6 +117,12 @@ export function IconButton({
   const hotInk = danger ? 'var(--berry-600)' : 'var(--text-1)'
   const hotFace = danger ? 'var(--state-danger-wash)' : 'var(--surface-hover)'
   const hotEdge = danger ? 'var(--state-danger)' : 'var(--border-rule)'
+  /* A HELD EDGE IS FOLDED INTO THE SHORTHAND, never spread after it (DS OB-258). `border`
+     below changes with `hot`, and when React re-applies a changed shorthand it wipes a
+     separately-set `borderColor`: the pencil's editing edge drew at first and vanished the
+     moment the pointer left. Reported by this app's port (`receipts/c8fae13.md`, measured
+     there as transparent on all four sides). */
+  const { borderColor: heldEdge, ...restStyle } = style || {}
   return (
     <button
       /* EVERY TOOLTIP IN THE SYSTEM GOES THROUGH `wrapTip`, the short ones included.
@@ -139,7 +155,7 @@ export function IconButton({
         display: 'grid', placeItems: 'center', boxSizing: 'border-box',
         borderRadius: 'var(--radius-pill)',
         /* reserved at rest — see the note above */
-        border: '1px solid ' + (hot && !disabled ? hotEdge : 'transparent'),
+        border: '1px solid ' + (heldEdge || (hot && !disabled ? hotEdge : 'transparent')),
         background: hot && !disabled ? hotFace : 'transparent',
         color: hot && !disabled ? hotInk : restInk,
         /* the glyph is point-sized SEPARATELY where it has to be: a cross puts
@@ -156,7 +172,7 @@ export function IconButton({
            as a button at all. */
         opacity: !shown ? 0 : disabled ? 0.35 : 1, pointerEvents: !shown ? 'none' : disabled ? 'none' : 'auto',
         transition: 'opacity var(--dur-fade) var(--ease-soft), var(--transition-wash)',
-        ...style,
+        ...restStyle,
       }}>{children || (glyph === undefined || glyph === null ? <CloseMark size={markSize} /> : glyph)}</button>
   )
 }

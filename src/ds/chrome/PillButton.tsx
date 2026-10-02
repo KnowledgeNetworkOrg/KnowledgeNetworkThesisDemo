@@ -48,19 +48,16 @@ export interface PillButtonProps {
    *  `ReactNode` — `PaneActionBar` passes a drawn mark through this same slot. */
   glyph?: ReactNode
   disabled?: boolean
-  /** on/toggled — draws the moss ring wash rather than a separate colour.
+  /** on/toggled — draws the moss ring wash rather than a separate colour. THREE RUNGS, the
+   *  `Toolbar` ladder: `false` off; `'mixed'` ring and ink, NO wash (some of the subject is on —
+   *  a group whose leaves disagree); `true` ring, ink and wash. Weight never changes. HOVER
+   *  NEVER TAKES THE WASH AWAY FROM `true`, and never adds it to `'mixed'` — either would make
+   *  pointing look like a state change. Passing it at all makes the pill a toggle to assistive
+   *  tech (`aria-pressed`, `"mixed"` included); leave it out on a plain action.
    *
-   *  ★ LOCAL, `'mixed'` (DS OB-215): a toggle whose subject is only PARTLY on — the walk editor's
-   *  Optional button over a group some of whose leaves are optional. The DS drew this rung on
-   *  `Toolbar`'s `on`, and it is the same ladder here, each rung adding a whole channel: off = the
-   *  tone's own face; `'mixed'` = the moss RING and ink, NO wash; `true` = ring AND wash. Never a
-   *  dashed pill (the `OptionalMark` inside is already a dashed ring — two dashes saying two
-   *  things), and hover on `'mixed'` takes the tone's own neutral hover, never the moss wash that
-   *  would draw it pixel-identical to `true`. Hover on `true` KEEPS the wash (the Toolbar's order,
-   *  wash before hover) — otherwise a hovered `true` loses its fill and matches a hovered `'mixed'`.
-   *
-   *  Passing it at all makes the button a toggle: `aria-pressed` is emitted whenever `selected` is
-   *  given, `'mixed'` as ARIA's own `aria-pressed="mixed"`. Omitted, the pill is a plain action. */
+   *  (The `'mixed'` rung was a ★ LOCAL addition here, DS OB-215, for the walk editor's Optional
+   *  button over a group some of whose leaves are optional; the DS source now carries it, DS
+   *  OB-262 item 4, so it is no longer a deviation.) */
   selected?: boolean | 'mixed'
   title?: string
   /** fill the row and centre the label, for a pill that stands alone in a column rather than
@@ -78,15 +75,16 @@ export function PillButton({ tone = 'quiet', size = 'md', glyph, disabled, selec
   const t = TONES[tone] ?? TONES.quiet
   const [hot, setHot] = useState(false)
   const pad = size === 'sm' ? '3px 9px' : '6px 13px'
-  /* THE TWO READINGS OF `selected` ARE DIFFERENT, and a truthiness test cannot tell them apart —
-     the string 'mixed' is truthy, so `selected ?` would draw it fully on (the collapse the DS's
-     Toolbar names). `engaged` (wholly or partly) earns the ring and the ink; `isOn` (wholly) is
-     the only one that earns the wash.
+  /* THREE RUNGS, THE TOOLBAR'S LADDER (DS OB-215): off / `'mixed'` = ring and ink, no wash / `true` =
+     ring, ink and wash. The weight does not change — a pill is always semibold. A truthiness test
+     would render 'mixed' as fully on (the string is truthy), so the two readings are named:
+     `engaged` (wholly or partly) earns the ring and the ink; `isOn` (wholly) is the only one that
+     earns the wash.
 
-     THE WASH OUTRANKS HOVER, as it does in the DS's Toolbar: hover-first would swap a fully-on
-     pill's wash for the neutral hover and leave the ring and ink — exactly what a hovered 'mixed'
-     pill draws, so the two would match at the one moment the author points at the button to
-     decide whether a press will clear every leaf or set every leaf. */
+     THE WASH IS CHECKED BEFORE HOVER. Hover first painted a hovered ON pill with the plain hover
+     wash — the same picture as a hovered MIXED one, so pointing at it appeared to change the state
+     (this port's finding, `receipts/e5b0460.md`). Hovered ON keeps its wash; hovered MIXED takes
+     the neutral hover, which differs from the accent wash in hue, not only in lightness. */
   const isOn = selected === true
   const engaged = isOn || selected === 'mixed'
   return (

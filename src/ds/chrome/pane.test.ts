@@ -129,7 +129,7 @@ describe('OB-249 — every pane\'s first line sits on one shared line', () => {
 
   it('RailFrame\'s left rail opens its pane on the shared pad; the right rail keeps its own 6', () => {
     const src = railSource.replace(/\r\n/g, '\n')
-    expect(src).toContain('top: FIRST_ROW_PAD, pad: FIRST_ROW_PAD + \'px 6px 10px\'')
-    expect(src).toContain("top: 6, pad: '6px 8px 12px'")
+    expect(src).toContain('top: FIRST_ROW_PAD, inset: 6, pad: FIRST_ROW_PAD + \'px 6px 10px\'')
+    expect(src).toContain("top: 6, inset: 8, pad: '6px 8px 12px'")
   })
 })

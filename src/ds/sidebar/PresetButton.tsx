@@ -54,12 +54,21 @@ export function PresetButton({ label, hint, active, onClick, onDelete }: PresetB
         <button
           type="button"
           title={wrapTip('delete “' + label + '”')}
+          aria-label={'delete “' + label + '”'}
           onClick={(e) => {
             e.stopPropagation()
             onDelete()
           }}
           onMouseEnter={() => setBinHot(true)}
           onMouseLeave={() => setBinHot(false)}
+          /* KEYBOARD FOCUS REVEALS IT (DS OB-251). The corner is `opacity: 0` until the row or the
+             button is hot, so a Tab onto it landed on an invisible control. A focus that came from
+             the keyboard (`:focus-visible`) sets the same state the pointer does; a mouse press
+             focuses it too and must not leave it lit once the pointer has gone. */
+          onFocus={(e) => {
+            if (e.target.matches(':focus-visible')) setBinHot(true)
+          }}
+          onBlur={() => setBinHot(false)}
           style={{
             position: 'absolute',
             top: 5,

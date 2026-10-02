@@ -63,7 +63,11 @@ import type { Instrument, InstrumentId, Preset, Slot } from './instruments'
  *  `prefers-reduced-motion` and this timer does not follow it. That is not drift:
  *  the margin below collapses the column as part of the same transition, so a
  *  pane still mounted after the CSS has finished is invisible AND takes no
- *  space. Nothing waits on the timer except the unmount itself. */
+ *  space. Nothing waits on the timer except the unmount itself — and, since DS OB-264, the
+ *  pane's `pointer-events: none`, which a CLOSING flight keeps for the whole timer (the pane
+ *  sits invisible over the toggle until it unmounts) at any motion setting, while an OPENING
+ *  flight drops it under reduced motion as soon as it has landed, the `grow` step (see
+ *  `paletteStyle`). */
 const PALETTE_ANIM_MS = 400
 
 /** where the palette is in its flight. `dir` is which way it is going; `phase` is
@@ -223,6 +227,14 @@ export default function StudioView() {
     }
   }, [paletteAnim])
   const paletteAtRest = !paletteAnim || paletteAnim.phase === 'grow'
+  // read each render (the state changes that re-render it are the only moments it matters), the way
+  // `WalkDock` reads the same query
+  const reducedMotion = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  /** the pane is in the air and may be on the toggle: the pointer rule below applies to it and to
+   *  everything inside it (`data-palette-flying` + the rule in index.css). Under reduced motion an
+   *  OPENING pane has landed from `grow` on, so only then is it exempt; before that it sits shrunk
+   *  on the toggle for a few frames */
+  const paletteFlying = paletteAnim !== null && !(reducedMotion && paletteAnim.dir === 'opening' && paletteAnim.phase === 'grow')
   const paletteStyle: CSSProperties = {
     flex: 'none',
     width: 'var(--sidebar-w)',
@@ -250,8 +262,25 @@ export default function StudioView() {
     transformOrigin: 'center center',
     transform: paletteAnim && !paletteAtRest ? `translate(${paletteAnim.dx}px,${paletteAnim.dy}px) scale(0.06)` : 'translate(0,0) scale(1)',
     opacity: paletteAtRest ? 1 : 0,
+    /* UNDER `prefers-reduced-motion` AN OPENING PANE TAKES THE POINTER AT ONCE (review of #418). The
+       flight collapses to 1ms there but `paletteAnim` lives for the whole 400ms timer, so keying on it
+       alone left a fully visible, settled palette ignoring clicks for 400ms. An opening pane that has
+       already landed is not over the toggle; a CLOSING one is (it sits invisible at scale 0.06 on the
+       button until the timer unmounts it), so a closing flight keeps the rule at any motion setting.
+
+       NO POINTER WHILE IT FLIES (DS OB-264). The flight's target IS the toggle's centre
+       (`paletteDelta` aims centre to centre), so closing shrinks the pane to `scale(0.06)` exactly
+       on the button and leaves it mounted until the timer unmounts it; opening starts there.
+       `opacity: 0` does not stop hit-testing, so for the whole 400ms an invisible box covered the
+       button — the cursor read the pane (arrow, not the button's pointer) and a press landed on
+       the pane, not the toggle: the owner's "the mouse icon flickers" and "I can't keep clicking".
+       Keyed on `paletteAnim`, NOT `paletteAtRest`: `grow` counts as at rest for the style but IS
+       the opening flight, when the pane is still over the button. */
+    pointerEvents: paletteFlying ? 'none' : undefined,
+    /* an opening flight under reduced motion lands in the same commit as `grow`: its 1ms transition
+       still starts from the shrunk pose, so the first frame would hit-test the pane on the toggle */
     transition:
-      paletteSnap || (paletteAnim && paletteAnim.phase === 'shrink')
+      paletteSnap || (paletteAnim && paletteAnim.phase === 'shrink') || (reducedMotion && paletteAnim && paletteAnim.dir === 'opening')
         ? 'none'
         : 'transform var(--dur-flight) var(--ease-settle), opacity var(--dur-flight) var(--ease-settle), margin-right var(--dur-flight) var(--ease-settle)',
   }
@@ -497,7 +526,7 @@ export default function StudioView() {
             not decoration: it owns the width and the flight transform, so the
             pane inside is free to be a plain full-height pane. */}
         {showPalette && !presenting ? (
-        <div ref={paletteWrapRef} style={paletteStyle}>
+        <div ref={paletteWrapRef} style={paletteStyle} data-palette-flying={paletteFlying ? '' : undefined}>
         <Pane
           as="aside"
           aria-label="studio-sidebar"
