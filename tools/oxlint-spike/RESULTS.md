@@ -57,9 +57,88 @@ that one was left switched off.
 ## Measured
 
 <!-- parity:begin -->
-_Not measured yet._ Run `node tools/oxlint-spike/parity.mjs --write` (after
-`npm ci`) to fill this block. Nothing in this repository has recorded a measured
-oxlint result so far.
+**Verdict: KEEP ESLINT — 2 of 11 planted violations oxlint does not report (host-branch (#211), raw hex / px (#61)); 5 active ESLint rules with no same-named oxlint rule; 4 active ESLint rules that @oxlint/migrate did not carry into the oxlint config; 3 of 34 disable comments cover a rule that oxlint never reports in that file; 16 of 34 disable comments would have to move, because oxlint reports the same rule on a different line of the file; oxlint reports 1 finding on the real tree that ESLint does not.**
+
+Measured 2026-10-02 with oxlint 1.86.0, @oxlint/migrate 1.86.0, eslint 9.39.3, node v22.23.1.
+
+#### A. One planted violation per rule family
+
+| family | what is planted | ESLint (this repo's config) | oxlint (native rules, everything on) |
+| --- | --- | --- | --- |
+| exhaustive-deps | an effect that reads `step` but lists no dependencies | fires (react-hooks/exhaustive-deps) | fires (react-hooks(exhaustive-deps)) |
+| rules-of-hooks | a hook called inside an `if` | fires (react-hooks/rules-of-hooks) | fires (react-hooks(rules-of-hooks)) |
+| set-state-in-effect | a state setter called straight inside an effect body | fires (react-hooks/set-state-in-effect) | fires (react(set-state-in-effect)) |
+| refs | a ref read during render | fires (react-hooks/refs) | fires (react(refs)) |
+| immutability | a property of a prop assigned to during render | fires (react-hooks/immutability) | fires (react(immutability)) |
+| only-export-components | a component file that also exports a plain function | fires (react-refresh/only-export-components) | fires (react(only-export-components)) |
+| host-branch (#211) | `platform.name === 'electron'` anywhere under src/ | fires (no-restricted-syntax) | SILENT — other rules reported here: import(prefer-default-export), eslint(one-var), import(no-named-export) |
+| raw hex / px (#61) | a raw `#ff0000` and `10px` in src/App.tsx (one of the three scoped files) | fires (no-restricted-syntax) | SILENT — other rules reported here: import(prefer-default-export), react(jsx-filename-extension), unicorn(filename-case), import(no-named-export) |
+| recommended: no-debugger | a `debugger` statement (core recommended) | fires (no-debugger) | fires (eslint(no-debugger)) |
+| recommended: no-explicit-any | an `any` type (typescript-eslint recommended) | fires (@typescript-eslint/no-explicit-any) | fires (typescript(no-explicit-any)) |
+| recommended: no-unused-vars | a local that is never used (typescript-eslint recommended) | fires (@typescript-eslint/no-unused-vars) | fires (eslint(no-unused-vars)) |
+
+#### B. Active ESLint rules oxlint cannot run, or that the migrated config dropped
+
+ESLint has 85 rules active for a `src` .tsx file; oxlint lists 808 rules.
+
+No same-named oxlint rule exists for:
+- `no-octal`
+- `react-hooks/component-hook-factories`
+- `react-hooks/config`
+- `react-hooks/gating`
+- `no-restricted-syntax`
+
+oxlint has the rule, but `@oxlint/migrate` did not put it in the config it wrote:
+- `no-var`
+- `prefer-const`
+- `prefer-rest-params`
+- `prefer-spread`
+
+#### C. The config `@oxlint/migrate` made from `eslint.config.js`
+
+ESLint plugins it left in the config (stripped here — native rules only): none.
+
+Rules in it that oxlint does not know (dropped so the run could proceed): none.
+
+What the tool printed:
+
+```
+⚠️  Warnings (4):
+   * ESLint AND glob patterns (nested arrays in files) are not supported in oxlint: ["**/*.{ts,tsx}","**/*.ts"]
+   * ESLint AND glob patterns (nested arrays in files) are not supported in oxlint: ["**/*.{ts,tsx}","**/*.tsx"]
+   * ESLint AND glob patterns (nested arrays in files) are not supported in oxlint: ["**/*.{ts,tsx}","**/*.mts"]
+   * ESLint AND glob patterns (nested arrays in files) are not supported in oxlint: ["**/*.{ts,tsx}","**/*.cts"]
+```
+
+#### D. The real tree, ESLint against oxlint
+
+ESLint over the real tree (`eslint .`, comments in place): 0 errors, 0 warnings, and 0 of its own "unused eslint-disable" warnings. With the comments ignored (`--no-inline-config`) it reports 35 findings — that is what the repo's 34 `eslint-disable` comments in 24 files are holding back.
+
+**Each comment, checked against both tools.** A comment is *stale* when ESLint itself reports nothing on the line it covers (not oxlint's fault, and left out of the verdict). Otherwise the question is whether oxlint's rule of the same name fires on that line, with the comment neutralised.
+
+| rule named in the comments | comments | stale (ESLint finds nothing there) | oxlint fires on that line | oxlint fires elsewhere in the file | oxlint silent |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `exhaustive-deps` | 20 | 0 | 5 | 15 | 0 |
+| `set-state-in-effect` | 14 | 0 | 10 | 1 | 3 |
+
+**Findings per rule over the whole tree, comments neutralised in both tools.**
+
+| rule | ESLint | oxlint (migrated config) |
+| --- | ---: | ---: |
+| `exhaustive-deps` | 21 | 21 |
+| `set-state-in-effect` | 14 | 16 |
+| `immutability` | 0 | 4 |
+| `only-export-components` | 0 | 1 |
+| `refs` | 0 | 2 |
+| `use-memo` | 0 | 1 |
+
+Per file, where ESLint reports more than oxlint (comments neutralised):
+- `src/ds/chrome/Pane.tsx` — `set-state-in-effect`: 1
+- `src/ds/nav/WalkStrip.tsx` — `set-state-in-effect`: 1
+- `src/ds/presenter/FilmRoll.tsx` — `set-state-in-effect`: 1
+
+oxlint over the real tree with the comments in place reports 1 finding, of which 1 ESLint does not report.
+- `src/studio/PaletteGlyph.tsx` — `only-export-components`: 1
 <!-- parity:end -->
 
 ## How to read it, and re-run it
@@ -119,9 +198,13 @@ move forecloses type-aware typescript-eslint rules later; the card names this co
 - It plants one violation per family, not one per rule. A rule that fires on the
   planted shape and misses a variant of it would not show up in A.
 - B is by name only, as above.
-- The script has not yet been run end to end (see "Measured"). The oxlint and
-  `@oxlint/migrate` command-line flags and the shape of oxlint's JSON output are
-  taken from their documentation, not exercised, so the first real run may need the
-  script itself fixed before its numbers mean anything.
+- The script's first end-to-end run was on 2026-10-02 (oxlint 1.86.0, Windows, Node
+  22). It found four faults in the script itself, all fixed before the block above was
+  written: an absolute path handed to `@oxlint/migrate`, which joins it onto its own
+  folder; `oxlint --rules` printing nothing when piped unless given `--format json`;
+  and two planted cases (`set-state-in-effect`, `immutability`) that ESLint itself
+  did not report in the shape first written. It has not been run on another system or
+  against another oxlint version, so a different version may need the script touched
+  again.
 - It measures the oxlint version it installs, on the day it runs; the result is
   only as current as the stamp on the block.

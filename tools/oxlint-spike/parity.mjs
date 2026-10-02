@@ -3,7 +3,7 @@
 // WHY THIS EXISTS. The card asks for a decision on evidence, and the evidence has to be
 // something anyone can reproduce, not a reading of two rule lists. Linting a tree that
 // already passes `eslint .` proves almost nothing on its own — both tools report "clean" —
-// so there are two kinds of measurement, all of them native-only (see below):
+// so there are three kinds of measurement, all of them native-only (see below):
 //
 //   A. PLANTED VIOLATIONS. One tiny file per family this repo relies on, written to a
 //      scratch folder in the OS temp directory — never into the repo, so `npm run lint`
@@ -16,7 +16,7 @@
 //      file, checked by name against `oxlint --rules`, and then against what
 //      `@oxlint/migrate` actually carried across from `eslint.config.js`. Names only: a
 //      same-named rule can still behave differently, which is why A exists.
-//   C. THE REAL TREE, TOOL AGAINST TOOL. The card's "diff its findings against
+//   D. THE REAL TREE, TOOL AGAINST TOOL. The card's "diff its findings against
 //      `eslint .`". oxlint gets the config `@oxlint/migrate` writes from
 //      `eslint.config.js` — a setup comparable to ESLint's, where "every rule on" would
 //      be noise — and is run over a COPY of the repo's lintable files, because oxlint
@@ -68,6 +68,7 @@ const MIGRATE_VERSION = process.env.OXLINT_MIGRATE_VERSION ?? 'latest'
 const fail = (message) => { throw new Error(message) }
 const rel = (f) => f.replace(/\\/g, '/').replace(/^\.\//, '')
 const cell = (s) => String(s).replace(/\|/g, '\\|')
+const findings = (n) => `${n} finding${n === 1 ? '' : 's'}`
 const shortName = (id) => id.slice(id.lastIndexOf('/') + 1)
 const tail = (r, n = 8) =>
   `${r.error ? `${r.error}\n` : ''}${(r.stderr || r.stdout || '').trim().split('\n').slice(-n).map((l) => l.slice(0, 300)).join('\n')}`
@@ -115,11 +116,11 @@ export function Maybe({ on }: { on: boolean }) {
     what: 'a state setter called straight inside an effect body',
     file: 'src/plant-set-state-in-effect.tsx',
     code: `import { useEffect, useState } from 'react'
-export function Mirror({ value }: { value: number }) {
+export function Mirror() {
   const [copy, setCopy] = useState(0)
   useEffect(() => {
-    setCopy(value)
-  }, [value])
+    setCopy(1)
+  }, [])
   return <span>{copy}</span>
 }
 `,
@@ -141,13 +142,11 @@ export function Peek() {
   },
   {
     key: 'immutability',
-    what: 'a value from `useState` mutated in place during render',
+    what: 'a property of a prop assigned to during render',
     file: 'src/plant-immutability.tsx',
-    code: `import { useState } from 'react'
-export function Mutate() {
-  const [items] = useState<number[]>([])
-  items.push(1)
-  return <span>{items.length}</span>
+    code: `export function Mutate({ cfg }: { cfg: { n: number } }) {
+  cfg.n = 2
+  return <span>{cfg.n}</span>
 }
 `,
     eslint: (m) => m.ruleId === 'react-hooks/immutability',
@@ -442,7 +441,8 @@ const compareWithOxlint = ({ directives, esActive, esNeutral, oxActive, oxNeutra
   const byRule = new Map()
   let stale = 0
   let confirmed = 0
-  let lost = 0
+  let silentComments = 0
+  let movedComments = 0
   for (const d of directives) {
     for (const raw of d.rules) {
       const rule = raw === '*' ? '*' : shortName(raw)
@@ -459,7 +459,8 @@ const compareWithOxlint = ({ directives, esActive, esNeutral, oxActive, oxNeutra
         stale++
       } else {
         confirmed++
-        if (state !== 'fires') lost++
+        if (state === 'silent') silentComments++
+        else if (state === 'elsewhere') movedComments++
       }
     }
   }
@@ -474,7 +475,8 @@ const compareWithOxlint = ({ directives, esActive, esNeutral, oxActive, oxNeutra
     byRule,
     stale,
     confirmed,
-    lost,
+    silentComments,
+    movedComments,
     perRule,
     dark: perRule.filter((r) => r.es > 0 && r.ox === 0).map((r) => r.rule),
     fewer: surplus(esNeutral.filter((x) => !x.unused), oxNeutral),
@@ -540,14 +542,12 @@ const measure = () => {
 
     // B. rule inventory — by name against oxlint, then against what migrate carried over
     const pc = eslint(['--print-config', 'src/plant-exhaustive-deps.tsx'])
-    const rl = oxlint(['--rules', '-c', cfg], scratch)
+    // Without --format, a piped `oxlint --rules` prints nothing at all; json is the stable form.
+    const rl = oxlint(['--rules', '--format', 'json', '-c', cfg], scratch)
     const oxRules = new Map()
-    for (const line of (rl.stdout || '').split('\n')) {
-      const cells = line.split('|').map((c) => c.trim()).filter(Boolean)
-      if (cells.length < 2 || /^[-: ]+$/.test(cells[0]) || /^rule name$/i.test(cells[0])) continue
-      const name = cells[0].replace(/^\[([^\]]+)\]\([^)]*\)$/, '$1')
-      oxRules.set(name, [...(oxRules.get(name) ?? []), cells[1]])
-    }
+    try {
+      for (const r of JSON.parse(rl.stdout)) oxRules.set(r.value, [...(oxRules.get(r.value) ?? []), r.scope])
+    } catch { /* oxRules stays empty and the inventory reports itself unavailable */ }
     let active = null
     let inventory
     if (pc.status === 0 && oxRules.size > 0) {
@@ -568,14 +568,18 @@ const measure = () => {
     // of eslint.config.js, restricted to native rules (see the header).
     const migrate = () => {
       if (!tools.migrate) fail(tools.migrateError)
-      const work = join(root, 'migrate')
-      mkdirSync(work)
-      const r = launch(tools.migrate, [join(REPO, 'eslint.config.js')], work)
-      const out = join(work, '.oxlintrc.json')
-      if (!existsSync(out)) {
-        fail(`@oxlint/migrate wrote no .oxlintrc.json (exit ${r.status}; the folder holds: ${readdirSync(work).join(', ') || 'nothing'})\n${tail(r, 12)}`)
-      }
-      const config = JSON.parse(readFileSync(out, 'utf8'))
+      // migrate glues its argument and --output-file onto its own working folder, so an
+      // absolute path comes out as "<folder>/D:/..." and is never found. Both are given
+      // relative to the repo, and the output goes under node_modules/.cache (not linted,
+      // not tracked) and is removed straight after it is read.
+      const outRel = join('node_modules', '.cache', 'oxlint-parity', 'oxlintrc.json')
+      const outDir = dirname(join(REPO, outRel))
+      mkdirSync(outDir, { recursive: true })
+      const r = launch(tools.migrate, ['eslint.config.js', '--output-file', outRel], REPO)
+      const written = existsSync(join(REPO, outRel)) ? readFileSync(join(REPO, outRel), 'utf8') : null
+      rmSync(outDir, { recursive: true, force: true })
+      if (written === null) fail(`@oxlint/migrate wrote no config (exit ${r.status})\n${tail(r, 12)}`)
+      const config = JSON.parse(written)
       const parts = [config, ...(config.overrides ?? [])]
       const jsPlugins = parts
         .flatMap((c) => c.jsPlugins ?? [])
@@ -607,7 +611,7 @@ const measure = () => {
       inventory.notMigrated = active.filter((n) => !migrated.carried.has(shortName(n)) && !missingSet.has(n))
     }
 
-    // C. the real tree. ESLint's side does not need migrate, so it is measured first and
+    // D. the real tree. ESLint's side does not need migrate, so it is measured first and
     // stands on its own if oxlint's side cannot run.
     let real
     try {
@@ -665,8 +669,9 @@ const report = ({ versions, rows, inventory, migrated, real }) => {
     if (notMigrated.length) gaps.push(`${notMigrated.length} active ESLint rules that @oxlint/migrate did not carry into the oxlint config`)
     if (migrated.jsPlugins?.length) gaps.push(`@oxlint/migrate left ${migrated.jsPlugins.length} ESLint plugin(s) in the config (${migrated.jsPlugins.join(', ')}), which would have to stay installed`)
     if (cmp?.dark.length) gaps.push(`${cmp.dark.length} rules ESLint reports on the real tree that oxlint does not (${cmp.dark.join(', ')})`)
-    if (cmp?.lost > 0) gaps.push(`${cmp.lost} of ${cmp.confirmed} disable comments sit where ESLint's rule fires but oxlint's does not fire on that line`)
-    if (cmp?.extraTotal > 0) gaps.push(`oxlint reports ${cmp.extraTotal} findings on the real tree that ESLint does not`)
+    if (cmp?.silentComments > 0) gaps.push(`${cmp.silentComments} of ${cmp.confirmed} disable comments cover a rule that oxlint never reports in that file`)
+    if (cmp?.movedComments > 0) gaps.push(`${cmp.movedComments} of ${cmp.confirmed} disable comments would have to move, because oxlint reports the same rule on a different line of the file`)
+    if (cmp?.extraTotal > 0) gaps.push(`oxlint reports ${findings(cmp.extraTotal)} on the real tree that ESLint does not`)
     if (gaps.length) {
       verdict = `KEEP ESLINT — ${gaps.join('; ')}.`
     } else if (incomplete) {
@@ -718,7 +723,7 @@ const report = ({ versions, rows, inventory, migrated, real }) => {
   } else {
     const es = real.es
     const files = new Set(real.directives.map((d) => d.file)).size
-    md.push(`ESLint over the real tree (\`eslint .\`, comments in place): ${es.errors} errors, ${es.warnings} warnings, and ${es.unused} of its own "unused eslint-disable" warnings. With the comments ignored (\`--no-inline-config\`) it reports ${es.suppressed} findings — that is what the repo's ${real.directives.length} \`eslint-disable\` comments in ${files} files are holding back.`, '')
+    md.push(`ESLint over the real tree (\`eslint .\`, comments in place): ${es.errors} errors, ${es.warnings} warnings, and ${es.unused} of its own "unused eslint-disable" warnings. With the comments ignored (\`--no-inline-config\`) it reports ${findings(es.suppressed)} — that is what the repo's ${real.directives.length} \`eslint-disable\` comments in ${files} files are holding back.`, '')
     if (es.byRule.size) {
       md.push(`ESLint's own findings by rule: ${[...es.byRule].map(([r, n]) => `\`${r}\` ${n}`).join(', ')}.`, '')
     }
@@ -738,7 +743,7 @@ const report = ({ versions, rows, inventory, migrated, real }) => {
       md.push(cmp.fewer.length ? 'Per file, where ESLint reports more than oxlint (comments neutralised):' : 'No file where ESLint reports more than oxlint (comments neutralised).')
       md.push(...listed(cmp.fewer))
       md.push('')
-      md.push(`oxlint over the real tree with the comments in place reports ${cmp.oxActiveTotal} findings; ${cmp.extraTotal} of them are ones ESLint does not report.`)
+      md.push(`oxlint over the real tree with the comments in place reports ${findings(cmp.oxActiveTotal)}, of which ${cmp.extraTotal} ESLint does not report.`)
       md.push(...listed(cmp.extra))
     }
   }
