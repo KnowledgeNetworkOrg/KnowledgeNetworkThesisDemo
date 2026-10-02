@@ -52,8 +52,7 @@
 // measure everything (or the planted test is invalid); 0 means it measured, whatever the
 // verdict is.
 import {
-  closeSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync,
-  symlinkSync, unlinkSync, writeFileSync,
+  closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync, writeFileSync,
 } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
@@ -372,19 +371,11 @@ const copyTree = (dest, neutralise) => {
 // reads the comment text itself and skips any function holding a `react-hooks/…` disable,
 // so those rules (`refs`, `immutability`, `use-memo`, part of `set-state-in-effect`)
 // would report fewer findings than the code has, and oxlint's copy (nothing left to read)
-// would look as if it found more. The copy gets the config, package.json and a link to
-// the repo's node_modules; the link is removed straight after the run.
-const eslintOnCopy = (dir) => {
-  copyFileSync(join(REPO, 'eslint.config.js'), join(dir, 'eslint.config.js'))
-  copyFileSync(join(REPO, 'package.json'), join(dir, 'package.json'))
-  const modules = join(dir, 'node_modules')
-  symlinkSync(join(REPO, 'node_modules'), modules, 'junction')
-  try {
-    return eslintOnTree([], dir)
-  } finally {
-    unlinkSync(modules)
-  }
-}
+// would look as if it found more. The repo's own config is handed over with `-c`: ESLint
+// then takes the working folder (the copy) as the base its `files` patterns are matched
+// against, and the plugins resolve from the config's own folder, so the copy needs no
+// config, no package.json and no link to node_modules.
+const eslintOnCopy = (dir) => eslintOnTree(['-c', join(REPO, 'eslint.config.js')], dir)
 
 // Every `eslint-disable…` comment in the real .ts/.tsx files, as the lines it silences:
 // `-next-line` is the line after the comment ENDS (several are multi-line block
@@ -712,6 +703,7 @@ const report = ({ versions, rows, inventory, migrated, real }) => {
     if (cmp?.dark.length) gaps.push(`${cmp.dark.length} rules ESLint reports on the real tree that oxlint does not (${cmp.dark.join(', ')})`)
     if (cmp?.silentComments > 0) gaps.push(`${cmp.silentComments} of ${cmp.confirmed} disable comments cover a rule that oxlint never reports in that file`)
     if (cmp?.movedComments > 0) gaps.push(`${cmp.movedComments} of ${cmp.confirmed} disable comments would have to move, because oxlint reports the same rule on a different line of the file and still reports it there with the comments in place`)
+    if (cmp?.fewer.length) gaps.push(`ESLint reports more than oxlint in ${cmp.fewer.length} file/rule pairs (${[...new Set(cmp.fewer.map((x) => x.rule))].join(', ')})`)
     if (cmp?.extraTotal > 0) gaps.push(`oxlint reports ${findings(cmp.extraTotal)} on the real tree that ESLint does not`)
     if (gaps.length) {
       verdict = `KEEP ESLINT — ${gaps.join('; ')}.`
@@ -764,7 +756,7 @@ const report = ({ versions, rows, inventory, migrated, real }) => {
   } else {
     const es = real.es
     const files = new Set(real.directives.map((d) => d.file)).size
-    md.push(`ESLint over the real tree (\`eslint .\`, comments in place): ${es.errors} errors, ${es.warnings} warnings, and ${es.unused} of its own "unused eslint-disable" warnings. Over a copy of the tree with every \`eslint-disable\` renamed (so ESLint has nothing to obey, and the React-compiler rules have no comment to skip a function over) it reports ${findings(es.suppressed)} — that is what the repo's ${real.directives.length} \`eslint-disable\` comments in ${files} files are holding back.`, '')
+    md.push(`ESLint over the real tree (\`eslint .\`, comments in place): ${es.errors} errors, ${es.warnings} warnings, and ${es.unused} of its own "unused eslint-disable" warnings. Over a copy of the tree with every \`eslint-disable\` renamed (so ESLint has nothing to obey, and the React-compiler rules have no comment to skip a function over) it reports ${findings(es.suppressed)} — that is what the repo's ${real.directives.length} \`eslint-disable\` comments in ${files} files hold back, directly on the lines they cover and, for the React-compiler rules, by making the plugin skip the whole function around a \`react-hooks/…\` comment.`, '')
     if (es.byRule.size) {
       md.push(`ESLint's own findings by rule: ${[...es.byRule].map(([r, n]) => `\`${r}\` ${n}`).join(', ')}.`, '')
     }

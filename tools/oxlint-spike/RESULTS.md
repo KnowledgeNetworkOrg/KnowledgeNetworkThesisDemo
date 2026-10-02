@@ -6,8 +6,8 @@ over planted violations and over the real tree — not by comparing rule lists.
 
 **The answer is the first line of "Measured" below.** It is generated, not typed:
 `node tools/oxlint-spike/parity.mjs --write` runs both tools and rewrites that block.
-Until that command has been run once, the block says so and there is no verdict —
-nothing below it is a finding yet.
+The block carries its own stamp: the date, and the versions of oxlint,
+`@oxlint/migrate` and ESLint it was measured with.
 
 ## What this repo's lint actually asks for
 
@@ -58,7 +58,7 @@ that one was left switched off.
 ## Measured
 
 <!-- parity:begin -->
-**Verdict: KEEP ESLINT — 2 of 11 planted violations oxlint does not report (host-branch (#211), raw hex / px (#61)); 5 active ESLint rules with no same-named oxlint rule; 4 active ESLint rules that @oxlint/migrate did not carry into the oxlint config; 3 of 34 disable comments cover a rule that oxlint never reports in that file; oxlint reports 1 finding on the real tree that ESLint does not.**
+**Verdict: KEEP ESLINT — 2 of 11 planted violations oxlint does not report (host-branch (#211), raw hex / px (#61)); 5 active ESLint rules with no same-named oxlint rule; 4 active ESLint rules that @oxlint/migrate did not carry into the oxlint config; 3 of 34 disable comments cover a rule that oxlint never reports in that file; ESLint reports more than oxlint in 6 file/rule pairs (set-state-in-effect); oxlint reports 1 finding on the real tree that ESLint does not.**
 
 Measured 2026-10-02 with oxlint 1.86.0, @oxlint/migrate 1.86.0, eslint 9.39.3, node v22.23.1.
 
@@ -113,7 +113,7 @@ What the tool printed:
 
 #### D. The real tree, ESLint against oxlint
 
-ESLint over the real tree (`eslint .`, comments in place): 0 errors, 0 warnings, and 0 of its own "unused eslint-disable" warnings. Over a copy of the tree with every `eslint-disable` renamed (so ESLint has nothing to obey, and the React-compiler rules have no comment to skip a function over) it reports 46 findings — that is what the repo's 34 `eslint-disable` comments in 24 files are holding back.
+ESLint over the real tree (`eslint .`, comments in place): 0 errors, 0 warnings, and 0 of its own "unused eslint-disable" warnings. Over a copy of the tree with every `eslint-disable` renamed (so ESLint has nothing to obey, and the React-compiler rules have no comment to skip a function over) it reports 46 findings — that is what the repo's 34 `eslint-disable` comments in 24 files hold back, directly on the lines they cover and, for the React-compiler rules, by making the plugin skip the whole function around a `react-hooks/…` comment.
 
 **Each comment, checked against both tools.** A comment is *stale* when ESLint itself reports nothing on the line it covers (not oxlint's fault, and left out of the verdict). Otherwise the question is whether oxlint's rule of the same name fires on that line, with the comment neutralised. Where it fires on a different line of the file, the run with the comments in place decides: still reported in that file means the comment would have to move; quiet means it still silences the rule where it stands.
 
@@ -182,7 +182,9 @@ node tools/oxlint-spike/parity.mjs --write
   Whether the comment would have to move is then decided by the run with the comments in
   place — still reported in that file means it would; quiet means it still holds — so
   a position difference is not counted as a gap. That is judged per file and rule, so a
-  file with several comments for one rule is judged as a whole.
+  file with several comments for one rule is judged as a whole: a finding left under one
+  comment can make its neighbours look as if they would have to move, so the count can
+  be too high, never too low.
 - oxlint and `@oxlint/migrate` are installed into a temp folder and are not added to
   `package.json`. Pin them with `OXLINT_VERSION=1.2.3` and
   `OXLINT_MIGRATE_VERSION=1.2.3`; the run records the versions it used.
@@ -218,5 +220,24 @@ move forecloses type-aware typescript-eslint rules later; the card names this co
   did not report in the shape first written. It has not been run on another system or
   against another oxlint version, so a different version may need the script touched
   again.
+- A review after #426 merged corrected two things in the first block, and the block
+  above is from the corrected script. A comment was counted as "would have to move"
+  when oxlint's first mark sat on a different line, which the run with the comments
+  in place did not bear out; and ESLint's "comments neutralised" numbers came from
+  `--no-inline-config`, which does not stop the React-compiler rules skipping a
+  function that holds a disable. Making ESLint lint the renamed copy also showed that
+  the copy must rename `eslint-enable` as well as `eslint-disable`, or ESLint reports
+  each one as closing nothing. The "comment still holds" test is per file and rule.
 - It measures the oxlint version it installs, on the day it runs; the result is
-  only as current as the stamp on the block.
+  only as current as the stamp on the block. "The answer was no" is the answer for
+  that version.
+
+## A side finding, not part of the verdict
+
+Linting the copy with the comments renamed finds more than ESLint's own
+`--no-inline-config` run did (46 against 35 in the same tree). The extra 11 are
+React-compiler findings (`set-state-in-effect`, `refs`, `immutability`, `use-memo`)
+that the plugin never reports for a function holding a `react-hooks/exhaustive-deps` or
+`rules-of-hooks` disable comment, because it skips the whole function. So those
+comments hide more than the one line they sit on, and `npm run lint` does not report
+those 11 today. Nothing here acts on that; it is a fact about the existing disables.
