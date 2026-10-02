@@ -28,7 +28,7 @@ export default function ProjectorScreen() {
   const bus = useStudioBus(() => {})
   const idsKey = state.ids.join('\n')
   /* the optional flags ride as steps on the route (DS OB-214 clause 4), so this window's map dashes
-     the same pins the presenter's does — a bare `setRoute(ids)` would draw every stop required */
+     the same pins the presenter's does — a flat route of bare ids would draw every stop required */
   const optKey = state.optional.map((o) => (o ? 1 : 0)).join('')
   useEffect(() => {
     const ids = idsKey ? idsKey.split('\n') : []
