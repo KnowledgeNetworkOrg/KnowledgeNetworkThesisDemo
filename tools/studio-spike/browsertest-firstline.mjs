@@ -50,7 +50,7 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const PORT = 5266
 const FIRST_LINE = 25 // the chosen line, DS OB-249 — restated here on purpose: a test pins the number the design side gave
 const TOLERANCE = 1
-const PALETTE_SLACK = 3 // "presets" sits ~1.3 low by decision; the old pt-2 sat at ~+6, past this
+const PALETTE_SLACK = 1.5 // the design side accepted "presets" at 26.33, ~1.3 low by decision; the old pt-2 sat at ~+6, far past this
 
 const require = createRequire(REPO + '/package.json')
 const { chromium } = require('playwright-core')
