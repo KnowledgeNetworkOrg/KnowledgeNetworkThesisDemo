@@ -82,11 +82,11 @@ export default defineConfig([
   // #61 — DS-adherence ratchet. The Design System is the source of truth for
   // style; app code consumes its tokens as var(--…), never raw values. These
   // bans are the machine enforcement of that rule, authored as native ESLint
-  // rather than by adopting oxlint (every rule here is stock esquery; whether
-  // oxlint could replace ESLint outright is #65 — tools/oxlint-spike/parity.mjs
-  // is the re-runnable check, and tools/oxlint-spike/RESULTS.md holds what it
-  // last measured). The DS's `_adherence` config is the reference SPEC; it is
-  // not vendored or run here.
+  // rather than by adopting oxlint (every rule here is stock esquery; #65 asked
+  // whether oxlint could replace ESLint outright, and the answer was no —
+  // tools/oxlint-spike/parity.mjs is the re-runnable check, and
+  // tools/oxlint-spike/RESULTS.md holds what it last measured). The DS's
+  // `_adherence` config is the reference SPEC; it is not vendored or run here.
   //
   // It is NOT repo-wide: ~84 raw hex + ~216 px still live in the un-migrated
   // alt-visualizations (#69) and the walkdesk, so a global `eslint .` ban can't
