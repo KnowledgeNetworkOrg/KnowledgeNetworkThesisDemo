@@ -26,13 +26,21 @@
 //   corrupt   not JSON, not an envelope-bearing payload the current reader can
 //             use, or a version with no migration to the next
 //   future    a version NEWER than this build writes (an older build opening a
-//             payload a newer one left) — reported, never overwritten
+//             payload a newer one left) — reported, and left alone by the read
 //
 // A READ NEVER THROWS AND NEVER OVERWRITES WHAT IT CANNOT READ. `corrupt` and
 // `future` leave the bytes exactly where they are; the store falls back to its
 // seed / empty value and keeps working. Both are `console.warn`-ed and recorded
 // in the exported `persistenceIssues()` log, which is the report — there is no
 // new visible UI (#170 deliberately deletes the only one there was).
+//
+// A SAVE DOES REPLACE THEM. Only the read is gentle: the store's next write to
+// that key is this build's own envelope, so a newer build's payload survives
+// only until this build next saves it — the draft at its first edit, the saved
+// walks at their next save, the presenter stores the moment presenter mode
+// opens (it saves on open). Nothing writes a version above 1 yet, so none of
+// this can happen today. Whoever adds the first version 2 decides whether a key
+// that read as `future` stays unwritten for the session.
 //
 // VERSION 0 IS "NO ENVELOPE". A payload written before this seam existed is the
 // bare value the old store wrote; it is read as version 0 and must be carried
@@ -196,9 +204,11 @@ export function readPersisted<T>(key: string, spec: PersistedSpec<T>): Persisted
 
 /** Store `data` as the envelope for `version`. Never throws — a refused write
  *  (quota, private mode) just means this session does not persist, exactly as
- *  every wrapper before this one behaved. */
-export function writePersisted(key: string, version: number, data: unknown): void {
-  platform.storage.set(key, JSON.stringify({ v: version, data }))
+ *  every wrapper before this one behaved. Returns whether the host accepted the
+ *  write, so a caller that is MOVING data (see the presenter stores) can keep
+ *  the old copy when the new one did not land. */
+export function writePersisted(key: string, version: number, data: unknown): boolean {
+  return platform.storage.set(key, JSON.stringify({ v: version, data }))
 }
 
 /** Forget a key — the presenter stores use this to clear a legacy `.v1` name

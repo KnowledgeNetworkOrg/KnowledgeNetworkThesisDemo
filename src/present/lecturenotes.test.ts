@@ -181,6 +181,40 @@ describe('storage never throws', () => {
     expect(loadMintedCategories()).toHaveLength(1)
   })
 
+  it('keeps the old key when the move to the versioned name is refused', () => {
+    const OLD = 'pkt.lecture.notes.v1:draft'
+    const store: Record<string, string> = {
+      [OLD]: JSON.stringify({ notes: [{ id: 'a', text: 'old note', stop: 0, when: '00:01', at: 1 }], prepared: {} }),
+    }
+    // reads and removals work; every write is refused, as in a full store
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => (k in store ? store[k] : null),
+      setItem: () => { throw new Error('QuotaExceeded') },
+      removeItem: (k: string) => { delete store[k] },
+    })
+    expect(loadNotebook(notebookKey('draft')).notes[0].text).toBe('old note') // this session still has it
+    expect(OLD in store).toBe(true) // and so does the disk: the only copy was not deleted
+    expect('pkt.lecture.notes:draft' in store).toBe(false)
+  })
+
+  it('does not go back to the old name when the versioned key is corrupt or from a newer build', () => {
+    const OLD = 'pkt.lecture.notes.v1:draft'
+    const NEW = 'pkt.lecture.notes:draft'
+    const oldBook = JSON.stringify({ notes: [{ id: 'a', text: 'old note', stop: 0, when: '00:01', at: 1 }], prepared: {} })
+    const unreadable = ['{not json', JSON.stringify({ v: 2, data: { notes: [{ id: 'b', text: 'newer note' }], prepared: {} } })]
+    for (const stored of unreadable) {
+      const store: Record<string, string> = { [OLD]: oldBook, [NEW]: stored }
+      vi.stubGlobal('localStorage', {
+        getItem: (k: string) => (k in store ? store[k] : null),
+        setItem: (k: string, v: string) => { store[k] = v },
+        removeItem: (k: string) => { delete store[k] },
+      })
+      expect(loadNotebook(notebookKey('draft'))).toEqual({ notes: [], prepared: {} })
+      expect(store[NEW]).toBe(stored) // the load left the unreadable bytes where they were
+      expect(store[OLD]).toBe(oldBook) // and did not move the older copy over them
+    }
+  })
+
   it('shape-guards the habits it reads instead of handing them on unchecked', () => {
     const store: Record<string, string> = {
       'pkt.lecture.habits': JSON.stringify({ v: 1, data: { duringWidth: 'wide', shelfPosition: { x: 1 }, deck: { groups: 'no', library: [3] }, unknown: true } }),

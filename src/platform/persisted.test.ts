@@ -101,6 +101,20 @@ describe('the envelope — one shape, one naming rule', () => {
     expect(store.get('pkt.x')).toBe(stored)
   })
 
+  it('lets the next SAVE replace a newer build\'s payload — only the read is gentle', () => {
+    const store = stubStore({ 'pkt.x': JSON.stringify({ v: 3, data: 'from the future' }) })
+    expect(readPersisted('pkt.x', SPEC).status).toBe('future')
+    writePersisted('pkt.x', SPEC.version, 'this build')
+    expect(JSON.parse(store.get('pkt.x') as string)).toEqual({ v: 2, data: 'this build' })
+  })
+
+  it('says whether the host took the write', () => {
+    stubStore()
+    expect(writePersisted('pkt.x', 2, 'kept')).toBe(true)
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => { throw new Error('QuotaExceeded') } })
+    expect(writePersisted('pkt.x', 2, 'refused')).toBe(false)
+  })
+
   it('reports invalid JSON and leaves the bytes exactly as they were', () => {
     const store = stubStore({ 'pkt.x': '{not json' })
     expect(readPersisted('pkt.x', SPEC).status).toBe('corrupt')

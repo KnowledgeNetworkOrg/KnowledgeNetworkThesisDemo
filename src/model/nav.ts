@@ -13,8 +13,9 @@ import type { EdgeType } from '../corpus/graph'
  *  "the Tree instrument"; it means the selection came from an OUTLINE-SHAPED LIST, which
  *  is still exactly what its two remaining writers are — the connections pane's contains
  *  column and the neighborhood panel. Kept rather than renamed for that reason, and
- *  because a stored trail written before the rename would carry a `via` the type no
- *  longer admits (#170: persisted payloads have no version field). */
+ *  because a trail written down before the rename would carry a `via` the type no
+ *  longer admits. Nothing stores a trail today (the app persists only the draft, the
+ *  saved walks and the presenter's notes), so this is a guard for whoever starts to. */
 export type TrailVia = 'map' | 'tree' | 'link' | 'trail' | 'walk' | 'graph' | 'nav' | 'desk'
 
 /** Fixed edge-type order, derived once from graph.ts's own declaration order

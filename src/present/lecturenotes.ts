@@ -140,21 +140,26 @@ const NOTEBOOK_SPEC: PersistedSpec<LectureNotebook> = { version: VERSION, migrat
 const CATEGORIES_SPEC: PersistedSpec<NoteCategory[]> = { version: VERSION, migrations: { 0: identity }, parse: parseCategories }
 const HABITS_SPEC: PersistedSpec<LectureHabits> = { version: VERSION, migrations: { 0: identity }, parse: parseHabits }
 
-/** Read the versioned key; failing that, its pre-#170 name ONCE, moving the
- *  value over and dropping the old key. A corrupt/future payload reads as the
- *  fallback — the seam has already reported it. */
+/** Read the versioned key; when NOTHING is stored under it, its pre-#170 name
+ *  ONCE, moving the value over and dropping the old key. A corrupt or
+ *  newer-build payload under the versioned name reads as the fallback — the seam
+ *  has already reported it — and is not a reason to go back to the old name:
+ *  that copy is older than whatever the new key holds, and moving it over would
+ *  overwrite a newer build's notes. */
 function loadWithLegacy<T>(key: string, legacyKey: string | null, spec: PersistedSpec<T>, fallback: T): T {
   const current = readPersisted(key, spec)
   if (current.data !== undefined) return current.data
-  if (legacyKey) {
+  if (current.status === 'absent' && legacyKey) {
     const legacy = decodeStored(legacyKey, spec)
     if (legacy.data !== undefined) {
       // Commit the value as it was STORED, not as `parse` returned it — the same
       // rule `readPersisted` follows. Otherwise a store whose parse unwraps writes
       // back a shape its own reader rejects (categories: stored `{list}`, read as a
       // bare list) and loses the data on the next load (#170).
-      writePersisted(key, spec.version, legacy.writeBack === undefined ? legacy.data : legacy.writeBack)
-      removePersisted(legacyKey)
+      const moved = writePersisted(key, spec.version, legacy.writeBack === undefined ? legacy.data : legacy.writeBack)
+      // the old key goes only once the new one has landed: a refused write (full
+      // storage) must not cost the person their only copy
+      if (moved) removePersisted(legacyKey)
       return legacy.data
     }
   }
