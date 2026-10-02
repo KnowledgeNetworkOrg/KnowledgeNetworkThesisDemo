@@ -20,7 +20,8 @@ import { PaneDivider, PANE_DIVIDER_METRICS } from '../chrome/PaneDivider'
  *  `FIRST_ROW_PAD`, 14; it was 6, which put the Explorer 8px above the panes beside it) and it
  *  must be mounted in a body with no top margin. The right rail sits under a header row of its
  *  own and keeps 6. `pad`'s first value IS `top` — read `top`, never parse `pad`. (DS OB-249;
- *  the rest of that item, and `FIRST_LINE`/`FIRST_SCROLL_PAD` beside it, are #358's.) */
+ *  `FIRST_LINE` and `FIRST_SCROLL_PAD` sit beside `FIRST_ROW_PAD` in `Pane` — do not restate
+ *  any of them here.) */
 export interface RailMetrics {
   /** the narrowest the column may draw and still be read */
   min: number
