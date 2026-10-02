@@ -23,34 +23,19 @@
 // Run from anywhere:  node tools/studio-spike/drive-pickerslot.mjs
 // Exits nonzero on any failed check or any page error.
 import { createRequire } from 'node:module'
-import { spawn } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { startVite } from './devserver.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const OUT = REPO + '/tools/studio-spike/shots'
-const PORT = 5211
 mkdirSync(OUT, { recursive: true })
 
 const require = createRequire(REPO + '/package.json')
 const { chromium } = require('playwright-core')
 
-const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(PORT), '--strictPort'], {
-  cwd: REPO,
-  stdio: ['ignore', 'pipe', 'pipe'],
-})
-await new Promise((res, rej) => {
-  let out = ''
-  const t = setTimeout(() => rej(new Error('vite never came up:\n' + out)), 30000)
-  const watch = (d) => {
-    out += String(d)
-    if (out.includes('localhost:')) { clearTimeout(t); res() }
-  }
-  vite.stdout.on('data', watch)
-  vite.stderr.on('data', watch)
-  vite.on('exit', (c) => rej(new Error('vite exited early ' + c + ':\n' + out)))
-})
+const { vite, port: PORT } = await startVite()
 
 const errors = []
 const checks = []

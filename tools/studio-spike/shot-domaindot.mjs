@@ -14,14 +14,13 @@
 //   node tools/studio-spike/shot-domaindot.mjs
 // Frames land in tools/studio-spike/out/ (gitignored). Nonzero on any failure.
 import { createRequire } from 'node:module'
-import { spawn } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { startVite } from './devserver.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const OUT = REPO + '/tools/studio-spike/out'
-const PORT = 5206
 const TAG = process.argv[2] || 'after' // `before` when shooting the pre-swap tree
 mkdirSync(OUT, { recursive: true })
 
@@ -32,21 +31,7 @@ const { chromium } = require('playwright-core')
 const MUTED = { sys: 'rgb(74, 138, 60)', math: 'rgb(107, 92, 168)', cs: 'rgb(63, 123, 176)', net: 'rgb(61, 145, 153)', sec: 'rgb(192, 138, 46)', se: 'rgb(74, 165, 131)' }
 const RAW = { sys: 'rgb(0, 131, 0)', math: 'rgb(74, 58, 167)', cs: 'rgb(42, 120, 214)', net: 'rgb(8, 145, 178)', sec: 'rgb(237, 161, 0)', se: 'rgb(27, 175, 122)' }
 
-const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(PORT), '--strictPort'], {
-  cwd: REPO,
-  stdio: ['ignore', 'pipe', 'pipe'],
-})
-let viteOut = ''
-await new Promise((res, rej) => {
-  const t = setTimeout(() => rej(new Error('vite did not become ready:\n' + viteOut)), 30000)
-  const watch = (d) => {
-    viteOut += String(d)
-    if (viteOut.includes('localhost:')) { clearTimeout(t); res() }
-  }
-  vite.stdout.on('data', watch)
-  vite.stderr.on('data', watch)
-  vite.on('exit', (c) => rej(new Error('vite exited early ' + c + ':\n' + viteOut)))
-})
+const { vite, port: PORT } = await startVite()
 
 const errors = []
 const fail = (m) => { errors.push('ASSERT FAIL: ' + m); console.log('FAIL:', m) }

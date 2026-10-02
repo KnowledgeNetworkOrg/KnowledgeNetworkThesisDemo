@@ -6,16 +6,19 @@
 // nobody runs is not a regression guard; it is a note. One of them (#234) had
 // rotted silently and was only discovered when someone ran it by hand months later.
 //
-// WHY IT RUNS FOUR AT A TIME. Each test spawns its own vite on its own fixed port
-// with --strictPort, so two tests whose ports collide are a failed run, not speed —
-// which used to mean strictly one at a time. But almost every driver owns a unique
-// port (two pairs share one on main; #364 tracks what fixed ports cost across
-// checkouts), and almost all of a driver's wall time is deliberate waiting:
+// WHY IT RUNS FOUR AT A TIME. Almost all of a driver's wall time is deliberate waiting:
 // measured 2026-09-24 across the drivers as of #341, 473 `waitForTimeout` calls
 // total 228 seconds of sleep, against about 4 s each of starting vite, launching
 // Edge and loading the page. Waiting is the part that parallelizes, so the pool
-// below hands work out in order, never starting two drivers that share a port, and
-// starts four workers (#370). --workers=N or KN_BROWSER_WORKERS changes the count.
+// below hands work out in order and starts four workers (#370). --workers=N or
+// KN_BROWSER_WORKERS changes the count.
+//
+// WHY NO TWO DRIVERS COLLIDE, in this run or in another checkout's. Each driver starts its
+// own vite on a port the operating system hands out at that moment (devserver.mjs, #364),
+// not one written into the script. A port written into each script, with --strictPort,
+// made a held port a failed run: the pool had to keep drivers that shared a port apart,
+// and two checkouts could not run the suite at the same time at all. Each
+// checkout needs its own node_modules, or the two also share the pre-bundle cache below.
 //
 // THE FOUR VITES SHARE ONE PRE-BUNDLE CACHE (node_modules/.vite), which with a warm
 // cache they only read. A cold cache was the one thing four at a time could plausibly
@@ -38,7 +41,7 @@
 //       npm run test:browser -- walk         — only tests whose name contains "walk"
 //       npm run test:browser -- --workers=1  — one at a time
 // The `=` matters: `-- --workers 2` would make "2" the name filter and find no test.
-import { readdirSync, readFileSync } from 'node:fs'
+import { readdirSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -55,9 +58,9 @@ const tests = readdirSync(HERE)
 
 const args = process.argv.slice(2)
 const only = args.find((a) => !a.startsWith('-'))
-/* An EXPLICIT worker count that cannot be used is worth stopping for, the same rule the port
-   read below follows: silently running four when someone asked for "abc" or "0" hides the
-   mistake behind a run that looks fine (reviewer nit on #371). Absent, four is the default. */
+/* An EXPLICIT worker count that cannot be used is worth stopping for: silently running four
+   when someone asked for "abc" or "0" hides the mistake behind a run that looks fine
+   (reviewer nit on #371). Absent, four is the default. */
 const workersArg = args.find((a) => a.startsWith('--workers='))?.slice('--workers='.length) ?? process.env.KN_BROWSER_WORKERS
 let workers = 4
 if (workersArg !== undefined) {
@@ -75,20 +78,7 @@ if (!chosen.length) {
   process.exit(1)
 }
 
-// The pool must never run two tests that share a port, so each driver's port is
-// read from its source: every driver declares `const PORT = <number>`. A driver
-// that does not is one the scheduler cannot place, which is worth stopping for
-// rather than guessing about.
-const portOf = (f) => {
-  const m = /^const PORT = (\d+)/m.exec(readFileSync(join(HERE, f), 'utf8'))
-  if (!m) {
-    console.error(`${f} does not declare "const PORT = <number>"; the runner cannot place it`)
-    process.exit(1)
-  }
-  return Number(m[1])
-}
-
-const queue = chosen.map((f) => ({ f, port: portOf(f) }))
+const queue = chosen.map((f) => ({ f }))
 const atATime = Math.min(workers, chosen.length)
 console.log(`running ${chosen.length} browser test${chosen.length === 1 ? '' : 's'}${atATime > 1 ? `, ${atATime} at a time` : ''}\n`)
 
@@ -108,23 +98,10 @@ const row = (name, verdict, secs, note = '') =>
   console.log(`${verdict.padEnd(5)} ${name.padEnd(34)} ${secs.padStart(3)}s${note ? ` — ${note}` : ''}`)
 
 const failed = []
-const inUse = new Set()
-const wake = []
-const release = () => { while (wake.length) wake.pop()() }
 
 const worker = async () => {
-  for (;;) {
-    let i = queue.findIndex((t) => !inUse.has(t.port))
-    while (i === -1 && queue.length) {
-      await new Promise((res) => wake.push(res))
-      i = queue.findIndex((t) => !inUse.has(t.port))
-    }
-    if (i === -1) return
-    const [t] = queue.splice(i, 1)
-    inUse.add(t.port)
+  for (let t = queue.shift(); t; t = queue.shift()) {
     const r = await runOne(t)
-    inUse.delete(t.port)
-    release()
     row(r.f, r.pass ? 'PASS' : 'FAIL', r.secs)
     if (!r.pass) failed.push(r)
   }
@@ -148,7 +125,7 @@ for (const r of failed) {
     /* Keep the RETRY's output too (reviewer finding on #371): it ran alone, on a quiet machine,
        so it is the run that says what really broke. The first run's tail is kept beside it,
        labelled — when the two differ, the difference IS the diagnosis (load-only timing, or a
-       port/process the first run left behind). */
+       process the first run left behind). */
     hardFail.push({ ...r, retry: again })
     row(r.f, 'FAIL', again.secs, 'failed twice')
   }

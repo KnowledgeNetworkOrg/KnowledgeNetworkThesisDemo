@@ -30,12 +30,11 @@
 // No mode named runs all three; --repeat=N runs each chosen mode N times (the driver failed
 // about one run in nine under plain conditions, so plain needs many to catch it).
 import { createRequire } from 'node:module'
-import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { startVite } from './devserver.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
-const PORT = Number(process.env.PROBE_PORT || 5253)
 
 const MODES = ['held', 'blocked', 'plain']
 const args = process.argv.slice(2)
@@ -54,18 +53,8 @@ const CYCLES = 5
 const require = createRequire(REPO + '/package.json')
 const { chromium } = require('playwright-core')
 
-const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(PORT), '--strictPort'], {
-  cwd: REPO,
-  stdio: ['ignore', 'pipe', 'pipe'],
-})
-let viteOut = ''
-await new Promise((res, rej) => {
-  const t = setTimeout(() => rej(new Error('vite did not become ready:\n' + viteOut)), 30000)
-  const watch = (d) => { viteOut += String(d); if (viteOut.includes('localhost:')) { clearTimeout(t); res() } }
-  vite.stdout.on('data', watch)
-  vite.stderr.on('data', watch)
-  vite.on('exit', (c) => rej(new Error('vite exited early ' + c + ':\n' + viteOut)))
-})
+// PROBE_PORT pins the port, to point a browser of your own at the server; otherwise the OS picks one
+const { vite, port: PORT } = await startVite({ port: process.env.PROBE_PORT })
 
 /** installed at document start on every page of a context: one entry per CHANGE, stamped in
  *  ms since this document's navigation began. Font files are collected by an observer, not
