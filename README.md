@@ -103,11 +103,13 @@ double-click it — no repo, no Node, no install.
 The app is **not code-signed**, so Windows SmartScreen warns on first run
 ("Windows protected your PC"). Click **More info**, then **Run anyway**. This is
 expected; the only alternatives are accepting it or buying a certificate.
-Two machines behave differently: a copy that was not downloaded (handed over on
-a USB stick, or built on that machine) usually shows no warning at all, and on
-Windows 11 with **Smart App Control** turned on an unsigned app is blocked
-outright, with no Run anyway button — use another machine, or turn Smart App
-Control off.
+Two machines behave differently. A copy that was not downloaded (handed over on
+a USB stick, or built on that machine) usually shows no SmartScreen warning at
+all. But on Windows 11 with **Smart App Control** turned on, an unsigned app is
+blocked outright, however it was copied there, with no Run anyway button: use
+another machine, or turn Smart App Control off. On an up-to-date Windows 11 it
+can be switched back on afterwards; on older builds, or with optional
+diagnostic data off, turning it back on needs a reset of Windows.
 
 The packed app keeps its saved data (lecture notes, walks) in
 `%APPDATA%\Graph Disclosure Lab`, separate from the app run from a checkout.

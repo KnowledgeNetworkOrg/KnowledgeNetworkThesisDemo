@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "description": "Electron host for the thesis demo. Its own package, its own lockfile — see #201.",
+  "author": "KnowledgeNetworkOrg",
   "main": "out/main.cjs",
   "scripts": {
     "build": "node build.mjs",
