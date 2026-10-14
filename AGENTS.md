@@ -33,21 +33,26 @@ These rules apply across the KnowledgeNetwork projects; this is this repository'
    can see it is not reviewing its own work.
 
 4. **The author runs the review rounds, as many as it takes, until the change is ready.** It
-   starts reviewer agents itself where it can, answers them, and starts the next round,
-   without stopping to ask the owner in between. The author answers every point, either
+   starts reviewer agents itself, each in a fresh session rather than a copy of its own
+   conversation, answers them, and starts the next round, without stopping to ask the owner
+   in between. A reviewer it cannot start, such as a desktop app, it asks the owner to bring
+   in, and the change is not ready until that review is in.
+
+   Every review ends with one verdict: **REVISE** (something must be fixed), **MINOR** (only
+   optional suggestions) or **PASS** (nothing to add). The author answers every point, either
    fixed (name the commit) or not fixed (say why). The reviewer checks each answer against
    the new code, not against the reply. There is no set number of rounds:
 
-   - **Ready** means every reviewer's latest verdict is MINOR or PASS, and nothing that
-     changes what the change means has been edited since the reviewers last read it.
-   - An edit made because of a review goes back to the reviewers, unless it changes only
-     wording; a wording edit taken from a MINOR verdict needs no round of its own.
-   - A REVISE means another round.
+   - **Ready** means the latest verdict of every reviewer other than the author is MINOR or
+     PASS, and nothing that changes what the code or text does has been edited since they
+     last read it.
+   - A REVISE means another round: its fixes go back to the reviewers.
+   - A suggestion taken from a MINOR verdict needs no round of its own if it changes only how
+     something is said, not what the code or text does. If unsure, treat it as a change.
    - If the rounds stop getting closer, stop and bring the disagreement to the owner instead
      of looping.
 
    Ready means the change can merge, not that it is merged. The owner merges.
 
 GitHub does not let an account approve its own pull request, and every agent is that
-account. Post a review as a comment and end it with one verdict: **REVISE** (something must
-be fixed), **MINOR** (only optional suggestions) or **PASS** (nothing to add).
+account. Post a review as a comment and end it with its verdict.
