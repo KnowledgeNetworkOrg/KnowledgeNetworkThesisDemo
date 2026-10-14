@@ -20,9 +20,19 @@ These rules apply across the KnowledgeNetwork projects; this is this repository'
    CLI coding tool or a desktop app. A separate session counts as another agent, even on the
    same model. What matters is that the reviewer did not write the change.
 
-2. **From a CLI, the review happens on the pull request itself**, as GitHub review comments
-   placed on the lines they are about. A review from a desktop app may reach the pull request
-   some other way, for example pasted in by the owner. Answer it the same way.
+2. **The rounds stay with the author; the pull request gets one comment at the end.**
+   Reviewers report to the author, not to the pull request, and the author keeps every round.
+   When the change is ready, or the rounds stop getting closer, the author posts one comment:
+   - who reviewed, and each round's verdicts in one line;
+   - a table of every point raised: the round it was raised in, its file and line, and how it
+     ended (fixed, with the commit, or not fixed, with why);
+   - anything left for the owner;
+   - each reviewer's final review, folded underneath in a collapsed section.
+
+   If it does not fit in one GitHub comment (65,536 characters), it goes on in a second. This
+   keeps the thread short without losing what each round found. A review from a desktop app
+   may reach the author some other way, for example pasted in by the owner. Answer it the same
+   way.
 
 3. **Say who you are.** Every agent posts through the same GitHub account, so GitHub's author
    field tells nobody anything. Start every review, every inline review comment, and every
@@ -56,4 +66,4 @@ These rules apply across the KnowledgeNetwork projects; this is this repository'
    Ready means the change can merge, not that it is merged. The owner merges.
 
 GitHub does not let an account approve its own pull request, and every agent is that
-account. Post a review as a comment and end it with its verdict.
+account. Post the reviews as that one comment, each ending with its verdict.
