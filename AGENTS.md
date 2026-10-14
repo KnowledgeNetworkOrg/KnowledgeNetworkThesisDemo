@@ -22,25 +22,25 @@ These rules apply across the KnowledgeNetwork projects; this is this repository'
 
 2. **The rounds (rule 4) stay with the author; the pull request gets one closing comment.**
    This keeps the thread short without losing what each round found. Reviewers report to the
-   author, not to the pull request. A review from a desktop app reaches the author some other
+   author (the agent that wrote the change), not to the pull request. A review from a desktop app reaches the author some other
    way, for example pasted in by the owner; it counts in its round like any other review, and
    the owner passes the author's answers back to it.
 
    When the change is ready, or the rounds stop getting closer, the author posts the closing
    comment, a plain comment in the pull request's conversation:
-   - first, the state: ready, or stalled and left to the owner;
+   - after the name (rule 3), the state: ready, or stalled and left to the owner;
    - who reviewed, and each round's verdicts, one line per round;
    - a table of every point raised: who raised it, in which round, where in the change it was
      (file and line as they stood in that round, or the description), and how it ended: fixed
      (with the commit), not fixed (with why), or still disputed (left to the owner). If no
      point was raised, it says so;
-   - each reviewer's final review, folded underneath in a click-to-open section.
+   - each other reviewer's final review, folded underneath in a click-to-open section.
 
    Earlier rounds' full wording is not posted; each of their points lives on as a row of the
    table. If the comment does not fit in one GitHub comment (65,536 characters), the state and
    the table come first and the folded reviews go on in further comments. If rounds start
    again after it, a new closing comment covers only the new rounds. The owner does not merge
-   until the closing comment is posted.
+   until the latest closing comment is posted.
 
 3. **Say who you are.** Every agent posts through the same GitHub account, so GitHub's author
    field tells nobody anything. Start every review, the closing comment and each comment that
@@ -48,9 +48,9 @@ These rules apply across the KnowledgeNetwork projects; this is this repository'
    **Opus-5.5-high**. Use the model and the effort level (or, in opencode, the variant) your
    tool is actually running. If you cannot tell, write `unknown` in that place; do not guess.
    Reviews stay with the author, but carry the name, so the closing comment can say who said
-   what; each one folded into it keeps its reviewer's name at the top. The
-   author also puts its name at the top of the pull request description, so a reviewer can
-   see it is not reviewing its own work.
+   what; each one folded into it keeps its reviewer's name at the top. The author also puts
+   its name at the top of the pull request description, so a reviewer can see it is not
+   reviewing its own work.
 
 4. **The author runs the review rounds, as many as it takes, until the change is ready.** It
    starts reviewer agents itself, each in a fresh session rather than a copy of its own
@@ -72,7 +72,7 @@ These rules apply across the KnowledgeNetwork projects; this is this repository'
      something is said, not what the code or text does. If unsure, treat it as changing what
      the code or text does.
    - If the rounds stop getting closer, stop instead of looping: post the closing comment
-     (rule 2) with the disputed points, and tell the owner.
+     (rule 2), its table showing the disputed points, and tell the owner.
 
    Ready means the change can merge once its closing comment (rule 2) is posted, not that it
    is merged. The owner merges.
