@@ -48,7 +48,8 @@ These rules apply across the KnowledgeNetwork projects; this is this repository'
      last read it.
    - A REVISE means another round: its fixes go back to the reviewers.
    - A suggestion taken from a MINOR verdict needs no round of its own if it changes only how
-     something is said, not what the code or text does. If unsure, treat it as a change.
+     something is said, not what the code or text does. If unsure, treat it as changing what
+     the code or text does.
    - If the rounds stop getting closer, stop and bring the disagreement to the owner instead
      of looping.
 
