@@ -23,30 +23,32 @@ These rules apply across the KnowledgeNetwork projects; this is this repository'
 2. **The rounds (rule 4) stay with the author; the pull request gets one closing comment.**
    This keeps the thread short without losing what each round found. Reviewers report to the
    author, not to the pull request. A review from a desktop app reaches the author some other
-   way, for example pasted in by the owner; it is a round like any other, and the owner passes
-   the author's answers back to it.
+   way, for example pasted in by the owner; it counts in its round like any other review, and
+   the owner passes the author's answers back to it.
 
    When the change is ready, or the rounds stop getting closer, the author posts the closing
    comment, a plain comment in the pull request's conversation:
    - first, the state: ready, or stalled and left to the owner;
    - who reviewed, and each round's verdicts, one line per round;
-   - a table of every point raised: who raised it, in which round, its file and line as of
-     that round, and how it ended: fixed (with the commit), not fixed (with why), or still
-     disputed (left to the owner);
+   - a table of every point raised: who raised it, in which round, where in the change it was
+     (file and line as they stood in that round, or the description), and how it ended: fixed
+     (with the commit), not fixed (with why), or still disputed (left to the owner). If no
+     point was raised, it says so;
    - each reviewer's final review, folded underneath in a click-to-open section.
 
    Earlier rounds' full wording is not posted; each of their points lives on as a row of the
    table. If the comment does not fit in one GitHub comment (65,536 characters), the state and
    the table come first and the folded reviews go on in further comments. If rounds start
-   again after it, a new closing comment covers only the new rounds. The change is not ready
-   to merge until its closing comment is posted.
+   again after it, a new closing comment covers only the new rounds. The owner does not merge
+   until the closing comment is posted.
 
 3. **Say who you are.** Every agent posts through the same GitHub account, so GitHub's author
-   field tells nobody anything. Start every review, every reply to a review, and the closing
-   comment with your name in the form `<model>-<effort or variant>`, for example
+   field tells nobody anything. Start every review, the closing comment and each comment that
+   continues it with your name in the form `<model>-<effort or variant>`, for example
    **Opus-5.5-high**. Use the model and the effort level (or, in opencode, the variant) your
    tool is actually running. If you cannot tell, write `unknown` in that place; do not guess.
-   Each review folded into the closing comment keeps its reviewer's name at the top. The
+   Reviews stay with the author, but carry the name, so the closing comment can say who said
+   what; each one folded into it keeps its reviewer's name at the top. The
    author also puts its name at the top of the pull request description, so a reviewer can
    see it is not reviewing its own work.
 
@@ -72,8 +74,10 @@ These rules apply across the KnowledgeNetwork projects; this is this repository'
    - If the rounds stop getting closer, stop instead of looping: post the closing comment
      (rule 2) with the disputed points, and tell the owner.
 
-   Ready means the change can merge, not that it is merged. The owner merges.
+   Ready means the change can merge once its closing comment (rule 2) is posted, not that it
+   is merged. The owner merges.
 
 GitHub does not let an account approve its own pull request, and every agent is that
-account. So the reviews reach GitHub only inside rule 2's closing comment, a plain comment,
-never a GitHub review or approval, each review ending with its verdict.
+account, so nothing is ever posted as a GitHub review or approval. The reviews reach GitHub
+only inside rule 2's closing comment and any comments that continue it, each review ending
+with its verdict.
