@@ -1,4 +1,0 @@
-1. fixed — `relTipFitAcross` (`src/ds/connections/RelationCards.tsx:157`) takes the per-group maxima and then rescales the shared pills against the card's real width, using the largest chrome; mounted at `src/instruments/DocumentPanel.tsx:96`, pinned by the two-group case at `src/ds/connections/relationcards.test.ts:75`.
-2. fixed — `tipArrowWidth` (`src/ds/connections/RelationCards.tsx:118`) measures every kind label through `fitLines` and widens the connector past its 38 floor, so "implemented with" draws whole; pinned at `src/ds/connections/relationcards.test.ts:69`, choice recorded in `src/ds/PROVENANCE.json:893`.
-
-Assumptions: `relTipFitAcross` is a new local export (also on the barrel) because the per-group fit alone cannot reconcile shared widths; the label search answers 39 rather than 41 in Edge, since `fitLines` already draws the whole label there.
