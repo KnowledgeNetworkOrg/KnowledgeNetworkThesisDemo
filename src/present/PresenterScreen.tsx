@@ -178,8 +178,11 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
   const roamTo = useCallback((i: number) => { if (ended) return; setRoamingStop(i === activeStop ? null : i) }, [ended, activeStop])
   const makeActive = (i: number) => { cover(activeStop); setActiveStop(i); setRoamingStop(null); setStopStartAt(Date.now()) }
   const toggleFlag = useCallback((i: number) => setFlags((f) => (f.indexOf(i) >= 0 ? f.filter((x) => x !== i) : f.concat(i))), [])
-  /* THE KEYS, the host's (DS): arrows advance, Backspace ends a roam, F flags, E opens the strip,
-     J opens the finder (part 8), Escape closes things. Not while a field has focus. */
+  /* THE KEYS, the host's (DS): the arrows and a clicker's Page Down/Page Up advance; every step key
+     is claimed while live so the panes do not scroll instead, and left to the browser once the
+     lecture has ended, where the recap's own scrollers need them. Backspace ends a roam, F flags,
+     E opens the strip, J opens the finder (part 8), Escape closes things. Space and Enter stay
+     unbound because they activate the focused control. Not while a field has focus. */
   /* THE FINDER HANGS OFF THE STRIP'S OWN FIND BUTTON, so opening it means measuring that button.
      Lifted out of the key handler because the quick actions deck offers the same thing as a tile,
      and two copies of "where does the finder hang" is how the two drift apart.
@@ -202,8 +205,8 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
       const t = e.target as HTMLElement | null
       if (t && (t.closest('input, textarea, select') || t.isContentEditable)) return
       if (e.ctrlKey || e.metaKey || e.altKey) return
-      if (e.key === 'ArrowRight') step(1)
-      else if (e.key === 'ArrowLeft') step(-1)
+      if (!ended && (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown')) step(1)
+      else if (!ended && (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp')) step(-1)
       else if (e.key === 'Backspace' && roaming) setRoamingStop(null)
       else if (e.key === 'f' || e.key === 'F') toggleFlag(shown)
       else if (e.key === 'e' || e.key === 'E') setStripOpen((o) => !o)
