@@ -308,9 +308,8 @@ describe('ported but not adopted DS components', () => {
   })
 
   // #341 (OB-253) — the rail's seam drags, so the desk's drag handle came with the frame it
-  // hangs on. No host draws one yet: `RailFrame` is the first reader, and the map pane's seam
-  // is the one this port wires.
-  it('PaneDivider / PANE_DIVIDER_METRICS / paneFit / clampDesk / deskBounds — the rail seam\'s drag handle (OB-253)', () => {
+  // hangs on. #348 (OB-170) adopts it for the desk itself: `StudioView` draws one between adjacent column slots, while `RailFrame` keeps the seam inside a pane
+  it('PaneDivider / PANE_DIVIDER_METRICS / paneFit / clampDesk / deskBounds — the desk and rail drag handle (OB-170, OB-253)', () => {
     expect(typeof PaneDivider).toBe('function')
     expect(PANE_DIVIDER_METRICS.hit).toBe(14)
     expect(paneFit({ narrowBelow: 100 }).floor).toBe(100)

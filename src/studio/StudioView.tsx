@@ -21,7 +21,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 
-import { AppHeader, CountBadge, EDGE_TOKEN, FamilyColumn, FIRST_SCROLL_PAD, InstrumentGroup, InstrumentRow, Pane, PresetButton, SectionLabel } from '@/ds'
+import { AppHeader, CountBadge, deskBounds, EDGE_TOKEN, FamilyColumn, FIRST_SCROLL_PAD, InstrumentGroup, InstrumentRow, Pane, PaneDivider, PresetButton, SectionLabel } from '@/ds'
 import type { EdgeKind } from '@/ds'
 
 import { byId, topicHueOf } from '../corpus/graph'
@@ -36,6 +36,8 @@ import { FAMILIES } from './families'
 import type { Family } from './families'
 import { byInstrument, flattenSlots, INSTRUMENTS, lensTypeOf, PRESETS } from './instruments'
 import type { Instrument, InstrumentId, Preset, Slot } from './instruments'
+import { deskAvailable, deskFits, dragDesk, fitSizes, fractionsOf, initialFractions } from './desk'
+import type { DeskColumn } from './desk'
 
 /** the palette's fly-to-the-toolbar transition, in ms. It MUST equal
  *  `--dur-flight`, the token `paletteStyle` transitions on: the CSS runs the
@@ -90,6 +92,13 @@ export default function StudioView() {
   const [mounted, setMounted] = useState<Set<InstrumentId>>(() => new Set(flattenSlots(PRESETS[0].active)))
   const [presetId, setPresetId] = useState<Preset['id'] | null>(PRESETS[0].id)
   const [flexMap, setFlexMap] = useState<Partial<Record<InstrumentId, number>>>(PRESETS[0].flex ?? {})
+  // the desk's widths, as fractions of the measured row, per composition. The drag's
+  // live widths are separate so a move does not commit until the gesture ends.
+  const [deskSizes, setDeskSizes] = useState<Record<string, number[]>>({})
+  const [deskLive, setDeskLive] = useState<{ key: string; fractions: number[] } | null>(null)
+  const [deskWidth, setDeskWidth] = useState(0)
+  const deskRowRef = useRef<HTMLDivElement | null>(null)
+  const dragBase = useRef<number[] | null>(null)
   // every family starts OPEN: the sidebar is how you reach an instrument, and a
   // palette that hides its contents on first paint is a worse list than the flat
   // one it replaced. Folding is there for when you know what you want.
@@ -332,6 +341,8 @@ export default function StudioView() {
     setActive((prev) => (flattenSlots(prev).includes(inst) ? without(prev, inst) : [...prev, inst]))
     setMounted((prev) => new Set(prev).add(inst))
     setPresetId(null) // hand-toggling makes the composition "custom" from now on
+    setDeskLive(null)
+    dragBase.current = null
   }
 
   /** an instrument handing off to another one: reveal it WITHOUT disturbing the
@@ -359,6 +370,8 @@ export default function StudioView() {
     setActive(p.active)
     setFlexMap(p.flex ?? {})
     setPresetId(p.id)
+    setDeskLive(null)
+    dragBase.current = null
     setMounted((prev) => {
       const next = new Set(prev)
       for (const inst of flattenSlots(p.active)) next.add(inst)
@@ -412,6 +425,26 @@ export default function StudioView() {
   // used to have a default at all — sizing was 100% the caller's), so a strip
   // with no explicit flex of its own now needs one passed: see the strips
   // mapping below.
+  //
+  // THE ROW IS MEASURED FOR THE HANDLES' BOUNDS, but not while the palette flies: the
+  // panes themselves are fractions on the live row (`flex`), so the browser lays them
+  // out without a React render per frame. Measuring then would re-render every pane on
+  // every frame of the flight, and the flight is meant to stay smooth.
+  useLayoutEffect(() => {
+    if (paletteAnim) return
+    const el = deskRowRef.current
+    if (!el) return
+    const read = () => {
+      const w = Math.round(el.getBoundingClientRect().width)
+      setDeskWidth((prev) => (prev === w ? prev : w))
+    }
+    read()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(read)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [presenter, paletteAnim])
+
   const pane = (inst: Instrument, on: boolean, style: CSSProperties, extra: string) => (
     <Pane
       key={inst.id}
@@ -422,6 +455,7 @@ export default function StudioView() {
       variant="legend"
       legendBg="var(--surface-canopy)"
       face={inst.face}
+      fit={inst.fit}
       onClose={() => toggle(inst.id as InstrumentId)}
       scroll={inst.body === 'none' ? 'none' : 'y'}
       bodyStyle={inst.bodyStyle}
@@ -433,25 +467,117 @@ export default function StudioView() {
     </Pane>
   )
 
-  /** how wide a column is: a pinned pixel width, or a flex weight the preset may
-   * override. A stack takes its LEAD member's weight. */
-  const widthOf = (inst: Instrument): CSSProperties => {
-    const fixed = typeof inst.flex === 'object' ? inst.flex.fixed : null
-    return fixed !== null
-      ? { flex: `0 0 ${fixed}px` }
-      : { flex: `${flexMap[inst.id as InstrumentId] ?? (typeof inst.flex === 'number' ? inst.flex : 1)} 1 0%` }
+  // `order` is what makes the PRESET's array order the visual order, independent
+  // of the registry's (DOM) order - so toggling a pane never remounts another.
+  // A divider takes the odd order between two columns; a benched pane has none.
+  const columnSlots: DeskColumn[] = active
+    .map((slot) => {
+      const members = (Array.isArray(slot) ? slot : [slot])
+        .map((id) => byInstrument.get(id)!)
+        .filter((i) => i.slot === 'column')
+      return { key: members.map((m) => m.id).join('+'), members }
+    })
+    .filter((s) => s.members.length > 0)
+
+  const columnFits = deskFits(columnSlots)
+  const fractionKey = presetId ?? columnSlots.map((c) => c.key).join('|')
+  const available = deskAvailable(deskWidth, columnSlots.length)
+  const presetFractions = initialFractions(columnSlots, flexMap, available)
+  const stored = deskSizes[fractionKey]
+  const fractions = stored && stored.length === columnSlots.length ? stored : presetFractions
+  const drawnFractions = deskLive && deskLive.key === fractionKey && deskLive.fractions.length === columnSlots.length
+    ? deskLive.fractions
+    : fractions
+  const settledSizes = fitSizes(drawnFractions, available, columnFits)
+
+  const columnStyle = (i: number): CSSProperties => ({
+    order: i * 2,
+    minWidth: columnFits[i]?.floor ?? 0,
+    flex: `${Math.max(0, drawnFractions[i] ?? 1)} 1 0%`,
+  })
+
+  const columnSelector = (i: number) => {
+    const { key, members } = columnSlots[i]
+    return members.length === 1
+      ? `[aria-label="studio-pane-${members[0].id}"]`
+      : `[aria-label="studio-stack-${key.replace(/\+/g, '-')}"]`
+  }
+  const readColumnSizes = () =>
+    columnSlots.map((_, i) => {
+      const el = deskRowRef.current?.querySelector<HTMLElement>(columnSelector(i))
+      return el ? el.getBoundingClientRect().width : 0
+    })
+
+  const dragAt = (index: number, delta: number) => {
+    const base = dragBase.current ?? readColumnSizes()
+    dragBase.current = base
+    const total = base.reduce((sum, w) => sum + w, 0)
+    if (!(total > 0)) return null
+    return dragDesk({ fractions: fractionsOf(base), available: total, fits: columnFits, index, delta })
+  }
+  const onDividerDrag = (index: number, delta: number) => {
+    const next = dragAt(index, delta)
+    if (next) setDeskLive({ key: fractionKey, fractions: next.fractions })
+  }
+  const onDividerEnd = (index: number, delta: number) => {
+    const next = dragAt(index, delta)
+    if (next) setDeskSizes((prev) => ({ ...prev, [fractionKey]: next.fractions }))
+    setDeskLive(null)
+    dragBase.current = null
+  }
+  const onDividerReset = () => {
+    setDeskSizes((prev) => {
+      if (!(fractionKey in prev)) return prev
+      const next = { ...prev }
+      delete next[fractionKey]
+      return next
+    })
+    setDeskLive(null)
+    dragBase.current = null
   }
 
-  // `order` is what makes the PRESET's array order the visual order, independent
-  // of the registry's (DOM) order — so toggling a pane never remounts another.
-  const columnSlots = active
-    .map((slot, order) => ({
-      order,
-      members: (Array.isArray(slot) ? slot : [slot])
-        .map((id) => byInstrument.get(id)!)
-        .filter((i) => i.slot === 'column'),
-    }))
-    .filter((s) => s.members.length > 0)
+  const column = (i: number) => {
+    const { key, members } = columnSlots[i]
+    if (members.length === 1) return pane(members[0], true, columnStyle(i), '')
+    return (
+      <div
+        key={`stack-${key}`}
+        aria-label={`studio-stack-${members.map((m) => m.id).join('-')}`}
+        className="flex flex-col min-w-0 min-h-0 gap-3"
+        style={columnStyle(i)}
+      >
+        {members.map((m) =>
+          pane(
+            m,
+            true,
+            // stackGrow:false sizes the pane to its content and hands the
+            // slack to its stack-mates; the default takes an even share.
+            { flex: m.stackGrow === false ? '0 0 auto' : '1 1 0%' },
+            '',
+          ),
+        )}
+      </div>
+    )
+  }
+
+  const divider = (i: number) => {
+    const bounds = deskBounds({ sizes: settledSizes, index: i, fits: columnFits })
+    const left = columnSlots[i].members[0].label
+    const right = columnSlots[i + 1].members[0].label
+    return (
+      <PaneDivider
+        key={`divider-${columnSlots[i].key}`}
+        label={`resize ${left} and ${right}`}
+        onDrag={(delta) => onDividerDrag(i, delta)}
+        onDragEnd={(delta) => onDividerEnd(i, delta)}
+        onReset={onDividerReset}
+        now={bounds.now}
+        min={bounds.min}
+        max={bounds.max}
+        style={{ order: i * 2 + 1 }}
+      />
+    )
+  }
 
   // mounted but not in the composition: kept in the tree at display:none so an
   // unfold canvas or a zoom level survives being toggled off and back on. That
@@ -629,36 +755,13 @@ export default function StudioView() {
               `on` is just a prop.
 
               STILL TRUE, and deliberately not fixed here: a pane moving in or out of
-              a STACK (Plan's palette-over-document) does change parent, because a
-              stack is a real wrapper element. Only Plan stacks anything today, and
-              what it costs is a scroll position rather than a canvas. Fixing it means
+              a STACK does change parent, because a stack is a real wrapper element.
+              What it costs is a scroll position rather than a canvas. Fixing it means
               expressing stacks in CSS instead of nesting, which is a layout rewrite
               and wants its own change. */}
-          <div className="flex-1 min-h-0 flex gap-3">
+          <div ref={deskRowRef} data-desk-row="" className="flex-1 min-h-0 flex gap-3">
             {[
-              ...columnSlots.map(({ order, members }) =>
-                members.length === 1 ? (
-                  pane(members[0], true, { order, ...widthOf(members[0]) }, '')
-                ) : (
-                  <div
-                    key={members.map((m) => m.id).join('+')}
-                    aria-label={`studio-stack-${members.map((m) => m.id).join('-')}`}
-                    className="flex flex-col min-w-0 min-h-0 gap-3"
-                    style={{ order, ...widthOf(members[0]) }}
-                  >
-                    {members.map((m) =>
-                      pane(
-                        m,
-                        true,
-                        // stackGrow:false sizes the pane to its content and hands the
-                        // slack to its stack-mates; the default takes an even share.
-                        { flex: m.stackGrow === false ? '0 0 auto' : '1 1 0%' },
-                        '',
-                      ),
-                    )}
-                  </div>
-                ),
-              ),
+              ...columnSlots.flatMap((_, i) => [column(i), ...(i < columnSlots.length - 1 ? [divider(i)] : [])]),
               ...benchedColumns.map((i) => pane(i, false, {}, '')),
             ]}
           </div>

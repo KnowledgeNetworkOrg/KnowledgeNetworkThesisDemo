@@ -15,6 +15,9 @@
 
 import type { CSSProperties, ReactNode } from 'react'
 
+import { railFloor } from '@/ds'
+import type { PaneFit } from '@/ds'
+
 import { EDGE_LABEL } from '../corpus/graph'
 import type { EdgeType } from '../corpus/graph'
 import { EDGE_TYPES } from '../model/nav'
@@ -54,8 +57,13 @@ export interface Instrument {
   family: Family
   /** columns flow left to right; strips pin to the bottom of the stack */
   slot: 'column' | 'strip'
-  /** default flex weight (a preset may override it); { fixed } pins a pixel
-   * width instead — the tree is a list, not a canvas, and does not want to grow */
+  /** THE PANE'S OWN WIDTH FLOOR (DS `PaneFit`, OB-170), declared here because only the
+   *  pane knows the width its own content stops working at. A desk may not override it;
+   *  the drag stops at `floor`, and `narrowBelow` is the point where it draws a lesser
+   *  reading. Strips run full width and declare 0 - no horizontal boundary reaches them. */
+  fit: Required<PaneFit>
+  /** default flex weight (a preset may override it); { fixed } starts the pane at a
+   * pixel width instead — the stack is a list, not a canvas, and does not want to grow */
   flex?: number | { fixed: number }
   /** a strip that needs working room says how much; one that sizes itself to its
    * content (the trail) leaves this out */
@@ -109,6 +117,8 @@ const VIEWS = [
     label: 'Map',
     family: 'maps',
     slot: 'column',
+    // the Explorer rail's own floor: below this the map cannot keep its rail
+    fit: { narrowBelow: railFloor('left'), floor: railFloor('left') },
     // MapView renders its own PaneCanvas at its root (the "territory" crop +
     // MAP_WATER face) — without body:'none' Pane ALSO wraps it in a PaneScroller,
     // whose plain block box gives the nested PaneCanvas's flex:1 nothing to fill
@@ -125,6 +135,7 @@ const VIEWS = [
     label: 'Walk',
     family: 'walks',
     slot: 'strip',
+    fit: { narrowBelow: 0, floor: 0 },
     height: 240,
     body: 'none',
     render: (bus) => <WalkView bus={bus} />,
@@ -138,6 +149,7 @@ const VIEWS = [
     label: 'Walk·Palette',
     family: 'walks',
     slot: 'column',
+    fit: { narrowBelow: 300, floor: 240 },
     // a search pane hugs its content: empty, it is just the box; searching, it
     // grows to a capped, scrollable list. Either way the document below it takes
     // the room the old even split wasted (#28 feedback).
@@ -154,6 +166,7 @@ const VIEWS = [
     label: 'Walk·Editor',
     family: 'walks',
     slot: 'column',
+    fit: { narrowBelow: 360, floor: 300 },
     body: 'none',
     // Two tiers, two categories (#193): WalkUtilityBar (the walk as a whole —
     // view/save/load) on top, WalkActionBar (the draft tree under construction)
@@ -175,6 +188,7 @@ const VIEWS = [
     label: 'Walk·Columns',
     family: 'walks',
     slot: 'column',
+    fit: { narrowBelow: 320, floor: 240 },
     body: 'none',
     render: (bus) => <WalkColumnsView bus={bus} />,
   },
@@ -186,6 +200,7 @@ const VIEWS = [
     label: 'Walk·Stack',
     family: 'walks',
     slot: 'column',
+    fit: { narrowBelow: 372, floor: 372 },
     flex: { fixed: 372 },
     body: 'none',
     render: (bus) => <WalkStackView bus={bus} />,
@@ -195,6 +210,7 @@ const VIEWS = [
     label: 'Unfold',
     family: 'maps',
     slot: 'column',
+    fit: { narrowBelow: 320, floor: 280 },
     body: 'none',
     render: () => <UnfoldView />,
   },
@@ -203,6 +219,7 @@ const VIEWS = [
     label: 'Unfold·Graph',
     family: 'maps',
     slot: 'column',
+    fit: { narrowBelow: 320, floor: 240 },
     body: 'none',
     render: (bus) => <UnfoldGraphView bus={bus} />,
   },
@@ -211,6 +228,7 @@ const VIEWS = [
     label: 'Contours',
     family: 'maps',
     slot: 'column',
+    fit: { narrowBelow: 320, floor: 240 },
     body: 'none',
     render: () => <ContoursView />,
   },
@@ -219,6 +237,7 @@ const VIEWS = [
     label: 'Clusters',
     family: 'maps',
     slot: 'column',
+    fit: { narrowBelow: 320, floor: 240 },
     body: 'none',
     render: () => <ClustersView />,
   },
@@ -234,6 +253,7 @@ const VIEWS = [
     label: 'Document',
     family: 'reading',
     slot: 'column',
+    fit: { narrowBelow: railFloor('right'), floor: railFloor('right') },
     // #342 (OB-229): the pane is prose BESIDE a relations rail, so it owns its own scrolling — the
     // prose column is a `PaneScroller` and the rail scrolls itself. Under the default `y` the Pane
     // would wrap the whole layout in one more scroller and the rail would scroll away with the
@@ -246,6 +266,7 @@ const VIEWS = [
     label: 'Neighborhood',
     family: 'reading',
     slot: 'column',
+    fit: { narrowBelow: 360, floor: 300 },
     render: (bus) => <NeighborhoodPanel bus={bus} />,
   },
   {
@@ -253,6 +274,7 @@ const VIEWS = [
     label: 'Trail',
     family: 'walks',
     slot: 'strip',
+    fit: { narrowBelow: 0, floor: 0 },
     render: (bus) => <TrailStrip bus={bus} />,
   },
   {
@@ -263,6 +285,7 @@ const VIEWS = [
     label: 'Walk·Viewer',
     family: 'walks',
     slot: 'strip',
+    fit: { narrowBelow: 0, floor: 0 },
     height: 240,
     body: 'none',
     render: (bus) => <WalkViewer bus={bus} />,
@@ -284,6 +307,7 @@ const LENSES: Instrument[] = EDGE_TYPES.map((t) => ({
   label: EDGE_LABEL[t],
   family: 'lenses',
   slot: 'column',
+  fit: { narrowBelow: 320, floor: 240 },
   render: (bus: Bus) => <LensPane bus={bus} type={t} />,
 }))
 
@@ -362,21 +386,15 @@ export const PRESETS: Preset[] = [
     flex: { map: 1.55, document: 1 },
   },
   {
-    // #20/#21 — the google-maps composition, read left to right as the work
-    // flows: SEARCH (palette) over the prose that says what a stop teaches,
-    // then the ROAD you are writing with its resolved route beside it, then the
-    // TERRITORY on the right with the room to be a territory. The road sits in
-    // the middle — the thing you edit is central, flanked by where stops come
-    // from (search) and where they live (map).
-    //
-    // The search column is stacked because both halves are the same gesture at
-    // different zoom: "what is there" and "what is this one about". Walk·Columns
-    // and Walk·Stack stay one sidebar click away rather than crowding the row.
+    // #416 - the writing desk, read left to right: the ROAD you are writing,
+    // the TERRITORY it draws on, then the prose that says what a stop teaches.
+    // The palette is not part of this composition; it is one sidebar click away
+    // when a stop has to come from search rather than from the map.
     id: 'plan',
     label: 'Plan',
-    hint: 'palette over document, then the walk editor, then the map',
-    active: [['walkpalette', 'document'], 'walkeditor', 'map'],
-    flex: { walkpalette: 1, walkeditor: 1.6, map: 2 },
+    hint: 'walk editor, then the map, then the document',
+    active: ['walkeditor', 'map', 'document'],
+    flex: { walkeditor: 1.6, map: 2, document: 2 },
   },
 ]
 
