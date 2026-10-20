@@ -107,7 +107,7 @@ try {
   const returned = await stopNumber()
   const top = await deckTop()
   ok('PageUp returns the record to the stop it left', returned === after - 1, `stop ${after} → ${returned}`)
-  ok('and the deck stays at the bottom where PageUp found it', !!bottom && Math.abs(top - bottom.top) <= 1, `deck scrollTop ${top} of ${bottom && bottom.top}`)
+  ok('and the deck stays at the bottom where PageUp found it', !!bottom && top === bottom.top, `deck scrollTop ${top} of ${bottom && bottom.top}`)
 
   // ── the arrows that were already bound still step ───────────────────────────
   await focusDeck()
@@ -120,7 +120,7 @@ try {
   await page.keyboard.press('ArrowUp')
   await page.waitForTimeout(500)
   const afterUp = await stopNumber()
-  ok('ArrowUp returns the record', afterUp === beforeArrow, `stop ${afterDown} → ${afterUp}`)
+  ok('ArrowUp returns the record', afterUp === afterDown - 1, `stop ${afterDown} → ${afterUp}`)
 
   // ── once ended, the step keys belong to the recap's scrollers ───────────────
   // Flag every stop so the recap's flagged list overflows, then end the lecture and shrink the

@@ -178,9 +178,9 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
   const roamTo = useCallback((i: number) => { if (ended) return; setRoamingStop(i === activeStop ? null : i) }, [ended, activeStop])
   const makeActive = (i: number) => { cover(activeStop); setActiveStop(i); setRoamingStop(null); setStopStartAt(Date.now()) }
   const toggleFlag = useCallback((i: number) => setFlags((f) => (f.indexOf(i) >= 0 ? f.filter((x) => x !== i) : f.concat(i))), [])
-  /* THE KEYS, the host's (DS): the arrows and a clicker's Page Down/Page Up advance; every step key
-     is claimed while live so the panes do not scroll instead, and left to the browser once the
-     lecture has ended, where the recap's own scrollers need them. Backspace ends a roam, F flags,
+  /* THE KEYS, the host's (DS): → ↓ and a clicker's Page Down advance, ← ↑ and Page Up go back;
+     every step key is claimed until the lecture ends (the preview included) so the panes do not
+     scroll instead, and left to the browser after it, where the recap's own scrollers need them. Backspace ends a roam, F flags,
      E opens the strip, J opens the finder (part 8), Escape closes things. Space and Enter stay
      unbound because they activate the focused control. Not while a field has focus. */
   /* THE FINDER HANGS OFF THE STRIP'S OWN FIND BUTTON, so opening it means measuring that button.
