@@ -277,6 +277,28 @@ describe('OB-274 — a one-stop pin sits in the stop’s own cell', () => {
     }
   })
 
+  test('a one-stop pin on its own cell keeps the OB-087 arc', () => {
+    for (const level of LEVELS) {
+      for (const home of topicIds) {
+        const anchor = walkAnchorAt(home, level)
+        if (anchor?.visId !== home) continue
+        const away = topicIds.find((id) => {
+          const a = walkAnchorAt(id, level)
+          return a !== null && a.visId !== home
+        })
+        if (!away) continue
+        const px = pxAt(level, 1.2)
+        const pins = walkPins({ route: [home, away, home], level, px, labelBoxes: [] })
+        const onHome = pins.filter((p) => p.visId === home)
+        expect(onHome, `L${level} ${home}`).toHaveLength(2)
+        for (const p of onHome)
+          expect(Math.hypot(p.c.x - anchor.c.x, p.c.y - anchor.c.y), `L${level} ${home}`).toBeCloseTo(px(p.size * 1.3 + 6), 6)
+        return
+      }
+    }
+    throw new Error('no stop resolves to its own cell at any level')
+  })
+
   test('during playback the lit cell contains its own pin', () => {
     for (const walk of WALKS) {
       for (const stop of walk.stops.map((s) => s.id)) {

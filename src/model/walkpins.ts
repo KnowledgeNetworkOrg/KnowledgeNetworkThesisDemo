@@ -256,12 +256,13 @@ export function walkPins({ route, level, px, labelBoxes, optional = [] }: WalkPi
 
   // 4 — fan pins that want the SAME point. Only exact coincidence: separate runs
   //     on one cell share an ancestor centre, and an evenly-spaced arc keeps them
-  //     apart (OB-087). A ONE-STOP pin is not fanned (OB-274) — it belongs on its
-  //     stop, and stage 6 separates a crowd from there. Pins that merely landed
-  //     NEAR each other keep their own cell's centre and are left to stage 6 —
-  //     arcing them around a point between their cells would drag each one off
-  //     the territory it names, and a pin outside its own cell is a worse lie
-  //     than a crowded one.
+  //     apart (OB-087). A ONE-STOP pin keeps that arc while its own cell is the
+  //     one drawn; once the map draws an ancestor instead it belongs on the
+  //     stop's centre (OB-274), and stage 6 separates a crowd from there. Pins
+  //     that merely landed NEAR each other keep their own cell's centre and are
+  //     left to stage 6 — arcing them around a point between their cells would
+  //     drag each one off the territory it names, and a pin outside its own cell
+  //     is a worse lie than a crowded one.
   const spotKey = (c: XY) => `${c.x.toFixed(4)},${c.y.toFixed(4)}`
   const sameSpotTotal = new Map<string, number>()
   for (const g of groups) sameSpotTotal.set(spotKey(g.c), (sameSpotTotal.get(spotKey(g.c)) ?? 0) + 1)
@@ -273,17 +274,17 @@ export function walkPins({ route, level, px, labelBoxes, optional = [] }: WalkPi
     const spot = spotKey(g.c)
     const together = sameSpotTotal.get(spot)!
     let c = g.c
+    // OB-274: where the drawn cell is an ancestor, a ONE-STOP pin sits on the
+    // stop itself so the light and the pin give the same answer; a merged run
+    // keeps the ancestor, because it stands for the whole cell.
     if (together > 1) {
       const idx = placedAtSpot.get(spot) ?? 0
       placedAtSpot.set(spot, idx + 1)
       const angle = (2 * Math.PI * idx) / together - Math.PI / 2
       const radius = px(size * 1.3 + 6) // clears a same-size neighbour, plus a gap
-      if (!single) c = { x: g.c.x + Math.cos(angle) * radius, y: g.c.y + Math.sin(angle) * radius }
-    }
-    // OB-274: ONE STOP'S PIN SITS ON THAT STOP, not on the ancestor drawn at
-    // this level — the light and the pin must give the same answer. A merged
-    // run keeps the ancestor, because it stands for the whole cell.
-    if (single) c = g.ownC
+      if (single && g.visId !== route[g.steps[0]]) c = g.ownC
+      else c = { x: g.c.x + Math.cos(angle) * radius, y: g.c.y + Math.sin(angle) * radius }
+    } else if (single) c = g.ownC
     // 5 — EVERY LABEL DRAWN AT THIS LEVEL, not just this cell's own. Past the
     //     level where a stop owns a cell its own label is gone and its
     //     CHILDREN's names are what the pin can land on — same fault, different
