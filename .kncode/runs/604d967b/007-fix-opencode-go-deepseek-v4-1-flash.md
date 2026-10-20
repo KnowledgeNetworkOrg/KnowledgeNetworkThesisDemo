@@ -1,3 +1,0 @@
-1. 1. fixed — `src/model/walkpins.ts:280-287` keeps the OB-087 fan when a one-stop pin's drawn cell is the stop itself (including the OB-109 clamp), and uses `ownC` only where the drawn ancestor differs; added a regression test at `src/model/walkpins.test.ts:277-300`. `npx vitest run src/model/walkpins.test.ts` passes (38 tests).
-
-Assumptions: I read the card's "untouched" clamp stops as keeping their fan placement, not just their centroid. I left the Optional and Nit findings unchanged.
