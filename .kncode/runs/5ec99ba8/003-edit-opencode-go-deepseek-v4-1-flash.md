@@ -1,0 +1,5 @@
+Added `PageDown`/`ArrowDown` as next and `PageUp`/`ArrowUp` as back in the presenter key handler, keeping the existing field/modifier guards and `preventDefault` so a pane cannot scroll instead. Space and Enter stay unbound because they activate focused controls. Added `tools/studio-spike/browsertest-presenterclicker.mjs`, which starts a lecture, focuses the scrollable deck, and asserts PageDown advances, PageUp returns, and the deck does not scroll.
+
+The narrowest check could not run here: `node_modules` is absent, so `playwright-core` could not be resolved.
+
+Assumptions: ArrowDown/ArrowUp should also step because they were part of the old key set; Space/Enter deliberately remain unbound; `session.ts` is left untouched as unused reference; the pre-fix red run was not performed because dependencies are not installed in this workspace.
