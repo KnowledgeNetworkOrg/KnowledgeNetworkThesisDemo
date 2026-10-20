@@ -639,7 +639,7 @@ console.log('12-return-from-presenter.png taken')
    *
    *  THE SAMPLER WATCHES THE FLIGHT BY ITS STATE, NOT BY THE CLOCK. Its first frame is taken before
    *  the press (`act` waits for it) and must show `from`; it then samples until a frame shows `to`
-   *  (`closed` unmounted, `open` landed with nothing flying), and every painted frame between gets a
+   *  (`closed` unmounted, `open` landed with nothing flying, or with `byPose` at rest by pose), and every painted frame between gets a
    *  rAF callback, so it has seen every frame of the flight at whatever frame rate the machine draws.
    *  It must also see at least one frame IN FLIGHT (`data-palette-flying`): a page that stopped
    *  marking its flights would otherwise read `open` on the second frame and end the watch early.
