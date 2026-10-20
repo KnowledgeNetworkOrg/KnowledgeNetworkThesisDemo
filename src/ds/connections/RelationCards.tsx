@@ -99,29 +99,32 @@ export interface RelTipFit { width: number; leftWidth: number; rightWidth: numbe
 
 interface RelTipGroup { sourceLabel: string; sourcePathParts?: string[]; items: readonly RelItem[] }
 
-/** a stacked group spends 6px more on a bracket and spine than a flat one; both shapes read it */
-function relTipGrouped(group: RelTipGroup): boolean {
-  const targets = new Set(group.items.map((it) => it.targetId)).size
-  return targets > 1 || group.items.length > targets
-}
-
 /* the card's border, the card's padX, the group row's pad, the source wrapper's pad and the row's
-   two gaps; a bracket or a stacked spine adds one more gap and its own hairline */
+   two gaps. The two hairlines are separate costs, because `RelSourceGroup` draws them on separate
+   rules: the left bracket when the group has more than one TARGET, the right spine when any one
+   target has more than one KIND. Each is 1px, its 2px of margin and one more gap — 6px — and a
+   group with several targets, one of them reached two ways, draws both. */
 function relTipChrome(group: RelTipGroup): number {
-  return 2 + TM.padX * 2 + M.rowPad * 2 + 4 + M.rowGap * 2 + (relTipGrouped(group) ? 6 : 0)
+  const perTarget = new Map<string, number>()
+  for (const it of group.items) perTarget.set(it.targetId, (perTarget.get(it.targetId) ?? 0) + 1)
+  const bracket = perTarget.size > 1
+  const spine = [...perTarget.values()].some((n) => n > 1)
+  return 2 + TM.padX * 2 + M.rowPad * 2 + 4 + M.rowGap * 2 + (bracket ? 6 : 0) + (spine ? 6 : 0)
 }
 
-/** THE NARROWEST CONNECTOR THAT DRAWS A KIND LABEL WHOLE in the two lines `NodeArrow` gives it.
- *  A cut here is the card's own fault even when both names are full: "implemented with" at the
- *  floor of 38 loses its last characters. The search is on the helper the arrow itself draws
- *  through, so the number cannot drift from the rendering. */
-function tipArrowWidth(label: string): number {
+/** THE NARROWEST CONNECTOR THAT DRAWS A KIND LABEL WHOLE in the two lines `NodeArrow` gives it,
+ *  up to `cap`. A cut here is the card's own fault even when both names are full: "implemented
+ *  with" at the floor of 38 loses its last characters. The search is on the helper the arrow
+ *  itself draws through, so the number cannot drift from the rendering. A label that does not draw
+ *  whole even at the cap gets the cap: the two pills' floors come first, and a connector as wide
+ *  as the card would leave them nothing. */
+function tipArrowWidth(label: string, cap: number): number {
   const flat = (s: string) => s.replace(/\s+/g, '')
   const whole = flat(label)
   const draws = (w: number) => flat(fitLines(label, w, { fontPx: 9, pad: 0 }).join('')) === whole
   if (draws(M.arrowMin)) return M.arrowMin
   let lo: number = M.arrowMin
-  let hi: number = TM.maxWidth
+  let hi: number = Math.max(M.arrowMin, cap)
   while (lo < hi) {
     const mid = Math.floor((lo + hi) / 2)
     if (draws(mid)) hi = mid
@@ -130,51 +133,57 @@ function tipArrowWidth(label: string): number {
   return lo
 }
 
-export function relTipFit(group: RelTipGroup, available: number = TM.maxWidth + 8): RelTipFit {
+/** what one group's names ask for, before any cap — the widths `relTipFitAcross` takes the maxima of */
+function relTipNeeds(group: RelTipGroup) {
   const chip = (text: string, weight: number, fontPx = 12) =>
     Math.ceil(measure(text, weight, fontPx, 'ui')) + CHIP_METRICS.padXQuiet * 2 + usedStroke(CHIP_METRICS.quietBorder) * 2 + TM.safety
   const path = (group.sourcePathParts || []).filter(Boolean).join(' / ')
-  const leftWidth = Math.max(M.pillMin, chip(group.sourceLabel, 700), path ? chip(path + ' /', 500, CHIP_METRICS.pathFontPx) : 0)
-  const rightWidth = group.items.reduce<number>((widest, it) => Math.max(widest, chip(it.targetTitle, 500)), M.pillMin)
-  const arrowWidth = group.items.reduce<number>((widest, it) => Math.max(widest, tipArrowWidth(it.kindLabel)), TM.arrow)
   const chrome = relTipChrome(group)
-  const natural = chrome + leftWidth + rightWidth + arrowWidth
-  const width = Math.round(Math.max(TM.minWidth, Math.min(TM.maxWidth, available, natural)))
-  const room = width - chrome - arrowWidth
-  if (leftWidth + rightWidth <= room) return { width, leftWidth, rightWidth, arrowWidth }
-  const scale = Math.max(0, room) / (leftWidth + rightWidth)
-  const l = Math.max(M.pillMin, Math.floor(leftWidth * scale))
-  const r = Math.max(M.pillMin, Math.floor(rightWidth * scale))
-  return { width, leftWidth: l, rightWidth: r, arrowWidth }
+  const arrowCap = TM.maxWidth - chrome - M.pillMin * 2
+  return {
+    chrome,
+    leftWidth: Math.max(M.pillMin, chip(group.sourceLabel, 700), path ? chip(path + ' /', 500, CHIP_METRICS.pathFontPx) : 0),
+    rightWidth: group.items.reduce<number>((widest, it) => Math.max(widest, chip(it.targetTitle, 500)), M.pillMin),
+    arrowWidth: group.items.reduce<number>((widest, it) => Math.max(widest, tipArrowWidth(it.kindLabel, arrowCap)), TM.arrow),
+  }
 }
 
-/** ONE CARD, SEVERAL GROUPS. Each group is fitted against its own names and the card takes the
- *  largest answer field by field, because a direct and a via group share one width. Taking the
- *  maxima can put a row wider than the card — a group whose pills were already scaled for the cap
- *  beside a short group that kept its full target — so the shared pills give way together once
- *  more. The chrome used is the LARGEST the card's shapes spend, because the field that set the
- *  width may belong to the flatter one. */
+/** THE TWO PILLS GIVE WAY TOGETHER, and the floor is kept without breaking the sum. Scaling both
+ *  and then raising each to `pillMin` is not a fit: a long source beside a short target scales
+ *  the target under the floor, the floor puts it back, and the pair is over `room` by the
+ *  difference. So a pill that lands under the floor is held at it, and the other pill takes what
+ *  is left. */
+function sharePills(left: number, right: number, room: number): [number, number] {
+  if (left + right <= room) return [left, right]
+  const scale = Math.max(0, room) / (left + right)
+  const l = Math.floor(left * scale)
+  const r = Math.floor(right * scale)
+  if (l < M.pillMin) return [M.pillMin, Math.max(M.pillMin, Math.min(right, room - M.pillMin))]
+  if (r < M.pillMin) return [Math.max(M.pillMin, Math.min(left, room - M.pillMin)), M.pillMin]
+  return [l, r]
+}
+
+export function relTipFit(group: RelTipGroup, available: number = TM.maxWidth + 8): RelTipFit {
+  return relTipFitAcross([group], available)
+}
+
+/** ONE CARD, SEVERAL GROUPS. A direct and a via group share one width, so the card takes the
+ *  largest NEED field by field — the names as measured, before any group is fitted on its own —
+ *  and fits that once. Fitting each group first and then the maxima again scaled a long source
+ *  twice, and could scale pills on a card that was still under its cap. The chrome used is the
+ *  LARGEST the card's shapes spend, because the field that set the width may belong to the
+ *  flatter one. */
 export function relTipFitAcross(groups: readonly RelTipGroup[], available: number = TM.maxWidth + 8): RelTipFit {
   const live = groups.filter((g) => g.items.length)
   if (!live.length) return { width: TM.minWidth, leftWidth: M.pillMin, rightWidth: M.pillMin, arrowWidth: TM.arrow }
-  const fits = live.map((g) => relTipFit(g, available))
-  let width: number = TM.minWidth
-  let leftWidth: number = M.pillMin
-  let rightWidth: number = M.pillMin
-  let arrowWidth: number = TM.arrow
-  for (const f of fits) {
-    width = Math.max(width, f.width)
-    leftWidth = Math.max(leftWidth, f.leftWidth)
-    rightWidth = Math.max(rightWidth, f.rightWidth)
-    arrowWidth = Math.max(arrowWidth, f.arrowWidth)
-  }
-  const chrome = live.reduce((most, g) => Math.max(most, relTipChrome(g)), 0)
-  const room = width - chrome - arrowWidth
-  if (leftWidth + rightWidth > room) {
-    const scale = Math.max(0, room) / (leftWidth + rightWidth)
-    leftWidth = Math.max(M.pillMin, Math.floor(leftWidth * scale))
-    rightWidth = Math.max(M.pillMin, Math.floor(rightWidth * scale))
-  }
+  const needs = live.map(relTipNeeds)
+  const most = (field: 'chrome' | 'leftWidth' | 'rightWidth' | 'arrowWidth') => Math.max(...needs.map((n) => n[field]))
+  const chrome = most('chrome')
+  const natural = chrome + most('leftWidth') + most('rightWidth') + most('arrowWidth')
+  const width = Math.round(Math.max(TM.minWidth, Math.min(TM.maxWidth, available, natural)))
+  /* a narrow window can leave the card under what the connector asked for: the pills' floors win */
+  const arrowWidth = Math.max(TM.arrow, Math.min(most('arrowWidth'), width - chrome - M.pillMin * 2))
+  const [leftWidth, rightWidth] = sharePills(most('leftWidth'), most('rightWidth'), width - chrome - arrowWidth)
   return { width, leftWidth, rightWidth, arrowWidth }
 }
 

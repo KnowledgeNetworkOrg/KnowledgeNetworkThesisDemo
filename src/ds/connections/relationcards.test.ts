@@ -51,10 +51,48 @@ describe('the group header — a sentence in a card, caps and count in a list', 
 describe('relTipFit — the hover card is sized to its names (OB-272)', () => {
   const target = (title: string): RelItem => ({ ...item(title, title), targetTitle: title })
 
-  it('the owner\'s via pair fits between the card\'s floor and its cap', () => {
+  /* what `RelSourceGroup` spends beside the three boxes: border, padX, row pad, source pad and two
+     gaps, plus 6 for the left bracket (2+ targets) and 6 for a right spine (a target with 2+ kinds) */
+  const chromeOf = (bracket: boolean, spine: boolean) =>
+    2 + REL_TIP_METRICS.padX * 2 + REL_CARD_METRICS.rowPad * 2 + 4 + REL_CARD_METRICS.rowGap * 2 + (bracket ? 6 : 0) + (spine ? 6 : 0)
+  const fits = (f: { width: number; leftWidth: number; rightWidth: number; arrowWidth: number }, chrome: number) =>
+    f.leftWidth + f.rightWidth + f.arrowWidth + chrome <= f.width && f.leftWidth >= REL_CARD_METRICS.pillMin && f.rightWidth >= REL_CARD_METRICS.pillMin
+
+  it('the owner\'s via pair is sized by its names: wider than a short pair, within the cap', () => {
     const f = relTipFit({ sourceLabel: 'Graph Theory', sourcePathParts: ['Discrete Mathematics'], items: [target('Graph Representations')] })
-    expect(f.width).toBeGreaterThanOrEqual(REL_TIP_METRICS.minWidth)
+    const short = relTipFit({ sourceLabel: 'AB', items: [target('CD')] })
+    expect(short.width).toBe(REL_TIP_METRICS.minWidth)
+    expect(f.width).toBeGreaterThan(short.width)
     expect(f.width).toBeLessThanOrEqual(REL_TIP_METRICS.maxWidth)
+  })
+
+  it('a group that draws BOTH the bracket and a spine budgets both, so no pill overhangs', () => {
+    const f = relTipFit({ sourceLabel: 'Implication & Vacuous Truth', items: [
+      { ...target('Tautologies & Contradictions'), key: 'a' },
+      { ...target('Tautologies & Contradictions'), key: 'b', kindLabel: 'see also' },
+      { ...target('Set Theory & Functions'), key: 'c' },
+    ] })
+    expect(f.width).toBe(REL_TIP_METRICS.maxWidth)
+    expect(fits(f, chromeOf(true, true))).toBe(true)
+  })
+
+  it('a long source beside a short target keeps the floor without breaking the sum', () => {
+    const f = relTipFit({ sourceLabel: 'Implication & Vacuous Truth, Tautologies & Contradictions', items: [target('Logic')] })
+    expect(f.width).toBe(REL_TIP_METRICS.maxWidth)
+    expect(f.rightWidth).toBe(REL_CARD_METRICS.pillMin)
+    expect(fits(f, chromeOf(false, false))).toBe(true)
+  })
+
+  it('a kind label too long to draw whole leaves both pills their floor', () => {
+    const f = relTipFit({ sourceLabel: 'Trees & Heaps', items: [{ ...target('File Systems'), kindLabel: 'implemented with a very long and unusual relation wording' }] })
+    expect(f.arrowWidth).toBeLessThan(REL_TIP_METRICS.maxWidth)
+    expect(fits(f, chromeOf(false, false))).toBe(true)
+  })
+
+  it('a narrow window gives the pills their floors before the connector', () => {
+    const f = relTipFit({ sourceLabel: 'Trees & Heaps', items: [{ ...target('File Systems'), kindLabel: 'implemented with' }] }, 200)
+    expect(f.width).toBe(REL_TIP_METRICS.minWidth)
+    expect(fits(f, chromeOf(false, false))).toBe(true)
   })
 
   it('the longest corpus pair stops exactly at the cap', () => {
@@ -79,12 +117,18 @@ describe('relTipFit — the hover card is sized to its names (OB-272)', () => {
     const fitB = relTipFit(b)
     /* the field-by-field maxima alone are wider than the card: this is the case the rescale exists
        for, and the first assertion watches it stay a real case rather than a vacuous one */
-    const chrome = 2 + REL_TIP_METRICS.padX * 2 + REL_CARD_METRICS.rowPad * 2 + 4 + REL_CARD_METRICS.rowGap * 2
+    const chrome = chromeOf(false, false)
     const maxLeft = Math.max(fitA.leftWidth, fitB.leftWidth)
     const maxRight = Math.max(fitA.rightWidth, fitB.rightWidth)
     const fit = relTipFitAcross([a, b])
     expect(maxLeft + maxRight + fit.arrowWidth + chrome).toBeGreaterThan(fit.width)
-    expect(fit.leftWidth + fit.rightWidth + fit.arrowWidth + chrome).toBeLessThanOrEqual(fit.width)
+    expect(fits(fit, chrome)).toBe(true)
+  })
+
+  it('scales a long source ONCE: a short group with the same target changes nothing', () => {
+    const a = { sourceLabel: 'Implication & Vacuous Truth', items: [target('Tautologies & Contradictions')] }
+    const b = { sourceLabel: 'AB', items: [target('Tautologies & Contradictions')] }
+    expect(relTipFitAcross([a, b])).toEqual(relTipFit(a))
   })
 })
 
