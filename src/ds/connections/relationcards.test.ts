@@ -6,8 +6,10 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
+import { fitLines } from '../graph/NodeArrow'
+
 import type { RelItem } from './RelationCards'
-import { REL_CARD_PARTS, REL_TIP_METRICS, RelSourceGroup, relTipFit } from './RelationCards'
+import { REL_CARD_METRICS, REL_CARD_PARTS, REL_TIP_METRICS, RelSourceGroup, relTipFit, relTipFitAcross } from './RelationCards'
 
 const item = (targetId: string, key: string, kindLabel = 'uses'): RelItem => ({
   key, targetId, targetTitle: targetId.toUpperCase(), kindLabel, kindColor: 'var(--edge-uses)', heads: 'out',
@@ -62,6 +64,27 @@ describe('relTipFit — the hover card is sized to its names (OB-272)', () => {
 
   it('is published beside the group header', () => {
     expect(REL_CARD_PARTS.tipFit).toBe(relTipFit)
+  })
+
+  it('widens the connector so a kind label is not cut', () => {
+    const f = relTipFit({ sourceLabel: 'Trees & Heaps', items: [{ ...target('File Systems'), kindLabel: 'implemented with' }] })
+    expect(f.arrowWidth).toBeGreaterThan(REL_TIP_METRICS.arrow)
+    expect(fitLines('implemented with', f.arrowWidth, { fontPx: 9, pad: 0 }).join('').replace(/\s+/g, '')).toBe('implementedwith')
+  })
+
+  it('shares one width across groups and rescales the shared pills so no row overhangs it', () => {
+    const a = { sourceLabel: 'Regular Expressions & Automata', items: [target('Set Theory & Functions')] }
+    const b = { sourceLabel: 'AB', items: [target('Discrete Mathematics & Graphs')] }
+    const fitA = relTipFit(a)
+    const fitB = relTipFit(b)
+    /* the field-by-field maxima alone are wider than the card: this is the case the rescale exists
+       for, and the first assertion watches it stay a real case rather than a vacuous one */
+    const chrome = 2 + REL_TIP_METRICS.padX * 2 + REL_CARD_METRICS.rowPad * 2 + 4 + REL_CARD_METRICS.rowGap * 2
+    const maxLeft = Math.max(fitA.leftWidth, fitB.leftWidth)
+    const maxRight = Math.max(fitA.rightWidth, fitB.rightWidth)
+    const fit = relTipFitAcross([a, b])
+    expect(maxLeft + maxRight + fit.arrowWidth + chrome).toBeGreaterThan(fit.width)
+    expect(fit.leftWidth + fit.rightWidth + fit.arrowWidth + chrome).toBeLessThanOrEqual(fit.width)
   })
 })
 

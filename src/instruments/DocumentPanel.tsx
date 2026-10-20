@@ -38,7 +38,7 @@ import {
   DocHeader, groupViaBySource, LEGEND_INSET, NodePreviewCard, NodePreviewLayer, ORBIT_SELF,
   PaneScroller, PanePlaceholder, PREVIEW_LAYER_METRICS, PreviewBanner, railFits, REL_CARD_PARTS,
   relationLook, RelationsRail, RelationsRailCorner, relationStats, RelSourceGroup, REL_TIP_METRICS,
-  relTipFit, SectionLabel, usePaneWidth, viaSourceDomain, WalkCard,
+  relTipFitAcross, SectionLabel, usePaneWidth, viaSourceDomain, WalkCard,
 } from '@/ds'
 import type { PreviewController, Relation, RelItem } from '@/ds'
 
@@ -87,23 +87,13 @@ function OrbitCard({ hotKey, focusId }: OrbitCardProps) {
   }
   const directItems = direct.map((r) => itemOf(r, r.id))
   const viaGroups = groupViaBySource(via).map((g) => ({ ...g, items: g.items.map((v, i) => itemOf(v.rel, v.rel.id + '-' + i)) }))
-  /* THE CARD'S GROUPS SHARE ONE WIDTH, so each is fitted to its own names and the card takes the
-     largest answer field by field. The window is the room: the card may leave the pane now. */
+  /* THE CARD'S GROUPS SHARE ONE WIDTH, and the window is the room: the card may leave the pane now. */
   const room = (typeof window !== 'undefined' ? window.innerWidth : REL_TIP_METRICS.maxWidth + PREVIEW_LAYER_METRICS.inset * 2) - PREVIEW_LAYER_METRICS.inset * 2
   const fitGroups = [
     ...(direct.length ? [{ sourceLabel: n.title, sourcePathParts: [] as string[], items: directItems }] : []),
     ...viaGroups.map((g) => ({ sourceLabel: g.node.title, sourcePathParts: g.pathParts, items: g.items })),
   ]
-  let width: number = REL_TIP_METRICS.minWidth
-  let leftWidth = 50, rightWidth = 50, arrowWidth: number = REL_TIP_METRICS.arrow
-  for (const g of fitGroups) {
-    if (!g.items.length) continue
-    const fit = relTipFit(g, room)
-    width = Math.max(width, fit.width)
-    leftWidth = Math.max(leftWidth, fit.leftWidth)
-    rightWidth = Math.max(rightWidth, fit.rightWidth)
-    arrowWidth = Math.max(arrowWidth, fit.arrowWidth)
-  }
+  const { width, leftWidth, rightWidth, arrowWidth } = relTipFitAcross(fitGroups, room)
   return (
     <div data-orbit-card="rel" style={{
       width, boxSizing: 'border-box', background: 'var(--surface-raised)', border: '1px solid var(--border-rule)',

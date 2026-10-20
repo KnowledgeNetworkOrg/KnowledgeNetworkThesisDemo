@@ -2,7 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { topicPaint } from '../graph/DomainDot'
 import { relationPaint } from '../graph/EdgeLegend'
-import { NodeArrow } from '../graph/NodeArrow'
+import { fitLines, NodeArrow } from '../graph/NodeArrow'
 import { CHIP_METRICS, NodeChip, usedStroke } from '../graph/NodeChip'
 import { measure } from '../graph/textMeasure'
 import { Caret } from '../nav/TreeRow'
@@ -83,10 +83,11 @@ export const REL_CARD_METRICS = {
 const M = REL_CARD_METRICS
 
 /** THE HOVER CARD'S OWN NUMBERS, where it is not simply a list card. `minWidth`/`maxWidth` bound
- *  a card sized to the names it holds; `arrow` is the connector it keeps once the names have taken
- *  theirs; `padX` is the card's horizontal padding on top of the row's own; `safety` absorbs the
- *  canvas/DOM measurement gap at the chip's edge. All CHOSEN — the cap is what stops one long pair
- *  covering the map, and the floor is what stops a short pair reading as a tooltip. */
+ *  a card sized to the names it holds; `arrow` is the connector's floor — `relTipFit` widens it
+ *  when a kind label needs more to draw whole; `padX` is the card's horizontal padding on top of
+ *  the row's own; `safety` absorbs the canvas/DOM measurement gap at the chip's edge. All CHOSEN
+ *  — the cap is what stops one long pair covering the map, and the floor is what stops a short
+ *  pair reading as a tooltip. */
 export const REL_TIP_METRICS = { minWidth: 200, maxWidth: 360, padX: 12, arrow: 38, safety: 4 } as const
 const TM = REL_TIP_METRICS
 
@@ -96,21 +97,47 @@ const TM = REL_TIP_METRICS
  *  stops at the cap rather than one name overhanging it. */
 export interface RelTipFit { width: number; leftWidth: number; rightWidth: number; arrowWidth: number }
 
-export function relTipFit(
-  group: { sourceLabel: string; sourcePathParts?: string[]; items: readonly RelItem[] },
-  available: number = TM.maxWidth + 8,
-): RelTipFit {
+interface RelTipGroup { sourceLabel: string; sourcePathParts?: string[]; items: readonly RelItem[] }
+
+/** a stacked group spends 6px more on a bracket and spine than a flat one; both shapes read it */
+function relTipGrouped(group: RelTipGroup): boolean {
+  const targets = new Set(group.items.map((it) => it.targetId)).size
+  return targets > 1 || group.items.length > targets
+}
+
+/* the card's border, the card's padX, the group row's pad, the source wrapper's pad and the row's
+   two gaps; a bracket or a stacked spine adds one more gap and its own hairline */
+function relTipChrome(group: RelTipGroup): number {
+  return 2 + TM.padX * 2 + M.rowPad * 2 + 4 + M.rowGap * 2 + (relTipGrouped(group) ? 6 : 0)
+}
+
+/** THE NARROWEST CONNECTOR THAT DRAWS A KIND LABEL WHOLE in the two lines `NodeArrow` gives it.
+ *  A cut here is the card's own fault even when both names are full: "implemented with" at the
+ *  floor of 38 loses its last characters. The search is on the helper the arrow itself draws
+ *  through, so the number cannot drift from the rendering. */
+function tipArrowWidth(label: string): number {
+  const flat = (s: string) => s.replace(/\s+/g, '')
+  const whole = flat(label)
+  const draws = (w: number) => flat(fitLines(label, w, { fontPx: 9, pad: 0 }).join('')) === whole
+  if (draws(M.arrowMin)) return M.arrowMin
+  let lo: number = M.arrowMin
+  let hi: number = TM.maxWidth
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2)
+    if (draws(mid)) hi = mid
+    else lo = mid + 1
+  }
+  return lo
+}
+
+export function relTipFit(group: RelTipGroup, available: number = TM.maxWidth + 8): RelTipFit {
   const chip = (text: string, weight: number, fontPx = 12) =>
     Math.ceil(measure(text, weight, fontPx, 'ui')) + CHIP_METRICS.padXQuiet * 2 + usedStroke(CHIP_METRICS.quietBorder) * 2 + TM.safety
   const path = (group.sourcePathParts || []).filter(Boolean).join(' / ')
   const leftWidth = Math.max(M.pillMin, chip(group.sourceLabel, 700), path ? chip(path + ' /', 500, CHIP_METRICS.pathFontPx) : 0)
   const rightWidth = group.items.reduce<number>((widest, it) => Math.max(widest, chip(it.targetTitle, 500)), M.pillMin)
-  const arrowWidth = TM.arrow
-  /* the card's border, the card's padX, the group row's pad, the source wrapper's pad and the
-     row's two gaps; a bracket or a stacked spine adds one more gap and its own hairline */
-  const targets = new Set(group.items.map((it) => it.targetId)).size
-  const grouped = targets > 1 || group.items.length > targets
-  const chrome = 2 + TM.padX * 2 + M.rowPad * 2 + 4 + M.rowGap * 2 + (grouped ? 6 : 0)
+  const arrowWidth = group.items.reduce<number>((widest, it) => Math.max(widest, tipArrowWidth(it.kindLabel)), TM.arrow)
+  const chrome = relTipChrome(group)
   const natural = chrome + leftWidth + rightWidth + arrowWidth
   const width = Math.round(Math.max(TM.minWidth, Math.min(TM.maxWidth, available, natural)))
   const room = width - chrome - arrowWidth
@@ -119,6 +146,36 @@ export function relTipFit(
   const l = Math.max(M.pillMin, Math.floor(leftWidth * scale))
   const r = Math.max(M.pillMin, Math.floor(rightWidth * scale))
   return { width, leftWidth: l, rightWidth: r, arrowWidth }
+}
+
+/** ONE CARD, SEVERAL GROUPS. Each group is fitted against its own names and the card takes the
+ *  largest answer field by field, because a direct and a via group share one width. Taking the
+ *  maxima can put a row wider than the card — a group whose pills were already scaled for the cap
+ *  beside a short group that kept its full target — so the shared pills give way together once
+ *  more. The chrome used is the LARGEST the card's shapes spend, because the field that set the
+ *  width may belong to the flatter one. */
+export function relTipFitAcross(groups: readonly RelTipGroup[], available: number = TM.maxWidth + 8): RelTipFit {
+  const live = groups.filter((g) => g.items.length)
+  if (!live.length) return { width: TM.minWidth, leftWidth: M.pillMin, rightWidth: M.pillMin, arrowWidth: TM.arrow }
+  const fits = live.map((g) => relTipFit(g, available))
+  let width: number = TM.minWidth
+  let leftWidth: number = M.pillMin
+  let rightWidth: number = M.pillMin
+  let arrowWidth: number = TM.arrow
+  for (const f of fits) {
+    width = Math.max(width, f.width)
+    leftWidth = Math.max(leftWidth, f.leftWidth)
+    rightWidth = Math.max(rightWidth, f.rightWidth)
+    arrowWidth = Math.max(arrowWidth, f.arrowWidth)
+  }
+  const chrome = live.reduce((most, g) => Math.max(most, relTipChrome(g)), 0)
+  const room = width - chrome - arrowWidth
+  if (leftWidth + rightWidth > room) {
+    const scale = Math.max(0, room) / (leftWidth + rightWidth)
+    leftWidth = Math.max(M.pillMin, Math.floor(leftWidth * scale))
+    rightWidth = Math.max(M.pillMin, Math.floor(rightWidth * scale))
+  }
+  return { width, leftWidth, rightWidth, arrowWidth }
 }
 
 /** HOW ONE RELATION DRAWS: the label is the corpus's own wording when it carries one
