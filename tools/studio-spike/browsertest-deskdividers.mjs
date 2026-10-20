@@ -4,9 +4,10 @@
 // boundaries DRAG, that each pane stops at the floor it declares, that a resting
 // divider draws nothing, and that a double-click/keyboard reset returns the
 // composition to its preset split. It drives the launch composition (a drag on each
-// seam, with the sidebar open), Explore (two panes, one seam) and Plan (three panes,
-// two seams, no walk palette since #416), then a narrow window where the declared
-// floors cannot all fit.
+// seam, with the sidebar open), that the desk follows the row through a palette
+// close instead of stepping once it lands, Explore (two panes, one seam) and Plan
+// (three panes, two seams, no walk palette since #416), then a narrow window where
+// the declared floors cannot all fit.
 //
 // The floor is read from the pane's own `data-pane-fit`, so the driver is checking
 // the number the pane published rather than a number retyped here.
@@ -31,7 +32,7 @@ const errors = []
 const checks = []
 const ok = (name, cond, detail = '') => {
   checks.push(`${cond ? 'PASS' : 'FAIL'}  ${name}${detail ? '   ' + detail : ''}`)
-  if (!cond) errors.push(name + (detail ? ' - ' + detail : ''))
+  if (!cond) errors.push(name + (detail ? ' — ' + detail : ''))
   return cond
 }
 const near = (a, b, tol) => Math.abs(a - b) <= tol
@@ -96,6 +97,29 @@ const openPalette = async () => {
     await page.waitForTimeout(600)
   }
 }
+const closePaletteTraced = async () => {
+  await page.evaluate(() => {
+    const row = document.querySelector('[data-desk-row]')
+    const trace = []
+    window.__deskGapTrace = trace
+    const started = performance.now()
+    const tick = () => {
+      const r = row.getBoundingClientRect()
+      const shown = [...row.querySelectorAll('[aria-label^="studio-pane-"]')]
+        .filter((el) => getComputedStyle(el).display !== 'none')
+      const last = shown[shown.length - 1]
+      if (last) {
+        const b = last.getBoundingClientRect()
+        trace.push({ gap: r.right - b.right, rowLeft: r.left })
+      }
+      if (performance.now() - started < 900) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  })
+  await page.locator('[data-toolbar-hook="palette-toggle"]').click()
+  await page.waitForTimeout(1000)
+  return page.evaluate(() => window.__deskGapTrace)
+}
 
 try {
   await page.goto(`http://localhost:${PORT}/`)
@@ -151,6 +175,22 @@ try {
   ok('nudging a stopped seam moves neither the boundary nor the third pane',
     near(afterKeys.map, stopped.map, 1) && near(afterKeys.unfoldgraph, stopped.unfoldgraph, 1) && near(afterKeys.document, preKeys.document, 1),
     `${JSON.stringify(preKeys)} -> ${JSON.stringify(stopped)} -> ${JSON.stringify(afterKeys)}`)
+
+  // ── The palette's flight: the desk widens over time, not in one frame ─────
+  // Closing the sidebar gives the row the sidebar's width. The last pane's right
+  // edge must stay on the row's through the flight, and no single frame may carry
+  // half the move — the lurch `paletteStyle` exists to prevent.
+  const gapTrace = await closePaletteTraced()
+  const gapWorst = gapTrace.length ? Math.max(...gapTrace.map((s) => Math.abs(s.gap))) : Infinity
+  const rowFirst = gapTrace[0]?.rowLeft ?? 0
+  const rowLast = gapTrace[gapTrace.length - 1]?.rowLeft ?? 0
+  const rowMove = Math.abs(rowLast - rowFirst)
+  let rowStep = 0
+  for (let i = 1; i < gapTrace.length; i++) rowStep = Math.max(rowStep, Math.abs(gapTrace[i].rowLeft - gapTrace[i - 1].rowLeft))
+  ok('the last pane follows the row through the palette close', gapWorst <= 2, `worst gap ${gapWorst.toFixed(1)}px across ${gapTrace.length} frames`)
+  ok('the palette close widens the desk over many frames, not one', rowMove > 50 && rowStep <= rowMove / 2, `${rowMove.toFixed(1)}px total, largest frame ${rowStep.toFixed(1)}px`)
+  ok('the palette-close trace saw the flight', gapTrace.length >= 5, `${gapTrace.length} frames`)
+  await openPalette()
 
   // ── Explore: one seam, two panes ──────────────────────────────────────────
   await page.getByLabel('studio-preset-explore').click()

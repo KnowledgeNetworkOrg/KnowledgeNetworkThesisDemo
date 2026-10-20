@@ -36,7 +36,7 @@ import { FAMILIES } from './families'
 import type { Family } from './families'
 import { byInstrument, flattenSlots, INSTRUMENTS, lensTypeOf, PRESETS } from './instruments'
 import type { Instrument, InstrumentId, Preset, Slot } from './instruments'
-import { DESK_DIVIDER_MARGIN, deskAvailable, deskFits, dragDesk, fixedWidth, initialFractions } from './desk'
+import { DESK_DIVIDER_MARGIN, DESK_GUTTER, deskAvailable, deskFits, dragDesk, fixedWidth, initialFractions } from './desk'
 import type { DeskColumn } from './desk'
 
 /** the palette's fly-to-the-toolbar transition, in ms. It MUST equal
@@ -426,9 +426,10 @@ export default function StudioView() {
   // with no explicit flex of its own now needs one passed: see the strips
   // mapping below.
   //
-  // THE ROW IS MEASURED FOR THE PANES' WIDTHS AND THE HANDLES' BOUNDS, but not while
-  // the palette flies: the panes are pixel widths derived from that measurement, and
-  // measuring during the flight would re-render every pane on every frame.
+  // THE ROW IS MEASURED FOR THE HANDLES' BOUNDS, not the panes' widths: those
+  // follow the row in CSS, so the palette's flight grows them a frame at a time
+  // instead of landing in one. Measuring is skipped during the flight all the same —
+  // each measurement re-renders every pane, and the bounds are only read at rest.
   useLayoutEffect(() => {
     if (paletteAnim) return
     const el = deskRowRef.current
@@ -492,7 +493,8 @@ export default function StudioView() {
   const flexFits = flexIndices.map((i) => columnFits[i])
   const fractionKey = presetId ?? columnSlots.map((c) => c.key).join('|')
   const available = deskAvailable(deskWidth, columnSlots.length)
-  const flexAvailable = Math.max(0, available - fixedWidths.reduce<number>((sum, w) => sum + (w ?? 0), 0))
+  const fixedTotal = fixedWidths.reduce<number>((sum, w) => sum + (w ?? 0), 0)
+  const flexAvailable = Math.max(0, available - fixedTotal)
   const presetFractions = initialFractions(flexSlots, flexMap)
   const stored = deskSizes[fractionKey]
   const fractions = stored && stored.length === flexSlots.length ? stored : presetFractions
@@ -504,12 +506,17 @@ export default function StudioView() {
   const columnStyle = (i: number): CSSProperties => {
     const fixed = fixedWidths[i]
     if (fixed !== null) return { order: i * 2, flex: `0 0 ${fixed}px` }
+    // A width relative to the row, not a pixel snapshot taken from it: at rest it
+    // is the fraction times the row's flexible space, and it tracks a resize or a
+    // palette flight on the compositor instead of waiting for a re-render.
+    const gutters = Math.max(0, columnSlots.length - 1) * DESK_GUTTER
+    const fraction = Math.max(0, drawnFractions[flexIndexAt[i]] ?? 0)
     return {
       order: i * 2,
       minWidth: 0,
       boxSizing: 'border-box',
       flex: '0 1 auto',
-      width: drawnFlexSizes[flexIndexAt[i]] ?? 0,
+      width: `calc((100% - ${gutters + fixedTotal}px) * ${fraction})`,
     }
   }
 
