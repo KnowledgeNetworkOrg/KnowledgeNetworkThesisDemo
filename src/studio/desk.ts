@@ -14,15 +14,18 @@ export interface DeskColumn {
   members: readonly Instrument[]
 }
 
-/** The gap between the desk's children - the row's own `gap-3`, which a divider
- *  sits inside on both sides. */
+/** The gap between the desk's children - the row's own `gap-3`. */
 export const DESK_GUTTER = 12
 
-/** The row width the panes may divide: the measured row less each divider strip
- *  and the gutter either side of it. */
+/** The strip straddles that gutter rather than sitting beside it, so a seam costs
+ *  the gutter the row already had and no more. */
+export const DESK_DIVIDER_MARGIN = -(PANE_DIVIDER_METRICS.hit + DESK_GUTTER) / 2
+
+/** The row width the panes may divide: the measured row less the gutters between
+ *  them. The strip adds nothing, because it is drawn over a gutter. */
 export function deskAvailable(rowWidth: number, columns: number): number {
   const seams = Math.max(0, columns - 1)
-  return Math.max(0, rowWidth - seams * (PANE_DIVIDER_METRICS.hit + 2 * DESK_GUTTER))
+  return Math.max(0, rowWidth - seams * DESK_GUTTER)
 }
 
 /** A stack's fit is the strongest of its members': the same column holds them all,
@@ -71,9 +74,10 @@ export function initialFractions(
   return total > 0 ? sizes.map((v) => v / total) : raw.map(() => 1 / n)
 }
 
-/** Widths from fractions, with every floor respected and the total kept. A pane
- *  whose share is under its floor is pinned there and the rest share the room it
- *  leaves; only when the floors together exceed the row does the desk overflow. */
+/** Widths from fractions, with every floor respected while the row can hold them.
+ *  A pane whose share is under its floor is pinned there and the rest share the
+ *  room it leaves. When the floors together exceed the row the panes shrink in
+ *  their fractions instead: a floor limits a drag, it does not make the row wider. */
 export function fitSizes(
   fractions: readonly number[],
   available: number,
@@ -83,7 +87,10 @@ export function fitSizes(
   if (!n) return []
   if (fits.length !== n || !(available > 0)) return fractions.map((f) => f * Math.max(0, available))
   const floors = fits.map((f) => paneFit(f).floor)
-  if (floors.reduce((s, v) => s + v, 0) > available) return floors
+  if (floors.reduce((s, v) => s + v, 0) > available) {
+    const weightTotal = fractions.reduce((s, f) => s + Math.max(0, f), 0)
+    return fractions.map((f) => (weightTotal > 0 ? (available * Math.max(0, f)) / weightTotal : available / n))
+  }
   const pinned = new Set<number>()
   let pinnedSum = 0
   for (;;) {

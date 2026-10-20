@@ -134,17 +134,17 @@ describe('OB-249 — every pane\'s first line sits on one shared line', () => {
   })
 })
 
-/* OB-170: the pane owns its width floor. The DS publishes `PaneFit`, but the FRAME is what
- * must not draw under it, so the host half lives here: the normalised floor becomes the
- * frame's own `minWidth` and a stable `data-pane-fit` reading for a driver. */
-describe('OB-170 - a pane applies the floor it declares', () => {
+/* OB-170: the pane publishes its width floor. The DS publishes `PaneFit`, but the FRAME is
+ * what a driver reads it from, so the host half lives here: the normalised floor becomes
+ * `data-pane-fit`. It is not a CSS minimum - the row decides how narrow the pane may get. */
+describe('OB-170 — a pane publishes the floor it declares', () => {
   it('reads the floor through the published normaliser, not a raw field', () => {
     expect(paneSource).toContain("import { paneFit } from './PaneDivider'")
     expect(paneSource).toContain('const floor = fit ? paneFit(fit).floor : null')
   })
 
-  it('publishes the floor on the frame and makes it the frame\'s minimum', () => {
+  it('publishes the floor on the frame without making it the frame\'s minimum', () => {
     expect(paneSource).toContain('data-pane-fit={floor === null ? undefined : floor}')
-    expect(paneSource).toContain("...(floor !== null && floor > 0 ? { minWidth: floor } : null),")
+    expect(paneSource).not.toContain('minWidth: floor')
   })
 })

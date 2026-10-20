@@ -36,7 +36,7 @@ import { FAMILIES } from './families'
 import type { Family } from './families'
 import { byInstrument, flattenSlots, INSTRUMENTS, lensTypeOf, PRESETS } from './instruments'
 import type { Instrument, InstrumentId, Preset, Slot } from './instruments'
-import { deskAvailable, deskFits, dragDesk, fitSizes, fractionsOf, initialFractions } from './desk'
+import { DESK_DIVIDER_MARGIN, deskAvailable, deskFits, dragDesk, fitSizes, fractionsOf, initialFractions } from './desk'
 import type { DeskColumn } from './desk'
 
 /** the palette's fly-to-the-toolbar transition, in ms. It MUST equal
@@ -492,7 +492,7 @@ export default function StudioView() {
 
   const columnStyle = (i: number): CSSProperties => ({
     order: i * 2,
-    minWidth: columnFits[i]?.floor ?? 0,
+    minWidth: 0,
     flex: `${Math.max(0, drawnFractions[i] ?? 1)} 1 0%`,
   })
 
@@ -521,7 +521,7 @@ export default function StudioView() {
   }
   const onDividerEnd = (index: number, delta: number) => {
     const next = dragAt(index, delta)
-    if (next) setDeskSizes((prev) => ({ ...prev, [fractionKey]: next.fractions }))
+    if (next && delta !== 0) setDeskSizes((prev) => ({ ...prev, [fractionKey]: next.fractions }))
     setDeskLive(null)
     dragBase.current = null
   }
@@ -574,7 +574,7 @@ export default function StudioView() {
         now={bounds.now}
         min={bounds.min}
         max={bounds.max}
-        style={{ order: i * 2 + 1 }}
+        style={{ order: i * 2 + 1, marginLeft: DESK_DIVIDER_MARGIN, marginRight: DESK_DIVIDER_MARGIN }}
       />
     )
   }

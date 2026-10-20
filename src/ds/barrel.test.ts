@@ -1,3 +1,7 @@
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import { describe, expect, it } from 'vitest'
 
 import { adjacentDuplicates, DropVerdict, verdictPaint, ARROW_BOW_MAX_DEG, ARROW_MIN_SHAFT_HEADS, Bullet, labelCase, LabelCut, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, ExplorerRail, ExplorerRailCorner, ExplorerRailMath, explorerRailWidth, FindMark, FIRST_LINE, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_DIVIDER_METRICS, PaneDivider, paneFit, clampDesk, deskBounds, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, REPLAY_PATH, STOP_CARD_METRICS, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StepDotMath, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkComplete, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
@@ -361,6 +365,11 @@ describe('ported but not adopted DS components', () => {
     // the row a preview banner reserves, drawn or not (OB-209), and the placeholder's floor
     expect(PREVIEW_BANNER_METRICS.height).toBe(16)
     expect(PANE_PLACEHOLDER_METRICS.minHeight).toBe(120)
+  })
+
+  it('PROVENANCE.json parses, so every lane can append to and rebase the record', () => {
+    const file = join(dirname(fileURLToPath(import.meta.url)), 'PROVENANCE.json')
+    expect(() => JSON.parse(readFileSync(file, 'utf8'))).not.toThrow()
   })
 
   // `nestedFamilyPaint` / `familySlots` / `FAMILY_SLOTS` are NOT listed here because

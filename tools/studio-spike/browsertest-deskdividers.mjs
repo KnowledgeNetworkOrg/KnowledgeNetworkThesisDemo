@@ -49,6 +49,30 @@ const widths = async (ids) => Object.fromEntries(await Promise.all(ids.map(async
 const floorOf = async (id) => Number(await pane(id).getAttribute('data-pane-fit'))
 const dividers = () => page.locator('[data-desk-row] > [role="separator"]')
 const park = async () => { await page.mouse.move(4, 4); await page.waitForTimeout(220) }
+const pageOverflow = () => page.evaluate(() => ({
+  scroll: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+  width: document.documentElement.clientWidth,
+}))
+const offscreen = async (ids) => {
+  const vw = await page.evaluate(() => window.innerWidth)
+  const bad = []
+  for (const id of ids) {
+    const b = await pane(id).boundingBox()
+    if (!b || b.x < -1 || b.x + b.width > vw + 1) bad.push(`${id} ${JSON.stringify(b)}`)
+  }
+  const found = dividers()
+  for (let i = 0; i < await found.count(); i++) {
+    const b = await found.nth(i).boundingBox()
+    if (!b || b.x < -1 || b.x + b.width > vw + 1) bad.push(`seam ${i} ${JSON.stringify(b)}`)
+  }
+  return { bad, vw }
+}
+const checkFits = async (label, ids) => {
+  const o = await pageOverflow()
+  ok(`${label}: the page does not scroll sideways`, o.scroll <= o.width + 1, JSON.stringify(o))
+  const { bad, vw } = await offscreen(ids)
+  ok(`${label}: every pane and handle is reachable`, bad.length === 0, `${bad.join('; ')} (viewport ${vw})`)
+}
 
 const drag = async (divider, dx) => {
   const b = await divider.boundingBox()
@@ -77,6 +101,7 @@ try {
   await page.evaluate(() => localStorage.clear())
   await page.reload()
   await page.waitForTimeout(800)
+  await checkFits('the opening composition at 1280 with the sidebar open', ['map', 'unfoldgraph', 'document'])
 
   // ── Explore: one seam, two panes ──────────────────────────────────────────
   await page.getByLabel('studio-preset-explore').click()
@@ -159,13 +184,20 @@ try {
   ok('the map|document seam drags and stops at the document\'s floor', near(planRight.document, planDocFloor, 2), `${planRight.document}px, floor ${planDocFloor}`)
   ok('...while the walk editor keeps the floor it had reached', near(planRight.walkeditor, editorFloor, 2), `${planRight.walkeditor}px`)
 
-  // ── A window narrower than the floors together ────────────────────────────
+  // ── Floors exceed the row: the panes shrink, the page does not scroll ─────
+  await openPalette()
+  await page.waitForTimeout(700)
+  await checkFits('Plan at 1280 with the sidebar open', ['walkeditor', 'map', 'document'])
+
   await page.setViewportSize({ width: 1100, height: 800 })
   await page.waitForTimeout(700)
+  await checkFits('Plan at 1100 with the sidebar open', ['walkeditor', 'map', 'document'])
+
   const narrow = await widths(['walkeditor', 'map', 'document'])
-  ok('a narrow window does not starve any Plan pane under its floor',
-    narrow.walkeditor >= editorFloor - 1 && narrow.map >= planMapFloor - 1 && narrow.document >= planDocFloor - 1,
-    `${JSON.stringify(narrow)} against ${editorFloor}/${planMapFloor}/${planDocFloor}`)
+  const row = await page.locator('[data-desk-row]').boundingBox()
+  ok('a narrow row shrinks the panes instead of widening the desk',
+    row && narrow.walkeditor + narrow.map + narrow.document <= row.width + 1,
+    `${JSON.stringify(narrow)} in ${row?.width}px`)
 } catch (e) {
   errors.push('exception: ' + (e && e.stack ? e.stack : String(e)))
 }

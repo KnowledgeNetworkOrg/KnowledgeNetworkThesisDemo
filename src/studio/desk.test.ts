@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { railFloor } from '@/ds'
 
 import {
+  DESK_DIVIDER_MARGIN,
   DESK_GUTTER,
   deskAvailable,
   deskFits,
@@ -44,11 +45,15 @@ describe('OB-170 - every pane declares its own floor', () => {
 })
 
 describe('OB-170 - the desk divides the measured row', () => {
-  it('each seam costs the divider strip and a gutter either side', () => {
+  it('each seam costs only the gutter it already had', () => {
     expect(deskAvailable(1000, 1)).toBe(1000)
-    expect(deskAvailable(1000, 2)).toBe(1000 - 14 - 2 * DESK_GUTTER)
-    expect(deskAvailable(1000, 3)).toBe(1000 - 2 * (14 + 2 * DESK_GUTTER))
+    expect(deskAvailable(1000, 2)).toBe(1000 - DESK_GUTTER)
+    expect(deskAvailable(1000, 3)).toBe(1000 - 2 * DESK_GUTTER)
     expect(deskAvailable(10, 3)).toBe(0)
+  })
+
+  it('the strip straddles that gutter instead of taking room of its own', () => {
+    expect(DESK_DIVIDER_MARGIN).toBe(-(14 + DESK_GUTTER) / 2)
   })
 
   it("Explore's preset split starts from its own weights", () => {
@@ -73,8 +78,10 @@ describe('OB-170 - the desk divides the measured row', () => {
     expect(sizes).toEqual([604, 396])
   })
 
-  it('only when the floors together exceed the row does the desk overflow', () => {
-    expect(fitSizes([0.5, 0.5], 700, [{ floor: 400 }, { floor: 396 }])).toEqual([400, 396])
+  it('when the floors together exceed the row the panes shrink to fit it', () => {
+    const sizes = fitSizes([0.5, 0.5], 700, [{ floor: 400 }, { floor: 396 }])
+    expect(sizes).toEqual([350, 350])
+    expect(sizes[0] + sizes[1]).toBe(700)
   })
 })
 
@@ -94,7 +101,7 @@ describe('OB-170 - the drag is the same clamp as the bounds', () => {
   it('a pane already under its floor gives nothing back', () => {
     const sizes = fitSizes([0.5, 0.5], 700, [{ floor: 400 }, { floor: 396 }])
     const moved = dragDesk({ fractions: fractionsOf(sizes), available: 700, fits: [{ floor: 400 }, { floor: 396 }], index: 0, delta: 100 })
-    expect(moved.sizes).toEqual([400, 396])
+    expect(moved.sizes).toEqual([350, 350])
   })
 
   it('sizes convert back to fractions that sum to one', () => {
