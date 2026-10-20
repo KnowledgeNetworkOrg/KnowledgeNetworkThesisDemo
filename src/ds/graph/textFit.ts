@@ -92,9 +92,9 @@ export interface LabelCaseProps {
 /** THE PAPER CASE A CELL NAME IS DRAWN IN, as the SVG props to spread onto the `<text>` — never a
  *  recipe to retype (OB-223). A map cell's name is written over its own fill, over its parent's
  *  ghost heading, and (while selected) over a wash that darkens both; measured on the shipped map
- *  on 2026-09-18, a selected name fell to 1.31:1 where it crossed a ghost stroke, which is the same
- *  ink twice. The case is the answer the owner picked at 1:1: a paper stroke UNDER the glyphs, so
- *  the word carries its own background wherever it lands.
+ *  on 2026-09-18, a selected name fell to 1.31:1 where it crossed another name's ink, which is the
+ *  same ink twice. The case is the answer the owner picked at 1:1: a paper stroke UNDER the glyphs,
+ *  so the word carries its own background wherever it lands.
  *
  *  `paintOrder: 'stroke'` is the load-bearing half — it draws the stroke first and the fill over it,
  *  so the letterform keeps its exact weight; without it the case eats the glyph from both sides and
@@ -102,7 +102,7 @@ export interface LabelCaseProps {
  *  missing.
  *
  *  3.5px is CHOSEN, judged at 1:1 against 2.5 and 5 on the same page: 2.5 leaves about a pixel of
- *  paper each side of a stem and breaks up where a ghost stroke crosses, 5 fills the counters and
+ *  paper each side of a stem and breaks up where another name crosses, 5 fills the counters and
  *  turns two nearby names into one blob. `LabelCut.casePx` carries the number.
  *
  *  THE ARGUMENT IS THE STROKE WIDTH IN THE CALLER'S OWN UNITS — a host that draws in world units
@@ -112,8 +112,8 @@ export interface LabelCaseProps {
  *  EVERY CELL NAME WEARS IT, SELECTED OR NOT (owner, 2026-09-18). A case that arrives on selection
  *  makes the label's own drawing a second selection channel, blinking on and off as the user clicks
  *  around, on top of the boundary and the wash that already say it. Worn always, the label's
- *  drawing never changes and no name anywhere on the map depends on what is behind it being light
- *  — which is what lets the ghost be an opaque mid-tone (`topicPaint().ghost`). */
+ *  drawing never changes and no name anywhere on the map depends on what is behind it being light.
+ *  A GHOST HEADING DOES NOT WEAR IT (OB-271): its pale tone already reads as background. */
 export function labelCase(strokeWidth?: number): LabelCaseProps {
   return { paintOrder: 'stroke', stroke: 'var(--surface-paper)', strokeWidth: strokeWidth == null ? 3.5 : strokeWidth, strokeLinejoin: 'round' }
 }

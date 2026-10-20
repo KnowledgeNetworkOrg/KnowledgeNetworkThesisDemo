@@ -1,8 +1,8 @@
 // THE MAP'S LABEL LAYER (#324 seam 4) — the `pointerEvents="none"` group that
 // draws every name on the map: the active grain in full ink, the one ghost
-// heading above it, and the rules for their ink, case and the one ghost that
-// steps aside under the cursor. The fitting is `useMapLabelFit` (maplabelfit.ts);
-// the pure arithmetic is `model/labelfit.ts`.
+// heading above it, and the rules for their ink and the one ghost that steps
+// aside under the cursor. The fitting is `useMapLabelFit` (maplabelfit.ts); the
+// pure arithmetic is `model/labelfit.ts`.
 
 import { LabelCut, topicPaintValues } from '@/ds'
 import { ROOT_ID, topicHueOf } from '../../corpus/graph'
@@ -13,29 +13,6 @@ import { parentOf } from '../../model/nav'
 import type { Territory } from '../../model/nested'
 import { ancLabelO, DOMAIN_NAME_WEIGHT } from './maplabelfit'
 import type { MapLabelFit, MapRootLabelFit } from './maplabelfit'
-
-/** THE PARENT LAYER'S NAME GETS A CASE OF ITS OWN, and it is that — not the
- *  opacity alone — that makes the ghost legible (owner, 2026-08-28: the parent
- *  headings are too faint, make them more visible).
- *
- *  The ghost is set in the region's OWN hue over that region's own fill, so it is
- *  tint on tint: at 0.15 it read as a stain rather than a word, and simply
- *  turning it up muddies into the fill instead of separating from it — more ink,
- *  still no edge. A white case gives the glyphs a boundary, and with one the same
- *  word carries at far less ink than it would need bare. So the opacity moves
- *  0.15 → 0.32 AND the case arrives; either half alone is the wrong fix.
- *
- *  DELIBERATELY THINNER AND SOFTER THAN THE ACTIVE GRAIN'S CASE (2.4 at 0.85):
- *  the ghost is context, not the stratum being read, and must not come forward
- *  far enough to compete with the names on the level you are actually on. The
- *  element's own `opacity` still multiplies fill and case together, so the hover
- *  fade to 0.03 keeps working untouched — the ghost you are standing inside
- *  still steps aside.
- *
- *  OB-223: the ghost's FILL is no longer the region's hue at 0.32 alpha but one opaque tone per hue
- *  (`ghostOf`, below), drawn at full opacity and above every fill and every wash — this case is
- *  unchanged and still rides on top of that tone. */
-const GHOST_CASE = { stroke: '#ffffff', strokeWidth: 3.2, strokeOpacity: 0.75 }
 
 export interface MapLabelsProps {
   level: number
@@ -55,16 +32,6 @@ export interface MapLabelsProps {
 }
 
 export function MapLabels({ level, labelFit, rootLabelFit, px, worldFsToPx, onScreen, mounted, isActive, isMuted, sel, hover }: MapLabelsProps) {
-  /** the parent layer's case, applied ONLY where a name is acting as a ghost.
-   *  A domain name at L0 and a module name at L1 are the ACTIVE grain, not
-   *  context — they are the level you are reading — and they keep exactly the
-   *  treatment they shipped with. The same element draws both roles, so the
-   *  distinction has to be made per render rather than per component. */
-  const ghostCase = (on: boolean) =>
-    on
-      ? { stroke: GHOST_CASE.stroke, strokeWidth: px(GHOST_CASE.strokeWidth), strokeOpacity: GHOST_CASE.strokeOpacity, paintOrder: 'stroke' }
-      : {}
-
   // ── item 10: "labels blocking when zoomed in" ────────────────────────────
   // The watermark never blocked a CLICK — every label layer is pointerEvents:
   // none. What it blocked was READING: 26px of parent name lying across the
@@ -81,7 +48,8 @@ export function MapLabels({ level, labelFit, rootLabelFit, px, worldFsToPx, onSc
    *  from `topicPaintValues().ghost` — the JS-resolved twin of `topicPaint().ghost`, because a
    *  `var()` in an SVG presentation attribute is not something this map trusts (an unknown hue
    *  would otherwise draw nothing). One value per hue, so a heading reads the SAME colour over every
-   *  child it spans, selected or not; what the cell beneath it is doing is none of its business. */
+   *  child it spans, selected or not; what the cell beneath it is doing is none of its business.
+   *  A ghost heading wears NO OUTLINE (OB-271): its pale tone already sits behind the active names. */
   const ghostOf = (id: string) => topicPaintValues(topicHueOf(id)).ghost.css
 
   // ── labels: the active grain in full ink, ONE ghost above it. No capital dots
@@ -130,7 +98,6 @@ export function MapLabels({ level, labelFit, rootLabelFit, px, worldFsToPx, onSc
                opaque tone for its hue (OB-223) */
             fill={level === 0 ? colorOf(c.key) : ghostOf(c.key)}
             opacity={level === 0 ? 0.55 : ancLabelOAt(level, c.key)}
-            {...ghostCase(level !== 0)}
             style={{ userSelect: 'none', transition: 'opacity 350ms' }}
           >
             {fit.lines.map((ln, i) => (
@@ -157,7 +124,7 @@ export function MapLabels({ level, labelFit, rootLabelFit, px, worldFsToPx, onSc
                level it is the GHOST heading, in the one opaque tone for its hue */
             fill={level === 1 ? (sel === m.key ? selectedInkOf(m.key) : labelInkOf(m.key)) : ghostOf(m.key)}
             opacity={level === 1 ? 0.9 : ancLabelOAt(level - 1, m.key)}
-            {...(level === 1 ? LabelCut.case(px(LabelCut.casePx)) : ghostCase(true))}
+            {...(level === 1 ? LabelCut.case(px(LabelCut.casePx)) : {})}
             style={{ userSelect: 'none', transition: 'opacity 350ms' }}
           >
             {fit.lines.map((ln, i) => (
@@ -181,7 +148,6 @@ export function MapLabels({ level, labelFit, rootLabelFit, px, worldFsToPx, onSc
               fontWeight={800}
               fill={ghostOf(t.id)}
               opacity={ancLabelOAt(1, t.id)}
-              {...ghostCase(true)}
               style={{ userSelect: 'none', transition: 'opacity 200ms' }}
             >
               {labelFit.ghost.get(t.id)!.lines.map((ln, i) => (

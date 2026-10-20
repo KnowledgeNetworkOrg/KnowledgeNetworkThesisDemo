@@ -16,7 +16,8 @@
 //
 //   1. RESOLVE      each stop to the cell that is actually on screen at this
 //                   level (`walkAnchorAt`) — deep stops roll up to an ancestor,
-//                   shallow ones clamp onto their own centroid.
+//                   shallow ones clamp onto their own centroid. Also carries the
+//                   stop's own centre, which a one-stop pin sits on (OB-274).
 //   2. MERGE        a contiguous run of stops on one cell becomes ONE pin spanning
 //                   `step`..`stepEnd`; a later return to the same cell stays a
 //                   separate pin (OB-069). A run never merges across an
@@ -48,7 +49,7 @@
 // the finished picture, so the check belongs at the end of the pipeline, where
 // nothing can come after it and reintroduce the fault.
 
-import { cellPolyOf, pinSpotClear, walkAnchorAt } from './atlas'
+import { cellPolyOf, flightTargetOf, pinSpotClear, walkAnchorAt } from './atlas'
 import type { XY } from './derive'
 import type { LabelBox } from './labelfit'
 
@@ -114,6 +115,8 @@ export const pinSizeFor = (n: number): number => Math.max(PIN_SIZE_MIN, PIN_SIZE
 interface Resolved {
   visId: string
   c: XY
+  /** the stop's own centre — where a one-stop pin goes (OB-274) */
+  ownC: XY
   step: number
   optional: boolean
 }
@@ -121,6 +124,7 @@ interface Resolved {
 interface Merged {
   visId: string
   c: XY
+  ownC: XY
   steps: number[]
   optional: boolean
 }
@@ -134,7 +138,7 @@ function resolved(route: string[], level: number, optional: readonly boolean[]):
   const out: Resolved[] = []
   for (let i = 0; i < route.length; i++) {
     const anchor = walkAnchorAt(route[i], level)
-    if (anchor) out.push({ visId: anchor.visId, c: anchor.c, step: i, optional: optional[i] === true })
+    if (anchor) out.push({ visId: anchor.visId, c: anchor.c, ownC: flightTargetOf(route[i])?.c ?? anchor.c, step: i, optional: optional[i] === true })
   }
   return out
 }
@@ -162,7 +166,7 @@ function merged(stops: Resolved[]): Merged[] {
   for (const s of stops) {
     const last = out[out.length - 1]
     if (last && last.visId === s.visId && last.optional === s.optional) last.steps.push(s.step)
-    else out.push({ visId: s.visId, c: s.c, steps: [s.step], optional: s.optional })
+    else out.push({ visId: s.visId, c: s.c, ownC: s.ownC, steps: [s.step], optional: s.optional })
   }
   return out
 }
@@ -250,13 +254,15 @@ export function walkPins({ route, level, px, labelBoxes, optional = [] }: WalkPi
   const crowdSize = new Map<number, number>()
   for (const id of crowdOf) crowdSize.set(id, (crowdSize.get(id) ?? 0) + 1)
 
-  // 4 — fan the pins that want the SAME point. Only exact coincidence, which in
-  //     practice means several separate visits to one cell: an evenly-spaced arc
-  //     around the shared centre (OB-087). Pins that merely landed NEAR each
-  //     other keep their own cell's centre and are dealt with by stage 6 —
-  //     arcing them around a point between their cells would drag each one off
-  //     the territory it names, and a pin outside its own cell is a worse lie
-  //     than a crowded one.
+  // 4 — fan pins that want the SAME point. Only exact coincidence: separate runs
+  //     on one cell share an ancestor centre, and an evenly-spaced arc keeps them
+  //     apart (OB-087). A ONE-STOP pin keeps that arc while its own cell is the
+  //     one drawn; once the map draws an ancestor instead it belongs on the
+  //     stop's centre (OB-274), and stage 6 separates a crowd from there. Pins
+  //     that merely landed NEAR each other keep their own cell's centre and are
+  //     left to stage 6 — arcing them around a point between their cells would
+  //     drag each one off the territory it names, and a pin outside its own cell
+  //     is a worse lie than a crowded one.
   const spotKey = (c: XY) => `${c.x.toFixed(4)},${c.y.toFixed(4)}`
   const sameSpotTotal = new Map<string, number>()
   for (const g of groups) sameSpotTotal.set(spotKey(g.c), (sameSpotTotal.get(spotKey(g.c)) ?? 0) + 1)
@@ -264,22 +270,28 @@ export function walkPins({ route, level, px, labelBoxes, optional = [] }: WalkPi
 
   const pins: WalkPin[] = groups.map((g, i) => {
     const size = pinSizeFor(crowdSize.get(crowdOf[i])!)
+    const single = g.steps.length === 1
     const spot = spotKey(g.c)
     const together = sameSpotTotal.get(spot)!
     let c = g.c
+    // OB-274: where the drawn cell is an ancestor, a ONE-STOP pin sits on the
+    // stop itself so the light and the pin give the same answer; a merged run
+    // keeps the ancestor, because it stands for the whole cell.
     if (together > 1) {
       const idx = placedAtSpot.get(spot) ?? 0
       placedAtSpot.set(spot, idx + 1)
       const angle = (2 * Math.PI * idx) / together - Math.PI / 2
       const radius = px(size * 1.3 + 6) // clears a same-size neighbour, plus a gap
-      c = { x: g.c.x + Math.cos(angle) * radius, y: g.c.y + Math.sin(angle) * radius }
-    }
+      if (single && g.visId !== route[g.steps[0]]) c = g.ownC
+      else c = { x: g.c.x + Math.cos(angle) * radius, y: g.c.y + Math.sin(angle) * radius }
+    } else if (single) c = g.ownC
     // 5 — EVERY LABEL DRAWN AT THIS LEVEL, not just this cell's own. Past the
     //     level where a stop owns a cell its own label is gone and its
     //     CHILDREN's names are what the pin can land on — same fault, different
     //     owner. `pinSpotClear` does the proximity filtering; handing it the
     //     whole set keeps the decision about which labels count in one place.
-    c = pinSpotClear(c, cellPolyOf(g.visId, g.c), labelBoxes, px(size / 2))
+    const poly = single ? cellPolyOf(route[g.steps[0]], g.ownC) : cellPolyOf(g.visId, g.c)
+    c = pinSpotClear(c, poly, labelBoxes, px(size / 2))
     // WHAT THE PIN PRINTS IS NOT DECIDED HERE. Until DS OB-188 (2026-09-15) this
     // minted a top-level step number or a hyphenated range; the map now prints the
     // stop's two-number ADDRESS (`walkMarkLabel` over the walk's steps), so the
