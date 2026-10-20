@@ -3,7 +3,8 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { topicPaint } from '../graph/DomainDot'
 import { relationPaint } from '../graph/EdgeLegend'
 import { NodeArrow } from '../graph/NodeArrow'
-import { NodeChip } from '../graph/NodeChip'
+import { CHIP_METRICS, NodeChip, usedStroke } from '../graph/NodeChip'
+import { measure } from '../graph/textMeasure'
 import { Caret } from '../nav/TreeRow'
 
 /** ONE RELATIONSHIP, DECOMPOSED — one entry per (target, kind). Not the corpus's own edge
@@ -80,6 +81,45 @@ export const REL_CARD_METRICS = {
   pillMin: 50, pillMax: 200, cardMax: 620, groupChrome: 13, safety: 8,
 } as const
 const M = REL_CARD_METRICS
+
+/** THE HOVER CARD'S OWN NUMBERS, where it is not simply a list card. `minWidth`/`maxWidth` bound
+ *  a card sized to the names it holds; `arrow` is the connector it keeps once the names have taken
+ *  theirs; `padX` is the card's horizontal padding on top of the row's own; `safety` absorbs the
+ *  canvas/DOM measurement gap at the chip's edge. All CHOSEN — the cap is what stops one long pair
+ *  covering the map, and the floor is what stops a short pair reading as a tooltip. */
+export const REL_TIP_METRICS = { minWidth: 200, maxWidth: 360, padX: 12, arrow: 38, safety: 4 } as const
+const TM = REL_TIP_METRICS
+
+/** WHAT THE HOVER CARD NEEDS TO BE, given one group of relationships and the room it has. The
+ *  names decide the two chips; the connector keeps its own floor; the card is the sum, clamped to
+ *  `minWidth`/`maxWidth`. When the sum is over the cap the pills give way together, so the card
+ *  stops at the cap rather than one name overhanging it. */
+export interface RelTipFit { width: number; leftWidth: number; rightWidth: number; arrowWidth: number }
+
+export function relTipFit(
+  group: { sourceLabel: string; sourcePathParts?: string[]; items: readonly RelItem[] },
+  available: number = TM.maxWidth + 8,
+): RelTipFit {
+  const chip = (text: string, weight: number, fontPx = 12) =>
+    Math.ceil(measure(text, weight, fontPx, 'ui')) + CHIP_METRICS.padXQuiet * 2 + usedStroke(CHIP_METRICS.quietBorder) * 2 + TM.safety
+  const path = (group.sourcePathParts || []).filter(Boolean).join(' / ')
+  const leftWidth = Math.max(M.pillMin, chip(group.sourceLabel, 700), path ? chip(path + ' /', 500, CHIP_METRICS.pathFontPx) : 0)
+  const rightWidth = group.items.reduce<number>((widest, it) => Math.max(widest, chip(it.targetTitle, 500)), M.pillMin)
+  const arrowWidth = TM.arrow
+  /* the card's border, the card's padX, the group row's pad, the source wrapper's pad and the
+     row's two gaps; a bracket or a stacked spine adds one more gap and its own hairline */
+  const targets = new Set(group.items.map((it) => it.targetId)).size
+  const grouped = targets > 1 || group.items.length > targets
+  const chrome = 2 + TM.padX * 2 + M.rowPad * 2 + 4 + M.rowGap * 2 + (grouped ? 6 : 0)
+  const natural = chrome + leftWidth + rightWidth + arrowWidth
+  const width = Math.round(Math.max(TM.minWidth, Math.min(TM.maxWidth, available, natural)))
+  const room = width - chrome - arrowWidth
+  if (leftWidth + rightWidth <= room) return { width, leftWidth, rightWidth, arrowWidth }
+  const scale = Math.max(0, room) / (leftWidth + rightWidth)
+  const l = Math.max(M.pillMin, Math.floor(leftWidth * scale))
+  const r = Math.max(M.pillMin, Math.floor(rightWidth * scale))
+  return { width, leftWidth: l, rightWidth: r, arrowWidth }
+}
 
 /** HOW ONE RELATION DRAWS: the label is the corpus's own wording when it carries one
  *  (`kindLabel`), else the palette's example label, else the raw kind; the stroke is always
@@ -258,7 +298,7 @@ function RelGroupHeader({ label, count, open, onClick, sentence }: { label: stri
  *  and a HOVER CARD that holds one group mounts it with `sentence` (OB-242) — "1 direct
  *  relationship". `groupHeaderSentence(label, count)` is the wording rule on its own: the plural
  *  and the word order are the component's, so no call site carries a pluralisation of its own. */
-export const REL_CARD_PARTS = { GroupHeader: RelGroupHeader, groupHeaderSentence, viaSourceDomain: viaSourceDomain }
+export const REL_CARD_PARTS = { GroupHeader: RelGroupHeader, groupHeaderSentence, viaSourceDomain: viaSourceDomain, tipFit: relTipFit }
 
 /* ONE RULE PER BOUNDARY, and it governs both row forms below (DS OB-195, owner 2026-09-16: "is it
    necessary to have the two dividers between each card… it looks a bit distracting"). Every card
@@ -342,9 +382,12 @@ export interface RelSourceGroupProps {
   onHoverTarget?: (block: TargetBlock | null) => void
   /** the pointer is on the source, and this source is the centre */
   onHoverCenter?: (on: boolean) => void
+  /** this group is drawn in the HOVER card, whose widths were fitted to its names. Off, every
+   *  width and line count is exactly the list's, so the rail's card list does not move */
+  tip?: boolean
 }
 
-export function RelSourceGroup({ sourceLabel, sourcePathParts, sourceDomain, items, leftWidth, rightWidth, arrowWidth, sourceIsCenter, onSelectSource, onHoverTarget, onHoverCenter }: RelSourceGroupProps) {
+export function RelSourceGroup({ sourceLabel, sourcePathParts, sourceDomain, items, leftWidth, rightWidth, arrowWidth, sourceIsCenter, onSelectSource, onHoverTarget, onHoverCenter, tip }: RelSourceGroupProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
   const [sourceHovered, setSourceHovered] = useState(false)
   const targets = groupItemsByTarget(items)
@@ -391,7 +434,7 @@ export function RelSourceGroup({ sourceLabel, sourcePathParts, sourceDomain, ite
           cursor: onSelectSource ? 'pointer' : 'default',
         }}
       >
-        <NodeChip mark="border-2" title={sourceLabel} path={sourcePathParts} domain={sourceDomain} focus width={leftWidth} maxLines={Math.max(2, Math.min(4, items.length + 1))} />
+        <NodeChip mark="border-2" title={sourceLabel} path={sourcePathParts} domain={sourceDomain} focus width={leftWidth} maxLines={tip ? 4 : Math.max(2, Math.min(4, items.length + 1))} />
       </div>
       {bracket ? <div data-rel-bracket="1" style={{ width: 1, background: 'var(--border-hair)', opacity: 0.45, flexShrink: 0, margin: '4px 1px' }} /> : null}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: M.blockGap }}>
@@ -428,7 +471,7 @@ export function RelSourceGroup({ sourceLabel, sourcePathParts, sourceDomain, ite
               <NodeArrow fill label={t.rels[0].kindLabel} color={t.rels[0].kindColor} heads={t.rels[0].heads} width={arrowWidth} />
             )}
             <div onClick={t.onSelect} style={{ cursor: t.onSelect ? 'pointer' : 'default', flexShrink: 0 }}>
-              <NodeChip mark="border-2" title={t.targetTitle} domain={t.targetDomain} width={rightWidth} maxLines={Math.max(2, Math.min(4, t.rels.length + 1))} />
+              <NodeChip mark="border-2" title={t.targetTitle} domain={t.targetDomain} width={rightWidth} maxLines={tip ? 4 : Math.max(2, Math.min(4, t.rels.length + 1))} />
             </div>
           </div>
         ))}

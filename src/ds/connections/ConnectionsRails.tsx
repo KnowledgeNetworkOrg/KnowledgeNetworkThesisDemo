@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import type { ComponentType, CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 
 import { topicPaint } from '../graph/DomainDot'
 
@@ -66,10 +67,11 @@ export function NodePreviewCard({ domain, title, summary, contains }: NodePrevie
  *
  *  `rect` is the layer's own bounding box; the result is in the layer's coordinates, so the card
  *  is positioned absolutely inside it. */
-export function previewPlacement(clientX: number, clientY: number, rect: DOMRect, avoid?: DOMRect | null, boxW?: number): { x: number; y: number } {
+export function previewPlacement(clientX: number, clientY: number, rect: DOMRect, avoid?: DOMRect | null, boxW?: number, boxH?: number): { x: number; y: number } {
   const W = boxW || LM.tipW
+  const H = boxH || LM.tipH
   const x = clientX - rect.left + LM.offsetX, y = clientY - rect.top + LM.offsetY
-  const clampY = (v: number) => Math.max(LM.inset, Math.min(v, rect.height - LM.tipH - LM.inset))
+  const clampY = (v: number) => Math.max(LM.inset, Math.min(v, rect.height - H - LM.inset))
   /* BESIDE A THING, NOT UNDER THE POINTER — the second placement, and it exists because the first
      cannot serve a figure (2026-09-20). A pointer-anchored card clamped to the pane is right for
      a LIST: the rows are the full width, so sliding the card back by its overhang lands it on
@@ -89,7 +91,7 @@ export function previewPlacement(clientX: number, clientY: number, rect: DOMRect
     const raw = onLeft ? (avoid.left - rect.left) - W - LM.offsetX : (avoid.right - rect.left) + LM.offsetX
     return {
       x: Math.max(LM.inset, Math.min(raw, rect.width - W - LM.inset)),
-      y: clampY(clientY - rect.top - LM.tipH / 2),
+      y: clampY(clientY - rect.top - H / 2),
     }
   }
   return {
@@ -136,12 +138,28 @@ export interface NodePreviewLayerProps<P = NodePreviewCardProps> {
    *  `StopCard`, say). The placement and the clamp are unchanged */
   card?: ComponentType<P>
   /** the mount's width — and the width the CLAMP uses, so an `avoid` placement lands where it
-   *  is computed to. Set it from `previewGutter` whenever the card must clear a figure */
+   *  is computed to. Set it from `previewGutter` whenever the card must clear a figure. Ignored
+   *  in window mode, where the card's own measured box decides */
   width?: number
+  /** what the card is clamped against. `'layer'` (the default) keeps it inside this pane; `'window'`
+   *  portals it to the body and clamps it against the viewport, so a card may cross a seam. In
+   *  window mode it is measured and placed in a layout effect, hidden until it has a position */
+  bounds?: 'layer' | 'window'
 }
 
-/* where a raised card currently is, in the layer's own coordinates */
-interface PreviewState<P> { id: string; source?: string; x: number; y: number; info: P }
+/* where a raised card currently is, in the layer's own coordinates — or, in window mode, the
+   viewport's, with the pointer and figure that placed it kept for the measuring pass */
+interface PreviewState<P> {
+  id: string
+  source?: string
+  x: number
+  y: number
+  info: P
+  placed: boolean
+  clientX: number
+  clientY: number
+  avoid: DOMRect | null
+}
 
 /** THE PANE-WIDE TIP LAYER, as a component the rails share (OB-232). A surface that answers a
  *  node hover with a preview needs three things — a positioned layer, the clamped placement, and
@@ -157,8 +175,9 @@ interface PreviewState<P> { id: string; source?: string; x: number; y: number; i
  *  arbitration — and it is the caller's word, not a guess from the event.
  *
  *  The card is pointer-transparent: it must never take the hover that raised it. */
-export function NodePreviewLayer<P = NodePreviewCardProps>({ children, style, card, width }: NodePreviewLayerProps<P>) {
+export function NodePreviewLayer<P = NodePreviewCardProps>({ children, style, card, width, bounds = 'layer' }: NodePreviewLayerProps<P>) {
   const [preview, setPreview] = useState<PreviewState<P> | null>(null)
+  const cardRef = useRef<HTMLDivElement | null>(null)
   const Card = card ?? (NodePreviewCard as unknown as ComponentType<P>)
   /* `opts.avoid` is an ELEMENT, not a rect: the caller has a ref to its figure and should not
      be measuring it on every pointer move — the layer already measures itself here. */
@@ -172,21 +191,45 @@ export function NodePreviewLayer<P = NodePreviewCardProps>({ children, style, ca
     const host = e.target as Element | null
     const el = host && typeof host.closest === 'function' ? host.closest('[data-tip-layer]') : null
     if (!el || !info) return
-    const r = el.getBoundingClientRect()
     const avoidEl = opts && opts.avoid
-    const at = previewPlacement(e.clientX, e.clientY, r, avoidEl && avoidEl.getBoundingClientRect ? avoidEl.getBoundingClientRect() : null, width)
+    const avoid = avoidEl && avoidEl.getBoundingClientRect ? avoidEl.getBoundingClientRect() : null
     const key = id !== undefined ? id : ((info as { id?: string }).id ?? '')
-    setPreview({ id: key, source, x: at.x, y: at.y, info })
+    if (bounds === 'window') {
+      setPreview({ id: key, source, x: 0, y: 0, info, placed: false, clientX: e.clientX, clientY: e.clientY, avoid })
+      return
+    }
+    const r = el.getBoundingClientRect()
+    const at = previewPlacement(e.clientX, e.clientY, r, avoid, width)
+    setPreview({ id: key, source, x: at.x, y: at.y, info, placed: true, clientX: e.clientX, clientY: e.clientY, avoid })
   }
   const hide = () => setPreview(null)
+  /* WINDOW MODE IS PLACED FROM ITS OWN MEASURED BOX, before the browser paints. The first pass
+     draws the card hidden so its width and height can be read; the effect then clamps it against
+     the viewport, with the same `avoid` gutter the layer mode uses. That is why it never flashes
+     at the window's top-left corner: the hidden pose is not a frame anyone sees. */
+  useLayoutEffect(() => {
+    if (bounds !== 'window' || !preview || preview.placed) return
+    const el = cardRef.current
+    if (!el || typeof window === 'undefined') return
+    const box = el.getBoundingClientRect()
+    const viewport = { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight, width: window.innerWidth, height: window.innerHeight } as DOMRect
+    const at = previewPlacement(preview.clientX, preview.clientY, viewport, preview.avoid, box.width, box.height)
+    setPreview((now) => now && !now.placed ? { ...now, x: at.x, y: at.y, placed: true } : now)
+  }, [bounds, preview])
   const hovered = preview ? { id: preview.id, source: preview.source } : null
+  const cardNode = preview && preview.info ? (
+    <div
+      ref={bounds === 'window' ? cardRef : undefined}
+      style={bounds === 'window'
+        ? { position: 'fixed', left: preview.x, top: preview.y, zIndex: 1000, pointerEvents: 'none', visibility: preview.placed ? 'visible' : 'hidden' }
+        : { position: 'absolute', left: preview.x, top: preview.y, zIndex: 1000, pointerEvents: 'none', width: width || undefined }}
+    >
+      <Card {...preview.info} />
+    </div>
+  ) : null
   return (
     <div data-tip-layer="1" style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative', ...style }}>
-      {preview && preview.info ? (
-        <div style={{ position: 'absolute', left: preview.x, top: preview.y, zIndex: 1000, pointerEvents: 'none', width: width || undefined }}>
-          <Card {...preview.info} />
-        </div>
-      ) : null}
+      {bounds === 'window' && cardNode && typeof document !== 'undefined' ? createPortal(cardNode, document.body) : cardNode}
       {typeof children === 'function' ? children({ show, hide, hovered }) : children}
     </div>
   )

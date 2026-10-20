@@ -123,8 +123,13 @@ describe('OB-249 — every pane\'s first line sits on one shared line', () => {
 
   it('DocHeader reads the pad instead of restating it', () => {
     expect(docHeaderSource).toContain("import { FIRST_ROW_PAD } from '../chrome/Pane'")
-    expect(docHeaderSource).toContain('padding: `${FIRST_ROW_PAD}px var(--space-5) 12px`')
+    expect(docHeaderSource).toContain('padding: `${FIRST_ROW_PAD}px ${aside ? \'var(--space-3)\' : \'var(--space-5)\'} 12px var(--space-5)`')
     expect(docHeaderSource).not.toMatch(/padding: '14px/)
+  })
+
+  it('DocHeader owns its row when given an aside, so the rule reaches the pane edge', () => {
+    expect(docHeaderSource).toContain('aside?: ReactNode')
+    expect(docHeaderSource).toContain("borderBottom: '1px solid var(--border-hair)'")
   })
 
   it('RailFrame\'s left rail opens its pane on the shared pad; the right rail keeps its own 6', () => {

@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
 import type { RelItem } from './RelationCards'
-import { REL_CARD_PARTS, RelSourceGroup } from './RelationCards'
+import { REL_CARD_PARTS, REL_TIP_METRICS, RelSourceGroup, relTipFit } from './RelationCards'
 
 const item = (targetId: string, key: string, kindLabel = 'uses'): RelItem => ({
   key, targetId, targetTitle: targetId.toUpperCase(), kindLabel, kindColor: 'var(--edge-uses)', heads: 'out',
@@ -43,6 +43,25 @@ describe('the group header — a sentence in a card, caps and count in a list', 
     const html = renderToStaticMarkup(createElement(Header, { label: 'direct', count: 3 }))
     expect(html).toContain('text-transform:uppercase')
     expect(html).not.toContain('data-rel-sentence')
+  })
+})
+
+describe('relTipFit — the hover card is sized to its names (OB-272)', () => {
+  const target = (title: string): RelItem => ({ ...item(title, title), targetTitle: title })
+
+  it('the owner\'s via pair fits between the card\'s floor and its cap', () => {
+    const f = relTipFit({ sourceLabel: 'Graph Theory', sourcePathParts: ['Discrete Mathematics'], items: [target('Graph Representations')] })
+    expect(f.width).toBeGreaterThanOrEqual(REL_TIP_METRICS.minWidth)
+    expect(f.width).toBeLessThanOrEqual(REL_TIP_METRICS.maxWidth)
+  })
+
+  it('the longest corpus pair stops exactly at the cap', () => {
+    const f = relTipFit({ sourceLabel: 'Implication & Vacuous Truth', items: [target('Tautologies & Contradictions')] })
+    expect(f.width).toBe(REL_TIP_METRICS.maxWidth)
+  })
+
+  it('is published beside the group header', () => {
+    expect(REL_CARD_PARTS.tipFit).toBe(relTipFit)
   })
 })
 

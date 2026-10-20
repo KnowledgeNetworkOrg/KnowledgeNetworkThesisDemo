@@ -35,10 +35,10 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
 import {
-  DocHeader, FIRST_ROW_PAD, groupViaBySource, LEGEND_INSET, NodePreviewCard, NodePreviewLayer, orbitBox, ORBIT_SELF,
-  PaneScroller, PanePlaceholder, PreviewBanner, previewGutter, railFits, REL_CARD_PARTS, relationLook,
-  RelationsRail, RelationsRailCorner, relationStats, RelSourceGroup, SectionLabel, usePaneWidth,
-  viaSourceDomain, WalkCard,
+  DocHeader, groupViaBySource, LEGEND_INSET, NodePreviewCard, NodePreviewLayer, ORBIT_SELF,
+  PaneScroller, PanePlaceholder, PREVIEW_LAYER_METRICS, PreviewBanner, railFits, REL_CARD_PARTS,
+  relationLook, RelationsRail, RelationsRailCorner, relationStats, RelSourceGroup, REL_TIP_METRICS,
+  relTipFit, SectionLabel, usePaneWidth, viaSourceDomain, WalkCard,
 } from '@/ds'
 import type { PreviewController, Relation, RelItem } from '@/ds'
 
@@ -47,16 +47,12 @@ import { DOC_BODY } from '../corpus/docs'
 import { listWalks, subscribeWalks } from '../state/walkstore'
 import type { Bus } from '../state/bus'
 import { summaryOfNode } from './corpustree'
-import { cardRelationsOf, neighbourhoodOf, neighbourLitBy, ORBIT_CARD_PAD_X, orbitCardWidths, orbitKeyParts } from './relations'
+import { cardRelationsOf, neighbourhoodOf, neighbourLitBy, orbitKeyParts } from './relations'
 import type { Neighbourhood } from './relations'
 
 /** the slice of the bus the document reads and writes — the rail's figure publishes a target on the
  *  hover channel and the hub on the centre's own (OB-230), and a foreign hover previews a node here */
 type DocumentPanelBus = Pick<Bus, 'focus' | 'hover' | 'activateWalk' | 'setHover' | 'endHover' | 'setHoverCenter'>
-
-/** the pane's width when nothing has measured it yet — the same fallback the DS shell sizes its card
- *  with, so the first frame's card is the size a measured one usually is */
-const UNMEASURED_PANE_W = 444
 
 /** the sentence-form header the hover card wears (OB-242) — mounted through the DS's published
  *  parts, so the wording and the plural are the component's and no call site carries either */
@@ -64,12 +60,10 @@ const GroupHeader = REL_CARD_PARTS.GroupHeader
 
 const NO_NEIGHBOURS: Neighbourhood = { direct: [], via: [] }
 
-/** what the layer hands the relationship card: the figure's key, the node the pane is reading, and
- *  the width the pane sized the card to (its gutter) */
+/** what the layer hands the relationship card: the figure's key and the node the pane is reading */
 interface OrbitCardProps {
   hotKey: string
   focusId: string
-  boxW: number
 }
 
 /** THE CARD THE FIGURE'S HOVER OPENS — handed to the pane's `NodePreviewLayer` as its `card`, so
@@ -78,7 +72,7 @@ interface OrbitCardProps {
  *  neighbour; the hub opens the node's own document preview instead — the hub is the node, not a
  *  relationship of it. The card takes no pointer (the layer makes it transparent), which is why
  *  what the hover lights on the map follows the FIGURE's key and not this card. */
-function OrbitCard({ hotKey, focusId, boxW }: OrbitCardProps) {
+function OrbitCard({ hotKey, focusId }: OrbitCardProps) {
   const n = byId.get(focusId)
   if (!n) return null
   const domain = topicHueOf(focusId)
@@ -87,30 +81,47 @@ function OrbitCard({ hotKey, focusId, boxW }: OrbitCardProps) {
   }
   const { direct, via } = cardRelationsOf(focusId, hotKey)
   if (!direct.length && !via.length) return null
-  const { pill, arrow } = orbitCardWidths(boxW)
   const itemOf = (rel: Relation, key: string): RelItem => {
     const look = relationLook(rel)
     return { key, targetId: rel.targetId, targetTitle: rel.targetTitle, targetDomain: rel.targetDomain, kindLabel: look.label, kindColor: look.color, heads: look.heads }
   }
+  const directItems = direct.map((r) => itemOf(r, r.id))
+  const viaGroups = groupViaBySource(via).map((g) => ({ ...g, items: g.items.map((v, i) => itemOf(v.rel, v.rel.id + '-' + i)) }))
+  /* THE CARD'S GROUPS SHARE ONE WIDTH, so each is fitted to its own names and the card takes the
+     largest answer field by field. The window is the room: the card may leave the pane now. */
+  const room = (typeof window !== 'undefined' ? window.innerWidth : REL_TIP_METRICS.maxWidth + PREVIEW_LAYER_METRICS.inset * 2) - PREVIEW_LAYER_METRICS.inset * 2
+  const fitGroups = [
+    ...(direct.length ? [{ sourceLabel: n.title, sourcePathParts: [] as string[], items: directItems }] : []),
+    ...viaGroups.map((g) => ({ sourceLabel: g.node.title, sourcePathParts: g.pathParts, items: g.items })),
+  ]
+  let width: number = REL_TIP_METRICS.minWidth
+  let leftWidth = 50, rightWidth = 50, arrowWidth: number = REL_TIP_METRICS.arrow
+  for (const g of fitGroups) {
+    if (!g.items.length) continue
+    const fit = relTipFit(g, room)
+    width = Math.max(width, fit.width)
+    leftWidth = Math.max(leftWidth, fit.leftWidth)
+    rightWidth = Math.max(rightWidth, fit.rightWidth)
+    arrowWidth = Math.max(arrowWidth, fit.arrowWidth)
+  }
   return (
     <div data-orbit-card="rel" style={{
-      width: boxW, boxSizing: 'border-box', background: 'var(--surface-raised)', border: '1px solid var(--border-rule)',
-      borderRadius: 'var(--radius-md)', boxShadow: 'var(--lift-2)', padding: '4px ' + ORBIT_CARD_PAD_X + 'px 8px',
+      width, boxSizing: 'border-box', background: 'var(--surface-raised)', border: '1px solid var(--border-rule)',
+      borderRadius: 'var(--radius-md)', boxShadow: 'var(--lift-2)', padding: '4px ' + REL_TIP_METRICS.padX + 'px 6px',
     }}>
       {direct.length ? (
         <>
           <GroupHeader sentence label="direct" count={direct.length} />
-          <RelSourceGroup sourceLabel={n.title} sourceDomain={domain} sourceIsCenter leftWidth={pill} rightWidth={pill} arrowWidth={arrow}
-            items={direct.map((r) => itemOf(r, r.id))} />
+          <RelSourceGroup tip sourceLabel={n.title} sourceDomain={domain} sourceIsCenter leftWidth={leftWidth} rightWidth={rightWidth} arrowWidth={arrowWidth}
+            items={directItems} />
         </>
       ) : null}
       {via.length ? (
         <>
           <GroupHeader sentence label="via children" count={via.length} />
-          {groupViaBySource(via).map((g) => (
-            <RelSourceGroup key={g.key} sourceLabel={g.node.title} sourcePathParts={g.pathParts} sourceDomain={viaSourceDomain(g.node, domain)}
-              leftWidth={pill} rightWidth={pill} arrowWidth={arrow}
-              items={g.items.map((v, i) => itemOf(v.rel, v.rel.id + '-' + i))} />
+          {viaGroups.map((g) => (
+            <RelSourceGroup tip key={g.key} sourceLabel={g.node.title} sourcePathParts={g.pathParts} sourceDomain={viaSourceDomain(g.node, domain)}
+              leftWidth={leftWidth} rightWidth={rightWidth} arrowWidth={arrowWidth} items={g.items} />
           ))}
         </>
       ) : null}
@@ -131,8 +142,6 @@ interface DocumentBodyProps {
   /** the seam's stored drag width, or null for the rail's own fit */
   railW: number | null
   onRailWChange: (width: number | null) => void
-  /** the width the hover card is sized to — the prose gutter beside the figure */
-  cardW: number
   /** the pane's one preview layer */
   layer: PreviewController<OrbitCardProps>
 }
@@ -141,7 +150,7 @@ interface DocumentBodyProps {
  *  node: a new node is a new document, and a hover card or a lit road left over from the LAST one
  *  would be lying about this one. It is the layer's child, because `show`/`hide`/`hovered` only
  *  exist inside it. */
-function DocumentBody({ bus, currentId, previewId, paneW, railOpen, onRailOpenChange, railW, onRailWChange, cardW, layer }: DocumentBodyProps) {
+function DocumentBody({ bus, currentId, previewId, paneW, railOpen, onRailOpenChange, railW, onRailWChange, layer }: DocumentBodyProps) {
   const { show, hide, hovered } = layer
   const { setHover, endHover, setHoverCenter } = bus
   const walks = useSyncExternalStore(subscribeWalks, listWalks)
@@ -236,16 +245,14 @@ function DocumentBody({ bus, currentId, previewId, paneW, railOpen, onRailOpenCh
           document has no such row, which is why its 25 holds there. If the design side rules otherwise,
           this is the one place to change. */}
       <PreviewBanner node={previewNode} style={{ padding: '0 var(--space-5)' }} />
-      {/* THE UPPER ROW SPANS THE PANE, and the rail sits UNDER it. With the header inside the prose
+      {/* THE HEAD OWNS ITS WHOLE ROW, and the rail sits UNDER it. With the header inside the prose
           column the rail started above the title of the thing it is about and scrolled away with
           the text, leaving the figure with nothing on screen naming its centre. The rail's way back
           sits at this row's outer end, which is the corner it occupies when open. */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 }}>
-        <div style={{ flex: '1 1 auto', minWidth: 0 }}>
-          <DocHeader kind={node.topic ? 'topic' : node.kind} title={node.title} domain={topicHueOf(currentId) ?? ''} ancestry={ancestry} />
-        </div>
-        <RelationsRailCorner paneW={paneW} open={railOpen} onOpenChange={onRailOpenChange} count={relCount} style={{ flex: '0 0 auto', margin: FIRST_ROW_PAD + 'px var(--space-3) 0 0' }} />
-      </div>
+      <DocHeader
+        kind={node.topic ? 'topic' : node.kind} title={node.title} domain={topicHueOf(currentId) ?? ''} ancestry={ancestry}
+        aside={<RelationsRailCorner paneW={paneW} open={railOpen} onOpenChange={onRailOpenChange} count={relCount} />}
+      />
       <div style={{ display: 'flex', flex: 1, minHeight: 0, width: '100%', position: 'relative' }}>
         {/* the prose scrolls under the header: no top inset, because the scroller starts far from
             the pane's corner arc — the bottom inset stays, it is the scrollbar's */}
@@ -254,7 +261,7 @@ function DocumentBody({ bus, currentId, previewId, paneW, railOpen, onRailOpenCh
               constant. The right padding is the scrollbar's and stays. DocHeader above pads its
               own --space-5 (20) and is not touched: it is a DS component, and 20 against 21 is
               inside the clause's ±1px. */}
-          <div className="pr-4 py-3 text-[12px] leading-relaxed text-slate-700 border-b border-slate-100" style={{ paddingLeft: LEGEND_INSET }}>{DOC_BODY[currentId]}</div>
+          <div className="pr-4 py-3 text-[12px] leading-relaxed text-slate-700" style={{ paddingLeft: LEGEND_INSET, borderBottom: '1px solid var(--border-hair)' }}>{DOC_BODY[currentId]}</div>
 
           <div className="pr-4 py-3" style={{ paddingLeft: LEGEND_INSET }}>
             <SectionLabel count={throughWalks.length}>walks through here</SectionLabel>
@@ -280,7 +287,7 @@ function DocumentBody({ bus, currentId, previewId, paneW, railOpen, onRailOpenCh
           width={railW} onWidthChange={onRailWChange}
           figureRef={figRef} hot={hot}
           onHot={(key, e) => {
-            if (key && e) show(e, { hotKey: key, focusId: currentId, boxW: cardW }, 'orbit', key, { avoid: figRef.current })
+            if (key && e) show(e, { hotKey: key, focusId: currentId }, 'orbit', key, { avoid: figRef.current })
             else hide()
             light(key)
           }}
@@ -308,10 +315,6 @@ export default function DocumentPanel({ bus }: { bus: DocumentPanelBus }) {
   const [railOpen, setRailOpen] = useState(true)
   const [railW, setRailW] = useState<number | null>(null)
   const [paneW, paneBox] = usePaneWidth()
-  // THE CARD IS SIZED TO THE GUTTER IT SITS IN, not to a constant: anchoring it beside the figure
-  // is only half of clearing the figure — a 268px card in a 219px gutter still overhangs it by 49.
-  // The figure's box is the rail's own number, published for exactly this.
-  const cardW = previewGutter(paneW || UNMEASURED_PANE_W, orbitBox(paneW, railW).width)
 
   return (
     <div
@@ -320,12 +323,12 @@ export default function DocumentPanel({ bus }: { bus: DocumentPanelBus }) {
       style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0 }}
     >
       {/* ONE LAYER PER PANE. Keyed on the node so a card left up by the LAST node cannot outlive it. */}
-      <NodePreviewLayer key={currentId ?? 'none'} card={OrbitCard} width={cardW} style={{ flexDirection: 'column', minWidth: 0 }}>
+      <NodePreviewLayer key={currentId ?? 'none'} card={OrbitCard} bounds="window" style={{ flexDirection: 'column', minWidth: 0 }}>
         {(layer: PreviewController<OrbitCardProps>) => (
           <DocumentBody
             bus={bus} currentId={currentId} previewId={previewId} paneW={paneW}
             railOpen={railOpen} onRailOpenChange={setRailOpen} railW={railW} onRailWChange={setRailW}
-            cardW={cardW} layer={layer}
+            layer={layer}
           />
         )}
       </NodePreviewLayer>

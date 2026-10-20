@@ -227,10 +227,19 @@ await withApp('teaching', {}, async (page) => {
 
   await page.getByLabel('studio-preset-explore').click()
   await page.waitForTimeout(800)
-  const restRect = await rectOf(`${DOC} [data-pane-placeholder]`)
-  const restHtml = await page.evaluate((s) => document.querySelector(s)?.outerHTML ?? null, `${DOC} [data-pane-placeholder]`)
+  const restRect = await rectOf(`${DOC} [data-pane-placeholder-box]`)
+  const restHtml = await page.evaluate((s) => document.querySelector(s)?.outerHTML ?? null, `${DOC} [data-pane-placeholder-box]`)
+  const restRoom = await rectOf(`${DOC} [data-pane-placeholder]`)
   const docBox = await rectOf(DOC)
   ok('Explore: the Document pane is wide enough for its rail (the rail\'s own floor is 396)', !!docBox && docBox.w >= 396, `${docBox && Math.round(docBox.w)}px`)
+  ok('the placeholder is ONE dashed box inside a transparent room, not a dashed pane frame',
+    !!restRect && !!restRoom && restRect.w < restRoom.w - 40 && near(restRect.x + restRect.w / 2, restRoom.x + restRoom.w / 2, 1),
+    JSON.stringify({ box: restRect && [Math.round(restRect.x), Math.round(restRect.w)], room: restRoom && [Math.round(restRoom.x), Math.round(restRoom.w)] }))
+  const restStroke = await page.evaluate((s) => {
+    const e = document.querySelector(s)
+    return e ? parseFloat(getComputedStyle(e).borderTopWidth) : null
+  }, `${DOC} [data-pane-placeholder-box]`)
+  ok('the dashed box\'s edge is the chosen 1.5px (a fractional device scale may read 1.33 or 2)', restStroke !== null && Math.abs(restStroke - 1.5) <= 0.51, `${restStroke}px`)
 
   // ── OB-209: a MAP hover previews the document while nothing is chosen ─────────────────────────
   /* found afresh each time it is needed: opening the Explorer rail narrows the canvas, and a cell's
@@ -286,8 +295,8 @@ await withApp('teaching', {}, async (page) => {
   await k.deselect(pick.a.id, pick.a.title)
   ok('a de-select empties the Document pane: the placeholder, no node', (await has(`${DOC} [data-pane-placeholder]`)) && (await attr(DOC, 'data-current')) === null)
   ok('…and it names no node, the corpus root included', !((await text(DOC)) ?? '').includes(pick.rootTitle))
-  const afterRect = await rectOf(`${DOC} [data-pane-placeholder]`)
-  const afterHtml = await page.evaluate((s) => document.querySelector(s)?.outerHTML ?? null, `${DOC} [data-pane-placeholder]`)
+  const afterRect = await rectOf(`${DOC} [data-pane-placeholder-box]`)
+  const afterHtml = await page.evaluate((s) => document.querySelector(s)?.outerHTML ?? null, `${DOC} [data-pane-placeholder-box]`)
   ok('"just opened" and "just de-selected" LOOK the same: one box, one markup',
     !!restRect && !!afterRect && near(restRect.x, afterRect.x, 0.5) && near(restRect.y, afterRect.y, 0.5) && near(restRect.w, afterRect.w, 0.5) && near(restRect.h, afterRect.h, 0.5) && restHtml === afterHtml)
 
@@ -359,10 +368,12 @@ await withApp('teaching', {}, async (page) => {
     await glideTo(p)
     const s = await k.cardState()
     ok('  opens the card for THAT relationship, as a sentence (OB-242)', s.kind === 'rel' && s.sentence === '1 direct relationship', `${s.kind} "${s.sentence}"`)
-    ok('  the card opens over the PROSE and never over the figure (clears it, and stays in the pane)',
-      !!s.card && !!s.figure && !!s.doc && (s.card.r <= s.figure.x + 0.5 || s.card.x >= s.figure.r - 0.5) && s.card.x >= s.doc.x - 0.5 && s.card.r <= s.doc.r + 0.5,
-      JSON.stringify({ card: s.card && [Math.round(s.card.x), Math.round(s.card.r)], figure: s.figure && [Math.round(s.figure.x), Math.round(s.figure.r)] }))
-    ok('  …starting inside the prose column, under the header', !!s.card && !!s.prose && s.card.x >= s.prose.x - 0.5 && s.card.y >= s.doc.y)
+    const view = await page.evaluate(() => ({ w: window.innerWidth, h: window.innerHeight }))
+    ok('  the card clears the figure and stays inside the WINDOW (it may cross the pane seam)',
+      !!s.card && !!s.figure && (s.card.r <= s.figure.x + 0.5 || s.card.x >= s.figure.r - 0.5) &&
+        s.card.x >= -0.5 && s.card.y >= -0.5 && s.card.r <= view.w + 0.5 && s.card.b <= view.h + 0.5,
+      JSON.stringify({ card: s.card && [Math.round(s.card.x), Math.round(s.card.y), Math.round(s.card.r)], figure: s.figure && [Math.round(s.figure.x), Math.round(s.figure.r)], view }))
+    ok('  …placed before paint, so it never sits at the window\'s top-left corner', !!s.card && !(s.card.x <= 1 && s.card.y <= 1))
     ok('  one target, however many kinds, draws no left bracket (OB-224)', s.brackets === 0, `${s.brackets}`)
     const m = await k.mapState()
     const target = key.split('|')[0]
@@ -515,7 +526,8 @@ await withApp('teaching', {}, async (page) => {
     const fig = document.querySelector(DOC + ' [data-relations-figure]')
     const next = fig && fig.nextElementSibling
     const ph = [...document.querySelectorAll(DOC + ' [data-pane-placeholder]')]
-    const lines = ph[0] ? [...ph[0].children].map((c) => c.textContent) : []
+    const box = ph[0] && ph[0].querySelector('[data-pane-placeholder-box]')
+    const lines = box ? [...box.children].map((c) => c.textContent) : []
     return {
       figureEmpty: !!fig && fig.children.length === 0,
       orbit: !!document.querySelector(DOC + ' [data-relation-orbit]'),
@@ -591,7 +603,8 @@ await withApp('courses', { VITE_CORPUS: 'courses' }, async (page) => {
     return {
       figureEmpty: !!fig && fig.children.length === 0, orbit: !!document.querySelector(DOC + ' [data-relation-orbit]'),
       nextIsPlaceholder: !!next && next.hasAttribute('data-pane-placeholder'), placeholders: ph.length,
-      lines: ph[0] ? [...ph[0].children].map((c) => c.textContent) : [],
+      lines: ph[0] && ph[0].querySelector('[data-pane-placeholder-box]')
+        ? [...ph[0].querySelector('[data-pane-placeholder-box]').children].map((c) => c.textContent) : [],
     }
   }, DOC)
   ok('no figure and no hairline: "No relationships" over "Nothing connects to this node", once', empty.figureEmpty && !empty.orbit && empty.nextIsPlaceholder && empty.placeholders === 1 && empty.lines[0] === 'No relationships' && empty.lines[1] === 'Nothing connects to this node', JSON.stringify(empty))
