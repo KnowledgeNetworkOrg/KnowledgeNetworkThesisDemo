@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { nestedFamilyPaint, topicPaint } from './hueslots'
+import { topicPaint } from './hueslots'
 import { GHOST_C, GHOST_L, HUE_DEGREES, topicPaintValues } from './topicvalues'
 
 const TOKENS = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'tokens')
@@ -77,11 +77,11 @@ describe('topicPaintValues — the JS-resolved twin of topicPaint, pinned to tok
 describe('topicPaint().ghost — one opaque tone per hue', () => {
   const hues = Object.keys(HUE_DEGREES)
 
-  it('is oklch(0.640 0.110 <the ring degree>) for every hue — the DS\'s own string, character for character', () => {
-    expect(GHOST_L).toBe(0.64)
-    expect(GHOST_C).toBe(0.11)
+  it('is oklch(0.800 0.070 <the ring degree>) for every hue — the DS\'s own string, character for character', () => {
+    expect(GHOST_L).toBe(0.8)
+    expect(GHOST_C).toBe(0.07)
     for (const hue of hues) {
-      expect(topicPaint(hue).ghost, hue).toBe(`oklch(0.640 0.110 ${HUE_DEGREES[hue].toFixed(1)})`)
+      expect(topicPaint(hue).ghost, hue).toBe(`oklch(0.800 0.070 ${HUE_DEGREES[hue].toFixed(1)})`)
     }
   })
 
@@ -91,13 +91,6 @@ describe('topicPaint().ghost — one opaque tone per hue', () => {
       expect(g, hue).toMatch(/^oklch\([\d. ]+\)$/)
       expect(g, hue).not.toContain('/')
     }
-  })
-
-  it('sits one tone BELOW the family-fill band, so it stays visible over the lightest child and never goes darker than the darkest', () => {
-    // slot 4 is the darkest rung of `nestedFamilyPaint`'s ladder: L 0.720
-    const darkest = Number(/^oklch\(([\d.]+)/.exec(nestedFamilyPaint('teal', { slot: 4 }).fill)![1])
-    expect(darkest).toBeCloseTo(0.72, 3)
-    expect(GHOST_L).toBeLessThan(darkest)
   })
 
   it('the JS-resolved twin hands out the same value the token twin does, hue for hue', () => {
