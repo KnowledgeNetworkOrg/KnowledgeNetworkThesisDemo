@@ -1,1 +1,0 @@
-The agent stopped without finishing (exit code 1).
