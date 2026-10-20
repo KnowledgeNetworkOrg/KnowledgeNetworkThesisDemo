@@ -338,7 +338,9 @@ await withApp('teaching', {}, async (page) => {
       ruleH: rule ? rule.getBoundingClientRect().height : null,
       statsIsReading: !!stats && stats.hasAttribute('data-relation-stats'),
       groupHeaders: document.querySelectorAll(DOC + ' [data-rel-group-header]').length,
-      cards: document.querySelectorAll(DOC + ' [data-orbit-card]').length,
+      /* page-wide, not under DOC: the hover card is portalled to the body (OB-272), so a card
+         scoped to the pane could never be found and the check below could never fail */
+      cards: document.querySelectorAll('[data-orbit-card]').length,
       statsText: stats ? stats.textContent : '',
     }
   }, DOC)
