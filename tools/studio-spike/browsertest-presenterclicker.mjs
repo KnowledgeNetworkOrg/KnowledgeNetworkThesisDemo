@@ -141,7 +141,7 @@ try {
   await page.getByRole('button', { name: 'end lecture' }).last().click()
   await page.waitForTimeout(800)
   ok('the lecture ends into the recap', (await page.locator('[data-lecture-recap]').count()) === 1)
-  await page.setViewportSize({ width: 1750, height: 300 })
+  await page.setViewportSize({ width: 1750, height: 520 })
   await page.waitForTimeout(600)
   const recapList = page.locator('[data-lecture-recap] [data-pane-body="scroller"]').last()
   const recap = await recapList.evaluate((el) => {
@@ -152,9 +152,9 @@ try {
   })
   ok('the recap list is focused and has room to scroll', recap.active && recap.max > 0, `max ${recap.max}`)
   await page.keyboard.press('PageDown')
-  await page.waitForTimeout(400)
+  await page.waitForTimeout(1200)
   const recapTop = await recapList.evaluate((el) => el.scrollTop)
-  ok('PageDown scrolls the recap list once the lecture has ended', recapTop > 0, `scrollTop ${recapTop}`)
+  ok('PageDown scrolls the recap list once the lecture has ended', recapTop > 20, `scrollTop ${recapTop}`)
 
   ok('no page errors', errors.filter((e) => e.includes('pageerror')).length === 0)
 } catch (e) {

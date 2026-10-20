@@ -180,9 +180,10 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
   const toggleFlag = useCallback((i: number) => setFlags((f) => (f.indexOf(i) >= 0 ? f.filter((x) => x !== i) : f.concat(i))), [])
   /* THE KEYS, the host's (DS): → ↓ and a clicker's Page Down advance, ← ↑ and Page Up go back;
      every step key is claimed until the lecture ends (the preview included) so the panes do not
-     scroll instead, and left to the browser after it, where the recap's own scrollers need them. Backspace ends a roam, F flags,
-     E opens the strip, J opens the finder (part 8), Escape closes things. Space and Enter stay
-     unbound because they activate the focused control. Not while a field has focus. */
+     scroll instead, and left to the browser after it, where the recap's own scrollers need them.
+     Backspace ends a roam, F flags, E opens the strip, J opens the finder (part 8), Escape closes
+     things. Space and Enter stay unbound because they activate the focused control. Not while a
+     field has focus. */
   /* THE FINDER HANGS OFF THE STRIP'S OWN FIND BUTTON, so opening it means measuring that button.
      Lifted out of the key handler because the quick actions deck offers the same thing as a tile,
      and two copies of "where does the finder hang" is how the two drift apart.
