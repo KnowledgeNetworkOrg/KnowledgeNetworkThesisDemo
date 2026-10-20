@@ -90,6 +90,78 @@ try {
     /nothing was written for this stop\./.test(preparedText) && preparedText.length > 30, preparedText.slice(0, 70))
   ok('the During column starts empty', (await during().locator('[data-lecture-note]').count()) === 0)
 
+  // ── the divider between the notes and the deck (OB-254) ─────────────────────
+  // The strip follows PaneDivider's resting rule: 14px, col-resize, and nothing painted until
+  // the pointer is on it. Its floors come from the panes' own fits, so the test reads the DOM.
+  await page.mouse.move(2, 2)
+  await page.waitForTimeout(200)
+  const strip = page.locator('[data-presenter-panes] > [role="separator"]').first()
+  ok('the notes and deck are joined by a 14px blank, col-resize strip', await strip.evaluate((el) => {
+    const line = el.querySelector('[aria-hidden="true"]')
+    const bg = line ? getComputedStyle(line).backgroundColor : ''
+    return Math.round(el.getBoundingClientRect().width) === 14
+      && getComputedStyle(el).cursor === 'col-resize'
+      && (bg === 'transparent' || bg === 'rgba(0, 0, 0, 0)')
+  }))
+  const widths = () => page.evaluate(() => {
+    const row = document.querySelector('[data-presenter-panes]')
+    const notesEl = document.querySelector('[data-lecture-notes="live"]')
+    const deckEl = document.querySelector('[data-quick-deck]')
+    const deck = deckEl && deckEl.closest('[data-pane-frame]')
+    return {
+      row: row ? row.getBoundingClientRect().width : 0,
+      notes: notesEl ? notesEl.getBoundingClientRect().width : 0,
+      deck: deck ? deck.getBoundingClientRect().width : 0,
+    }
+  })
+  const start = await widths()
+  const handle = await strip.boundingBox()
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(1700, handle.y + handle.height / 2, { steps: 12 })
+  await page.mouse.up()
+  await page.waitForTimeout(300)
+  const atDeckFloor = await widths()
+  ok('dragging the handle right stops the deck at its 300px floor', Math.abs(atDeckFloor.deck - 300) <= 1, Math.round(atDeckFloor.deck) + 'px')
+  ok('and only that boundary moved — the row is still notes + strip + deck',
+    Math.abs(atDeckFloor.row - (atDeckFloor.notes + 14 + atDeckFloor.deck)) <= 1,
+    `${Math.round(atDeckFloor.notes)} + 14 + ${Math.round(atDeckFloor.deck)} vs ${Math.round(atDeckFloor.row)}`)
+  const handle2 = await strip.boundingBox()
+  await page.mouse.move(handle2.x + handle2.width / 2, handle2.y + handle2.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(40, handle2.y + handle2.height / 2, { steps: 16 })
+  await page.mouse.up()
+  await page.waitForTimeout(300)
+  const atNotesFloor = await widths()
+  ok('dragging the handle left stops the notes pane at its 522px floor', Math.abs(atNotesFloor.notes - 522) <= 1, Math.round(atNotesFloor.notes) + 'px')
+  // A stored (or dragged) wide deck must not push the handle off a narrow window: the drawn
+  // width is derived from the measured row, and it is the notes pane that gives way.
+  await page.setViewportSize({ width: 700, height: 950 })
+  await page.waitForTimeout(700)
+  const narrowPanes = await page.evaluate(() => {
+    const h = document.querySelector('[data-presenter-panes] > [role="separator"]')
+    const r = document.querySelector('[data-presenter-panes]')
+    const notesEl = document.querySelector('[data-lecture-notes="live"]')
+    if (!h || !r) return null
+    const hb = h.getBoundingClientRect(), rb = r.getBoundingClientRect()
+    return { left: hb.left, right: hb.right, rowLeft: rb.left, rowRight: rb.right, notes: notesEl ? notesEl.getBoundingClientRect().width : 0 }
+  })
+  ok('a narrow window keeps the handle on screen, the notes giving way first',
+    !!narrowPanes && narrowPanes.left >= narrowPanes.rowLeft - 1 && narrowPanes.right <= narrowPanes.rowRight + 1 && narrowPanes.notes < 522,
+    narrowPanes ? `handle ${Math.round(narrowPanes.left)}–${Math.round(narrowPanes.right)} in ${Math.round(narrowPanes.rowLeft)}–${Math.round(narrowPanes.rowRight)}, notes ${Math.round(narrowPanes.notes)}` : 'no handle')
+  await page.setViewportSize({ width: 1750, height: 950 })
+  await page.waitForTimeout(700)
+  const resetHandle = await strip.boundingBox()
+  await page.mouse.dblclick(resetHandle.x + resetHandle.width / 2, resetHandle.y + resetHandle.height / 2)
+  await page.waitForTimeout(300)
+  const reset = await widths()
+  ok('double-clicking the handle returns the deck to its 360px seed', Math.abs(reset.deck - 360) <= 1, Math.round(reset.deck) + 'px')
+  ok('the drag moved the deck and left the notes the rest of the row',
+    Math.abs(reset.row - (reset.notes + 14 + reset.deck)) <= 1,
+    `${Math.round(reset.notes)} + 14 + ${Math.round(reset.deck)} vs ${Math.round(reset.row)} (started ${Math.round(start.deck)}px deck)`)
+  await page.mouse.move(2, 2)
+  await page.waitForTimeout(200)
+
   // ── a note typed and sent ───────────────────────────────────────────────────
   await write('they stumbled on the handshake here')
   const first = await rows()

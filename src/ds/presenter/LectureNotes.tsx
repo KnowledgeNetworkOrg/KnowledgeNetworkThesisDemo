@@ -7,6 +7,7 @@ import { InlineText } from '../chrome/InlineText'
 import { settleRead } from '../chrome/MeasureBox'
 import { Pane, PaneScroller } from '../chrome/Pane'
 import { PaneColumnHeader } from '../chrome/PaneColumnHeader'
+import type { PaneFit } from '../chrome/PaneDivider'
 import { LEGEND_INSET } from '../chrome/PaneHeader'
 import { Caret } from '../nav/TreeRow'
 import { BinMark } from '../sidebar/BinMark'
@@ -144,6 +145,12 @@ export const LECTURE_NOTES_METRICS = {
      card can read it off the metrics. The right side keeps 14 (scrollbar clearance). */
   legendInset: LEGEND_INSET,
 }
+
+/** THE WHOLE PANE'S FLOOR, derived from the same numbers the internal divider drags by: both
+ *  gutters, the During column's floor, the strip between the columns and the prepared column's
+ *  floor. There is no lesser reading for the notes pane, so both numbers are the same. */
+const LECTURE_NOTES_MIN = LECTURE_NOTES_METRICS.gutter * 2 + LECTURE_NOTES_METRICS.duringMin + LECTURE_NOTES_METRICS.divider + LECTURE_NOTES_METRICS.preparedMin
+export const LECTURE_NOTES_FIT: PaneFit = { narrowBelow: LECTURE_NOTES_MIN, floor: LECTURE_NOTES_MIN }
 
 /** THE ENTER MARK — the return-key arrow, drawn once. Every other place in the presenter parts
  *  that means "the Enter key" says so with this shape rather than with a keycap picture or a

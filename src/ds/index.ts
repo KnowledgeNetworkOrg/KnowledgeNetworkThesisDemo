@@ -170,9 +170,9 @@ export { ProjectedMap, PROJECTED_MAP_METRICS } from './presenter/ProjectedMap'
 export type { ProjectedMapProps } from './presenter/ProjectedMap'
 
 // ── presenter mode (#267) — parts 6-8: the notes pane, the deck, the recap ────
-export { LectureNotes, EnterMark, NOTE_CATEGORIES, NOTE_CATEGORY_POOL, LECTURE_NOTES_METRICS, LECTURE_NOTES_PARTS } from './presenter/LectureNotes'
+export { LectureNotes, EnterMark, NOTE_CATEGORIES, NOTE_CATEGORY_POOL, LECTURE_NOTES_METRICS, LECTURE_NOTES_FIT, LECTURE_NOTES_PARTS } from './presenter/LectureNotes'
 export type { LectureNotesProps, LectureNote, NoteCategory, NoteCategorySlot } from './presenter/LectureNotes'
-export { QuickActionsDeck, QUICK_ACTIONS_METRICS, QUICK_ACTION_PLACEHOLDERS, QUICK_ACTION_PARTS, swapActions, QuickActionsMath } from './presenter/QuickActionsDeck'
+export { QuickActionsDeck, QUICK_ACTIONS_METRICS, QUICK_ACTIONS_FIT, QUICK_ACTION_PLACEHOLDERS, QUICK_ACTION_PARTS, swapActions, QuickActionsMath } from './presenter/QuickActionsDeck'
 export type { QuickActionsDeckProps, QuickAction, QuickActionGroup, ShelfOffset } from './presenter/QuickActionsDeck'
 export { LectureRecap, LECTURE_RECAP_METRICS, LectureClock, recapStats, RecapMath } from './presenter/LectureRecap'
 export type { LectureRecapProps, RecapStat, RecapCounts, RecapAction, FlaggedSlide } from './presenter/LectureRecap'
