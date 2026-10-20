@@ -330,7 +330,9 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
   const notesFloor = LECTURE_NOTES_FIT.floor ?? LECTURE_NOTES_FIT.narrowBelow ?? 0
   const deckFloor = QUICK_ACTIONS_FIT.floor ?? 0
   const narrowDeck = !!panesW && panesW - dividerW - notesFloor < deckFloor
-  const fits = narrowDeck ? [{ narrowBelow: 0, floor: 0 }, QUICK_ACTIONS_FIT] : [LECTURE_NOTES_FIT, QUICK_ACTIONS_FIT]
+  /* THE FITS ARE THE PANES' OWN AT EVERY WIDTH — `PaneFit` says a desk may not override them, and
+     `clampDesk` already stops both sides once neither has width to give. */
+  const fits = [LECTURE_NOTES_FIT, QUICK_ACTIONS_FIT]
   const wantedDeck = liveDeck ?? deckWidth ?? QUICK_ACTIONS_FIT.seed
   const deckCeiling = panesW
     ? Math.max(0, Math.min(panesW - dividerW, narrowDeck ? deckFloor : panesW - dividerW - notesFloor))
