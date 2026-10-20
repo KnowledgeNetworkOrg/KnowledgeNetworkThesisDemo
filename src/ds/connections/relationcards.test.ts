@@ -83,15 +83,21 @@ describe('relTipFit — the hover card is sized to its names (OB-272)', () => {
     expect(fits(f, chromeOf(false, false))).toBe(true)
   })
 
-  it('a kind label too long to draw whole leaves both pills their floor', () => {
-    const f = relTipFit({ sourceLabel: 'Trees & Heaps', items: [{ ...target('File Systems'), kindLabel: 'implemented with a very long and unusual relation wording' }] })
-    expect(f.arrowWidth).toBeLessThan(REL_TIP_METRICS.maxWidth)
+  /* long enough that no connector under the card's own width draws it whole — the corpus's real
+     labels are all short, so only a made-up one reaches the cap */
+  const endless = 'implemented with '.repeat(8).trim()
+
+  it('a kind label too long to draw whole stops where both pills keep their floor', () => {
+    const f = relTipFit({ sourceLabel: 'Trees & Heaps', items: [{ ...target('File Systems'), kindLabel: endless }] })
+    expect(f.width).toBe(REL_TIP_METRICS.maxWidth)
+    expect(f.arrowWidth).toBe(REL_TIP_METRICS.maxWidth - chromeOf(false, false) - REL_CARD_METRICS.pillMin * 2)
     expect(fits(f, chromeOf(false, false))).toBe(true)
   })
 
   it('a narrow window gives the pills their floors before the connector', () => {
-    const f = relTipFit({ sourceLabel: 'Trees & Heaps', items: [{ ...target('File Systems'), kindLabel: 'implemented with' }] }, 200)
+    const f = relTipFit({ sourceLabel: 'Trees & Heaps', items: [{ ...target('File Systems'), kindLabel: endless }] }, 200)
     expect(f.width).toBe(REL_TIP_METRICS.minWidth)
+    expect(f.arrowWidth).toBe(REL_TIP_METRICS.minWidth - chromeOf(false, false) - REL_CARD_METRICS.pillMin * 2)
     expect(fits(f, chromeOf(false, false))).toBe(true)
   })
 
