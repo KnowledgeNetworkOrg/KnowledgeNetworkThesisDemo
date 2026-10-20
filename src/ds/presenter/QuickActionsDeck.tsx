@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { Grip } from '../chrome/Grip'
 import { IconButton, wrapTip } from '../chrome/IconButton'
 import { Pane, PaneScroller } from '../chrome/Pane'
+import type { PaneFit } from '../chrome/PaneDivider'
 import { LEGEND_INSET } from '../chrome/PaneHeader'
 
 /* Typed port of the DS components/presenter/QuickActionsDeck.jsx (contract: QuickActionsDeck.d.ts)
@@ -24,6 +25,11 @@ export const QUICK_ACTIONS_METRICS = {
   shelfFace: { rest: 'var(--bark-50)', hover: 'var(--bark-100)', open: 'var(--bark-100)', openHover: 'var(--bark-200)' },
   shelfOffset: 21, headClear: 6, groupGap: 14,
 }
+
+/** THE DECK'S FLOOR AND THE WIDTH IT OPENS AT. 300 is chosen for a deck that still reads as two
+ *  columns of four; 360 is the width it stood at before the divider, and the width the recap's
+ *  aside still keeps, so ending a lecture moves nothing sideways. */
+export const QUICK_ACTIONS_FIT: PaneFit & { seed: number } = { narrowBelow: 300, floor: 300, seed: 360 }
 
 /** ONE TILE'S WORTH OF ACTION. `id` is the identity the swap and the key binding both work in;
  *  everything else is what the tile draws. A host's own action kinds live in `dot` as a colour,

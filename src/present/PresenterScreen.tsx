@@ -23,8 +23,9 @@
 // nothing, so the room's window shows dark.
 //
 // THE PANES ROW (parts 6 and 7): the notes pane and the quick actions deck,
-// side by side under the strip, and the deck's column is the same 360 the recap
-// keeps for its flagged list — so nothing moves sideways when the lecture ends.
+// side by side under the strip with a draggable divider between them. The deck
+// opens at the same 360 the recap keeps for its flagged list — so nothing moves
+// sideways when the lecture ends — and the professor can narrow it to its floor.
 // Both are the DS's components and both store NOTHING: what the professor writes,
 // mints and rearranges lives in `lecturenotes.ts` (per walk for the notes, per
 // user for the categories and the furniture) and is handed back down as props.
@@ -35,8 +36,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
-  FilmRoll, LectureNotes, LectureRecap, NOTE_CATEGORIES, Pane, PresenterHeaderBar, PresenterStrip,
-  ProjectedMap, QUICK_ACTION_PLACEHOLDERS, QuickActionsDeck, StopFinder, swapActions,
+  clampDesk, deskBounds, FilmRoll, LECTURE_NOTES_FIT, LectureNotes, LectureRecap, NOTE_CATEGORIES,
+  Pane, PANE_DIVIDER_METRICS, PaneDivider, PresenterHeaderBar, PresenterStrip, ProjectedMap,
+  QUICK_ACTIONS_FIT, QUICK_ACTION_PLACEHOLDERS, QuickActionsDeck, settleRead, StopFinder, swapActions,
 } from '@/ds'
 import type { NoteCategory, PresenterState, QuickAction } from '@/ds'
 
@@ -304,6 +306,61 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
     return held
   }, [mapUp, flags, shown, stripOpen, finder])
 
+  /* ── THE NOTES/DECK DIVIDER (OB-254) ─────────────────────────────────────────────────────────
+     The deck's width is a preference (`null` is the seed), but the width DRAWN is derived from the
+     measured row every render: a preference restored into a narrower window cannot push the handle
+     out of reach. The gesture's arithmetic is `clampDesk`'s, over the two panes' own fits, and the
+     store is written on `onDragEnd` alone. Below the width where both floors fit, the deck holds
+     its floor and the notes give way, so the handle stays on screen. */
+  const panesRef = useRef<HTMLDivElement | null>(null)
+  const [panesW, setPanesW] = useState(0)
+  useEffect(() => {
+    const el = panesRef.current
+    if (!el) return
+    const read = () => { if (panesRef.current) setPanesW(Math.round(panesRef.current.getBoundingClientRect().width)) }
+    const stopReading = settleRead(read)
+    let ro: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(read); ro.observe(el) }
+    return () => { stopReading(); if (ro) ro.disconnect() }
+  }, [ended, N])
+  const [deckWidth, setDeckWidth] = useState<number | null>(null)
+  const [liveDeck, setLiveDeck] = useState<number | null>(null)
+  const dragStart = useRef<number | null>(null)
+  const dividerW = PANE_DIVIDER_METRICS.hit
+  const notesFloor = LECTURE_NOTES_FIT.floor ?? LECTURE_NOTES_FIT.narrowBelow ?? 0
+  const deckFloor = QUICK_ACTIONS_FIT.floor ?? 0
+  const narrowDeck = !!panesW && panesW - dividerW - notesFloor < deckFloor
+  /* THE FITS ARE THE PANES' OWN AT EVERY WIDTH — `PaneFit` says a desk may not override them, and
+     `clampDesk` already stops both sides once neither has width to give. */
+  const fits = [LECTURE_NOTES_FIT, QUICK_ACTIONS_FIT]
+  const wantedDeck = liveDeck ?? deckWidth ?? QUICK_ACTIONS_FIT.seed
+  const deckCeiling = panesW
+    ? Math.max(0, Math.min(panesW - dividerW, narrowDeck ? deckFloor : panesW - dividerW - notesFloor))
+    : wantedDeck
+  const drawnDeck = panesW
+    ? Math.max(0, Math.min(Math.max(wantedDeck, deckFloor), deckCeiling))
+    : wantedDeck
+  const panes = panesW ? [Math.max(0, panesW - dividerW - drawnDeck), drawnDeck] : []
+  const bounds = deskBounds({ sizes: panes, index: 0, fits })
+  const fitDeck = (base: number, delta: number) => {
+    if (!panesW) return Math.max(0, base - delta)
+    const out = clampDesk({ sizes: [Math.max(0, panesW - dividerW - base), base], index: 0, delta, fits })
+    return Math.max(0, Math.min(out[1], deckCeiling))
+  }
+  const onDeckDrag = (delta: number) => {
+    const base = dragStart.current != null ? dragStart.current : drawnDeck
+    dragStart.current = base
+    setLiveDeck(fitDeck(base, delta))
+  }
+  const onDeckDragEnd = (delta: number) => {
+    const base = dragStart.current != null ? dragStart.current : drawnDeck
+    const next = fitDeck(base, delta)
+    dragStart.current = null
+    setLiveDeck(null)
+    if (delta !== 0 && next !== base) setDeckWidth(next)
+  }
+  const resetDeck = () => { dragStart.current = null; setLiveDeck(null); setDeckWidth(null) }
+
   const state: PresenterState = !projecting ? 'preview' : ended ? 'ended' : roaming ? 'roaming' : 'presenting'
   const slideFor = (i: number) => <LectureSlide step={steps[i]} index={i} count={N} />
   /* THE WALL'S FRAME IS THE HOST'S (DS OB-163) — kept with the walk it was fitted for, see
@@ -390,9 +447,10 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
                 onRoamTo={roamTo} onMakeActive={makeActive}
                 renderPreview={(_s, i) => renderStopPreview(play.steps[i], i)} />
             </div>
-            {/* THE PANES ROW — the notes pane takes what is left, the deck keeps a fixed 360 (the
-                width the recap's flagged column also keeps, so ending moves nothing sideways) */}
-            <div data-presenter-panes style={{ flex: 1, minHeight: 0, display: 'flex', gap: 'var(--space-3)' }}>
+            {/* THE PANES ROW — the notes pane takes what is left, the deck keeps the width the
+                divider was dragged to (the recap's flagged column keeps the same width at rest,
+                so ending moves nothing sideways) */}
+            <div ref={panesRef} data-presenter-panes style={{ flex: 1, minHeight: 0, display: 'flex' }}>
               <LectureNotes
                 stop={shown} stopNumber={shown + 1} stopTitle={steps[shown].title} roaming={roaming}
                 /* THE LECTERN'S CORRECTION WINS OVER THE AUTHORED NOTE, and it is an OVERLAY: there
@@ -416,7 +474,9 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
                 onDuringWidthChange={(w) => setHabits((h) => ({ ...h, duringWidth: w }))}
                 flagged={flags.indexOf(shown) >= 0} onToggleFlag={() => toggleFlag(shown)}
                 style={{ flex: 1, minWidth: 0 }} />
-              <div style={{ flexShrink: 0, width: 360, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              <PaneDivider label="resize the notes and quick actions" now={bounds.now} min={bounds.min} max={bounds.max}
+                onDrag={onDeckDrag} onDragEnd={onDeckDragEnd} onReset={resetDeck} />
+              <div style={{ flexShrink: 0, width: drawnDeck, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                 <QuickActionsDeck groups={deck.groups} library={deck.library} on={deckOn}
                   /* THE SHELF IS A MENU AS WELL AS A DRAWER. Its button says "More actions…", so
                      a tile in it has to BE one: clicking runs the action where dragging keeps it.
