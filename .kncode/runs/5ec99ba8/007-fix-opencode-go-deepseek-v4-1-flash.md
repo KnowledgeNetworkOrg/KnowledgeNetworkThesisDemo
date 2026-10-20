@@ -1,0 +1,6 @@
+1. Must fix 1: not fixed: dependencies were installed and the driver now runs green (13/13, including the recap and ArrowDown/ArrowUp checks), but the requested pre-fix red run and `npm run verify` were not run — this step permits one narrow check after the edits and forbids the whole-repo suite (`tools/studio-spike/browsertest-presenterclicker.mjs:1`).
+2. Must fix 2: fixed — `src/present/PresenterScreen.tsx:206-207` now gates both step-key branches on `!ended`, so those keys fall through to the recap's scrollers instead of being claimed.
+
+Assumptions: Space and Enter remain unbound as planned. The new recap check flags every stop and shrinks the viewport to 300px so the flagged list definitely overflows; it passed with `max 185`, and `node_modules` was installed only to run the driver and is gitignored.
+
+FLAG: conflict: The card and reviewer require a pre-fix red run and a post-fix green run, but this step allows only one narrow run after the edits; should the red run be performed by reverting and restoring, or left unrecorded?

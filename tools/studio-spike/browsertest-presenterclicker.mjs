@@ -2,8 +2,8 @@
 //
 // Clickers send Page Down / Page Up rather than the arrow keys. This driver starts a lecture, puts
 // the keyboard on the deck (a pane that scrolls), and presses PageDown / PageUp: the record must
-// advance and come back, and the pane must not take the key as a scroll instead. On the unfixed
-// screen the stop stays put and the deck scrolls under it.
+// advance and come back, and the pane must not take either key as a scroll instead. The last check
+// ends the lecture and makes sure the recap's own scrollers still get the keys.
 //
 // Spawns vite ITSELF — backgrounded dev servers die on this machine.
 // Run from anywhere:  node tools/studio-spike/browsertest-presenterclicker.mjs
@@ -106,8 +106,55 @@ try {
   await page.waitForTimeout(600)
   const returned = await stopNumber()
   const top = await deckTop()
-  ok('PageUp returns the record to the stop it left', returned === before, `stop ${after} → ${returned}`)
+  ok('PageUp returns the record to the stop it left', returned === after - 1, `stop ${after} → ${returned}`)
   ok('and the deck stays at the bottom where PageUp found it', !!bottom && Math.abs(top - bottom.top) <= 1, `deck scrollTop ${top} of ${bottom && bottom.top}`)
+
+  // ── the arrows that were already bound still step ───────────────────────────
+  await focusDeck()
+  const beforeArrow = await stopNumber()
+  await page.keyboard.press('ArrowDown')
+  await page.waitForTimeout(500)
+  const afterDown = await stopNumber()
+  ok('ArrowDown advances the record', afterDown === beforeArrow + 1, `stop ${beforeArrow} → ${afterDown}`)
+  await focusDeck()
+  await page.keyboard.press('ArrowUp')
+  await page.waitForTimeout(500)
+  const afterUp = await stopNumber()
+  ok('ArrowUp returns the record', afterUp === beforeArrow, `stop ${afterDown} → ${afterUp}`)
+
+  // ── once ended, the step keys belong to the recap's scrollers ───────────────
+  // Flag every stop so the recap's flagged list overflows, then end the lecture and shrink the
+  // window: the list is then the keyboard's pane and PageDown must scroll it, not vanish.
+  for (let i = 1; i < total; i++) {
+    await page.keyboard.press('ArrowLeft')
+    await page.waitForTimeout(150)
+  }
+  for (let i = 0; i < total; i++) {
+    await page.keyboard.press('f')
+    await page.waitForTimeout(150)
+    if (i < total - 1) {
+      await page.keyboard.press('ArrowRight')
+      await page.waitForTimeout(250)
+    }
+  }
+  await page.locator('[aria-label="end lecture"]').click()
+  await page.getByRole('button', { name: 'end lecture' }).last().click()
+  await page.waitForTimeout(800)
+  ok('the lecture ends into the recap', (await page.locator('[data-lecture-recap]').count()) === 1)
+  await page.setViewportSize({ width: 1750, height: 300 })
+  await page.waitForTimeout(600)
+  const recapList = page.locator('[data-lecture-recap] [data-pane-body="scroller"]').last()
+  const recap = await recapList.evaluate((el) => {
+    el.setAttribute('tabindex', '-1')
+    el.focus()
+    el.scrollTop = 0
+    return { active: document.activeElement === el, max: el.scrollHeight - el.clientHeight }
+  })
+  ok('the recap list is focused and has room to scroll', recap.active && recap.max > 0, `max ${recap.max}`)
+  await page.keyboard.press('PageDown')
+  await page.waitForTimeout(400)
+  const recapTop = await recapList.evaluate((el) => el.scrollTop)
+  ok('PageDown scrolls the recap list once the lecture has ended', recapTop > 0, `scrollTop ${recapTop}`)
 
   ok('no page errors', errors.filter((e) => e.includes('pageerror')).length === 0)
 } catch (e) {
