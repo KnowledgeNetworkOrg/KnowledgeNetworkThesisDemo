@@ -421,10 +421,10 @@ export interface PaneProps {
   /** the colour the legend masks the border with; defaults to the desk. Pass the real
    *  surface if a pane ever sits on something other than `--surface-canopy` */
   legendBg?: string
-  /** THE PANE'S OWN WIDTH FLOOR (DS `PaneFit`, OB-170) - the width below which its content
-   *  no longer works. `data-pane-fit` publishes the normalised number for the desk's clamp
-   *  and a driver; the frame itself keeps `minWidth: 0`, so a row narrower than the floors
-   *  together shrinks its panes instead of scrolling the page. */
+  /** THE PANE'S OWN WIDTH FLOOR (DS `PaneFit`, OB-170) — the width below which its content
+   *  no longer works. `data-pane-fit` publishes the normalised number for a driver; the
+   *  frame itself keeps `minWidth: 0`, so a row narrower than the floors together shrinks
+   *  its panes instead of scrolling the page. */
   fit?: PaneFit
   /** `legend` (default) or the older filled `bar` title row */
   variant?: 'legend' | 'bar'

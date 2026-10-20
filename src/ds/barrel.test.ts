@@ -1,13 +1,11 @@
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-
 import { describe, expect, it } from 'vitest'
 
 import { adjacentDuplicates, DropVerdict, verdictPaint, ARROW_BOW_MAX_DEG, ARROW_MIN_SHAFT_HEADS, Bullet, labelCase, LabelCut, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, ExplorerRail, ExplorerRailCorner, ExplorerRailMath, explorerRailWidth, FindMark, FIRST_LINE, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_DIVIDER_METRICS, PaneDivider, paneFit, clampDesk, deskBounds, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, REPLAY_PATH, STOP_CARD_METRICS, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StepDotMath, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkComplete, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
 import { CONNECTIONS_BODY_STYLE, ConnectionsSplitPane, OpenAncestors, RelationCards } from '@/ds'
 import { LEGEND_ROW } from '@/ds'
 import { ORBIT_METRICS,OrbitMath, PANE_PLACEHOLDER_METRICS, PREVIEW_BANNER_METRICS, RELATION_STATS_METRICS, RelationOrbit, RelationStats, RelationsRailMath, StatsMath, orbitKinds, orbitMarks, orbitWedge, statKindRows } from '@/ds'
+
+import provenance from './PROVENANCE.json?raw'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -311,17 +309,6 @@ describe('ported but not adopted DS components', () => {
     expect(FIRST_ROW_PAD).toBe(FIRST_LINE - LEGEND_ROW)
   })
 
-  // #341 (OB-253) — the rail's seam drags, so the desk's drag handle came with the frame it
-  // hangs on. #348 (OB-170) adopts it for the desk itself: `StudioView` draws one between adjacent column slots, while `RailFrame` keeps the seam inside a pane
-  it('PaneDivider / PANE_DIVIDER_METRICS / paneFit / clampDesk / deskBounds — the desk and rail drag handle (OB-170, OB-253)', () => {
-    expect(typeof PaneDivider).toBe('function')
-    expect(PANE_DIVIDER_METRICS.hit).toBe(14)
-    expect(paneFit({ narrowBelow: 100 }).floor).toBe(100)
-    expect(paneFit({ floor: 80 }).narrowBelow).toBe(80)
-    expect(clampDesk({ sizes: [200, 200], index: 0, delta: 50, fits: [{ floor: 150 }, { floor: 150 }] })).toEqual([250, 150])
-    expect(deskBounds({ sizes: [200, 200], index: 0, fits: [{ floor: 150 }, { floor: 150 }] })).toEqual({ now: 200, min: 150, max: 250 })
-  })
-
   // #341 (OB-238) — the Explorer rail is a whole component now; the map pane mounts it in this
   // branch, and `ConnectionsRails` carries the hover layer it pairs with.
   it('ExplorerRail / ExplorerRailCorner / explorerRailWidth — the map\'s rail, ported waiting on its mount (#341)', () => {
@@ -367,11 +354,6 @@ describe('ported but not adopted DS components', () => {
     expect(PANE_PLACEHOLDER_METRICS.minHeight).toBe(120)
   })
 
-  it('PROVENANCE.json parses, so every lane can append to and rebase the record', () => {
-    const file = join(dirname(fileURLToPath(import.meta.url)), 'PROVENANCE.json')
-    expect(() => JSON.parse(readFileSync(file, 'utf8'))).not.toThrow()
-  })
-
   // `nestedFamilyPaint` / `familySlots` / `FAMILY_SLOTS` are NOT listed here because
   // they are ADOPTED: src/model/color.ts feeds the map's territory fill through them
   // (OB-119, #250, 2026-09-05). History worth keeping: the OLD nestedFamilyPaint (a
@@ -379,4 +361,21 @@ describe('ported but not adopted DS components', () => {
   // 2026-08-28 for a measured reason — 94 distinct colours across 711 bordering
   // regions. The DS REWROTE it: the input is now a slot from familySlots(), which
   // the host feeds with real geometric adjacency, so the objection no longer holds.
+})
+
+// #341 (OB-253) / #348 (OB-170) — RailFrame and StudioView both import this handle from the
+// barrel, so it is adopted and does not belong in the block above.
+describe('adopted DS chrome', () => {
+  it('PaneDivider / PANE_DIVIDER_METRICS / paneFit / clampDesk / deskBounds — the desk and rail drag handle', () => {
+    expect(typeof PaneDivider).toBe('function')
+    expect(PANE_DIVIDER_METRICS.hit).toBe(14)
+    expect(paneFit({ narrowBelow: 100 }).floor).toBe(100)
+    expect(paneFit({ floor: 80 }).narrowBelow).toBe(80)
+    expect(clampDesk({ sizes: [200, 200], index: 0, delta: 50, fits: [{ floor: 150 }, { floor: 150 }] })).toEqual([250, 150])
+    expect(deskBounds({ sizes: [200, 200], index: 0, fits: [{ floor: 150 }, { floor: 150 }] })).toEqual({ now: 200, min: 150, max: 250 })
+  })
+})
+
+it('PROVENANCE.json parses, so every lane can append to and rebase the record', () => {
+  expect(() => JSON.parse(provenance)).not.toThrow()
 })

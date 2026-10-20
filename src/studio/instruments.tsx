@@ -60,10 +60,11 @@ export interface Instrument {
   /** THE PANE'S OWN WIDTH FLOOR (DS `PaneFit`, OB-170), declared here because only the
    *  pane knows the width its own content stops working at. A desk may not override it;
    *  the drag stops at `floor`, and `narrowBelow` is the point where it draws a lesser
-   *  reading. Strips run full width and declare 0 - no horizontal boundary reaches them. */
+   *  reading. Strips run full width and declare 0 — no horizontal boundary reaches them. */
   fit: Required<PaneFit>
-  /** default flex weight (a preset may override it); { fixed } starts the pane at a
-   * pixel width instead — the stack is a list, not a canvas, and does not want to grow */
+  /** default flex weight (a preset may override it); { fixed } keeps the pane at a
+   * pixel width and outside the fractions — the stack is a list, not a canvas,
+   * and does not want to grow */
   flex?: number | { fixed: number }
   /** a strip that needs working room says how much; one that sizes itself to its
    * content (the trail) leaves this out */
@@ -332,9 +333,9 @@ export const lensTypeOf = (id: string): EdgeType | undefined =>
 // panes all survive as individually pickable instruments — only the curated
 // coder-shaped composition is gone.
 /** one column of the composition. An ARRAY is a stack: those instruments share
- * one column, split evenly top to bottom. It exists because "the palette above
- * the document" is a real arrangement and the flat list could not say it — the
- * only vertical slot used to be a full-width strip along the bottom, which is a
+ * one column, split evenly top to bottom. It exists for arrangements where two
+ * panes stacked in one column read better than two narrow columns — the only
+ * vertical slot used to be a full-width strip along the bottom, which is a
  * different thing entirely. The column's width weight comes from its FIRST
  * member, so a stack is weighted like the pane that leads it. */
 export type Slot = InstrumentId | InstrumentId[]
@@ -386,7 +387,7 @@ export const PRESETS: Preset[] = [
     flex: { map: 1.55, document: 1 },
   },
   {
-    // #416 - the writing desk, read left to right: the ROAD you are writing,
+    // #416 — the writing desk, read left to right: the ROAD you are writing,
     // the TERRITORY it draws on, then the prose that says what a stop teaches.
     // The palette is not part of this composition; it is one sidebar click away
     // when a stop has to come from search rather than from the map.

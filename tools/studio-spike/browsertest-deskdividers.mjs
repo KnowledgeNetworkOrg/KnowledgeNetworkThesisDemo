@@ -1,16 +1,17 @@
-// browsertest-deskdividers.mjs - OB-170 (#348).
+// browsertest-deskdividers.mjs — OB-170 (#348).
 //
 // A TEST. It opens the real app in a real browser and asserts that the desk's pane
 // boundaries DRAG, that each pane stops at the floor it declares, that a resting
 // divider draws nothing, and that a double-click/keyboard reset returns the
-// composition to its preset split. It drives Explore (two panes, one seam) and Plan
-// (three panes, two seams, no walk palette since #416), then a narrow window where
-// the declared floors cannot all fit.
+// composition to its preset split. It drives the launch composition (a drag on each
+// seam, with the sidebar open), Explore (two panes, one seam) and Plan (three panes,
+// two seams, no walk palette since #416), then a narrow window where the declared
+// floors cannot all fit.
 //
 // The floor is read from the pane's own `data-pane-fit`, so the driver is checking
 // the number the pane published rather than a number retyped here.
 //
-// Spawns vite ITSELF through devserver.mjs - backgrounded dev servers die on this
+// Spawns vite ITSELF through devserver.mjs — backgrounded dev servers die on this
 // machine, and a fresh OS-chosen port lets checkouts run at once.
 // Run from anywhere:  node tools/studio-spike/browsertest-deskdividers.mjs
 // Exits nonzero on any failed check or any page error.
@@ -102,6 +103,37 @@ try {
   await page.reload()
   await page.waitForTimeout(800)
   await checkFits('the opening composition at 1280 with the sidebar open', ['map', 'unfoldgraph', 'document'])
+
+  // ── Launch: a seam moves only its two panes ───────────────────────────────
+  // The document opens below its floor here, so this is the case a fitted layout
+  // used to rearrange on the first pixel of a drag.
+  const launch = await widths(['map', 'unfoldgraph', 'document'])
+  ok('the opening composition draws two dividers', (await dividers().count()) === 2, `${await dividers().count()}`)
+
+  const launchSeam0 = dividers().nth(0)
+  const now0 = Number(await launchSeam0.getAttribute('aria-valuenow'))
+  ok('the map|unfoldgraph handle announces the width the map is drawn at', near(now0, launch.map, 1), `${now0} vs ${launch.map}`)
+  await drag(launchSeam0, 2)
+  const launchAfter0 = await widths(['map', 'unfoldgraph', 'document'])
+  ok('a 2px drag there moves only the map and the unfold graph by the pointer\'s travel',
+    near(launchAfter0.map, launch.map + 2, 2) && near(launchAfter0.unfoldgraph, launch.unfoldgraph - 2, 2) && near(launchAfter0.document, launch.document, 1),
+    `${JSON.stringify(launch)} -> ${JSON.stringify(launchAfter0)}`)
+
+  await launchSeam0.dblclick()
+  await page.waitForTimeout(400)
+  const launchReset = await widths(['map', 'unfoldgraph', 'document'])
+  ok('resetting that seam returns the opening split',
+    near(launchReset.map, launch.map, 2) && near(launchReset.unfoldgraph, launch.unfoldgraph, 2) && near(launchReset.document, launch.document, 1),
+    `${JSON.stringify(launch)} -> ${JSON.stringify(launchReset)}`)
+
+  const launchSeam1 = dividers().nth(1)
+  const now1 = Number(await launchSeam1.getAttribute('aria-valuenow'))
+  ok('the unfold graph|document handle announces the width the unfold graph is drawn at', near(now1, launch.unfoldgraph, 1), `${now1} vs ${launch.unfoldgraph}`)
+  await drag(launchSeam1, -2)
+  const launchAfter1 = await widths(['map', 'unfoldgraph', 'document'])
+  ok('a 2px drag there moves only the unfold graph and the document by the pointer\'s travel',
+    near(launchAfter1.map, launch.map, 1) && near(launchAfter1.unfoldgraph, launch.unfoldgraph - 2, 2) && near(launchAfter1.document, launch.document + 2, 2),
+    `${JSON.stringify(launch)} -> ${JSON.stringify(launchAfter1)}`)
 
   // ── Explore: one seam, two panes ──────────────────────────────────────────
   await page.getByLabel('studio-preset-explore').click()

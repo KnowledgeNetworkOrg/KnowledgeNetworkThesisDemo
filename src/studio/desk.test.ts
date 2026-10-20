@@ -8,16 +8,18 @@ import {
   deskAvailable,
   deskFits,
   dragDesk,
-  fitSizes,
+  fixedWidth,
   fractionsOf,
   initialFractions,
   stackFit,
 } from './desk'
+import type { DeskColumn } from './desk'
 import { byInstrument, INSTRUMENTS, PRESETS } from './instruments'
 
 const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol
+const column = (id: string): DeskColumn => ({ key: id, members: [byInstrument.get(id)!] })
 
-describe('OB-170 - every pane declares its own floor', () => {
+describe('OB-170 — every pane declares its own floor', () => {
   it('a column pane declares a usable floor and a lesser-reading point at or above it', () => {
     for (const i of INSTRUMENTS.filter((x) => x.slot === 'column')) {
       expect(i.fit.floor, `${i.id}'s floor`).toBeGreaterThan(0)
@@ -30,7 +32,7 @@ describe('OB-170 - every pane declares its own floor', () => {
     expect(byInstrument.get('document')!.fit.floor).toBe(railFloor('right'))
   })
 
-  it('a strip declares no width floor - it has no horizontal boundary', () => {
+  it('a strip declares no width floor — it has no horizontal boundary', () => {
     for (const i of INSTRUMENTS.filter((x) => x.slot === 'strip')) expect(i.fit.floor).toBe(0)
   })
 
@@ -44,7 +46,7 @@ describe('OB-170 - every pane declares its own floor', () => {
   })
 })
 
-describe('OB-170 - the desk divides the measured row', () => {
+describe('OB-170 — the desk divides the measured row', () => {
   it('each seam costs only the gutter it already had', () => {
     expect(deskAvailable(1000, 1)).toBe(1000)
     expect(deskAvailable(1000, 2)).toBe(1000 - DESK_GUTTER)
@@ -57,51 +59,46 @@ describe('OB-170 - the desk divides the measured row', () => {
   })
 
   it("Explore's preset split starts from its own weights", () => {
-    const columns = ['map', 'document'].map((id) => ({ key: id, members: [byInstrument.get(id)!] }))
-    const f = initialFractions(columns, PRESETS.find((p) => p.id === 'explore')!.flex, 1000)
+    const columns = ['map', 'document'].map(column)
+    const f = initialFractions(columns, PRESETS.find((p) => p.id === 'explore')!.flex)
     expect(near(f[0], 1.55 / 2.55)).toBe(true)
     expect(near(f[1], 1 / 2.55)).toBe(true)
     expect(near(f[0] + f[1], 1)).toBe(true)
   })
 
-  it('a fixed-width pane contributes its pixels first', () => {
-    const columns = ['walkstack', 'map'].map((id) => ({ key: id, members: [byInstrument.get(id)!] }))
-    const f = initialFractions(columns, { map: 1 }, 800)
-    expect(near(f[0] + f[1], 1)).toBe(true)
-    expect(near(f[0] * 800, 372)).toBe(true)
-    expect(near(f[1] * 800, 800 - 372)).toBe(true)
-  })
-
-  it('floors are honoured by taking from the pane with room, not by overflowing', () => {
-    // document's share is 300 but its floor is 396: it is pinned there and the map keeps the rest
-    const sizes = fitSizes([0.7, 0.3], 1000, [{ floor: 330 }, { floor: 396 }])
-    expect(sizes).toEqual([604, 396])
-  })
-
-  it('when the floors together exceed the row the panes shrink to fit it', () => {
-    const sizes = fitSizes([0.5, 0.5], 700, [{ floor: 400 }, { floor: 396 }])
-    expect(sizes).toEqual([350, 350])
-    expect(sizes[0] + sizes[1]).toBe(700)
+  it('a fixed pane keeps its pixels and takes no share of the fractions', () => {
+    expect(fixedWidth(column('walkstack'))).toBe(372)
+    expect(fixedWidth(column('map'))).toBe(null)
+    expect(initialFractions([column('map')], { map: 1 })).toEqual([1])
   })
 })
 
-describe('OB-170 - the drag is the same clamp as the bounds', () => {
+describe('OB-170 — the drag is the same clamp as the bounds', () => {
   it('moves one boundary, preserves the total, and stops at a floor', () => {
     const fits = [{ floor: 400 }, { floor: 400 }]
-    const left = dragDesk({ fractions: [0.5, 0.5], available: 1000, fits, index: 0, delta: -300 })
+    const left = dragDesk({ sizes: [500, 500], fits, index: 0, delta: -300 })
     expect(left.sizes).toEqual([400, 600])
     expect(left.fractions).toEqual([0.4, 0.6])
     expect(left.sizes[0] + left.sizes[1]).toBe(1000)
 
-    const right = dragDesk({ fractions: [0.5, 0.5], available: 1000, fits, index: 0, delta: 300 })
+    const right = dragDesk({ sizes: [500, 500], fits, index: 0, delta: 300 })
     expect(right.sizes).toEqual([600, 400])
     expect(right.fractions).toEqual([0.6, 0.4])
   })
 
   it('a pane already under its floor gives nothing back', () => {
-    const sizes = fitSizes([0.5, 0.5], 700, [{ floor: 400 }, { floor: 396 }])
-    const moved = dragDesk({ fractions: fractionsOf(sizes), available: 700, fits: [{ floor: 400 }, { floor: 396 }], index: 0, delta: 100 })
+    const moved = dragDesk({ sizes: [350, 350], fits: [{ floor: 400 }, { floor: 396 }], index: 0, delta: 100 })
     expect(moved.sizes).toEqual([350, 350])
+  })
+
+  it('a drag on the drawn widths moves only the boundary it touches', () => {
+    const launch = dragDesk({
+      sizes: [459, 322, 231],
+      fits: [{ floor: 330 }, { floor: 240 }, { floor: 396 }],
+      index: 0,
+      delta: 2,
+    })
+    expect(launch.sizes).toEqual([461, 320, 231])
   })
 
   it('sizes convert back to fractions that sum to one', () => {

@@ -36,7 +36,7 @@ import { FAMILIES } from './families'
 import type { Family } from './families'
 import { byInstrument, flattenSlots, INSTRUMENTS, lensTypeOf, PRESETS } from './instruments'
 import type { Instrument, InstrumentId, Preset, Slot } from './instruments'
-import { DESK_DIVIDER_MARGIN, deskAvailable, deskFits, dragDesk, fitSizes, fractionsOf, initialFractions } from './desk'
+import { DESK_DIVIDER_MARGIN, deskAvailable, deskFits, dragDesk, fixedWidth, initialFractions } from './desk'
 import type { DeskColumn } from './desk'
 
 /** the palette's fly-to-the-toolbar transition, in ms. It MUST equal
@@ -468,7 +468,7 @@ export default function StudioView() {
   )
 
   // `order` is what makes the PRESET's array order the visual order, independent
-  // of the registry's (DOM) order - so toggling a pane never remounts another.
+  // of the registry's (DOM) order — so toggling a pane never remounts another.
   // A divider takes the odd order between two columns; a benched pane has none.
   const columnSlots: DeskColumn[] = active
     .map((slot) => {
@@ -480,21 +480,37 @@ export default function StudioView() {
     .filter((s) => s.members.length > 0)
 
   const columnFits = deskFits(columnSlots)
+  const fixedWidths = columnSlots.map(fixedWidth)
+  // A fixed pane keeps its own pixels and never enters the fractions or a drag,
+  // so a seam beside it has nothing to move and is disabled.
+  const flexIndices: number[] = []
+  const flexIndexAt = columnSlots.map((_, i) => {
+    if (fixedWidths[i] !== null) return -1
+    flexIndices.push(i)
+    return flexIndices.length - 1
+  })
+  const flexSlots = flexIndices.map((i) => columnSlots[i])
+  const flexFits = flexIndices.map((i) => columnFits[i])
   const fractionKey = presetId ?? columnSlots.map((c) => c.key).join('|')
   const available = deskAvailable(deskWidth, columnSlots.length)
-  const presetFractions = initialFractions(columnSlots, flexMap, available)
+  const flexAvailable = Math.max(0, available - fixedWidths.reduce<number>((sum, w) => sum + (w ?? 0), 0))
+  const presetFractions = initialFractions(flexSlots, flexMap)
   const stored = deskSizes[fractionKey]
-  const fractions = stored && stored.length === columnSlots.length ? stored : presetFractions
-  const drawnFractions = deskLive && deskLive.key === fractionKey && deskLive.fractions.length === columnSlots.length
+  const fractions = stored && stored.length === flexSlots.length ? stored : presetFractions
+  const drawnFractions = deskLive && deskLive.key === fractionKey && deskLive.fractions.length === flexSlots.length
     ? deskLive.fractions
     : fractions
-  const settledSizes = fitSizes(drawnFractions, available, columnFits)
+  const drawnFlexSizes = flexSlots.map((_, k) => Math.max(0, drawnFractions[k] ?? 0) * flexAvailable)
 
-  const columnStyle = (i: number): CSSProperties => ({
-    order: i * 2,
-    minWidth: 0,
-    flex: `${Math.max(0, drawnFractions[i] ?? 1)} 1 0%`,
-  })
+  const columnStyle = (i: number): CSSProperties => {
+    const fixed = fixedWidths[i]
+    if (fixed !== null) return { order: i * 2, flex: `0 0 ${fixed}px` }
+    return {
+      order: i * 2,
+      minWidth: 0,
+      flex: `${Math.max(0, drawnFractions[flexIndexAt[i]] ?? 1)} 1 0%`,
+    }
+  }
 
   const columnSelector = (i: number) => {
     const { key, members } = columnSlots[i]
@@ -502,18 +518,18 @@ export default function StudioView() {
       ? `[aria-label="studio-pane-${members[0].id}"]`
       : `[aria-label="studio-stack-${key.replace(/\+/g, '-')}"]`
   }
-  const readColumnSizes = () =>
-    columnSlots.map((_, i) => {
+  const readFlexSizes = () =>
+    flexIndices.map((i) => {
       const el = deskRowRef.current?.querySelector<HTMLElement>(columnSelector(i))
       return el ? el.getBoundingClientRect().width : 0
     })
 
   const dragAt = (index: number, delta: number) => {
-    const base = dragBase.current ?? readColumnSizes()
+    const base = dragBase.current ?? readFlexSizes()
     dragBase.current = base
     const total = base.reduce((sum, w) => sum + w, 0)
     if (!(total > 0)) return null
-    return dragDesk({ fractions: fractionsOf(base), available: total, fits: columnFits, index, delta })
+    return dragDesk({ sizes: base, fits: flexFits, index, delta })
   }
   const onDividerDrag = (index: number, delta: number) => {
     const next = dragAt(index, delta)
@@ -561,19 +577,22 @@ export default function StudioView() {
   }
 
   const divider = (i: number) => {
-    const bounds = deskBounds({ sizes: settledSizes, index: i, fits: columnFits })
+    const flexIndex = flexIndexAt[i]
+    const movable = flexIndex >= 0 && flexIndexAt[i + 1] === flexIndex + 1
+    const bounds = movable ? deskBounds({ sizes: drawnFlexSizes, index: flexIndex, fits: flexFits }) : null
     const left = columnSlots[i].members[0].label
     const right = columnSlots[i + 1].members[0].label
     return (
       <PaneDivider
         key={`divider-${columnSlots[i].key}`}
         label={`resize ${left} and ${right}`}
-        onDrag={(delta) => onDividerDrag(i, delta)}
-        onDragEnd={(delta) => onDividerEnd(i, delta)}
-        onReset={onDividerReset}
-        now={bounds.now}
-        min={bounds.min}
-        max={bounds.max}
+        onDrag={movable ? (delta) => onDividerDrag(flexIndex, delta) : undefined}
+        onDragEnd={movable ? (delta) => onDividerEnd(flexIndex, delta) : undefined}
+        onReset={movable ? onDividerReset : undefined}
+        now={bounds?.now}
+        min={bounds?.min}
+        max={bounds?.max}
+        disabled={!movable}
         style={{ order: i * 2 + 1, marginLeft: DESK_DIVIDER_MARGIN, marginRight: DESK_DIVIDER_MARGIN }}
       />
     )
