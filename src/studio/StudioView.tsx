@@ -426,10 +426,9 @@ export default function StudioView() {
   // with no explicit flex of its own now needs one passed: see the strips
   // mapping below.
   //
-  // THE ROW IS MEASURED FOR THE HANDLES' BOUNDS, but not while the palette flies: the
-  // panes themselves are fractions on the live row (`flex`), so the browser lays them
-  // out without a React render per frame. Measuring then would re-render every pane on
-  // every frame of the flight, and the flight is meant to stay smooth.
+  // THE ROW IS MEASURED FOR THE PANES' WIDTHS AND THE HANDLES' BOUNDS, but not while
+  // the palette flies: the panes are pixel widths derived from that measurement, and
+  // measuring during the flight would re-render every pane on every frame.
   useLayoutEffect(() => {
     if (paletteAnim) return
     const el = deskRowRef.current
@@ -508,7 +507,9 @@ export default function StudioView() {
     return {
       order: i * 2,
       minWidth: 0,
-      flex: `${Math.max(0, drawnFractions[flexIndexAt[i]] ?? 1)} 1 0%`,
+      boxSizing: 'border-box',
+      flex: '0 1 auto',
+      width: drawnFlexSizes[flexIndexAt[i]] ?? 0,
     }
   }
 
@@ -524,8 +525,9 @@ export default function StudioView() {
       return el ? el.getBoundingClientRect().width : 0
     })
 
-  const dragAt = (index: number, delta: number) => {
-    const base = dragBase.current ?? readFlexSizes()
+  const sameSizes = (a: readonly number[], b: readonly number[]) =>
+    a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) <= 1e-6)
+  const dragAt = (index: number, delta: number, base: number[] = dragBase.current ?? readFlexSizes()) => {
     dragBase.current = base
     const total = base.reduce((sum, w) => sum + w, 0)
     if (!(total > 0)) return null
@@ -536,8 +538,9 @@ export default function StudioView() {
     if (next) setDeskLive({ key: fractionKey, fractions: next.fractions })
   }
   const onDividerEnd = (index: number, delta: number) => {
-    const next = dragAt(index, delta)
-    if (next && delta !== 0) setDeskSizes((prev) => ({ ...prev, [fractionKey]: next.fractions }))
+    const base = dragBase.current ?? readFlexSizes()
+    const next = dragAt(index, delta, base)
+    if (next && !sameSizes(next.sizes, base)) setDeskSizes((prev) => ({ ...prev, [fractionKey]: next.fractions }))
     setDeskLive(null)
     dragBase.current = null
   }

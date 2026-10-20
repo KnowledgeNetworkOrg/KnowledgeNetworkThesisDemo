@@ -135,6 +135,23 @@ try {
     near(launchAfter1.map, launch.map, 1) && near(launchAfter1.unfoldgraph, launch.unfoldgraph - 2, 2) && near(launchAfter1.document, launch.document + 2, 2),
     `${JSON.stringify(launch)} -> ${JSON.stringify(launchAfter1)}`)
 
+  // ── Launch: a seam that has stopped moves nothing else ────────────────────
+  // The unfold graph is the seam's right pane and its floor is 80px away. Once
+  // there, further nudges must leave the boundary, the map and the document alone.
+  await launchSeam0.focus()
+  const preKeys = await widths(['map', 'unfoldgraph', 'document'])
+  for (let i = 0; i < 10; i++) await page.keyboard.press('ArrowRight')
+  await page.waitForTimeout(350)
+  const stopped = await widths(['map', 'unfoldgraph', 'document'])
+  const unfoldFloor = await floorOf('unfoldgraph')
+  ok('keyboard nudges stop the unfold graph at its declared floor', near(stopped.unfoldgraph, unfoldFloor, 2), `${stopped.unfoldgraph}px, floor ${unfoldFloor}`)
+  for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowRight')
+  await page.waitForTimeout(350)
+  const afterKeys = await widths(['map', 'unfoldgraph', 'document'])
+  ok('nudging a stopped seam moves neither the boundary nor the third pane',
+    near(afterKeys.map, stopped.map, 1) && near(afterKeys.unfoldgraph, stopped.unfoldgraph, 1) && near(afterKeys.document, preKeys.document, 1),
+    `${JSON.stringify(preKeys)} -> ${JSON.stringify(stopped)} -> ${JSON.stringify(afterKeys)}`)
+
   // ── Explore: one seam, two panes ──────────────────────────────────────────
   await page.getByLabel('studio-preset-explore').click()
   await page.waitForTimeout(900)
