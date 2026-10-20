@@ -37,8 +37,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   clampDesk, deskBounds, FilmRoll, LECTURE_NOTES_FIT, LectureNotes, LectureRecap, NOTE_CATEGORIES,
-  Pane, PANE_DIVIDER_METRICS, PaneDivider, PresenterHeaderBar, PresenterStrip, ProjectedMap,
-  QUICK_ACTIONS_FIT, QUICK_ACTION_PLACEHOLDERS, QuickActionsDeck, settleRead, StopFinder, swapActions,
+  Pane, PANE_DIVIDER_METRICS, PaneDivider, paneFit, PresenterHeaderBar, PresenterStrip, ProjectedMap,
+  QUICK_ACTIONS_FIT, QUICK_ACTION_PLACEHOLDERS, QuickActionsDeck, StopFinder, swapActions, usePaneWidth,
 } from '@/ds'
 import type { NoteCategory, PresenterState, QuickAction } from '@/ds'
 
@@ -313,25 +313,17 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
      The deck's width is a preference (`null` is the seed), but the width DRAWN is derived from the
      measured row every render: a preference restored into a narrower window cannot push the handle
      out of reach. The gesture's arithmetic is `clampDesk`'s, over the two panes' own fits, and the
-     store is written on `onDragEnd` alone. Below the width where both floors fit, the deck holds
-     its floor and the notes give way, so the handle stays on screen. */
-  const panesRef = useRef<HTMLDivElement | null>(null)
-  const [panesW, setPanesW] = useState(0)
-  useEffect(() => {
-    const el = panesRef.current
-    if (!el) return
-    const read = () => { if (panesRef.current) setPanesW(Math.round(panesRef.current.getBoundingClientRect().width)) }
-    const stopReading = settleRead(read)
-    let ro: ResizeObserver | null = null
-    if (typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(read); ro.observe(el) }
-    return () => { stopReading(); if (ro) ro.disconnect() }
-  }, [ended, N])
+     store is written on `onDragEnd` alone. Below the width where both floors fit, one of them has
+     to break: the deck holds its floor because a narrower deck stops reading as two columns of
+     four, and the notes are the pane already built to give (`flex: 1`, `minWidth: 0`). The handle
+     stays on screen either way, because the drawn width is derived from the measured row. */
+  const [panesW, panesRef] = usePaneWidth()
   const [deckWidth, setDeckWidth] = useState<number | null>(null)
   const [liveDeck, setLiveDeck] = useState<number | null>(null)
   const dragStart = useRef<number | null>(null)
   const dividerW = PANE_DIVIDER_METRICS.hit
-  const notesFloor = LECTURE_NOTES_FIT.floor ?? LECTURE_NOTES_FIT.narrowBelow ?? 0
-  const deckFloor = QUICK_ACTIONS_FIT.floor ?? 0
+  const notesFloor = paneFit(LECTURE_NOTES_FIT).floor
+  const deckFloor = paneFit(QUICK_ACTIONS_FIT).floor
   const narrowDeck = !!panesW && panesW - dividerW - notesFloor < deckFloor
   /* THE FITS ARE THE PANES' OWN AT EVERY WIDTH — `PaneFit` says a desk may not override them, and
      `clampDesk` already stops both sides once neither has width to give. */

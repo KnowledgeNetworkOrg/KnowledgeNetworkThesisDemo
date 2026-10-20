@@ -144,13 +144,24 @@ try {
     const notesEl = document.querySelector('[data-lecture-notes="live"]')
     if (!h || !r) return null
     const hb = h.getBoundingClientRect(), rb = r.getBoundingClientRect()
-    return { left: hb.left, right: hb.right, rowLeft: rb.left, rowRight: rb.right, notes: notesEl ? notesEl.getBoundingClientRect().width : 0 }
+    return { left: hb.left, right: hb.right, rowLeft: rb.left, rowRight: rb.right, winW: window.innerWidth, notes: notesEl ? notesEl.getBoundingClientRect().width : 0 }
   })
   ok('a narrow window keeps the handle on screen, the notes giving way first',
-    !!narrowPanes && narrowPanes.left >= narrowPanes.rowLeft - 1 && narrowPanes.right <= narrowPanes.rowRight + 1 && narrowPanes.notes < 522,
-    narrowPanes ? `handle ${Math.round(narrowPanes.left)}–${Math.round(narrowPanes.right)} in ${Math.round(narrowPanes.rowLeft)}–${Math.round(narrowPanes.rowRight)}, notes ${Math.round(narrowPanes.notes)}` : 'no handle')
+    !!narrowPanes && narrowPanes.left >= narrowPanes.rowLeft - 1 && narrowPanes.right <= narrowPanes.rowRight + 1
+      && narrowPanes.left >= 0 && narrowPanes.right <= narrowPanes.winW && narrowPanes.notes < 522,
+    narrowPanes ? `handle ${Math.round(narrowPanes.left)}–${Math.round(narrowPanes.right)} in ${Math.round(narrowPanes.rowLeft)}–${Math.round(narrowPanes.rowRight)} of a ${narrowPanes.winW}px window, notes ${Math.round(narrowPanes.notes)}` : 'no handle')
   await page.setViewportSize({ width: 1750, height: 950 })
   await page.waitForTimeout(700)
+  // The narrow window clamped the DRAWN width only: back at full size the deck is where it was dragged.
+  const restored = await widths()
+  ok('the narrow clamp was not stored — the deck comes back to the width it was dragged to',
+    Math.abs(restored.deck - atNotesFloor.deck) <= 1, `${Math.round(atNotesFloor.deck)}px → ${Math.round(restored.deck)}px`)
+  // A click on the handle that moves nothing stores nothing and moves nothing.
+  const clickHandle = await strip.boundingBox()
+  await page.mouse.click(clickHandle.x + clickHandle.width / 2, clickHandle.y + clickHandle.height / 2)
+  await page.waitForTimeout(300)
+  const clicked = await widths()
+  ok('a click on the handle with no travel leaves the deck where it was', Math.abs(clicked.deck - restored.deck) <= 1, `${Math.round(restored.deck)}px → ${Math.round(clicked.deck)}px`)
   const resetHandle = await strip.boundingBox()
   await page.mouse.dblclick(resetHandle.x + resetHandle.width / 2, resetHandle.y + resetHandle.height / 2)
   await page.waitForTimeout(300)
