@@ -1,3 +1,0 @@
-1. `src/ds/PROVENANCE.json` — kept origin/main's DS-file hash (`43f824…`) and OB-301 `lastVendored`, kept HEAD's `hashRecipe`, and kept HEAD's `note` because it already contains origin/main's note plus the OB-300 paragraph; no markers remain and the file parses as JSON.
-
-Assumptions: the `hash` field should hold the DS file's hash, not our local copy's (`b9075bc…`), per `hashRecipe` and OB-301's own explanation of the DomainDot line difference; HEAD's note is the superset, so it was kept whole rather than concatenating a duplicate.
