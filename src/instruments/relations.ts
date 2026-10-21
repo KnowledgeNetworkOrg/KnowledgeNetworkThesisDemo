@@ -9,7 +9,7 @@
 // Everything here is PURE and module-scoped on purpose. The Connections pane memoises on the
 // identity of `relationsOfNode`, and the rail memoises on the arrays `neighbourhoodOf` returns, so
 // both must come back referentially stable for the same node.
-import { ORBIT_SELF, REL_CARD_METRICS } from '@/ds'
+import { ORBIT_SELF } from '@/ds'
 import type { Relation, ViaRelation } from '@/ds'
 
 import { byId, childrenOf, EDGE_LABEL, edges, pathTo, topicHueOf } from '../corpus/graph'
@@ -156,26 +156,4 @@ export function neighbourLitBy(hoverId: string | null | undefined, hood: Neighbo
   for (const r of hood.direct) if (chain.has(r.targetId)) return r.targetId
   for (const v of hood.via) if (chain.has(v.rel.targetId)) return v.rel.targetId
   return null
-}
-
-/** THE CARD'S OWN PADDING, one side, and its border. The card sits in a gutter the pane sizes for
- *  it, so the rows inside must be solved against what is left after these, or the target pill
- *  overhangs the card's edge. CHOSEN, a look. */
-export const ORBIT_CARD_PAD_X = 10
-const ORBIT_CARD_BORDER = 1
-/** the widest a pill in the hover card may draw, CHOSEN: past this a wider gutter adds shaft to
- *  the connector, and the reading happens in the pills */
-const ORBIT_CARD_PILL_MAX = 88
-
-/** THE ROW WIDTHS INSIDE THE HOVER CARD, solved backward from the card's own width the way
- *  `RelationCards` solves them from its measured one: both pills take an equal share of what the
- *  connector's minimum and the group's chrome leave, and the connector takes the rest. Pure, so the
- *  one thing that goes silently wrong — a target pill overhanging the card's edge in a narrow
- *  gutter — is pinned by a test rather than by looking. */
-export function orbitCardWidths(cardW: number): { pill: number; arrow: number } {
-  const RM = REL_CARD_METRICS
-  const avail = cardW - ORBIT_CARD_BORDER * 2 - ORBIT_CARD_PAD_X * 2 - RM.rowPad * 2 - RM.rowGap * 2
-  const pill = Math.max(RM.pillMin, Math.min(ORBIT_CARD_PILL_MAX, Math.floor((avail - RM.groupChrome - RM.arrowMin) / 2)))
-  const arrow = Math.max(RM.arrowMin, avail - RM.groupChrome - pill * 2)
-  return { pill, arrow }
 }

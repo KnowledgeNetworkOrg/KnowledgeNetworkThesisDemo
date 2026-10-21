@@ -51,8 +51,10 @@ describe('OB-249 — no host restates the shared first line', () => {
     expect(studioSource).not.toContain('border-hair p-3 pt-2')
   })
 
-  it('the document\'s closed Relations button sits at FIRST_ROW_PAD, not a restated 14', () => {
-    expect(documentSource).toContain("margin: FIRST_ROW_PAD + 'px var(--space-3) 0 0'")
+  it('the document\'s closed Relations button gets its line from the head, not a margin of its own', () => {
+    // OB-270: DocHeader owns the row now, so its FIRST_ROW_PAD pad places the corner on the same line
+    expect(documentSource).toContain('aside={<RelationsRailCorner')
+    expect(documentSource).not.toContain("margin: FIRST_ROW_PAD")
     expect(documentSource).not.toContain("margin: '14px")
   })
 
