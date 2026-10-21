@@ -18,17 +18,20 @@
 // the deck, on the same bus, leaving active/mounted/flexMap/presetId untouched
 // so exiting restores the exact desk that was there.
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { CSSProperties } from 'react'
 
 import { AppHeader, CountBadge, deskBounds, EDGE_TOKEN, FamilyColumn, FIRST_SCROLL_PAD, InstrumentGroup, InstrumentRow, Pane, PaneDivider, PresetButton, SectionLabel } from '@/ds'
-import type { EdgeKind } from '@/ds'
+import type { EdgeKind, LoadChoice, LoadMap } from '@/ds'
 
-import { byId, topicHueOf } from '../corpus/graph'
+import { byId, ROOT_ID, topicHueOf } from '../corpus/graph'
+import { forgetDraftUnsaved, saveDraftAsWalk, useDraftUnsaved } from '../state/walk/authordraft'
+import { listWalks, subscribeWalks } from '../state/walkstore'
 import { platform } from '../platform'
 import PresenterScreen from '../present/PresenterScreen'
 import { PROJECTOR_QUERY, PROJECTOR_WINDOW } from '../present/projector'
 import { AppToolbar } from './AppToolbar'
+import { applyLoadChoice } from './loadpick'
 import type { PresentState } from './presentbutton'
 import { PALETTE_HOOK_SELECTOR } from './PaletteGlyph'
 import { useStudioBus } from '../state/bus'
@@ -76,6 +79,12 @@ const PALETTE_ANIM_MS = 400
  *  which hop of the FLIP it is on — `measuring` and `shrink` exist only for
  *  opening, which has to be measured at rest before it can start shrunk. */
 type PaletteAnim = { dir: 'closing' | 'opening'; phase: 'measuring' | 'shrink' | 'grow' | 'go'; dx: number; dy: number }
+
+/** "2026-10-21 17:20" in local time: one fixed form, whatever the system locale */
+const localStamp = (d: Date) => {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
 
 export default function StudioView() {
   // ── composition: which panes are on screen, and how big ───────────────────
@@ -382,6 +391,31 @@ export default function StudioView() {
   // ── the bus ───────────────────────────────────────────────────────────────
   const bus = useStudioBus<InstrumentId>(ensureActive)
 
+  // ── the toolbar's Load ────────────────────────────────────────────────────
+  // The app has one corpus map; its walks are the registry's, including any the
+  // desk saved this session, so the list is subscribed rather than read once.
+  const unsavedDraft = useDraftUnsaved()
+  const allWalks = useSyncExternalStore(subscribeWalks, listWalks)
+  const loadMaps: LoadMap[] = [
+    {
+      id: ROOT_ID,
+      title: byId.get(ROOT_ID)?.title ?? 'this map',
+      walks: allWalks.map((w) => ({
+        id: w.id,
+        title: w.title,
+        stops: w.stops.map((s) => ({ title: byId.get(s.id)?.title ?? s.id })),
+      })),
+    },
+  ]
+  const onLoadPick = (choice: LoadChoice, how?: 'save' | 'discard') => {
+    // The draft is never unsaved while it resolves to no stops, so a save from the
+    // warning always writes a walk. It is named by the time it was taken, so saves
+    // made this way stay apart in the Load list rather than all reading "untitled walk".
+    if (how === 'save') saveDraftAsWalk('walk draft, ' + localStamp(new Date()))
+    else if (how === 'discard') forgetDraftUnsaved()
+    applyLoadChoice(bus, choice)
+  }
+
   // ── coming back from the presenter (#214) ─────────────────────────────────
   // The desk's panes are NOT mounted while the presenter is up — one instance of
   // everything, the rule #195 set and #267 kept — so every pane is built fresh on
@@ -677,7 +711,8 @@ export default function StudioView() {
       </div>
 
       {/* #55: app-level operations, pinned directly under the app header */}
-      <AppToolbar present={{ state: presentState, onClick: pressPresent }} palette={{ on: paletteOpen, onToggle: () => (paletteOpen ? closePalette() : openPalette()) }} />
+      <AppToolbar present={{ state: presentState, onClick: pressPresent }} palette={{ on: paletteOpen, onToggle: () => (paletteOpen ? closePalette() : openPalette()) }}
+        load={{ maps: loadMaps, openMapId: ROOT_ID, openWalkId: bus.activeWalk ? bus.activeWalk.walkId : null, unsaved: unsavedDraft, onPick: onLoadPick }} />
       </>
       )}
 
