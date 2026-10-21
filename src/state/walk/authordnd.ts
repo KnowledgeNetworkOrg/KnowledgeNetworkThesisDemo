@@ -7,14 +7,16 @@
 // view caught it.
 //
 // Since OB-219 a drop can also be REFUSED: the same node may not sit twice in a
-// row. The rule is the design system's (`neighboursOf`, published so no host
-// retypes it); what lives here is the host's half — which ids the landing list
-// holds, which node a payload carries, and the record a real drag needs so the
-// road can judge a gap before the drop rather than after it.
+// row, and a dragged group may not land inside itself. The duplicate rule is the
+// design system's (`neighboursOf`, published so no host retypes it); what lives
+// here is the host's half — which ids the landing list holds, which node a payload
+// carries, and the record a real drag needs so the road can judge a gap before the
+// drop rather than after it.
 
 import type { DragEvent as ReactDragEvent } from 'react'
 
 import { neighboursOf } from '@/ds'
+import type { RefusalReason } from '@/ds'
 import type { AuthorState, Path } from './authordraft'
 import { parsePath, stopAt } from './authordraft'
 import { chosenIdx, chosenSteps, isBox, isLeaf } from './mockwalk'
@@ -116,7 +118,8 @@ export function draggedNode(stops: Stop[], payload: string): string | null {
   return null
 }
 
-/** WHICH NODES THE GAP AT `target` MAY NOT TAKE — whatever sits either side of it.
+/** WHICH NODES THE GAP AT `target` MAY NOT TAKE — whatever sits either side of it —
+ *  and WHY, when the gap is a dragged group's own inside rather than a pair of twins.
  *  Both surfaces of the rule read this, so the struck line and the greyed row can
  *  never disagree: a drag landing at `target`, and a picker filling the slot there.
  *
@@ -125,8 +128,14 @@ export function draggedNode(stops: Stop[], payload: string): string | null {
  *  dropped back where it already stands is not refused by itself, and a picker is
  *  judged by the two stops either side of it rather than by its own empty place.
  *  Only a move within the same list changes the list; one from any other list
- *  leaves this one's members exactly as they are. */
-export function refusedAt(stops: Stop[], target: Path, moving?: Path): string[] {
+ *  leaves this one's members exactly as they are.
+ *
+ *  A target strictly beneath `moving`'s own path is inside the block being carried,
+ *  so no neighbour can make it valid. That reason wins over adjacency: a group over a
+ *  gap between its own stops is refused as `inside`, never as `adjacent`. */
+export function refusedAt(stops: Stop[], target: Path, moving?: Path): { ids: string[]; reason: RefusalReason | null } {
+  if (moving && moving.length > 0 && target.length > moving.length && moving.every((v, k) => v === target[k]))
+    return { ids: [], reason: 'inside' }
   const parent = target.slice(0, -1)
   let at = target[target.length - 1]
   let members = listAt(stops, parent)
@@ -135,17 +144,20 @@ export function refusedAt(stops: Stop[], target: Path, moving?: Path): string[] 
     members = members.filter((_, j) => j !== i)
     if (i < at) at--
   }
-  return neighboursOf(members.map(idOf), at)
+  const ids = neighboursOf(members.map(idOf), at)
+  return { ids, reason: ids.length ? 'adjacent' : null }
 }
 
-/** THE DROP VERDICT — may `payload` land at `target`? Only the landing is judged:
- *  a move that leaves two twins touching behind it is not refused, the same as a
- *  delete or an ungroup that does. */
-export function dropAllowed(stops: Stop[], payload: string, target: Path): boolean {
-  const node = draggedNode(stops, payload)
-  if (node === null) return true
+/** THE DROP VERDICT — may `payload` land at `target`, and if not, which sentence does
+ *  the refusal pill carry? Only the landing is judged: a move that leaves two twins
+ *  touching behind it is not refused, the same as a delete or an ungroup that does. */
+export function dropAllowed(stops: Stop[], payload: string, target: Path): RefusalReason | null {
   const moving = payload.startsWith('blk:') ? parsePath(payload.slice(4)) : undefined
-  return !refusedAt(stops, target, moving).includes(node)
+  const refusal = refusedAt(stops, target, moving)
+  if (refusal.reason === 'inside') return 'inside'
+  const node = draggedNode(stops, payload)
+  if (node === null) return null
+  return refusal.ids.includes(node) ? 'adjacent' : null
 }
 
 export function handleDrop(e: ReactDragEvent, target: Path, state: AuthorState) {
@@ -157,7 +169,7 @@ export function handleDrop(e: ReactDragEvent, target: Path, state: AuthorState) 
   // clause 2) — no toast, no log line. A real drag never gets here, since the
   // refusing gap does not accept it; the map's dispatched drop does, which is why
   // the rule is asked again rather than trusted to the dragover.
-  if (!dropAllowed(state.stops, data, target)) return
+  if (dropAllowed(state.stops, data, target) !== null) return
   if (data.startsWith('pal:')) state.insertNode(data.slice(4), target)
   else if (data.startsWith('blk:')) state.moveBlock(parsePath(data.slice(4)), target)
   else if (data.startsWith('var:')) {

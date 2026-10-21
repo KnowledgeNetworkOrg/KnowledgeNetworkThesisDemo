@@ -36,10 +36,10 @@ import { byId, childrenOf, domainIds, topicHueOf } from '../../corpus/graph'
 import {
   ARROW_METRICS, NodeArrow, NodeChip, NodePicker, chipBorder, chipSizeOf, shaftTailOffset,
   VersionedGroup, GroupGeometry, GROUP_METRICS,
-  DropLine, DropRefusal, VERDICT_METRICS,
+  DropLine, DropRefusal, REFUSAL_REASONS, VERDICT_METRICS,
   wrapTip, PaneScroller,
 } from '@/ds'
-import type { GroupSpec, NodeOption } from '@/ds'
+import type { GroupSpec, NodeOption, RefusalReason } from '@/ds'
 import type { AuthorState, Path } from '../../state/walk/authordraft'
 import { pathKey, useFreshGroup } from '../../state/walk/authordraft'
 import { beginDrag, dragPayload, dropAllowed, endDrag, gapFor, handleDrop, heldBox, refusedAt } from '../../state/walk/authordnd'
@@ -77,17 +77,14 @@ function optionFor(id: string): NodeOption {
   return { id, title: n.title, domain: topicHueOf(id) ?? '', children: kids.length ? kids : undefined }
 }
 const NODE_OPTIONS: NodeOption[] = domainIds.map(optionFor)
-/** THE ONE SENTENCE for the duplicate-neighbour rule (OB-219 clause 6, OB-220 clause 3): the
- *  drag's refusal pill and the picker's greyed rows say it in the same words, so it is written
- *  once. SIDE-FREE on purpose — the same refusal happens above a twin or below it. */
-const ADJACENT = 'already adjacent'
 /** the menu with every refused node GREYED, never removed (OB-220) — a node missing from the
  *  list reads as a node missing from the corpus. Marked where it stands in the tree and nowhere
- *  else: a refused parent keeps pickable children, and a refused child leaves its parent free. */
+ *  else: a refused parent keeps pickable children, and a refused child leaves its parent free.
+ *  A picker fills its own slot, so its only refusal is the adjacent one. */
 function refuseOptions(list: NodeOption[], refused: ReadonlySet<string>): NodeOption[] {
   return list.map((o) => ({
     ...o,
-    ...(refused.has(o.id) ? { disabled: true, reason: ADJACENT } : null),
+    ...(refused.has(o.id) ? { disabled: true, reason: REFUSAL_REASONS.adjacent } : null),
     children: o.children && refuseOptions(o.children, refused),
   }))
 }
@@ -214,7 +211,7 @@ const roadSpec = (s: Stop, outline: string, width: number, slotH: number, chosen
  *   · `spot` where the refusal pill was placed when this verdict began. Only its FIRST place:
  *            every later move writes the pill's position straight to the element, so a
  *            pointer that moves inside one verdict never re-renders the road. */
-type Verdict = { at: string; ok: boolean; src: string; box?: string; spot?: { x: number; y: number } } | null
+type Verdict = { at: string; ok: boolean; src: string; reason?: RefusalReason; box?: string; spot?: { x: number; y: number } } | null
 
 /** the active version's column box (width holds its widest step, height its stack) */
 interface Col {
@@ -656,7 +653,8 @@ export default function AuthorRoad({
    *  the gap's behalf and append the node at the end instead. */
   const judge = (e: ReactDragEvent, at: Path, src: string, box?: string) => {
     e.stopPropagation()
-    const ok = dropAllowed(state.stops, dragPayload(e), at)
+    const reason = dropAllowed(state.stops, dragPayload(e), at)
+    const ok = reason === null
     if (ok) e.preventDefault()
     const spot = ok ? undefined : pillSpot(e)
     // the pill TRAVELS WITH THE DRAG: moved on the element itself, so a pointer moving
@@ -666,7 +664,7 @@ export default function AuthorRoad({
       pillRef.current.style.top = spot.y + 'px'
     }
     const k = pathKey(at)
-    setVerdict((v) => (v && v.at === k && v.ok === ok && v.src === src && v.box === box ? v : { at: k, ok, src, box, spot }))
+    setVerdict((v) => (v && v.at === k && v.ok === ok && v.src === src && v.box === box ? v : { at: k, ok, src, reason: reason ?? undefined, box, spot }))
   }
   /** a dragleave clears only the verdict its own target gave, and not at all when the
    *  pointer only moved onto one of that target's own children */
@@ -853,7 +851,7 @@ export default function AuthorRoad({
                 // drag's own sentence, never hidden — asked of the same rule the drag reads,
                 // with the slot itself taken out of its list, so the two surfaces cannot
                 // disagree about what is refused. An unset neighbour refuses nothing.
-                const refused = new Set(refusedAt(state.stops, pl.path, pl.path))
+                const refused = new Set(refusedAt(state.stops, pl.path, pl.path).ids)
                 return (
                   <div
                     key={key}
@@ -1297,7 +1295,7 @@ export default function AuthorRoad({
             data-rrefusal
             style={{ position: 'fixed', left: verdict.spot.x, top: verdict.spot.y, transform: 'translateX(-50%)', zIndex: 9999, pointerEvents: 'none' }}
           >
-            <DropRefusal reason={ADJACENT} />
+            <DropRefusal reason={REFUSAL_REASONS[verdict.reason ?? 'adjacent']} />
           </div>,
           document.body,
         )}

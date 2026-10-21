@@ -28,6 +28,10 @@
 // ACCEPTANCE IS READ OFF THE EVENT: a gap that accepts a drop cancels its dragover, so
 // `dispatchEvent` returning false is "takes the drop", and true is "refuses it".
 //
+// SECTION 7 (OB-299) loads a SECOND road, with a group of three steps in it, and drags the group
+// over the gaps between its own steps: the line is struck, the pill says "inside itself" (never
+// "already adjacent"), the dragover is left uncancelled, and releasing there changes nothing.
+//
 // Spawns vite ITSELF — backgrounded dev servers die on this machine.
 // Run:  node tools/studio-spike/browsertest-dropverdict.mjs
 import { createRequire } from 'node:module'
@@ -68,13 +72,14 @@ page.on('console', (m) => {
   if (m.type() === 'error') errors.push('console: ' + m.text())
 })
 
-/** open the app on the fixture road, in the plan preset — from scratch each time it is called */
-const openFixture = async () => {
+/** open the app on a road (the fixture, unless told otherwise), in the plan preset — from
+ *  scratch each time it is called */
+const openFixture = async (stops = FIXTURE) => {
   await page.goto(`http://localhost:${PORT}/`)
   await page.evaluate(({ key, stops }) => {
     localStorage.clear()
     localStorage.setItem(key, JSON.stringify({ stops, choices: {}, withOptionals: true }))
-  }, { key: DRAFT_KEY, stops: FIXTURE })
+  }, { key: DRAFT_KEY, stops })
   await page.reload()
   await page.waitForTimeout(700)
   await page.locator('[aria-label="studio-preset-plan"]').click()
@@ -419,6 +424,74 @@ await page.waitForTimeout(400)
   ok('real drag: a valid gap takes the drop', seen.some((e) => e.t === 'drop' && e.trusted), seen.map((e) => e.t).join(' '))
   ok('real drag: …the node moves', JSON.stringify(await roadOrder()) === JSON.stringify(want), JSON.stringify(await roadOrder()))
   ok('real drag: …and the line is gone', d.verdict === null && d.pill === null, JSON.stringify(d))
+}
+
+// ── 7. a group over a gap inside itself is refused, as "inside itself" (OB-299) ──
+// A road of its own: a GROUP of three distinct steps between two loose stops, so no gap on it
+// is beside a twin and "already adjacent" can never be the honest answer. The group is picked up
+// by its card (payload `blk:b.1`); the gaps between its own steps are b.1.0.1 and b.1.0.2, and
+// the gaps at its inside ends (b.1.0.0, b.1.0.3) are inside it too. b.2, past the card, is a
+// valid gap for it — the control that shows the drag itself is live.
+{
+  const GROUP = { key: 'g-ob299', title: 'Transport', variants: [{ id: 'v-ob299', label: 'v1', steps: [S('stk-ip-routing'), S('stk-tcp-udp'), S('web-http-rest')] }] }
+  const ROAD = [S(DNS), GROUP, S(TLS)]
+  const ROAD_ORDER = [DNS, 'stk-ip-routing', 'stk-tcp-udp', 'web-http-rest', TLS]
+  const CARD = '[data-road-root] [data-rstage="g-ob299"]'
+  await openFixture(ROAD)
+  if (ok('group road: the road opens with the group and its three steps', JSON.stringify(await roadOrder()) === JSON.stringify(ROAD_ORDER), JSON.stringify(await roadOrder()))) {
+    const draftHere = await storedDraft()
+    const card = await fire('dragstart', CARD)
+    ok('group road: the drag starts on the group\'s card', !!card)
+    await page.waitForTimeout(80) // THE SECOND TICK — see the header
+
+    for (const gap of ['b.1.0.1', 'b.1.0.2', 'b.1.0.0', 'b.1.0.3']) {
+      const hit = await fire('dragover', `[data-road-root] [data-rslot="${gap}"]`)
+      await settle()
+      const d = await drawn(gap)
+      ok(`group over its own gap ${gap}: the dragover is not cancelled (refused)`, !!hit && !hit.accepted, JSON.stringify(hit))
+      ok(`group over its own gap ${gap}: a STRUCK line`, d.verdict === 'refused' && d.dashed === true, JSON.stringify(d))
+      ok(`group over its own gap ${gap}: the pill says "inside itself", not "already adjacent"`,
+        !!d.pill && d.pill.includes('inside itself') && !d.pill.includes('already adjacent'), String(d.pill))
+    }
+
+    // the control: past its own card the same drag lands
+    const past = await fire('dragover', slot(2))
+    await settle()
+    const dp = await drawn('b.2')
+    ok('group past its own card (gap b.2) takes the drop, silently', !!past && past.accepted && dp.verdict === 'ok' && dp.pill === null, JSON.stringify({ accepted: past?.accepted, ...dp }))
+
+    // release between two of its own steps: a real browser fires no drop there — dragleave, dragend
+    const between = '[data-road-root] [data-rslot="b.1.0.1"]'
+    await fire('dragover', between)
+    await settle()
+    const loggedBefore = logged.length
+    await fire('dragleave', between)
+    await fire('dragend', CARD)
+    await page.waitForTimeout(250)
+    const d = await drawn('b.1.0.1')
+    ok('group road: on release the pill and the line are gone', d.pill === null && d.verdict === null, JSON.stringify(d))
+    ok('group road: the road is exactly as it was', JSON.stringify(await roadOrder()) === JSON.stringify(ROAD_ORDER), JSON.stringify(await roadOrder()))
+    ok('group road: the saved draft is untouched', (await storedDraft()) === draftHere)
+    ok('group road: nothing is logged', logged.length === loggedBefore, logged.slice(loggedBefore).join(' | '))
+
+    // the map's shape of drop: dispatched with a readable payload anyway, refused by the rule again.
+    // moveBlock also refuses a block moved into its own subtree, so the road check below guards
+    // the road, not handleDrop's dropAllowed guard; the pill check is the verdict's
+    await fire('dragover', between, { data: 'blk:b.1' })
+    await settle()
+    await fire('drop', between, { data: 'blk:b.1' })
+    await page.waitForTimeout(250)
+    ok('group road: a dispatched drop inside itself does nothing', JSON.stringify(await roadOrder()) === JSON.stringify(ROAD_ORDER) && (await storedDraft()) === draftHere,
+      JSON.stringify(await roadOrder()))
+    ok('group road: …and leaves no pill behind', (await drawn()).pill === null)
+
+    // the road opened on a fresh history, so undo here shows the road ends where it began. It
+    // guards the road, not the verdict: moveBlock commits nothing for this move either way
+    await page.keyboard.press('Control+z')
+    await page.waitForTimeout(250)
+    ok('group road: undo after the refusals leaves the road as it began',
+      JSON.stringify(await roadOrder()) === JSON.stringify(ROAD_ORDER) && (await storedDraft()) === draftHere, JSON.stringify(await roadOrder()))
+  }
 }
 
 ok('no page or console errors', errors.filter((e) => /^(pageerror|console):/.test(e)).length === 0,

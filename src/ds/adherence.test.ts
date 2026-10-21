@@ -351,7 +351,10 @@ describe('our DS ports document what the DS documents', () => {
   // 87 -> 84 on 2026-09-14 (OB-153): TrailChip's, TreeRow's and DocHeader's `domain` were bare
   // here while the DS's .d.ts had documented all three since 2026-08-21j — they took that prose
   // when the six-code union was retired and each widened to `string`.
-  const BUDGET = 84
+  // 84 -> 103 on 2026-10-21 (OB-301): +19, bare in the DS's own .d.ts: TextInput's MatchTitleProps
+  // text/style; WarningDialog's actions/cancelLabel/style and all nine of UnsavedWarningProps;
+  // LoadDialog's open/maps/style; LoadPicker's maps/style.
+  const BUDGET = 103
 
   const undocumented: string[] = []
   for (const f of tsxUnder('src/ds')) {

@@ -60,7 +60,7 @@ function store<T>(initial: T): Store<T> {
 
 /** the useState of a shared store — same shape, one value across all callers */
 function useStore<T>(s: Store<T>): [T, (v: T) => void] {
-  return [useSyncExternalStore(s.subscribe, s.get), s.set]
+  return [useSyncExternalStore(s.subscribe, s.get, s.get), s.set]
 }
 
 /** The draft starts SEEDED with a fork and an optional stop so branching is
@@ -171,6 +171,50 @@ stopsStore.subscribe(persist)
 choicesStore.subscribe(persist)
 optionalsStore.subscribe(persist)
 
+// ── Unsaved work ────────────────────────────────────────────────────────────
+// The draft is written to storage on every change, so "unsaved" here means edited
+// since the baseline the app opened on (a restore or the seed) or the last save
+// out as a walk. Snapshots are plain references, so undo back to the baseline is
+// clean again without comparing the trees. A draft that resolves to no stops has
+// nothing a save could keep, so it is never unsaved: the warning would offer a
+// "Save and load" that saves nothing.
+let baseStops = stopsStore.get()
+let baseChoices = choicesStore.get()
+let baseOptionals = optionalsStore.get()
+const dirtyStore = store(false)
+const draftWalkStops = () =>
+  leafStops(resolveRoad(stopsStore.get(), choicesStore.get(), optionalsStore.get())).map((s) => ({ id: s.node, note: s.note ?? '' }))
+const refreshDirty = () =>
+  dirtyStore.set(
+    (stopsStore.get() !== baseStops ||
+      choicesStore.get() !== baseChoices ||
+      optionalsStore.get() !== baseOptionals) &&
+      draftWalkStops().length > 0,
+  )
+stopsStore.subscribe(refreshDirty)
+choicesStore.subscribe(refreshDirty)
+optionalsStore.subscribe(refreshDirty)
+const markSaved = () => {
+  baseStops = stopsStore.get()
+  baseChoices = choicesStore.get()
+  baseOptionals = optionalsStore.get()
+  refreshDirty()
+}
+
+/** "Load without saving": the draft's edits stop counting as unsaved, and the
+ *  draft itself is left as it is, so the next Load does not warn about those
+ *  edits again until the draft is edited further. Putting it back to the baseline would be the
+ *  literal reading of the warning, but the walk editor publishes the draft's road
+ *  on every change (usePublishPresentedRoute), so a revert made during a Load
+ *  would overwrite the walk that was just loaded on the bus. */
+export const forgetDraftUnsaved = (): void => markSaved()
+
+/** the name of what holds unsaved changes, or undefined when nothing is edited */
+export function useDraftUnsaved(): string | undefined {
+  const [dirty] = useStore(dirtyStore)
+  return dirty ? 'The walk draft' : undefined
+}
+
 // ── Undo / redo over the stops tree (#34) ────────────────────────────────────
 // History lives UNDER the store interface: one historic setter records the
 // previous tree, so every structural op becomes undoable without the op knowing
@@ -232,16 +276,17 @@ export const redoDraft = (): void => step(futureStore, pastStore)
 /** the draft, saved as a corpus walk under `title`. Null when the road resolves
  * to nothing — an empty plan, or one that is all unbound placeholders. */
 export function saveDraftAsWalk(title: string): Walk | null {
-  const resolved = resolveRoad(stopsStore.get(), choicesStore.get(), optionalsStore.get())
-  const stops = leafStops(resolved).map((s) => ({ id: s.node, note: s.note ?? '' }))
+  const stops = draftWalkStops()
   if (stops.length === 0) return null
   const name = title.trim() || 'untitled walk'
-  return saveWalk({
+  const saved = saveWalk({
     id: mintId(name),
     title: name,
     description: `${stops.length} stops, authored on the walk desk`,
     stops,
   })
+  markSaved()
+  return saved
 }
 
 // ── The resolved-walk preview (0005 D9) ─────────────────────────────────────
