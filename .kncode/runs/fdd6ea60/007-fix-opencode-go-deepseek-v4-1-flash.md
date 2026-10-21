@@ -1,0 +1,11 @@
+R0-1 fixed: `src/ds/PROVENANCE.json:173,175` — `syncedAt` is now `2026-10-21` with a dated OB-299 entry recording the three divergences: the exported `RefusalReason` type absent from the .d.ts, the `REFUSAL_REASONS` doc comment placed before `DropRefusalProps`, and the `reason` prop doc omitting the .d.ts "PASS ONE OF `REFUSAL_REASONS`…" paragraph.
+
+R0-2 not fixed: nit; `src/instruments/walkdesk/AuthorRoad.tsx:667` cannot show a stale reason today because the judged payload cannot change mid-drag.
+
+R0-3 not fixed: nit; the card's done-when asks for `npm run verify`, not a browser driver, and `tools/studio-spike/browsertest-dropverdict.mjs:387` is outside `src/`.
+
+Assumptions: the provenance entry is dated 2026-10-21 as the port date, and only the divergences named in the finding were recorded; component entries in `PROVENANCE.json` carry no hashes, only token entries do.
+
+<!-- kncode-findings
+{"reports":[],"answers":[{"id":"R0-1","answer":"Fixed","because":"Updated src/ds/PROVENANCE.json:173 to \u0060syncedAt: \u00222026-10-21\u0022\u0060 and added a dated 2026-10-21 OB-299 (#470) deviation at line 175 that records the adoption and the three local divergences: the exported \u0060RefusalReason\u0060 type absent from the .d.ts, the REFUSAL_REASONS doc comment sitting before \u0060DropRefusalProps\u0060 instead of between the docblock and function, and the \u0060reason\u0060 prop doc omitting the .d.ts \u0022PASS ONE OF \u0060REFUSAL_REASONS\u0060...\u0022 paragraph. Components carry no hashes in this file; only tokens do, so syncedAt plus the dated entry is the whole record.","duplicateOf":null},{"id":"R0-2","answer":"NotFixed","because":"Left as a nit. The memo\u0027s inputs cannot change mid-drag, so a stale reason cannot be shown today; the finding itself calls it harmless. Not changing src/instruments/walkdesk/AuthorRoad.tsx:667 keeps this step to the optional finding.","duplicateOf":null},{"id":"R0-3","answer":"NotFixed","because":"Left as a nit. tools/studio-spike/browsertest-dropverdict.mjs:387 is outside the card\u0027s done-when, which asks only for unit coverage through \u0060npm run verify\u0060; the new case is covered in src/state/walk/authordnd.test.ts and src/ds/graph/DropVerdict.test.ts.","duplicateOf":null}]}
+-->
