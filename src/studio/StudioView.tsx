@@ -25,7 +25,7 @@ import { AppHeader, CountBadge, deskBounds, EDGE_TOKEN, FamilyColumn, FIRST_SCRO
 import type { EdgeKind, LoadChoice, LoadMap } from '@/ds'
 
 import { byId, ROOT_ID, topicHueOf } from '../corpus/graph'
-import { saveDraftAsWalk, useDraftUnsaved } from '../state/walk/authordraft'
+import { discardDraftEdits, saveDraftAsWalk, useDraftUnsaved } from '../state/walk/authordraft'
 import { listWalks, subscribeWalks } from '../state/walkstore'
 import { platform } from '../platform'
 import PresenterScreen from '../present/PresenterScreen'
@@ -402,7 +402,11 @@ export default function StudioView() {
     },
   ]
   const onLoadPick = (choice: LoadChoice, how?: 'save' | 'discard') => {
-    if (how === 'save') saveDraftAsWalk('')
+    // The draft is never unsaved while it resolves to no stops, so a save from the
+    // warning always writes a walk. It is named by the time it was taken, so saves
+    // made this way stay apart in the Load list rather than all reading "untitled walk".
+    if (how === 'save') saveDraftAsWalk('walk draft, ' + new Date().toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }))
+    else if (how === 'discard') discardDraftEdits()
     applyLoadChoice(bus, choice)
   }
 

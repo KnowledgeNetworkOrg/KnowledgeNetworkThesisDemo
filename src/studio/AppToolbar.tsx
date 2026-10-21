@@ -15,10 +15,11 @@ import type { PresentState } from './presentbutton'
  *  resolving #55's open "labels vs glyphs" call in favour of glyphs; text pills
  *  were the interim, on-spec choice while those marks didn't exist yet.
  *
- *  Only undo/redo and Present have a command model today. Undo/redo are wired to
+ *  Only undo/redo, Load and Present have a command model today. Undo/redo are wired to
  *  the walk-draft history in authordraft.ts (the sole undoable model in the demo
  *  — note it is WALK-scoped, not truly app-global; safe no-ops when the history
- *  is empty). new map / print / save / load / copy / cut / paste have no backing
+ *  is empty). Load (OB-301) opens `LoadDialog` when the host passes `load`, and is
+ *  disabled without it. new map / print / save / copy / cut / paste have no backing
  *  model yet, so they render disabled, carrying their `Name (Ctrl+X)` tooltip
  *  until an app-level command/clipboard model exists. See #55.
  *

@@ -175,16 +175,21 @@ optionalsStore.subscribe(persist)
 // The draft is written to storage on every change, so "unsaved" here means edited
 // since the baseline the app opened on (a restore or the seed) or the last save
 // out as a walk. Snapshots are plain references, so undo back to the baseline is
-// clean again without comparing the trees.
+// clean again without comparing the trees. A draft that resolves to no stops has
+// nothing a save could keep, so it is never unsaved: the warning would offer a
+// "Save and load" that saves nothing.
 let baseStops = stopsStore.get()
 let baseChoices = choicesStore.get()
 let baseOptionals = optionalsStore.get()
 const dirtyStore = store(false)
+const draftWalkStops = () =>
+  leafStops(resolveRoad(stopsStore.get(), choicesStore.get(), optionalsStore.get())).map((s) => ({ id: s.node, note: s.note ?? '' }))
 const refreshDirty = () =>
   dirtyStore.set(
-    stopsStore.get() !== baseStops ||
+    (stopsStore.get() !== baseStops ||
       choicesStore.get() !== baseChoices ||
-      optionalsStore.get() !== baseOptionals,
+      optionalsStore.get() !== baseOptionals) &&
+      draftWalkStops().length > 0,
   )
 stopsStore.subscribe(refreshDirty)
 choicesStore.subscribe(refreshDirty)
@@ -196,10 +201,21 @@ const markSaved = () => {
   refreshDirty()
 }
 
+/** put the draft back to its baseline: "Load without saving" means the edits are
+ *  lost, as the warning says. The tree goes back through commitStops, so Ctrl+Z
+ *  can still bring the edits back. */
+export function discardDraftEdits(): void {
+  commitStops(baseStops)
+  selectedStore.set(new Set())
+  caretStore.set(null)
+  choicesStore.set(baseChoices)
+  optionalsStore.set(baseOptionals)
+}
+
 /** the name of what holds unsaved changes, or undefined when nothing is edited */
 export function useDraftUnsaved(): string | undefined {
   const [dirty] = useStore(dirtyStore)
-    return dirty ? 'The walk draft' : undefined
+  return dirty ? 'The walk draft' : undefined
 }
 
 // ── Undo / redo over the stops tree (#34) ────────────────────────────────────
@@ -263,8 +279,7 @@ export const redoDraft = (): void => step(futureStore, pastStore)
 /** the draft, saved as a corpus walk under `title`. Null when the road resolves
  * to nothing — an empty plan, or one that is all unbound placeholders. */
 export function saveDraftAsWalk(title: string): Walk | null {
-  const resolved = resolveRoad(stopsStore.get(), choicesStore.get(), optionalsStore.get())
-  const stops = leafStops(resolved).map((s) => ({ id: s.node, note: s.note ?? '' }))
+  const stops = draftWalkStops()
   if (stops.length === 0) return null
   const name = title.trim() || 'untitled walk'
   const saved = saveWalk({

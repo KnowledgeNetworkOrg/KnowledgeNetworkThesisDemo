@@ -110,7 +110,7 @@
      `text-hue-teal-ink`, `border-hue-teal`, `bg-hue-teal-wash`. A topic is a FILLED mark
      and a relation is a LINE in the stroke role, which is what keeps the two families
      apart now that both draw from one ring; hosts assign from TOPIC_WALK in
-     components/graph/DomainDot.jsx, not from this declaration order — topics walk it forward,
+     src/ds/graph/DomainDot.tsx, not from this declaration order — topics walk it forward,
      relation kinds backward, so the first eight of each family never share a hue. Data runs at
      C 0.14–0.15 and chrome at or below C 0.09 — that chroma gap, not hue, is what
      separates a data green from the moss primary. Full reasoning in tokens/colors.css;

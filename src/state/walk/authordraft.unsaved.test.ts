@@ -51,6 +51,38 @@ describe('useDraftUnsaved — edits since the baseline', () => {
     expect(probe(mod).unsaved).toBeUndefined()
   })
 
+  it('discarding puts the draft back to its baseline, and undo brings the edit back', async () => {
+    const mod = await import('./authordraft')
+    const before = probe(mod).draft.stops
+    probe(mod).draft.insertNode('stk-dns-naming')
+    const edited = probe(mod).draft.stops
+    expect(probe(mod).unsaved).toBe('The walk draft')
+
+    mod.discardDraftEdits()
+    expect(probe(mod).draft.stops).toBe(before)
+    expect(probe(mod).unsaved).toBeUndefined()
+
+    mod.undoDraft()
+    expect(probe(mod).draft.stops).toBe(edited)
+    expect(probe(mod).unsaved).toBe('The walk draft')
+  })
+
+  it('a draft with no stops left is not unsaved, since a save would keep nothing', async () => {
+    vi.resetModules()
+    stubStore({
+      'pkt.walkdesk.draft': JSON.stringify({
+        v: 1,
+        data: { stops: [{ node: 'stk-dns-naming', variants: [] }], choices: {}, withOptionals: true },
+      }),
+    })
+
+    const mod = await import('./authordraft')
+    probe(mod).draft.deleteAt([0])
+    expect(probe(mod).draft.stops).toHaveLength(0)
+    expect(probe(mod).unsaved).toBeUndefined()
+    expect(mod.saveDraftAsWalk('')).toBeNull()
+  })
+
   it('a restored draft starts clean', async () => {
     vi.resetModules()
     stubStore({
