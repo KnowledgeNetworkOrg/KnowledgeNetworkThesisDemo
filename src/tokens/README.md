@@ -13,8 +13,8 @@ dependency is tracked in issue #66.
 
 **Do not hand-edit these files.** A value here is wrong the moment it disagrees
 with the design project. To change one, change it in the design project; the
-design agent sends the new file with a `design-system` card, and that card
-re-vendors it (see `CLAUDE.md`). This is issue #57 (roadmap #58); the drift guard
+new file is vendored into `design-system/`, and a `design-system` card copies it
+here (see `CLAUDE.md`). This is issue #57 (roadmap #58); the drift guard
 that enforces "code only reaches these through `var(--token)`" is the raw-hex /
 raw-px bans in `eslint.config.js`, wired in #61. They port the DS's
 `_adherence.oxlintrc.json` reference spec into native ESLint rules, scoped to the
