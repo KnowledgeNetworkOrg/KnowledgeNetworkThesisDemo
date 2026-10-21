@@ -1838,7 +1838,7 @@ export function VersionedGroup({
         display: 'flex', flexDirection: 'column', gap: 'var(--space-1)',
         background: 'var(--surface-raised)',
         border: '1px solid var(--border-rule)',
-        boxShadow: carrying ? 'var(--lift-drag)' : '0 1px 2px rgba(53,49,42,0.06), 0 3px 6px -4px rgba(53,49,42,0.20)',
+        boxShadow: carrying ? 'var(--lift-drag)' : 'var(--lift-group)',
         /* SELECTED: the outline is the CARD's own edge, open or folded — the whole group
            is what got picked, so the whole group is what is drawn round. It was briefly
            the head only, on the reasoning that a group's nodes are selectable in their
