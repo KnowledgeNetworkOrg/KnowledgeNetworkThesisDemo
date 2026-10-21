@@ -3,7 +3,8 @@
 // A TEST. It opens the real app in a real browser and asserts that the desk's pane
 // boundaries DRAG, that each pane stops at the floor it declares, that a resting
 // divider draws nothing, and that a double-click/keyboard reset returns the
-// seam's two panes to their preset split and leaves the rest of the desk alone. It drives the launch composition (a drag on each
+// seam's two panes to their preset split and leaves the rest of the desk alone.
+// It drives the launch composition (a drag on each
 // seam, with the sidebar open), that the desk follows the row through a palette
 // close instead of stepping once it lands, Explore (two panes, one seam) and Plan
 // (three panes, two seams, no walk palette since #416), then a narrow window where
@@ -196,8 +197,8 @@ try {
 
   // ── The palette's flight: the desk widens over time, not in one frame ─────
   // Closing the sidebar gives the row the sidebar's width. The last pane's right
-  // edge must stay on the row's through the flight, and no single frame may carry
-  // half the move — the lurch `paletteStyle` exists to prevent.
+  // edge must stay on the row's through the flight and on the frame it lands, so
+  // the desk never steps once the palette is gone.
   const gapTrace = await closePaletteTraced()
   const gapWorst = gapTrace.length ? Math.max(...gapTrace.map((s) => Math.abs(s.gap))) : Infinity
   const rowFirst = gapTrace[0]?.rowLeft ?? 0

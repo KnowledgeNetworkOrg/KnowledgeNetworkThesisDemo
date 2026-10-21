@@ -96,3 +96,29 @@ export function dragDesk({
   const next = clampDesk({ sizes: [...sizes], index, delta, fits: [...fits] })
   return { sizes: next, fractions: fractionsOf(next) }
 }
+
+/** One seam reset: its two panes go back to the preset's proportion of what they
+ *  hold now, and every other pane stays where it was dragged to. It is a drag like
+ *  any other, through the same clamp, so a reset cannot put a pane under the floor
+ *  that the drag on the same handle stops at. `atPreset` says the whole desk is back
+ *  at the preset split, within half a pixel, so the stored widths can be dropped. */
+export function resetSeam({
+  sizes,
+  fits,
+  index,
+  preset,
+}: {
+  sizes: readonly number[]
+  fits: readonly (PaneFit | null | undefined)[]
+  index: number
+  preset: readonly number[]
+}): { sizes: number[]; fractions: number[]; atPreset: boolean } {
+  const a = preset[index] ?? 0
+  const b = preset[index + 1] ?? 0
+  const pair = (sizes[index] ?? 0) + (sizes[index + 1] ?? 0)
+  const delta = a + b > 0 ? (pair * a) / (a + b) - (sizes[index] ?? 0) : 0
+  const next = dragDesk({ sizes, fits, index, delta })
+  const total = next.sizes.reduce((sum, w) => sum + w, 0)
+  const atPreset = next.sizes.every((w, i) => Math.abs(w - (preset[i] ?? 0) * total) <= 0.5)
+  return { ...next, atPreset }
+}

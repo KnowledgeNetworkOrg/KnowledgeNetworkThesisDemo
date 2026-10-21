@@ -36,7 +36,7 @@ import { FAMILIES } from './families'
 import type { Family } from './families'
 import { byInstrument, flattenSlots, INSTRUMENTS, lensTypeOf, PRESETS } from './instruments'
 import type { Instrument, InstrumentId, Preset, Slot } from './instruments'
-import { DESK_DIVIDER_MARGIN, DESK_GUTTER, deskAvailable, deskFits, dragDesk, fixedWidth, initialFractions } from './desk'
+import { DESK_DIVIDER_MARGIN, DESK_GUTTER, deskAvailable, deskFits, dragDesk, fixedWidth, initialFractions, resetSeam } from './desk'
 import type { DeskColumn } from './desk'
 
 /** the palette's fly-to-the-toolbar transition, in ms. It MUST equal
@@ -491,6 +491,9 @@ export default function StudioView() {
   })
   const flexSlots = flexIndices.map((i) => columnSlots[i])
   const flexFits = flexIndices.map((i) => columnFits[i])
+  // Dragged widths are kept per preset, so coming back to a preset brings back the
+  // desk as it was left — the widths #368 will persist. A seam's reset is the way
+  // back to the opening split.
   const fractionKey = presetId ?? columnSlots.map((c) => c.key).join('|')
   const available = deskAvailable(deskWidth, columnSlots.length)
   const fixedTotal = fixedWidths.reduce<number>((sum, w) => sum + (w ?? 0), 0)
@@ -501,6 +504,9 @@ export default function StudioView() {
   const drawnFractions = deskLive && deskLive.key === fractionKey && deskLive.fractions.length === flexSlots.length
     ? deskLive.fractions
     : fractions
+  // The handles' bounds read the widths the fractions ask for; a drag reads the
+  // widths actually drawn (`readFlexSizes`). They differ only while flex has
+  // shrunk the panes below their fractions, in a window narrower than the floors.
   const drawnFlexSizes = flexSlots.map((_, k) => Math.max(0, drawnFractions[k] ?? 0) * flexAvailable)
 
   const columnStyle = (i: number): CSSProperties => {
@@ -551,27 +557,18 @@ export default function StudioView() {
     setDeskLive(null)
     dragBase.current = null
   }
-  // A reset puts back the opening split between the seam's two panes only: they
-  // share what they hold now in the preset's proportion, and the rest of the desk
-  // stays where it was dragged to.
+  // A reset puts back the opening split between the seam's two panes only, from
+  // the widths they are drawn at and through the same clamp as a drag (`resetSeam`);
+  // the rest of the desk stays where it was dragged to.
   const onDividerReset = (index: number) => {
-    const a = presetFractions[index] ?? 0
-    const b = presetFractions[index + 1] ?? 0
-    const held = (fractions[index] ?? 0) + (fractions[index + 1] ?? 0)
-    if (a + b > 0) {
-      const next = [...fractions]
-      next[index] = (held * a) / (a + b)
-      next[index + 1] = (held * b) / (a + b)
-      setDeskSizes((prev) => {
-        if (sameSizes(next, presetFractions)) {
-          if (!(fractionKey in prev)) return prev
-          const rest = { ...prev }
-          delete rest[fractionKey]
-          return rest
-        }
-        return { ...prev, [fractionKey]: next }
-      })
-    }
+    const next = resetSeam({ sizes: readFlexSizes(), fits: flexFits, index, preset: presetFractions })
+    setDeskSizes((prev) => {
+      if (!next.atPreset) return { ...prev, [fractionKey]: next.fractions }
+      if (!(fractionKey in prev)) return prev
+      const rest = { ...prev }
+      delete rest[fractionKey]
+      return rest
+    })
     setDeskLive(null)
     dragBase.current = null
   }

@@ -11,6 +11,7 @@ import {
   fixedWidth,
   fractionsOf,
   initialFractions,
+  resetSeam,
   stackFit,
 } from './desk'
 import type { DeskColumn } from './desk'
@@ -101,5 +102,39 @@ describe('OB-170 — the drag is the same clamp as the bounds', () => {
     expect(fractionsOf([250, 750])).toEqual([0.25, 0.75])
     expect(fractionsOf([0, 250])).toEqual([0, 1])
     expect(fractionsOf([0, 0])).toEqual([0.5, 0.5])
+  })
+})
+
+describe('OB-170 — a reset belongs to its seam and goes through the clamp', () => {
+  it("puts the seam's two panes back in the preset proportion and leaves the third alone", () => {
+    const fits = [{ floor: 100 }, { floor: 100 }, { floor: 100 }]
+    const preset = [0.25, 0.25, 0.5]
+    const next = resetSeam({ sizes: [300, 200, 500], fits, index: 0, preset })
+    expect(next.sizes).toEqual([250, 250, 500])
+    expect(next.atPreset).toBe(true)
+
+    const partial = resetSeam({ sizes: [300, 300, 400], fits, index: 0, preset })
+    expect(partial.sizes).toEqual([300, 300, 400])
+    expect(partial.atPreset).toBe(false)
+  })
+
+  it('stops at a floor instead of restoring the split under it (Plan, walk editor at its floor)', () => {
+    // Plan opens 1.6 : 2 : 2. With the walk editor dragged to its floor, the map and the
+    // document hold too little for a 1:1 split to keep the document at its rail floor.
+    const plan = PRESETS.find((p) => p.id === 'plan')!
+    const cols = plan.active.map((id) => column(id as string))
+    const fits = deskFits(cols)
+    const preset = initialFractions(cols, plan.flex)
+    const docAt = cols.findIndex((c) => c.members[0].id === 'document')
+    const mapAt = cols.findIndex((c) => c.members[0].id === 'map')
+    expect(docAt).toBe(mapAt + 1)
+    const docFloor = fits[docAt].floor
+    const sizes = cols.map(() => 0)
+    sizes[docAt] = docFloor
+    sizes[mapAt] = 676 - docFloor
+    cols.forEach((_, i) => { if (i !== docAt && i !== mapAt) sizes[i] = fits[i].floor })
+    const next = resetSeam({ sizes, fits, index: mapAt, preset })
+    expect(next.sizes[docAt]).toBeGreaterThanOrEqual(docFloor)
+    expect(next.sizes.reduce((s, w) => s + w, 0)).toBeCloseTo(sizes.reduce((s, w) => s + w, 0), 9)
   })
 })
