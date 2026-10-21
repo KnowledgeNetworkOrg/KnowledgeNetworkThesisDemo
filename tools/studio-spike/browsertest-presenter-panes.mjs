@@ -91,16 +91,16 @@ try {
   ok('the During column starts empty', (await during().locator('[data-lecture-note]').count()) === 0)
 
   // ── the divider between the notes and the deck (OB-254) ─────────────────────
-  // The strip follows PaneDivider's resting rule: 14px, col-resize, and nothing painted until
+  // The strip follows PaneDivider's resting rule: 14px, ew-resize, and nothing painted until
   // the pointer is on it. Its floors come from the panes' own fits, so the test reads the DOM.
   await page.mouse.move(2, 2)
   await page.waitForTimeout(200)
   const strip = page.locator('[data-presenter-panes] > [role="separator"]').first()
-  ok('the notes and deck are joined by a 14px blank, col-resize strip', await strip.evaluate((el) => {
+  ok('the notes and deck are joined by a 14px blank, ew-resize strip', await strip.evaluate((el) => {
     const line = el.querySelector('[aria-hidden="true"]')
     const bg = line ? getComputedStyle(line).backgroundColor : ''
     return Math.round(el.getBoundingClientRect().width) === 14
-      && getComputedStyle(el).cursor === 'col-resize'
+      && getComputedStyle(el).cursor === 'ew-resize'
       && (bg === 'transparent' || bg === 'rgba(0, 0, 0, 0)')
   }))
   const widths = () => page.evaluate(() => {

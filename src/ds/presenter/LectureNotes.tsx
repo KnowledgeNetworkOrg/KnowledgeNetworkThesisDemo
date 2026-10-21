@@ -981,7 +981,7 @@ export function LectureNotes({
           </PaneScroller>
         </div>
         <div onMouseDown={startDrag} onDoubleClick={resetDivider} title={wrapTip('drag to resize · double-click to reset')}
-          style={{ flex: 'none', width: M.divider, marginLeft: -M.divider / 2, marginRight: M.gutter - M.divider / 2, cursor: 'col-resize', position: 'relative' }}>
+          style={{ flex: 'none', width: M.divider, marginLeft: -M.divider / 2, marginRight: M.gutter - M.divider / 2, cursor: 'ew-resize', position: 'relative' }}>
           <div style={{ position: 'absolute', top: 0, bottom: 0, left: M.divider / 2, width: 1, background: dragging ? 'var(--accent-primary)' : 'var(--border-hair)' }} />
         </div>
         {/* THE DURING SIDE — the entries are one-liners, so it starts narrower than the prose and
