@@ -144,13 +144,26 @@ try {
     const notesEl = document.querySelector('[data-lecture-notes="live"]')
     if (!h || !r) return null
     const hb = h.getBoundingClientRect(), rb = r.getBoundingClientRect()
-    return { left: hb.left, right: hb.right, rowLeft: rb.left, rowRight: rb.right, notes: notesEl ? notesEl.getBoundingClientRect().width : 0 }
+    return { left: hb.left, right: hb.right, rowLeft: rb.left, rowRight: rb.right, winW: window.innerWidth, notes: notesEl ? notesEl.getBoundingClientRect().width : 0 }
   })
   ok('a narrow window keeps the handle on screen, the notes giving way first',
-    !!narrowPanes && narrowPanes.left >= narrowPanes.rowLeft - 1 && narrowPanes.right <= narrowPanes.rowRight + 1 && narrowPanes.notes < 522,
-    narrowPanes ? `handle ${Math.round(narrowPanes.left)}–${Math.round(narrowPanes.right)} in ${Math.round(narrowPanes.rowLeft)}–${Math.round(narrowPanes.rowRight)}, notes ${Math.round(narrowPanes.notes)}` : 'no handle')
+    !!narrowPanes && narrowPanes.left >= narrowPanes.rowLeft - 1 && narrowPanes.right <= narrowPanes.rowRight + 1
+      && narrowPanes.left >= 0 && narrowPanes.right <= narrowPanes.winW && narrowPanes.notes < 522,
+    narrowPanes ? `handle ${Math.round(narrowPanes.left)}–${Math.round(narrowPanes.right)} in ${Math.round(narrowPanes.rowLeft)}–${Math.round(narrowPanes.rowRight)} of a ${narrowPanes.winW}px window, notes ${Math.round(narrowPanes.notes)}` : 'no handle')
+  const narrowDeck = (await widths()).deck
+  ok('and the deck holds its 300px floor while the notes give way', Math.abs(narrowDeck - 300) <= 1, Math.round(narrowDeck) + 'px')
   await page.setViewportSize({ width: 1750, height: 950 })
   await page.waitForTimeout(700)
+  // The narrow window clamped the DRAWN width only: back at full size the deck is where it was dragged.
+  const restored = await widths()
+  ok('the narrow clamp was not stored — the deck comes back to the width it was dragged to',
+    Math.abs(restored.deck - atNotesFloor.deck) <= 1, `${Math.round(atNotesFloor.deck)}px → ${Math.round(restored.deck)}px`)
+  // A click on the handle that moves nothing stores nothing and moves nothing.
+  const clickHandle = await strip.boundingBox()
+  await page.mouse.click(clickHandle.x + clickHandle.width / 2, clickHandle.y + clickHandle.height / 2)
+  await page.waitForTimeout(300)
+  const clicked = await widths()
+  ok('a click on the handle with no travel leaves the deck where it was', Math.abs(clicked.deck - restored.deck) <= 1, `${Math.round(restored.deck)}px → ${Math.round(clicked.deck)}px`)
   const resetHandle = await strip.boundingBox()
   await page.mouse.dblclick(resetHandle.x + resetHandle.width / 2, resetHandle.y + resetHandle.height / 2)
   await page.waitForTimeout(300)
@@ -159,6 +172,28 @@ try {
   ok('the drag moved the deck and left the notes the rest of the row',
     Math.abs(reset.row - (reset.notes + 14 + reset.deck)) <= 1,
     `${Math.round(reset.notes)} + 14 + ${Math.round(reset.deck)} vs ${Math.round(reset.row)} (started ${Math.round(start.deck)}px deck)`)
+  // The separator is a keyboard control too: ← grows the deck by one step, → shrinks it, Enter
+  // resets, and the arrows it owns do not ALSO step the lecture (the screen's handler yields to a
+  // handled key). The lecture is at stop 1, where ← steps to nothing, so the no-leak check is made
+  // with → : a leaked step would move the record to stop 2.
+  const stopChip = async () => (await page.locator('[data-presenter-chip]').innerText()).replace(/\s+/g, ' ').trim()
+  const chipBefore = await stopChip()
+  await strip.focus()
+  await page.keyboard.press('ArrowLeft')
+  await page.waitForTimeout(300)
+  const nudged = await widths()
+  ok('ArrowLeft on the focused handle grows the deck by one 16px step', Math.abs(nudged.deck - (reset.deck + 16)) <= 1, `${Math.round(reset.deck)}px → ${Math.round(nudged.deck)}px`)
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('ArrowRight')
+  await page.waitForTimeout(300)
+  const shrunk = await widths()
+  const chipAfter = await stopChip()
+  ok('ArrowRight twice shrinks it by one step net', Math.abs(shrunk.deck - (reset.deck - 16)) <= 1, `${Math.round(reset.deck)}px → ${Math.round(shrunk.deck)}px`)
+  ok('and the arrows did not also step the lecture', chipAfter === chipBefore, `${chipBefore} → ${chipAfter}`)
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(300)
+  const keyReset = await widths()
+  ok('Enter on the focused handle returns the deck to its seed', Math.abs(keyReset.deck - 360) <= 1, Math.round(keyReset.deck) + 'px')
   await page.mouse.move(2, 2)
   await page.waitForTimeout(200)
 

@@ -107,7 +107,7 @@ try {
   const returned = await stopNumber()
   const top = await deckTop()
   ok('PageUp returns the record to the stop it left', returned === after - 1, `stop ${after} → ${returned}`)
-  ok('and the deck stays at the bottom where PageUp found it', !!bottom && Math.abs(top - bottom.top) <= 1, `deck scrollTop ${top} of ${bottom && bottom.top}`)
+  ok('and the deck stays at the bottom where PageUp found it', !!bottom && top === bottom.top, `deck scrollTop ${top} of ${bottom && bottom.top}`)
 
   // ── the arrows that were already bound still step ───────────────────────────
   await focusDeck()
@@ -120,7 +120,7 @@ try {
   await page.keyboard.press('ArrowUp')
   await page.waitForTimeout(500)
   const afterUp = await stopNumber()
-  ok('ArrowUp returns the record', afterUp === beforeArrow, `stop ${afterDown} → ${afterUp}`)
+  ok('ArrowUp returns the record', afterUp === afterDown - 1, `stop ${afterDown} → ${afterUp}`)
 
   // ── once ended, the step keys belong to the recap's scrollers ───────────────
   // Flag every stop so the recap's flagged list overflows, then end the lecture and shrink the
@@ -141,7 +141,7 @@ try {
   await page.getByRole('button', { name: 'end lecture' }).last().click()
   await page.waitForTimeout(800)
   ok('the lecture ends into the recap', (await page.locator('[data-lecture-recap]').count()) === 1)
-  await page.setViewportSize({ width: 1750, height: 300 })
+  await page.setViewportSize({ width: 1750, height: 520 })
   await page.waitForTimeout(600)
   const recapList = page.locator('[data-lecture-recap] [data-pane-body="scroller"]').last()
   const recap = await recapList.evaluate((el) => {
@@ -152,9 +152,9 @@ try {
   })
   ok('the recap list is focused and has room to scroll', recap.active && recap.max > 0, `max ${recap.max}`)
   await page.keyboard.press('PageDown')
-  await page.waitForTimeout(400)
+  await page.waitForTimeout(1200)
   const recapTop = await recapList.evaluate((el) => el.scrollTop)
-  ok('PageDown scrolls the recap list once the lecture has ended', recapTop > 0, `scrollTop ${recapTop}`)
+  ok('PageDown scrolls the recap list once the lecture has ended', recapTop > 20, `scrollTop ${recapTop}`)
 
   ok('no page errors', errors.filter((e) => e.includes('pageerror')).length === 0)
 } catch (e) {
