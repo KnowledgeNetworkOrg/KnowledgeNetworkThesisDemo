@@ -363,8 +363,8 @@ describe('ported but not adopted DS components', () => {
   // the host feeds with real geometric adjacency, so the objection no longer holds.
 })
 
-// #341 (OB-253) / #348 (OB-170) — RailFrame and StudioView both import this handle from the
-// barrel, so it is adopted and does not belong in the block above.
+// #341 (OB-253) / #348 (OB-170) — StudioView and PresenterScreen import this handle from the
+// barrel (RailFrame imports it directly), so it is adopted and does not belong in the block above.
 describe('adopted DS chrome', () => {
   it('PaneDivider / PANE_DIVIDER_METRICS / paneFit / clampDesk / deskBounds — the desk and rail drag handle', () => {
     expect(typeof PaneDivider).toBe('function')

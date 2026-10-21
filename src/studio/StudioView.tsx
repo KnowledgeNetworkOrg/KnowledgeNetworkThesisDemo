@@ -551,13 +551,27 @@ export default function StudioView() {
     setDeskLive(null)
     dragBase.current = null
   }
-  const onDividerReset = () => {
-    setDeskSizes((prev) => {
-      if (!(fractionKey in prev)) return prev
-      const next = { ...prev }
-      delete next[fractionKey]
-      return next
-    })
+  // A reset puts back the opening split between the seam's two panes only: they
+  // share what they hold now in the preset's proportion, and the rest of the desk
+  // stays where it was dragged to.
+  const onDividerReset = (index: number) => {
+    const a = presetFractions[index] ?? 0
+    const b = presetFractions[index + 1] ?? 0
+    const held = (fractions[index] ?? 0) + (fractions[index + 1] ?? 0)
+    if (a + b > 0) {
+      const next = [...fractions]
+      next[index] = (held * a) / (a + b)
+      next[index + 1] = (held * b) / (a + b)
+      setDeskSizes((prev) => {
+        if (sameSizes(next, presetFractions)) {
+          if (!(fractionKey in prev)) return prev
+          const rest = { ...prev }
+          delete rest[fractionKey]
+          return rest
+        }
+        return { ...prev, [fractionKey]: next }
+      })
+    }
     setDeskLive(null)
     dragBase.current = null
   }
@@ -598,7 +612,7 @@ export default function StudioView() {
         label={`resize ${left} and ${right}`}
         onDrag={movable ? (delta) => onDividerDrag(flexIndex, delta) : undefined}
         onDragEnd={movable ? (delta) => onDividerEnd(flexIndex, delta) : undefined}
-        onReset={movable ? onDividerReset : undefined}
+        onReset={movable ? () => onDividerReset(flexIndex) : undefined}
         now={bounds?.now}
         min={bounds?.min}
         max={bounds?.max}

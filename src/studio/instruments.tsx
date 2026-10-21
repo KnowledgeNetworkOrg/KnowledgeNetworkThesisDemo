@@ -59,9 +59,10 @@ export interface Instrument {
   slot: 'column' | 'strip'
   /** THE PANE'S OWN WIDTH FLOOR (DS `PaneFit`, OB-170), declared here because only the
    *  pane knows the width its own content stops working at. A desk may not override it;
-   *  the drag stops at `floor`, and `narrowBelow` is the point where it draws a lesser
-   *  reading. Strips run full width and declare 0 — no horizontal boundary reaches them. */
-  fit: Required<PaneFit>
+   *  the drag stops at `floor`. No studio pane draws a lesser reading, so none declares
+   *  `narrowBelow` — `paneFit` fills it from the floor, as the contract asks. Strips run
+   *  full width and declare 0 — no horizontal boundary reaches them. */
+  fit: Pick<Required<PaneFit>, 'floor'>
   /** default flex weight (a preset may override it); { fixed } keeps the pane at a
    * pixel width and outside the fractions — the stack is a list, not a canvas,
    * and does not want to grow */
@@ -119,7 +120,7 @@ const VIEWS = [
     family: 'maps',
     slot: 'column',
     // the Explorer rail's own floor: below this the map cannot keep its rail
-    fit: { narrowBelow: railFloor('left'), floor: railFloor('left') },
+    fit: { floor: railFloor('left') },
     // MapView renders its own PaneCanvas at its root (the "territory" crop +
     // MAP_WATER face) — without body:'none' Pane ALSO wraps it in a PaneScroller,
     // whose plain block box gives the nested PaneCanvas's flex:1 nothing to fill
@@ -136,7 +137,7 @@ const VIEWS = [
     label: 'Walk',
     family: 'walks',
     slot: 'strip',
-    fit: { narrowBelow: 0, floor: 0 },
+    fit: { floor: 0 },
     height: 240,
     body: 'none',
     render: (bus) => <WalkView bus={bus} />,
@@ -150,7 +151,7 @@ const VIEWS = [
     label: 'Walk·Palette',
     family: 'walks',
     slot: 'column',
-    fit: { narrowBelow: 300, floor: 240 },
+    fit: { floor: 240 },
     // a search pane hugs its content: empty, it is just the box; searching, it
     // grows to a capped, scrollable list. Either way the document below it takes
     // the room the old even split wasted (#28 feedback).
@@ -167,7 +168,7 @@ const VIEWS = [
     label: 'Walk·Editor',
     family: 'walks',
     slot: 'column',
-    fit: { narrowBelow: 360, floor: 300 },
+    fit: { floor: 300 },
     body: 'none',
     // Two tiers, two categories (#193): WalkUtilityBar (the walk as a whole —
     // view/save/load) on top, WalkActionBar (the draft tree under construction)
@@ -189,7 +190,7 @@ const VIEWS = [
     label: 'Walk·Columns',
     family: 'walks',
     slot: 'column',
-    fit: { narrowBelow: 320, floor: 240 },
+    fit: { floor: 240 },
     body: 'none',
     render: (bus) => <WalkColumnsView bus={bus} />,
   },
@@ -201,7 +202,7 @@ const VIEWS = [
     label: 'Walk·Stack',
     family: 'walks',
     slot: 'column',
-    fit: { narrowBelow: 372, floor: 372 },
+    fit: { floor: 372 },
     flex: { fixed: 372 },
     body: 'none',
     render: (bus) => <WalkStackView bus={bus} />,
@@ -211,7 +212,7 @@ const VIEWS = [
     label: 'Unfold',
     family: 'maps',
     slot: 'column',
-    fit: { narrowBelow: 320, floor: 280 },
+    fit: { floor: 280 },
     body: 'none',
     render: () => <UnfoldView />,
   },
@@ -220,7 +221,7 @@ const VIEWS = [
     label: 'Unfold·Graph',
     family: 'maps',
     slot: 'column',
-    fit: { narrowBelow: 320, floor: 240 },
+    fit: { floor: 240 },
     body: 'none',
     render: (bus) => <UnfoldGraphView bus={bus} />,
   },
@@ -229,7 +230,7 @@ const VIEWS = [
     label: 'Contours',
     family: 'maps',
     slot: 'column',
-    fit: { narrowBelow: 320, floor: 240 },
+    fit: { floor: 240 },
     body: 'none',
     render: () => <ContoursView />,
   },
@@ -238,7 +239,7 @@ const VIEWS = [
     label: 'Clusters',
     family: 'maps',
     slot: 'column',
-    fit: { narrowBelow: 320, floor: 240 },
+    fit: { floor: 240 },
     body: 'none',
     render: () => <ClustersView />,
   },
@@ -254,7 +255,7 @@ const VIEWS = [
     label: 'Document',
     family: 'reading',
     slot: 'column',
-    fit: { narrowBelow: railFloor('right'), floor: railFloor('right') },
+    fit: { floor: railFloor('right') },
     // #342 (OB-229): the pane is prose BESIDE a relations rail, so it owns its own scrolling — the
     // prose column is a `PaneScroller` and the rail scrolls itself. Under the default `y` the Pane
     // would wrap the whole layout in one more scroller and the rail would scroll away with the
@@ -267,7 +268,7 @@ const VIEWS = [
     label: 'Neighborhood',
     family: 'reading',
     slot: 'column',
-    fit: { narrowBelow: 360, floor: 300 },
+    fit: { floor: 300 },
     render: (bus) => <NeighborhoodPanel bus={bus} />,
   },
   {
@@ -275,7 +276,7 @@ const VIEWS = [
     label: 'Trail',
     family: 'walks',
     slot: 'strip',
-    fit: { narrowBelow: 0, floor: 0 },
+    fit: { floor: 0 },
     render: (bus) => <TrailStrip bus={bus} />,
   },
   {
@@ -286,7 +287,7 @@ const VIEWS = [
     label: 'Walk·Viewer',
     family: 'walks',
     slot: 'strip',
-    fit: { narrowBelow: 0, floor: 0 },
+    fit: { floor: 0 },
     height: 240,
     body: 'none',
     render: (bus) => <WalkViewer bus={bus} />,
@@ -308,7 +309,7 @@ const LENSES: Instrument[] = EDGE_TYPES.map((t) => ({
   label: EDGE_LABEL[t],
   family: 'lenses',
   slot: 'column',
-  fit: { narrowBelow: 320, floor: 240 },
+  fit: { floor: 240 },
   render: (bus: Bus) => <LensPane bus={bus} type={t} />,
 }))
 
@@ -382,8 +383,8 @@ export const PRESETS: Preset[] = [
        grow and the map gains more (at 1280: map 503→756px, document 324→488px). The
        document now hosts the Relations rail, whose floor is 396px
        (`browsertest-relationsrail.mjs`), and `browsertest-deskwidths.mjs` measures both
-       widths at 1280 and 1512. A ratio, so a number that can move again — OB-170's
-       draggable dividers are the real answer. */
+       widths at 1280 and 1512. This ratio is only where the desk opens: OB-170's
+       dividers move it from there. */
     flex: { map: 1.55, document: 1 },
   },
   {

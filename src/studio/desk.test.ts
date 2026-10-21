@@ -20,10 +20,9 @@ const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol
 const column = (id: string): DeskColumn => ({ key: id, members: [byInstrument.get(id)!] })
 
 describe('OB-170 — every pane declares its own floor', () => {
-  it('a column pane declares a usable floor and a lesser-reading point at or above it', () => {
+  it('a column pane declares a usable floor', () => {
     for (const i of INSTRUMENTS.filter((x) => x.slot === 'column')) {
       expect(i.fit.floor, `${i.id}'s floor`).toBeGreaterThan(0)
-      expect(i.fit.narrowBelow, `${i.id}'s narrowBelow`).toBeGreaterThanOrEqual(i.fit.floor)
     }
   })
 
@@ -38,10 +37,7 @@ describe('OB-170 — every pane declares its own floor', () => {
 
   it('a stack is as demanding as its strongest member', () => {
     const members = [byInstrument.get('walkpalette')!, byInstrument.get('document')!]
-    expect(stackFit(members)).toEqual({
-      narrowBelow: Math.max(members[0].fit.narrowBelow, members[1].fit.narrowBelow),
-      floor: Math.max(members[0].fit.floor, members[1].fit.floor),
-    })
+    expect(stackFit(members)).toEqual({ floor: Math.max(members[0].fit.floor, members[1].fit.floor) })
     expect(deskFits([{ key: 'stack', members }])[0].floor).toBe(railFloor('right'))
   })
 })

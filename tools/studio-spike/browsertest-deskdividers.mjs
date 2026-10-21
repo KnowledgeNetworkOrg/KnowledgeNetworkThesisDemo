@@ -3,7 +3,7 @@
 // A TEST. It opens the real app in a real browser and asserts that the desk's pane
 // boundaries DRAG, that each pane stops at the floor it declares, that a resting
 // divider draws nothing, and that a double-click/keyboard reset returns the
-// composition to its preset split. It drives the launch composition (a drag on each
+// seam's two panes to their preset split and leaves the rest of the desk alone. It drives the launch composition (a drag on each
 // seam, with the sidebar open), that the desk follows the row through a palette
 // close instead of stepping once it lands, Explore (two panes, one seam) and Plan
 // (three panes, two seams, no walk palette since #416), then a narrow window where
@@ -97,28 +97,35 @@ const openPalette = async () => {
     await page.waitForTimeout(600)
   }
 }
+// Watched by the flight's STATE, not the clock (#455): the first frame is taken
+// before the press, every painted frame after it is sampled, and the trace ends on
+// the first frame that no longer carries `data-palette-flying` after one that did.
+// A slow machine draws fewer frames, never a shorter flight.
 const closePaletteTraced = async () => {
-  await page.evaluate(() => {
+  await page.waitForFunction(() => !document.querySelector('[data-palette-flying]'))
+  const traced = page.evaluate(() => new Promise((resolve) => {
     const row = document.querySelector('[data-desk-row]')
     const trace = []
-    window.__deskGapTrace = trace
-    const started = performance.now()
+    let seenFlying = false
+    const t0 = performance.now()
     const tick = () => {
       const r = row.getBoundingClientRect()
       const shown = [...row.querySelectorAll('[aria-label^="studio-pane-"]')]
         .filter((el) => getComputedStyle(el).display !== 'none')
       const last = shown[shown.length - 1]
-      if (last) {
-        const b = last.getBoundingClientRect()
-        trace.push({ gap: r.right - b.right, rowLeft: r.left })
-      }
-      if (performance.now() - started < 900) requestAnimationFrame(tick)
+      const flying = !!document.querySelector('[data-palette-flying]')
+      if (last) trace.push({ gap: r.right - last.getBoundingClientRect().right, rowLeft: r.left, flying })
+      if (flying) seenFlying = true
+      if ((seenFlying && !flying) || performance.now() - t0 > 10000) resolve(trace)
+      else requestAnimationFrame(tick)
     }
-    requestAnimationFrame(tick)
-  })
+    requestAnimationFrame(() => { tick(); window.__deskTraceReady = true })
+  }))
+  await page.waitForFunction(() => window.__deskTraceReady === true)
   await page.locator('[data-toolbar-hook="palette-toggle"]').click()
-  await page.waitForTimeout(1000)
-  return page.evaluate(() => window.__deskGapTrace)
+  const trace = await traced
+  await page.evaluate(() => { delete window.__deskTraceReady })
+  return trace
 }
 
 try {
@@ -140,7 +147,7 @@ try {
   await drag(launchSeam0, 2)
   const launchAfter0 = await widths(['map', 'unfoldgraph', 'document'])
   ok('a 2px drag there moves only the map and the unfold graph by the pointer\'s travel',
-    near(launchAfter0.map, launch.map + 2, 2) && near(launchAfter0.unfoldgraph, launch.unfoldgraph - 2, 2) && near(launchAfter0.document, launch.document, 1),
+    near(launchAfter0.map, launch.map + 2, 1) && near(launchAfter0.unfoldgraph, launch.unfoldgraph - 2, 1) && near(launchAfter0.document, launch.document, 1),
     `${JSON.stringify(launch)} -> ${JSON.stringify(launchAfter0)}`)
 
   await launchSeam0.dblclick()
@@ -156,8 +163,19 @@ try {
   await drag(launchSeam1, -2)
   const launchAfter1 = await widths(['map', 'unfoldgraph', 'document'])
   ok('a 2px drag there moves only the unfold graph and the document by the pointer\'s travel',
-    near(launchAfter1.map, launch.map, 1) && near(launchAfter1.unfoldgraph, launch.unfoldgraph - 2, 2) && near(launchAfter1.document, launch.document + 2, 2),
+    near(launchAfter1.map, launch.map, 1) && near(launchAfter1.unfoldgraph, launch.unfoldgraph - 2, 1) && near(launchAfter1.document, launch.document + 2, 1),
     `${JSON.stringify(launch)} -> ${JSON.stringify(launchAfter1)}`)
+
+  // A reset belongs to its seam: the first seam's reset puts the map and the unfold
+  // graph back to their opening share of what they hold, and the document keeps the
+  // width the second seam's drag gave it.
+  await drag(launchSeam0, 2)
+  await launchSeam0.dblclick()
+  await page.waitForTimeout(400)
+  const seamReset = await widths(['map', 'unfoldgraph', 'document'])
+  ok("resetting one seam leaves the other seam's drag in place",
+    near(seamReset.document, launchAfter1.document, 1) && near(seamReset.map, launchAfter1.map, 2) && near(seamReset.unfoldgraph, launchAfter1.unfoldgraph, 2),
+    `${JSON.stringify(launchAfter1)} -> ${JSON.stringify(seamReset)}`)
 
   // ── Launch: a seam that has stopped moves nothing else ────────────────────
   // The unfold graph is the seam's right pane and its floor is 80px away. Once
@@ -185,11 +203,12 @@ try {
   const rowFirst = gapTrace[0]?.rowLeft ?? 0
   const rowLast = gapTrace[gapTrace.length - 1]?.rowLeft ?? 0
   const rowMove = Math.abs(rowLast - rowFirst)
-  let rowStep = 0
-  for (let i = 1; i < gapTrace.length; i++) rowStep = Math.max(rowStep, Math.abs(gapTrace[i].rowLeft - gapTrace[i - 1].rowLeft))
-  ok('the last pane follows the row through the palette close', gapWorst <= 2, `worst gap ${gapWorst.toFixed(1)}px across ${gapTrace.length} frames`)
-  ok('the palette close widens the desk over many frames, not one', rowMove > 50 && rowStep <= rowMove / 2, `${rowMove.toFixed(1)}px total, largest frame ${rowStep.toFixed(1)}px`)
-  ok('the palette-close trace saw the flight', gapTrace.length >= 5, `${gapTrace.length} frames`)
+  const inFlight = gapTrace.filter((s) => s.flying).length
+  ok('the palette-close trace saw the flight and its landing',
+    inFlight >= 1 && gapTrace[0]?.flying === false && gapTrace[gapTrace.length - 1]?.flying === false,
+    `${gapTrace.length} frames, ${inFlight} in flight`)
+  ok('the last pane follows the row through the palette close and at its landing', gapWorst <= 2, `worst gap ${gapWorst.toFixed(1)}px across ${gapTrace.length} frames`)
+  ok('the palette close widens the desk', rowMove > 50, `${rowMove.toFixed(1)}px`)
   await openPalette()
 
   // ── Explore: one seam, two panes ──────────────────────────────────────────

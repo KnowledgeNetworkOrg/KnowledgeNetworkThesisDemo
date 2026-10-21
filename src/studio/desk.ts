@@ -1,7 +1,9 @@
 // The desk's width arithmetic — the half of OB-170 that is pure, so the drag,
 // the keyboard and the reset all read the same numbers. The DS owns the clamp
-// itself (`clampDesk` / `deskBounds`); this file turns a row's measured width
-// and a composition's fractions into the widths to draw, and back again.
+// itself (`clampDesk` / `deskBounds`). The widths are drawn by CSS in
+// StudioView, as fractions of the row; this file supplies the room a handle's
+// bounds are read against, the fractions a composition opens with, and the
+// sizes-to-fractions step a drag ends in.
 
 import { PANE_DIVIDER_METRICS, clampDesk, paneFit } from '@/ds'
 import type { PaneFit } from '@/ds'
@@ -39,18 +41,13 @@ export function fixedWidth(column: DeskColumn): number | null {
 
 /** A stack's fit is the strongest of its members': the same column holds them all,
  *  so it must not be narrower than any one of them can work at. */
-export function stackFit(members: readonly Instrument[]): Required<PaneFit> {
-  let narrowBelow = 0
+export function stackFit(members: readonly Instrument[]): Pick<Required<PaneFit>, 'floor'> {
   let floor = 0
-  for (const m of members) {
-    const f = paneFit(m.fit)
-    narrowBelow = Math.max(narrowBelow, f.narrowBelow)
-    floor = Math.max(floor, f.floor)
-  }
-  return { narrowBelow, floor }
+  for (const m of members) floor = Math.max(floor, paneFit(m.fit).floor)
+  return { floor }
 }
 
-export const deskFits = (columns: readonly DeskColumn[]): Required<PaneFit>[] =>
+export const deskFits = (columns: readonly DeskColumn[]): Pick<Required<PaneFit>, 'floor'>[] =>
   columns.map((c) => stackFit(c.members))
 
 /** The fractions a composition opens with, from the preset's weights and each
