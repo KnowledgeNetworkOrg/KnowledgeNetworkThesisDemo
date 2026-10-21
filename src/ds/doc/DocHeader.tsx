@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 import { FIRST_ROW_PAD } from '../chrome/Pane'
 import { domainToken } from '../graph/DomainDot'
 
@@ -20,17 +22,18 @@ export interface DocHeaderProps {
   domain: string
   /** containment path, slash-separated, root first */
   ancestry?: string
+  /** a control at the outer end of the first line — a rail's closed corner, say. The header owns
+   *  the row, so the rule under it spans the pane rather than stopping at the control */
+  aside?: ReactNode
 }
 
-export function DocHeader({ kind, title, domain, ancestry }: DocHeaderProps) {
+export function DocHeader({ kind, title, domain, ancestry, aside }: DocHeaderProps) {
   /* THE TITLE'S FALLBACK IS THE INK, not the anchor swatch. Every other reader of the palette
      wants a visible dot for an unknown domain; a NAME with no known domain is still a name and
      reads at --text-1, so this one case maps the fallback back to ink. */
   const titleInk = domainToken(domain) === 'var(--swatch-anchor-fallback)' ? 'var(--text-1)' : domainToken(domain)
-  return (
-    /* THE TOP PAD IS THE SHARED FIRST ROW'S (OB-249): this header opens its pane, so its eyebrow sits on
-       the same line as the panes beside it. The value is unchanged at 14; it is now read, not restated. */
-    <div style={{ padding: `${FIRST_ROW_PAD}px var(--space-5) 12px`, borderBottom: '1px solid var(--border-hair)' }}>
+  const head = (
+    <>
       <div
         style={{
           fontSize: 'var(--fs-micro)',
@@ -56,6 +59,23 @@ export function DocHeader({ kind, title, domain, ancestry }: DocHeaderProps) {
         {title}
       </div>
       {ancestry ? <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--text-2)', marginTop: 5 }}>{ancestry}</div> : null}
+    </>
+  )
+  return (
+    /* THE TOP PAD IS THE SHARED FIRST ROW'S (OB-249): this header opens its pane, so its eyebrow sits on
+       the same line as the panes beside it. The value is unchanged at 14; it is now read, not restated.
+       WITH AN ASIDE THE HEADER OWNS THE WHOLE ROW, so the rule under it reaches the pane's edge and the
+       control sits on the head's first line, 12px from the right. Without one the old drawing stands. */
+    <div style={{
+      padding: `${FIRST_ROW_PAD}px ${aside ? 'var(--space-3)' : 'var(--space-5)'} 12px var(--space-5)`,
+      borderBottom: '1px solid var(--border-hair)',
+    }}>
+      {aside ? (
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 }}>
+          <div style={{ flex: '1 1 auto', minWidth: 0 }}>{head}</div>
+          <div style={{ flex: '0 0 auto' }}>{aside}</div>
+        </div>
+      ) : head}
     </div>
   )
 }

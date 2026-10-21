@@ -10,12 +10,11 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { REL_CARD_METRICS } from '@/ds'
 import type { Relation, ViaRelation } from '@/ds'
 
 import { allContainerIds, byId, childrenOf, edges, nodes, pathTo, topicIds } from '../corpus/graph'
 import {
-  cardRelationsOf, neighbourhoodOf, neighbourLitBy, ORBIT_CARD_PAD_X, orbitCardWidths, orbitKeyParts,
+  cardRelationsOf, neighbourhoodOf, neighbourLitBy, orbitKeyParts,
   relationsForKey, relationsOfNode, viaRelationsOf,
 } from './relations'
 
@@ -232,31 +231,3 @@ describe('neighbourLitBy — a hover on the MAP lights a mark in the figure (OB-
   })
 })
 
-describe('orbitCardWidths — the card\'s rows must fit the gutter they sit in', () => {
-  const M = REL_CARD_METRICS
-  const CARD_BORDER = 1
-  /** everything a row spends, summed: the two pills, the connector, the group's chrome, the row's own
-   *  gaps and padding, and the card's own padding and border */
-  const spent = (w: number) => {
-    const { pill, arrow } = orbitCardWidths(w)
-    return 2 * pill + arrow + M.groupChrome + M.rowPad * 2 + M.rowGap * 2 + ORBIT_CARD_PAD_X * 2 + CARD_BORDER * 2
-  }
-
-  it('never overhangs, across every gutter the rail can leave (previewGutter\'s ceiling down to the narrowest that opens)', () => {
-    // the rail opens at a pane of `min + keep` = 396, where the figure is 168 wide and the gutter
-    // 396 - 168 - 14 - 8 = 206; a wider pane only widens it, up to the card's own 262
-    for (let w = 206; w <= 262; w++) expect(spent(w), `card ${w}`).toBeLessThanOrEqual(w)
-  })
-
-  it('a wider card puts the extra into the pills first (capped), then the connector', () => {
-    expect(orbitCardWidths(262).pill).toBeGreaterThanOrEqual(orbitCardWidths(206).pill)
-    expect(orbitCardWidths(262).arrow).toBeGreaterThanOrEqual(M.arrowMin)
-  })
-
-  it('never takes a pill below its minimum or the connector below its own', () => {
-    for (const w of [150, 206, 262]) {
-      expect(orbitCardWidths(w).pill).toBeGreaterThanOrEqual(M.pillMin)
-      expect(orbitCardWidths(w).arrow).toBeGreaterThanOrEqual(M.arrowMin)
-    }
-  })
-})

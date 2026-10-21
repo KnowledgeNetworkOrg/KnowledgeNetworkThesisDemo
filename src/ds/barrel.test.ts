@@ -349,9 +349,11 @@ describe('ported but not adopted DS components', () => {
     expect(StatsMath.rows).toBe(statKindRows)
     expect(RELATION_STATS_METRICS.trackShare).toBe(52)
     expect(typeof RelationsRailMath.orbitBox).toBe('function')
-    // the row a preview banner reserves, drawn or not (OB-209), and the placeholder's floor
+    // the row a preview banner reserves, drawn or not (OB-209), and the placeholder's own numbers
     expect(PREVIEW_BANNER_METRICS.height).toBe(16)
     expect(PANE_PLACEHOLDER_METRICS.minHeight).toBe(120)
+    expect(PANE_PLACEHOLDER_METRICS.stroke).toBe(1.5)
+    expect(PANE_PLACEHOLDER_METRICS.pad).toBe('18px 22px')
   })
 
   // `nestedFamilyPaint` / `familySlots` / `FAMILY_SLOTS` are NOT listed here because

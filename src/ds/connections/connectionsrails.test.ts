@@ -21,6 +21,13 @@ describe('previewPlacement — it slides, it never flips', () => {
     expect(previewPlacement(100, 595, rect).y).toBe(484)
   })
 
+  it('takes the card\'s own measured height when one is given', () => {
+    // the same pointer and box, a 220-tall card: the bottom clamp is 600 - 220 - 4 = 376
+    expect(previewPlacement(100, 595, rect, null, 262, 220).y).toBe(376)
+    // beside a figure the card is centred on the pointer by half its own height
+    expect(previewPlacement(400, 300, rect, avoid, 262, 220).y).toBe(300 - 110)
+  })
+
   it('beside a figure it takes the larger gutter and follows the pointer only vertically', () => {
     /* leftRoom = 500 - 8 = 492 against rightRoom = 800 - 700 - 8 = 92: left wins, and the card
        sits against the figure's left edge, offset by offsetX. */

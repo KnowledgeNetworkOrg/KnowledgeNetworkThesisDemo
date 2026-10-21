@@ -6,8 +6,10 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
+import { fitLines } from '../graph/NodeArrow'
+
 import type { RelItem } from './RelationCards'
-import { REL_CARD_PARTS, RelSourceGroup } from './RelationCards'
+import { REL_CARD_METRICS, REL_CARD_PARTS, REL_TIP_METRICS, RelSourceGroup, relTipFit, relTipFitAcross } from './RelationCards'
 
 const item = (targetId: string, key: string, kindLabel = 'uses'): RelItem => ({
   key, targetId, targetTitle: targetId.toUpperCase(), kindLabel, kindColor: 'var(--edge-uses)', heads: 'out',
@@ -43,6 +45,96 @@ describe('the group header — a sentence in a card, caps and count in a list', 
     const html = renderToStaticMarkup(createElement(Header, { label: 'direct', count: 3 }))
     expect(html).toContain('text-transform:uppercase')
     expect(html).not.toContain('data-rel-sentence')
+  })
+})
+
+describe('relTipFit — the hover card is sized to its names (OB-272)', () => {
+  const target = (title: string): RelItem => ({ ...item(title, title), targetTitle: title })
+
+  /* what `RelSourceGroup` spends beside the three boxes: border, padX, row pad, source pad and two
+     gaps, plus 6 for the left bracket (2+ targets) and 6 for a right spine (a target with 2+ kinds) */
+  const chromeOf = (bracket: boolean, spine: boolean) =>
+    2 + REL_TIP_METRICS.padX * 2 + REL_CARD_METRICS.rowPad * 2 + 4 + REL_CARD_METRICS.rowGap * 2 + (bracket ? 6 : 0) + (spine ? 6 : 0)
+  const fits = (f: { width: number; leftWidth: number; rightWidth: number; arrowWidth: number }, chrome: number) =>
+    f.leftWidth + f.rightWidth + f.arrowWidth + chrome <= f.width && f.leftWidth >= REL_CARD_METRICS.pillMin && f.rightWidth >= REL_CARD_METRICS.pillMin
+
+  it('the owner\'s via pair is sized by its names: wider than a short pair, within the cap', () => {
+    const f = relTipFit({ sourceLabel: 'Graph Theory', sourcePathParts: ['Discrete Mathematics'], items: [target('Graph Representations')] })
+    const short = relTipFit({ sourceLabel: 'AB', items: [target('CD')] })
+    expect(short.width).toBe(REL_TIP_METRICS.minWidth)
+    expect(f.width).toBeGreaterThan(short.width)
+    expect(f.width).toBeLessThanOrEqual(REL_TIP_METRICS.maxWidth)
+  })
+
+  it('a group that draws BOTH the bracket and a spine budgets both, so no pill overhangs', () => {
+    const f = relTipFit({ sourceLabel: 'Implication & Vacuous Truth', items: [
+      { ...target('Tautologies & Contradictions'), key: 'a' },
+      { ...target('Tautologies & Contradictions'), key: 'b', kindLabel: 'see also' },
+      { ...target('Set Theory & Functions'), key: 'c' },
+    ] })
+    expect(f.width).toBe(REL_TIP_METRICS.maxWidth)
+    expect(fits(f, chromeOf(true, true))).toBe(true)
+  })
+
+  it('a long source beside a short target keeps the floor without breaking the sum', () => {
+    const f = relTipFit({ sourceLabel: 'Implication & Vacuous Truth, Tautologies & Contradictions', items: [target('Logic')] })
+    expect(f.width).toBe(REL_TIP_METRICS.maxWidth)
+    expect(f.rightWidth).toBe(REL_CARD_METRICS.pillMin)
+    expect(fits(f, chromeOf(false, false))).toBe(true)
+  })
+
+  /* long enough that no connector under the card's own width draws it whole — the corpus's real
+     labels are all short, so only a made-up one reaches the cap */
+  const endless = 'implemented with '.repeat(8).trim()
+
+  it('a kind label too long to draw whole stops where both pills keep their floor', () => {
+    const f = relTipFit({ sourceLabel: 'Trees & Heaps', items: [{ ...target('File Systems'), kindLabel: endless }] })
+    expect(f.width).toBe(REL_TIP_METRICS.maxWidth)
+    expect(f.arrowWidth).toBe(REL_TIP_METRICS.maxWidth - chromeOf(false, false) - REL_CARD_METRICS.pillMin * 2)
+    expect(fits(f, chromeOf(false, false))).toBe(true)
+  })
+
+  it('a narrow window gives the pills their floors before the connector', () => {
+    const f = relTipFit({ sourceLabel: 'Trees & Heaps', items: [{ ...target('File Systems'), kindLabel: endless }] }, 200)
+    expect(f.width).toBe(REL_TIP_METRICS.minWidth)
+    expect(f.arrowWidth).toBe(REL_TIP_METRICS.minWidth - chromeOf(false, false) - REL_CARD_METRICS.pillMin * 2)
+    expect(fits(f, chromeOf(false, false))).toBe(true)
+  })
+
+  it('the longest corpus pair stops exactly at the cap', () => {
+    const f = relTipFit({ sourceLabel: 'Implication & Vacuous Truth', items: [target('Tautologies & Contradictions')] })
+    expect(f.width).toBe(REL_TIP_METRICS.maxWidth)
+  })
+
+  it('is published beside the group header', () => {
+    expect(REL_CARD_PARTS.tipFit).toBe(relTipFit)
+  })
+
+  it('widens the connector so a kind label is not cut', () => {
+    const f = relTipFit({ sourceLabel: 'Trees & Heaps', items: [{ ...target('File Systems'), kindLabel: 'implemented with' }] })
+    expect(f.arrowWidth).toBeGreaterThan(REL_TIP_METRICS.arrow)
+    expect(fitLines('implemented with', f.arrowWidth, { fontPx: 9, pad: 0 }).join('').replace(/\s+/g, '')).toBe('implementedwith')
+  })
+
+  it('shares one width across groups and rescales the shared pills so no row overhangs it', () => {
+    const a = { sourceLabel: 'Regular Expressions & Automata', items: [target('Set Theory & Functions')] }
+    const b = { sourceLabel: 'AB', items: [target('Discrete Mathematics & Graphs')] }
+    const fitA = relTipFit(a)
+    const fitB = relTipFit(b)
+    /* the field-by-field maxima alone are wider than the card: this is the case the rescale exists
+       for, and the first assertion watches it stay a real case rather than a vacuous one */
+    const chrome = chromeOf(false, false)
+    const maxLeft = Math.max(fitA.leftWidth, fitB.leftWidth)
+    const maxRight = Math.max(fitA.rightWidth, fitB.rightWidth)
+    const fit = relTipFitAcross([a, b])
+    expect(maxLeft + maxRight + fit.arrowWidth + chrome).toBeGreaterThan(fit.width)
+    expect(fits(fit, chrome)).toBe(true)
+  })
+
+  it('scales a long source ONCE: a short group with the same target changes nothing', () => {
+    const a = { sourceLabel: 'Implication & Vacuous Truth', items: [target('Tautologies & Contradictions')] }
+    const b = { sourceLabel: 'AB', items: [target('Tautologies & Contradictions')] }
+    expect(relTipFitAcross([a, b])).toEqual(relTipFit(a))
   })
 })
 

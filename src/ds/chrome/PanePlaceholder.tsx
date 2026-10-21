@@ -2,9 +2,11 @@ import type { CSSProperties, ReactNode } from 'react'
 
 /** THE PLACEHOLDER'S OWN NUMBERS. `minHeight` keeps a placeholder from collapsing to two lines of
  *  text in a tall column — it is a VACANCY, and a vacancy that does not look like a shape reads
- *  as a rendering failure. CHOSEN; a column shorter than this gets the placeholder centred in
- *  whatever room there is. `maxTextWidth` (34ch) is the second line's measure. */
-export const PANE_PLACEHOLDER_METRICS = { minHeight: 120, maxTextWidth: 34 }
+ *  as a rendering failure. It now sizes the ROOM around the box, not the box itself, so a caller
+ *  can stretch the placeholder through a pane without stretching its dashed edge. `maxTextWidth`
+ *  (34ch) is the second line's measure; `stroke` and `pad` are the dashed box's own edge and
+ *  breathing room. All CHOSEN. */
+export const PANE_PLACEHOLDER_METRICS = { minHeight: 120, maxTextWidth: 34, stroke: 1.5, pad: '18px 22px' }
 
 /** A PANE, OR A COLUMN IN ONE, WITH NO SUBJECT — and the gesture that gives it one.
  *
@@ -35,6 +37,10 @@ export const PANE_PLACEHOLDER_METRICS = { minHeight: 120, maxTextWidth: 34 }
  *    4. THE ROW ABOVE IT KEEPS ITS HEIGHT. A head, a breadcrumb or a banner that disappears when
  *       the subject does moves everything under it, and the empty state is exactly when a reader
  *       is sweeping a pointer around looking for something to point at.
+ *    5. STRETCH THE ROOM, NOT THE DASHED BOX. `minHeight` and the caller's `style` size the
+ *       transparent outer box, which centres a dashed inner box hugging its two lines. Pass
+ *       `flex: 1` and a margin to fill a pane; never make the dashed box fill the pane, or a pane
+ *       with nothing in it reads as double-framed.
  *
  *  OB-209 clause 4 (owner, 2026-09-17, off `ideas/rest-state-*.html`): with nothing selected and
  *  nothing hovered the Document pane is a placeholder — it does NOT keep the last node, and "just
@@ -53,10 +59,11 @@ export interface PanePlaceholderProps {
    *  typography as `gesture`; what differs is whether the sentence asks anything of the reader,
    *  and that is carried by the words. `gesture` wins if both are given. */
   note?: ReactNode
-  /** default `PANE_PLACEHOLDER_METRICS.minHeight` (120). Pass a smaller number for a short
-   *  column; pass `0` to let it be exactly as tall as its two lines */
+  /** default `PANE_PLACEHOLDER_METRICS.minHeight` (120). Sizes the transparent ROOM the box is
+   *  centred in; pass `0` to let it be exactly as tall as the box */
   minHeight?: number
-  /** merged onto the box — placement in the host's own flex, never the border or the type */
+  /** merged onto the transparent outer box — placement in the host's own flex, never the dashed
+   *  box's border or the type */
   style?: CSSProperties
 }
 
@@ -65,15 +72,20 @@ export function PanePlaceholder({ state, gesture, note, minHeight = PANE_PLACEHO
   return (
     <div data-pane-placeholder="1" style={{
       boxSizing: 'border-box', minHeight, display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center', gap: 6, textAlign: 'center', padding: '18px 16px',
-      border: '1px dashed var(--border-dashed)', borderRadius: 'var(--radius-md)',
+      alignItems: 'center', justifyContent: 'center', textAlign: 'center',
       fontFamily: 'var(--font-ui)', lineHeight: 'var(--lh-normal)', ...style,
     }}>
-      <div style={{ fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-semibold)', color: 'var(--text-2)' }}>{state}</div>
-      {/* ONE SECOND LINE, EITHER KIND, AND THEY ARE THE SAME TYPOGRAPHY ON PURPOSE: what differs
-          is whether the sentence asks anything of the reader, and that is carried by the words.
-          `gesture` wins if a caller passes both — a state with a way out should always offer it. */}
-      {gesture || note ? <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--text-3)', maxWidth: M.maxTextWidth + 'ch' }}>{gesture || note}</div> : null}
+      <div data-pane-placeholder-box="1" style={{
+        boxSizing: 'border-box', maxWidth: '100%', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: 6, padding: M.pad,
+        border: M.stroke + 'px dashed var(--border-dashed)', borderRadius: 'var(--radius-md)',
+      }}>
+        <div style={{ fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-semibold)', color: 'var(--text-2)' }}>{state}</div>
+        {/* ONE SECOND LINE, EITHER KIND, AND THEY ARE THE SAME TYPOGRAPHY ON PURPOSE: what differs
+            is whether the sentence asks anything of the reader, and that is carried by the words.
+            `gesture` wins if a caller passes both — a state with a way out should always offer it. */}
+        {gesture || note ? <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--text-3)', maxWidth: M.maxTextWidth + 'ch' }}>{gesture || note}</div> : null}
+      </div>
     </div>
   )
 }
