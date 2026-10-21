@@ -15,10 +15,10 @@ describe('AppToolbar — the Load item needs a host to load with', () => {
   })
 
   it('is enabled when `load` is passed', () => {
-    const tag = buttonFor(
-      renderToStaticMarkup(createElement(AppToolbar, { load: { maps: [], onPick: () => {} } })),
-      'Load',
-    )
+    const props: NonNullable<Parameters<typeof AppToolbar>[0]> = {
+      load: { maps: [], onPick: () => {} },
+    }
+    const tag = buttonFor(renderToStaticMarkup(createElement<typeof props>(AppToolbar, props)), 'Load')
     expect(tag).toBeDefined()
     expect(tag).not.toContain('disabled')
   })
