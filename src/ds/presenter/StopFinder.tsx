@@ -4,7 +4,7 @@ import type { KeyboardEvent, ReactNode } from 'react'
 import { StepDot } from '../nav/StepDot'
 import { FlagMark } from '../chrome/FlagMark'
 import { FindMark } from '../chrome/FindMark'
-import { TextInput } from '../chrome/TextInput'
+import { MatchTitle, TextInput } from '../chrome/TextInput'
 import { IconButton, wrapTip } from '../chrome/IconButton'
 import { scrollerPadRight } from '../chrome/Pane'
 import { WalkPreview, previewAnchor } from '../nav/WalkPreview'
@@ -42,14 +42,6 @@ export function filterStops(steps: readonly StopFinderStep[], query: string): nu
   return out
 }
 
-/** The title with the matched run in the walk's bold — the query is what the eye is scanning for. */
-function Match({ text, query }: { text: string; query: string }) {
-  const q = (query || '').trim()
-  const at = q ? text.toLowerCase().indexOf(q.toLowerCase()) : -1
-  if (at < 0) return <span>{text}</span>
-  return <span>{text.slice(0, at)}<b style={{ fontWeight: 'var(--fw-bold)', color: 'var(--text-1)' }}>{text.slice(at, at + q.length)}</b>{text.slice(at + q.length)}</span>
-}
-
 interface RowProps {
   step: StopFinderStep
   index: number
@@ -74,8 +66,8 @@ function Row({ step, index, state, flagged, roaming, selected, query, showTerrit
       style={{ display: 'flex', alignItems: 'center', gap: 8, height: M.row, padding: '0 8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: selected ? 'var(--surface-hover)' : 'transparent', /* a tracked highlight is instant both ways — see --transition-wash-tracking (OB-204) */ transition: 'var(--transition-wash-tracking)' }}>
       <StepDot n={index + 1} size={M.dot} state={state} />
       <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', color: state === 'current' ? 'var(--text-walk)' : 'var(--text-1)', fontWeight: state === 'current' ? 'var(--fw-semibold)' : 'var(--fw-regular)' }}>
-        <Match text={step.title} query={query} />
-        {showTerritory && step.territory ? <span style={{ color: 'var(--text-3)', fontWeight: 'var(--fw-regular)' }}> · <Match text={step.territory} query={query} /></span> : null}
+        <MatchTitle text={step.title} match={query} />
+        {showTerritory && step.territory ? <span style={{ color: 'var(--text-3)', fontWeight: 'var(--fw-regular)' }}> · <MatchTitle text={step.territory} match={query} /></span> : null}
       </span>
       {roaming ? <span style={{ fontFamily: 'var(--font-ui)', fontSize: 9, fontWeight: 'var(--fw-bold)', letterSpacing: 'var(--ls-caps)', textTransform: 'uppercase', color: 'var(--acorn-600)', flexShrink: 0 }}>roaming</span> : null}
       {flagged ? <FlagMark size={10} filled style={{ color: 'var(--acorn-600)', flexShrink: 0 }} /> : null}
@@ -136,9 +128,13 @@ export interface StopFinderProps {
   renderAside?: (index: number | null) => ReactNode
   /** the hovered stop, `null` on leave — for a host lighting the same stop elsewhere */
   onStepHover?: (index: number | null) => void
+  /** FLAT, for a finder sitting IN a surface that already frames it: no border, shadow, face or ✕;
+   *  the full width it is given; the list does not scroll on its own, so the HOST must scroll.
+   *  `onClose` still fires on Escape. Ignored with `anchor`. */
+  flat?: boolean
 }
 
-export function StopFinder({ steps = [], activeStop = 0, roamingStop = null, flags = [], covered, open = true, anchor, onPick, onClose, placeholder = 'find a stop', autoFocus = true, renderPreview, renderAside, onStepHover }: StopFinderProps) {
+export function StopFinder({ steps = [], activeStop = 0, roamingStop = null, flags = [], covered, open = true, anchor, onPick, onClose, placeholder = 'find a stop', autoFocus = true, renderPreview, renderAside, onStepHover, flat = false }: StopFinderProps) {
   const M = STOP_FINDER_METRICS
   const [query, setQuery] = useState('')
   const matches = useMemo(() => filterStops(steps, query), [steps, query])
@@ -215,6 +211,9 @@ export function StopFinder({ steps = [], activeStop = 0, roamingStop = null, fla
     setHover(null)
   }
   const grouped = !query.trim()
+  /* The count under the box: "7 matches", then "3 of 7 matches" once one is selected. */
+  const selAt = matches.indexOf(sel)
+  const countText = grouped || !matches.length ? '' : selAt >= 0 ? (selAt + 1) + ' of ' + matches.length + ' matches' : matches.length + (matches.length === 1 ? ' match' : ' matches')
   const rows: ReactNode[] = []
   let lastTerr: string | null = null
   matches.forEach((i) => {
@@ -231,8 +230,11 @@ export function StopFinder({ steps = [], activeStop = 0, roamingStop = null, fla
      8px margin) and the inner column takes it as a ceiling; the list then shrinks under
      `maxListHeight` by ordinary flex. Floor of four rows (`minListHeight`). */
   const room = anchor && typeof window !== 'undefined' ? Math.max(M.minListHeight + 60, window.innerHeight - (anchor.bottom + M.gap) - 8) : undefined
+  /* Flat: the finder sits in another surface that already frames it, so it has no
+     face or scroller of its own; the host scrolls. Ignored with an anchor. */
+  const isFlat = flat && !anchor
   const list = (
-    <div ref={listRef} role="listbox" style={{ flex: 1, minWidth: 0, minHeight: 0, maxHeight: M.maxListHeight, overflowY: 'auto', padding: 4, paddingRight: 4 + scrollerPadRight() /* DS OB-210 */ }}>
+    <div ref={listRef} role="listbox" style={isFlat ? { flex: 1, minWidth: 0, padding: '4px 0 0' } : { flex: 1, minWidth: 0, minHeight: 0, maxHeight: M.maxListHeight, overflowY: 'auto', padding: 4, paddingRight: 4 + scrollerPadRight() /* DS OB-210 */ }}>
       {rows.length ? rows : <div style={{ padding: '14px 8px', fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', color: 'var(--text-3)', fontStyle: 'italic' }}>no stop matches "{query.trim()}"</div>}
     </div>
   )
@@ -240,14 +242,14 @@ export function StopFinder({ steps = [], activeStop = 0, roamingStop = null, fla
     <div ref={panelRef} role="dialog" aria-label="find a stop" data-stop-finder onKeyDown={onKey}
       onMouseEnter={() => setInside(true)} onMouseLeave={() => setInside(false)} onFocus={() => setInside(true)} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setInside(false) }} style={{
       ...(anchor ? { position: 'fixed' as const, top: anchor.bottom + M.gap, left: Math.max(8, Math.min(anchor.left, (typeof window !== 'undefined' ? window.innerWidth : 1e9) - width - 8)), zIndex: 60 } : { position: 'relative' as const }),
-      width, boxSizing: 'border-box',
-      background: 'var(--surface-raised)', border: '1px solid var(--border-frame)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--lift-2)',
+      width: isFlat ? '100%' : width, boxSizing: 'border-box',
+      ...(isFlat ? {} : { background: 'var(--surface-raised)', border: '1px solid var(--border-frame)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--lift-2)' }),
     }}>
       {/* THE CLOSE SITS ON THE TOP-RIGHT BORDER, the way a pane's does. A pane masks its border with
           the DESK colour; a popover floats over panes it cannot name, so the mask here is a 1px strip
           of the panel's own face over the border LINE only. Revealed while the pointer or the keyboard
           is inside, absent at rest, like the pane's. */}
-      {onClose ? (
+      {onClose && !isFlat ? (
         <span style={{ position: 'absolute', top: -9, right: 10, zIndex: 3, display: 'inline-flex', opacity: inside ? 1 : 0, pointerEvents: inside ? 'auto' : 'none', transition: 'opacity var(--dur-hover) var(--ease-soft)' }}>
           <span style={{ position: 'absolute', left: -3, right: -3, top: 8, height: 1, background: 'var(--surface-raised)' }} />
           <IconButton title="close" label="close the finder" onClick={onClose} reveal={inside} style={{ position: 'relative', zIndex: 1 }} />
@@ -256,8 +258,9 @@ export function StopFinder({ steps = [], activeStop = 0, roamingStop = null, fla
       <div style={{ display: 'flex', flexDirection: 'column', borderRadius: 'var(--radius-md)', overflow: 'hidden', maxHeight: room }}>
         {/* THE QUERY IS THE SYSTEM'S TEXT BOX — `TextInput`, the filter's recipe, with the magnifier
             drawn inside its left end and the house ✕ to clear */}
-        <div style={{ padding: onClose ? '14px 8px 8px' : 8, borderBottom: '1px solid var(--border-hair)', flexShrink: 0 }}>
+        <div style={{ padding: isFlat ? '0 0 8px' : onClose ? '14px 8px 8px' : 8, borderBottom: '1px solid var(--border-hair)', flexShrink: 0 }}>
           <TextInput value={query} onChange={changeQuery} placeholder={placeholder} leading={<FindMark size={12} />} size="md" inputRef={inputRef} />
+          {countText ? <div aria-live="polite" style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-micro)', color: 'var(--text-3)', fontVariantNumeric: 'tabular-nums', padding: '4px 2px 0' }}>{countText}</div> : null}
         </div>
         {renderAside ? (
           <div style={{ display: 'flex', alignItems: 'stretch', minHeight: 0 }}>

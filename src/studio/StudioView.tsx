@@ -18,13 +18,15 @@
 // the deck, on the same bus, leaving active/mounted/flexMap/presetId untouched
 // so exiting restores the exact desk that was there.
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { CSSProperties } from 'react'
 
 import { AppHeader, CountBadge, deskBounds, EDGE_TOKEN, FamilyColumn, FIRST_SCROLL_PAD, InstrumentGroup, InstrumentRow, Pane, PaneDivider, PresetButton, SectionLabel } from '@/ds'
-import type { EdgeKind } from '@/ds'
+import type { EdgeKind, LoadChoice, LoadMap } from '@/ds'
 
-import { byId, topicHueOf } from '../corpus/graph'
+import { byId, ROOT_ID, topicHueOf } from '../corpus/graph'
+import { saveDraftAsWalk, useDraftUnsaved } from '../state/walk/authordraft'
+import { listWalks, subscribeWalks, walkById } from '../state/walkstore'
 import { platform } from '../platform'
 import PresenterScreen from '../present/PresenterScreen'
 import { PROJECTOR_QUERY, PROJECTOR_WINDOW } from '../present/projector'
@@ -382,6 +384,35 @@ export default function StudioView() {
   // ── the bus ───────────────────────────────────────────────────────────────
   const bus = useStudioBus<InstrumentId>(ensureActive)
 
+  // ── the toolbar's Load ────────────────────────────────────────────────────
+  // The app has one corpus map; its walks are the registry's, including any the
+  // desk saved this session, so the list is subscribed rather than read once.
+  const unsavedDraft = useDraftUnsaved()
+  const allWalks = useSyncExternalStore(subscribeWalks, listWalks)
+  const loadMaps: LoadMap[] = [
+    {
+      id: ROOT_ID,
+      title: byId.get(ROOT_ID)?.title ?? 'this map',
+      walks: allWalks.map((w) => ({
+        id: w.id,
+        title: w.title,
+        stops: w.stops.map((s) => ({ title: byId.get(s.id)?.title ?? s.id })),
+      })),
+    },
+  ]
+  const onLoadPick = (choice: LoadChoice, how?: 'save' | 'discard') => {
+    if (how === 'save') saveDraftAsWalk('')
+    if (choice.walkId == null) {
+      bus.clearRoute()
+      return
+    }
+    if (typeof choice.walkId !== 'string') return
+    const w = walkById(choice.walkId)
+    if (!w) return
+    bus.activateWalk(w.id, 0)
+    if (w.stops[0]) bus.setFocus(w.stops[0].id, 'walk')
+  }
+
   // ── coming back from the presenter (#214) ─────────────────────────────────
   // The desk's panes are NOT mounted while the presenter is up — one instance of
   // everything, the rule #195 set and #267 kept — so every pane is built fresh on
@@ -677,7 +708,8 @@ export default function StudioView() {
       </div>
 
       {/* #55: app-level operations, pinned directly under the app header */}
-      <AppToolbar present={{ state: presentState, onClick: pressPresent }} palette={{ on: paletteOpen, onToggle: () => (paletteOpen ? closePalette() : openPalette()) }} />
+      <AppToolbar present={{ state: presentState, onClick: pressPresent }} palette={{ on: paletteOpen, onToggle: () => (paletteOpen ? closePalette() : openPalette()) }}
+        load={{ maps: loadMaps, openMapId: ROOT_ID, openWalkId: bus.activeWalk ? bus.activeWalk.walkId : null, unsaved: unsavedDraft, onPick: onLoadPick }} />
       </>
       )}
 

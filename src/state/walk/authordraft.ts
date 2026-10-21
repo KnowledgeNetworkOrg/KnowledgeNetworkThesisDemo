@@ -171,6 +171,37 @@ stopsStore.subscribe(persist)
 choicesStore.subscribe(persist)
 optionalsStore.subscribe(persist)
 
+// ── Unsaved work ────────────────────────────────────────────────────────────
+// The draft is written to storage on every change, so "unsaved" here means edited
+// since the baseline the app opened on (a restore or the seed) or the last save
+// out as a walk. Snapshots are plain references, so undo back to the baseline is
+// clean again without comparing the trees.
+let baseStops = stopsStore.get()
+let baseChoices = choicesStore.get()
+let baseOptionals = optionalsStore.get()
+const dirtyStore = store(false)
+const refreshDirty = () =>
+  dirtyStore.set(
+    stopsStore.get() !== baseStops ||
+      choicesStore.get() !== baseChoices ||
+      optionalsStore.get() !== baseOptionals,
+  )
+stopsStore.subscribe(refreshDirty)
+choicesStore.subscribe(refreshDirty)
+optionalsStore.subscribe(refreshDirty)
+const markSaved = () => {
+  baseStops = stopsStore.get()
+  baseChoices = choicesStore.get()
+  baseOptionals = optionalsStore.get()
+  refreshDirty()
+}
+
+/** the name of what holds unsaved changes, or undefined when nothing is edited */
+export function useDraftUnsaved(): string | undefined {
+  const [dirty] = useStore(dirtyStore)
+  return dirty ? 'the walk draft' : undefined
+}
+
 // ── Undo / redo over the stops tree (#34) ────────────────────────────────────
 // History lives UNDER the store interface: one historic setter records the
 // previous tree, so every structural op becomes undoable without the op knowing
@@ -236,12 +267,14 @@ export function saveDraftAsWalk(title: string): Walk | null {
   const stops = leafStops(resolved).map((s) => ({ id: s.node, note: s.note ?? '' }))
   if (stops.length === 0) return null
   const name = title.trim() || 'untitled walk'
-  return saveWalk({
+  const saved = saveWalk({
     id: mintId(name),
     title: name,
     description: `${stops.length} stops, authored on the walk desk`,
     stops,
   })
+  markSaved()
+  return saved
 }
 
 // ── The resolved-walk preview (0005 D9) ─────────────────────────────────────

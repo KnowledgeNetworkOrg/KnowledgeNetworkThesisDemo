@@ -1,5 +1,7 @@
-import { CopyMark, LoadMark, NewMapMark, PasteMark, PrintMark, SaveMark, Toolbar } from '@/ds'
-import type { ToolbarItemSpec } from '@/ds'
+import { useState } from 'react'
+
+import { CopyMark, LoadDialog, LoadMark, NewMapMark, PasteMark, PrintMark, SaveMark, Toolbar } from '@/ds'
+import type { LoadChoice, LoadMap, ToolbarItemSpec } from '@/ds'
 
 import { redoDraft, undoDraft } from '../state/walk/authordraft'
 import { PALETTE_HOOK, PALETTE_TIP, PaletteGlyph } from './PaletteGlyph'
@@ -33,7 +35,16 @@ import type { PresentState } from './presentbutton'
  *  THE PALETTE TOGGLE IS THE ONE ITEM HERE THAT IS NOT OPTIONAL CHROME (OB-104):
  *  the palette pane's ✕ closes it, and this is the only thing that brings it back.
  *  Ship one without the other and the pane is a one-way door. */
-export function AppToolbar({ present, palette }: { present?: { state: PresentState; onClick: () => void }; palette?: { on: boolean; onToggle: () => void } } = {}) {
+export interface AppToolbarLoad {
+  maps: LoadMap[]
+  openMapId?: string | number | null
+  openWalkId?: string | number | null
+  unsaved?: string
+  onPick: (choice: LoadChoice, how?: 'save' | 'discard') => void
+}
+
+export function AppToolbar({ present, palette, load }: { present?: { state: PresentState; onClick: () => void }; palette?: { on: boolean; onToggle: () => void }; load?: AppToolbarLoad } = {}) {
+  const [loadOpen, setLoadOpen] = useState(false)
   // GROUP ORDER IS THE OBLIGATION, not a preference (OB-105): palette, then the
   // four document-lifecycle actions in the order they are actually used — create,
   // load, save, print (output last) — then editing, then the clipboard. `new map`
@@ -60,7 +71,7 @@ export function AppToolbar({ present, palette }: { present?: { state: PresentSta
   ]
   const document: ToolbarItemSpec[] = [
     { glyph: <NewMapMark />, title: 'New map', disabled: true },
-    { glyph: <LoadMark />, title: 'Load', disabled: true },
+    { glyph: <LoadMark />, title: 'Load', onClick: load ? () => setLoadOpen(true) : undefined, disabled: !load },
     { glyph: <SaveMark />, title: 'Save (Ctrl+S)', disabled: true },
     { glyph: <PrintMark />, title: 'Print (Ctrl+P)', disabled: true },
   ]
@@ -76,14 +87,30 @@ export function AppToolbar({ present, palette }: { present?: { state: PresentSta
   const state = present?.state ?? 'idle'
   const presentGroup: ToolbarItemSpec[] = [{ glyph: '▶', title: PRESENT_TITLE[state], tone: 'walk', on: state === 'live', disabled: state === 'live', onClick: present?.onClick, hook: PRESENT_HOOK }]
   return (
-    <Toolbar
-      groups={[
-        ...(paletteGroup.length ? [{ items: paletteGroup }] : []),
-        { items: document },
-        { items: editing },
-        { items: clipboard },
-        { items: presentGroup },
-      ]}
-    />
+    <>
+      <Toolbar
+        groups={[
+          ...(paletteGroup.length ? [{ items: paletteGroup }] : []),
+          { items: document },
+          { items: editing },
+          { items: clipboard },
+          { items: presentGroup },
+        ]}
+      />
+      {load ? (
+        <LoadDialog
+          open={loadOpen}
+          maps={load.maps}
+          openMapId={load.openMapId}
+          openWalkId={load.openWalkId}
+          unsaved={load.unsaved}
+          onClose={() => setLoadOpen(false)}
+          onPick={(choice, how) => {
+            load.onPick(choice, how)
+            setLoadOpen(false)
+          }}
+        />
+      ) : null}
+    </>
   )
 }
