@@ -1,0 +1,28 @@
+The change implements every requirement and every "Done when" line of the card, with one optional gap in `PROVENANCE.json`. I read the code but could not run anything: git is denied to me, and I avoided `npm run verify` and the tests so as not to create files. The previous step reports the targeted tests and `tsc -b` passing, and I did not re-confirm that.
+
+- **Card item 1:** `REFUSAL_REASONS`, `DropVerdict.REASONS` and the `DropRefusal` default are in `src/ds/graph/DropVerdict.tsx`, matching `design-system/components/graph/DropVerdict.jsx` and `.d.ts`.
+- **Card item 2:** `refusedAt` returns `{ ids, reason }` and `dropAllowed` returns `'adjacent' | 'inside' | null`. `refusedAt` returns `inside` when the target is strictly beneath the dragged block's path. That covers both the gap between a group's own stops and its middle "inside" band. The picker path (`moving === target`) is unaffected, and the adjacent rule is unchanged.
+- **Card item 3:**
+  - In `AuthorRoad.tsx`, `ok` comes from `dropAllowed === null`, so a refused gap gets no `preventDefault`, the struck `--verdict-no` line, and a pill reading `REFUSAL_REASONS[reason]`.
+  - `handleDrop` returns before any state op when the result is non-null, so undo has nothing new.
+- **Grep:** the quoted `'inside itself'` and `'already adjacent'` literals now appear only at `DropVerdict.tsx:109`. The `NodePicker.tsx` comment edit was needed to make that true.
+- **Scope:** `design-system/` is untouched. The only changes outside the two named source files are the barrel, `AuthorRoad.tsx`, one comment in `NodePicker.tsx` and tests, all needed to satisfy the card.
+- **Tests:** coverage is in `authordnd.test.ts`, `DropVerdict.test.ts` and `barrel.test.ts`, including the group-into-itself case, the unchanged adjacent case and a no-op `handleDrop`.
+
+Must fix:
+none
+
+Optional:
+1. `src/ds/PROVENANCE.json:175` — the `src/ds/graph/DropVerdict.tsx` entry is not updated. `syncedAt` is still 2026-09-26 and no dated deviation is recorded, though the file's own `$note` says an adopted change updates `syncedAt` here. The port diverges from the design system's copy in three ways: it adds a `RefusalReason` type, places the `REFUSAL_REASONS` doc comment before `DropRefusalProps`, and drops the `.d.ts` paragraph "PASS ONE OF `REFUSAL_REASONS`…" from the `reason` prop doc. CLAUDE.md says a port divergence goes on drift log #74, and a run cannot post, so the reply or PR body should state these.
+
+Nit:
+1. `src/instruments/walkdesk/AuthorRoad.tsx:667` — the verdict memo ignores `reason`. It is harmless today because the payload cannot change mid-drag. Adding `v.reason === (reason ?? undefined)` would make it robust.
+2. `tools/studio-spike/browsertest-dropverdict.mjs:387` — the browser driver covers only "already adjacent"; "inside itself" has unit coverage but no driver coverage. The card does not require one.
+
+Noticed outside this card's scope: none.
+
+Assumptions: "inside" means the target path is strictly deeper than the dragged block's path, so dropping a group at its own position stays allowed. That matches `moveBlock`, which no-ops there. Only `blk:` payloads can be "inside". The picker only ever shows the adjacent sentence.
+
+<!-- kncode-findings
+{"reports":[{"id":"R0-1","raisedAgain":false,"bucket":"Optional","what":"The port changed \u0060src/ds/graph/DropVerdict.tsx\u0060 (REFUSAL_REASONS, REASONS, a \u0060RefusalReason\u0060 type) but left the file\u0027s entry in \u0060src/ds/PROVENANCE.json\u0060 untouched: \u0060syncedAt\u0060 is still 2026-09-26 and no dated deviation is recorded. The file\u0027s own \u0060$note\u0060 says an adopted change \u0022updates the hashes \u002B syncedAt here\u0022, and every recent port adds a dated line. This port also differs from the source: it adds the \u0060RefusalReason\u0060 type, which the .d.ts does not have, and puts the REFUSAL_REASONS doc comment before \u0060DropRefusalProps\u0060 where the .jsx has it between the docblock and the function. The \u0060reason\u0060 prop doc also drops the .d.ts paragraph \u0022PASS ONE OF \u0060REFUSAL_REASONS\u0060, never a retyped string\u2026\u0022. CLAUDE.md asks that a port divergence be reported (drift log #74) and a run cannot post it, so the reply or PR body should state these.","file":"src/ds/PROVENANCE.json","line":175,"breaks":"House rule for ports: a changed \u0060src/ds/**\u0060 file records its sync date and any divergence from the design system\u0027s copy.","failure":null},{"id":"R0-2","raisedAgain":false,"bucket":"Nit","what":"The \u0060Verdict\u0060 memo in \u0060judge\u0060 reuses the previous verdict when \u0060at\u0060, \u0060ok\u0060, \u0060src\u0060 and \u0060box\u0060 match, but \u0060reason\u0060 is not part of that comparison. It is harmless today because one drag gives one reason per gap. Adding \u0060v.reason === (reason ?? undefined)\u0060 would make it robust.","file":"src/instruments/walkdesk/AuthorRoad.tsx","line":667,"breaks":"No card line broken. A stale \u0060reason\u0060 could be shown only if the same gap were judged with a different payload without the verdict being cleared in between.","failure":null},{"id":"R0-3","raisedAgain":false,"bucket":"Nit","what":"\u0060tools/studio-spike/browsertest-dropverdict.mjs\u0060, a browser driver outside \u0060src/\u0060, still only exercises \u0022already adjacent\u0022. The new \u0022inside itself\u0022 refusal has no driver coverage, only unit tests.","file":"tools/studio-spike/browsertest-dropverdict.mjs","line":387,"breaks":"No card line broken. The card\u0027s done-when does not ask for a browser driver.","failure":null}],"answers":[]}
+-->
