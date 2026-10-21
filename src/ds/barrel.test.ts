@@ -5,6 +5,8 @@ import { CONNECTIONS_BODY_STYLE, ConnectionsSplitPane, OpenAncestors, RelationCa
 import { LEGEND_ROW } from '@/ds'
 import { ORBIT_METRICS,OrbitMath, PANE_PLACEHOLDER_METRICS, PREVIEW_BANNER_METRICS, RELATION_STATS_METRICS, RelationOrbit, RelationStats, RelationsRailMath, StatsMath, orbitKinds, orbitMarks, orbitWedge, statKindRows } from '@/ds'
 
+import provenance from './PROVENANCE.json?raw'
+
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
 // so that consuming one, or adding a new unconsumed port, requires a deliberate
@@ -307,18 +309,6 @@ describe('ported but not adopted DS components', () => {
     expect(FIRST_ROW_PAD).toBe(FIRST_LINE - LEGEND_ROW)
   })
 
-  // #341 (OB-253) — the rail's seam drags, so the desk's drag handle came with the frame it
-  // hangs on. No host draws one yet: `RailFrame` is the first reader, and the map pane's seam
-  // is the one this port wires.
-  it('PaneDivider / PANE_DIVIDER_METRICS / paneFit / clampDesk / deskBounds — the rail seam\'s drag handle (OB-253)', () => {
-    expect(typeof PaneDivider).toBe('function')
-    expect(PANE_DIVIDER_METRICS.hit).toBe(14)
-    expect(paneFit({ narrowBelow: 100 }).floor).toBe(100)
-    expect(paneFit({ floor: 80 }).narrowBelow).toBe(80)
-    expect(clampDesk({ sizes: [200, 200], index: 0, delta: 50, fits: [{ floor: 150 }, { floor: 150 }] })).toEqual([250, 150])
-    expect(deskBounds({ sizes: [200, 200], index: 0, fits: [{ floor: 150 }, { floor: 150 }] })).toEqual({ now: 200, min: 150, max: 250 })
-  })
-
   // #341 (OB-238) — the Explorer rail is a whole component now; the map pane mounts it in this
   // branch, and `ConnectionsRails` carries the hover layer it pairs with.
   it('ExplorerRail / ExplorerRailCorner / explorerRailWidth — the map\'s rail, ported waiting on its mount (#341)', () => {
@@ -373,4 +363,21 @@ describe('ported but not adopted DS components', () => {
   // 2026-08-28 for a measured reason — 94 distinct colours across 711 bordering
   // regions. The DS REWROTE it: the input is now a slot from familySlots(), which
   // the host feeds with real geometric adjacency, so the objection no longer holds.
+})
+
+// #341 (OB-253) / #348 (OB-170) — StudioView and PresenterScreen import this handle from the
+// barrel (RailFrame imports it directly), so it is adopted and does not belong in the block above.
+describe('adopted DS chrome', () => {
+  it('PaneDivider / PANE_DIVIDER_METRICS / paneFit / clampDesk / deskBounds — the desk and rail drag handle', () => {
+    expect(typeof PaneDivider).toBe('function')
+    expect(PANE_DIVIDER_METRICS.hit).toBe(14)
+    expect(paneFit({ narrowBelow: 100 }).floor).toBe(100)
+    expect(paneFit({ floor: 80 }).narrowBelow).toBe(80)
+    expect(clampDesk({ sizes: [200, 200], index: 0, delta: 50, fits: [{ floor: 150 }, { floor: 150 }] })).toEqual([250, 150])
+    expect(deskBounds({ sizes: [200, 200], index: 0, fits: [{ floor: 150 }, { floor: 150 }] })).toEqual({ now: 200, min: 150, max: 250 })
+  })
+})
+
+it('PROVENANCE.json parses, so every lane can append to and rebase the record', () => {
+  expect(() => JSON.parse(provenance)).not.toThrow()
 })

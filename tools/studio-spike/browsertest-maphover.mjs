@@ -86,6 +86,12 @@ const glideTo = async (p) => { await page.mouse.move(p.x, p.y, { steps: 12 }); a
 // ── put the map and the walk palette on the same desk ───────────────────────
 await page.getByLabel('studio-preset-plan').click()
 await page.waitForTimeout(500)
+// #416 removed the walk palette from Plan, so the sidebar is needed to put it back.
+const paletteToggle = page.locator('[data-toolbar-hook="palette-toggle"]')
+if ((await paletteToggle.getAttribute('title')) !== 'hide the palette') {
+  await paletteToggle.click()
+  await page.waitForTimeout(500)
+}
 for (const [inst, sel] of [['map', 'svg[data-nested]'], ['walkpalette', '[data-palette]']]) {
   if (!(await has(sel))) {
     await page.getByLabel(`studio-inst-${inst}`).click()

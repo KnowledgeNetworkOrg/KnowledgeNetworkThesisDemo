@@ -2,6 +2,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ElementType, PointerEvent, ReactNode, Ref, RefObject } from 'react'
 import { PaneHeader, PaneFrameContext, LEGEND_ROW } from './PaneHeader'
 import { Grip } from './Grip'
+import { paneFit } from './PaneDivider'
+import type { PaneFit } from './PaneDivider'
 
 /** How far a scrolling body holds off the pane's edge, so the scrollbar's end
  *  arrows clear the `--radius-lg` corners instead of being clipped by them. One
@@ -419,6 +421,11 @@ export interface PaneProps {
   /** the colour the legend masks the border with; defaults to the desk. Pass the real
    *  surface if a pane ever sits on something other than `--surface-canopy` */
   legendBg?: string
+  /** THE PANE'S OWN WIDTH FLOOR (DS `PaneFit`, OB-170) — the width below which its content
+   *  no longer works. `data-pane-fit` publishes the normalised number for a driver; the
+   *  frame itself keeps `minWidth: 0`, so a row narrower than the floors together shrinks
+   *  its panes instead of scrolling the page. */
+  fit?: PaneFit
   /** `legend` (default) or the older filled `bar` title row */
   variant?: 'legend' | 'bar'
   /** THE TITLE BECOMES A DRAG HANDLE. Passed straight through to `PaneHeader`, which
@@ -496,7 +503,7 @@ export interface PaneProps {
  *
  *  Typed port of the DS Pane.jsx (contract: Pane.d.ts). */
 export function Pane({
-  title, glyph, onClose, actions, face = 'var(--surface-paper)', legendBg, variant, grabbable, onGrabStart,
+  title, glyph, onClose, actions, face = 'var(--surface-paper)', legendBg, fit, variant, grabbable, onGrabStart,
   resizable = false, onResizeStart, actionBar,
   scroll = 'y', as, style, bodyStyle, bodyRef, audit = true, children, ...rest
 }: PaneProps & Record<string, unknown>) {
@@ -510,6 +517,7 @@ export function Pane({
      corner arc — without this, its square top corners bite the same two notches out of
      the rounded frame that auditBody warns about for any other opaque body child. */
   const barRadius = useNestedRadius(barRef, !!actionBar)
+  const floor = fit ? paneFit(fit).floor : null
   useEffect(() => { if (audit) auditBody(frameRef.current, bodyEl.current) }, [audit])
   const bodyElRef = useMemo(() => setRefs(bodyEl, bodyRef), [bodyRef])
   return (
@@ -517,6 +525,7 @@ export function Pane({
       ref={frameRef}
       data-pane-frame=""
       {...rest}
+      data-pane-fit={floor === null ? undefined : floor}
       style={{
         position: 'relative', flex: 1, display: 'flex', flexDirection: 'column',
         minWidth: 0, minHeight: 0,
