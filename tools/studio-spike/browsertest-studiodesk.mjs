@@ -633,30 +633,92 @@ console.log('12-return-from-presenter.png taken')
     await page.mouse.click(c.x, c.y)
   }
   const paletteIsOpen = async () => (await page.locator('[aria-label^="studio-inst-"]').count()) > 0
-  /** run `act` while sampling, on every animation frame for `ms`, whether the toggle is what is
-   *  under its own centre; answers how many frames had something else on top of it */
-  const coverWhile = async (act, ms) => {
-    const sampler = page.evaluate((window_ms) => new Promise((resolve) => {
+  /** run `act` while sampling, on every animation frame from just before the press until the pane
+   *  reaches `to`, whether the toggle is what is under its own centre; answers how many frames had
+   *  something else on top of it.
+   *
+   *  THE SAMPLER WATCHES THE FLIGHT BY ITS STATE, NOT BY THE CLOCK. Its first frame is taken before
+   *  the press (`act` waits for it) and must show `from`; it then samples until a frame shows `to`
+   *  (`closed` unmounted, `open` landed with nothing flying, or with `byPose` at rest by pose), and every painted frame between gets a
+   *  rAF callback, so it has seen every frame of the flight at whatever frame rate the machine draws.
+   *  It must also see at least one frame IN FLIGHT (`data-palette-flying`): a page that stopped
+   *  marking its flights would otherwise read `open` on the second frame and end the watch early.
+   *  The guards it replaces sampled for a fixed time and counted frames (`frames < 10` in 700ms twice,
+   *  `frames < 5` in 250ms), and a check machine drawing ~12fps failed them on main with nothing
+   *  wrong (#348's run, on 72206e8).
+   *
+   *  THE READINGS THAT NEED A MOMENT ARE TAKEN IN THE FRAME THAT IS THAT MOMENT, for the same reason
+   *  (review of #455): `tree` is the pointer-events census of the flying wrapper on the first frame in
+   *  flight, and `landedTakesPointer` is whether the pane takes the pointer on the landing frame.
+   *  Read from Node after a `waitForTimeout`, both missed the 400ms flight at ~10fps.
+   *
+   *  `byPose` JUDGES THE LANDING BY WHERE THE PANE IS, NOT BY THE FLAG UNDER TEST (round 2 of that
+   *  review). `data-palette-flying` and the pointer rule are one variable in the app, so a sampler
+   *  that waited for the flag to clear would wait out a regressed 400ms hold and then pass. With
+   *  `byPose` the pane has landed on the first frame its wrapper computes to identity and opacity 1,
+   *  and `flaggedAtLanding` says whether the flag was still on in that frame.
+   *
+   *  It starts once nothing is flying, not after a fixed settle: a slow machine is still landing the
+   *  previous flight when a `settle` ends. */
+  const coverWhile = async (act, from, to, { byPose = false, deadline_ms = 10000 } = {}) => {
+    await page.waitForFunction(() => !document.querySelector('[data-palette-flying]'), null, { timeout: deadline_ms })
+    await page.evaluate(({ from, to, byPose, deadline_ms }) => new Promise((ready) => {
+      const atRest = (row) => {
+        let w = row
+        while (w && !w.style.transform) w = w.parentElement
+        if (!w) return false
+        const cs = getComputedStyle(w)
+        return (cs.transform === 'none' || cs.transform === 'matrix(1, 0, 0, 1, 0, 0)') && cs.opacity === '1'
+      }
+      const state = () => {
+        const row = document.querySelector('[aria-label^="studio-inst-"]')
+        if (byPose) return !row ? 'closed' : atRest(row) ? 'open' : 'flying'
+        if (document.querySelector('[data-palette-flying]')) return 'flying'
+        return row ? 'open' : 'closed'
+      }
       const t0 = performance.now()
       let frames = 0
       let covered = 0
+      let flew = false
+      let tree = null
       const first = [] // the first few covered frames, so a failure says WHAT was on top and WHEN
-      const tick = () => {
-        const t = document.querySelector('[data-toolbar-hook="palette-toggle"]')
-        const r = t.getBoundingClientRect()
-        const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
-        frames++
-        if (!(hit && (hit === t || t.contains(hit)))) {
-          covered++
-          if (first.length < 3) first.push({ frame: frames, ms: Math.round(performance.now() - t0), on_top: hit ? hit.tagName + (hit.getAttribute('aria-label') ? '[' + hit.getAttribute('aria-label') + ']' : '') + (hit.getAttribute('data-toolbar-hook') ? '{' + hit.getAttribute('data-toolbar-hook') + '}' : '') : 'nothing' })
+      window.__coverWhile = new Promise((resolve) => {
+        const tick = () => {
+          const t = document.querySelector('[data-toolbar-hook="palette-toggle"]')
+          const r = t.getBoundingClientRect()
+          const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
+          const now = state()
+          frames++
+          if (now === 'flying' && !flew && document.querySelector('[data-palette-flying]')) {
+            flew = true
+            const wrapper = document.querySelector('[data-palette-flying]')
+            const all = [wrapper, ...wrapper.querySelectorAll('*')]
+            const live = all.filter((el) => getComputedStyle(el).pointerEvents !== 'none')
+            tree = { total: all.length, live: live.length, first: live.slice(0, 3).map((el) => el.tagName + (el.getAttribute('aria-label') ? '[' + el.getAttribute('aria-label') + ']' : '')) }
+          }
+          if (frames === 1) {
+            ready()
+            if (now !== from) { resolve({ frames, covered, first, tree, missed: `its first frame, before the press, saw the pane ${now}, not ${from}` }); return }
+          }
+          if (!(hit && (hit === t || t.contains(hit)))) {
+            covered++
+            if (first.length < 3) first.push({ frame: frames, ms: Math.round(performance.now() - t0), on_top: hit ? hit.tagName + (hit.getAttribute('aria-label') ? '[' + hit.getAttribute('aria-label') + ']' : '') + (hit.getAttribute('data-toolbar-hook') ? '{' + hit.getAttribute('data-toolbar-hook') + '}' : '') : 'nothing' })
+          }
+          if (frames > 1 && now === to) {
+            const row = document.querySelector('[aria-label^="studio-inst-"]')
+            const b = row && row.getBoundingClientRect()
+            const on = row && document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2)
+            const landedTakesPointer = !!on && (on === row || row.contains(on))
+            const flaggedAtLanding = !!document.querySelector('[data-palette-flying]')
+            resolve({ frames, covered, first, tree, landedTakesPointer, flaggedAtLanding, missed: flew ? null : `it went from ${from} to ${to} without one frame in flight` })
+          } else if (performance.now() - t0 > deadline_ms) resolve({ frames, covered, first, tree, missed: `the pane was still ${now}, not ${to}, ${deadline_ms}ms after the sampler started` })
+          else requestAnimationFrame(tick)
         }
-        if (performance.now() - t0 < window_ms) requestAnimationFrame(tick)
-        else resolve({ frames, covered, first })
-      }
-      requestAnimationFrame(tick)
-    }), ms)
+        requestAnimationFrame(tick)
+      })
+    }), { from, to, byPose, deadline_ms })
     await act()
-    return await sampler
+    return await page.evaluate(() => window.__coverWhile)
   }
   const settle = (ms = 800) => page.waitForTimeout(ms)
 
@@ -664,14 +726,14 @@ console.log('12-return-from-presenter.png taken')
   if (await paletteIsOpen()) { await press(); await settle() }
   if (await paletteIsOpen()) fail('could not start the palette-flight check from a closed palette')
 
-  const opening = await coverWhile(press, 700)
-  if (opening.frames < 10) fail(`the opening sampler saw only ${opening.frames} frames — it did not watch the flight`)
+  const opening = await coverWhile(press, 'closed', 'open')
+  if (opening.missed) fail(`the opening sampler did not watch the flight: ${opening.missed}`)
   if (opening.covered > 0) fail(`OPENING flight: something covered the toggle on ${opening.covered} of ${opening.frames} frames: ${JSON.stringify(opening.first)}`)
   await settle(200)
   if (!(await paletteIsOpen())) fail('a press on the toggle did not open the palette')
 
-  const closing = await coverWhile(press, 700)
-  if (closing.frames < 10) fail(`the closing sampler saw only ${closing.frames} frames — it did not watch the flight`)
+  const closing = await coverWhile(press, 'open', 'closed')
+  if (closing.missed) fail(`the closing sampler did not watch the flight: ${closing.missed}`)
   if (closing.covered > 0) fail(`CLOSING flight: the flying pane covered the toggle on ${closing.covered} of ${closing.frames} frames: ${JSON.stringify(closing.first)}`)
   await settle(200)
   if (await paletteIsOpen()) fail('a press on the toggle did not close the palette')
@@ -715,17 +777,11 @@ console.log('12-return-from-presenter.png taken')
   // THE SAMPLER'S COMPANION (round 2 of the review): the fault was a descendant's own
   // `pointer-events: auto` beating the wrapper's `none`, and it covered the toggle on a single frame,
   // which a sampler can miss. So also ask, once, mid-flight: EVERY element inside the flying wrapper
-  // must compute to `none`.
-  await press() // close
-  await page.waitForTimeout(150)
-  const flyingTree = await page.evaluate(() => {
-    const wrapper = document.querySelector('[data-palette-flying]')
-    if (!wrapper) return null
-    const all = [wrapper, ...wrapper.querySelectorAll('*')]
-    const live = all.filter((el) => getComputedStyle(el).pointerEvents !== 'none')
-    return { total: all.length, live: live.length, first: live.slice(0, 3).map((el) => el.tagName + (el.getAttribute('aria-label') ? '[' + el.getAttribute('aria-label') + ']' : '')) }
-  })
-  if (!flyingTree) fail('150ms into a closing flight nothing carries data-palette-flying')
+  // must compute to `none`. The sampler takes that census on the closing flight's first frame in the air.
+  const censused = await coverWhile(press, 'open', 'closed') // close
+  if (censused.missed) fail(`the census's sampler did not watch the closing flight: ${censused.missed}`)
+  const flyingTree = censused.tree
+  if (!flyingTree) fail('no frame of a closing flight carried data-palette-flying')
   else if (flyingTree.total < 5) fail(`the flying pane has only ${flyingTree.total} elements — the check is not looking at the pane's contents`)
   else if (flyingTree.live > 0) fail(`while the palette flies, ${flyingTree.live} of ${flyingTree.total} elements inside it still take the pointer: ${JSON.stringify(flyingTree.first)}`)
   await settle(600)
@@ -738,13 +794,15 @@ console.log('12-return-from-presenter.png taken')
   // opening is sampled on every frame too; a CLOSING one still sits invisible on the toggle until it
   // unmounts and must not take it at all.
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  const closingReduced = await coverWhile(press, 500) // close, from open
+  const closingReduced = await coverWhile(press, 'open', 'closed') // close, from open, until it unmounts
+  if (closingReduced.missed) fail(`the reduced-motion closing sampler did not watch the flight: ${closingReduced.missed}`)
   if (closingReduced.covered > 0) fail(`REDUCED MOTION, closing: the pane covered the toggle on ${closingReduced.covered} of ${closingReduced.frames} frames: ${JSON.stringify(closingReduced.first)}`)
   await settle(600)
-  const openingReduced = await coverWhile(press, 250) // open; still inside the 400ms timer when it ends
-  if (openingReduced.frames < 5) fail(`the reduced-motion opening sampler saw only ${openingReduced.frames} frames — it did not watch the flight`)
+  const openingReduced = await coverWhile(press, 'closed', 'open', { byPose: true }) // open; ends on the frame the pane is at rest, inside the 400ms timer
+  if (openingReduced.missed) fail(`the reduced-motion opening sampler did not watch the flight: ${openingReduced.missed}`)
   if (openingReduced.covered > 0) fail(`REDUCED MOTION, opening: the pane covered the toggle on ${openingReduced.covered} of ${openingReduced.frames} frames: ${JSON.stringify(openingReduced.first)}`)
-  if (!(await paletteTakesPointer())) fail('REDUCED MOTION, opening: a settled palette ignored the pointer for the 400ms flight timer')
+  if (openingReduced.flaggedAtLanding) fail('REDUCED MOTION, opening: the pane had landed but still carried data-palette-flying, so it ignores the pointer for the 400ms flight timer')
+  if (!openingReduced.landedTakesPointer) fail('REDUCED MOTION, opening: a settled palette ignored the pointer for the 400ms flight timer')
   await settle(600)
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   console.log('palette flight never covers its toggle — checked on every frame opening and closing, the obligation\'s sequences, at rest, and under reduced motion')
