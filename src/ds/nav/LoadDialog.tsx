@@ -93,6 +93,13 @@ export function LoadDialog({ open = true, maps = [], openMapId, openWalkId, onPi
     const b = warnRef.current.querySelector<HTMLButtonElement>('[data-warning-default] button') || warnRef.current.querySelector<HTMLButtonElement>('button')
     if (b) b.focus()
   }, [pending])
+  /* The card is display:none under the warning, so its focused control blurs; Cancel
+     would otherwise leave focus on the body with Escape and the trap unreachable. */
+  const wasPending = useRef(false)
+  useEffect(() => {
+    if (wasPending.current && !pending && cardRef.current) cardRef.current.focus()
+    wasPending.current = pending !== null
+  }, [pending])
   if (!open) return null
 
   const target: LoadChoice | null = pointed || chosen || (unfolded != null ? { mapId: unfolded } : openMapId != null ? { mapId: openMapId } : null)

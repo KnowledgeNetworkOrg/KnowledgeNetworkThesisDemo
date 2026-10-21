@@ -26,11 +26,12 @@ import type { EdgeKind, LoadChoice, LoadMap } from '@/ds'
 
 import { byId, ROOT_ID, topicHueOf } from '../corpus/graph'
 import { saveDraftAsWalk, useDraftUnsaved } from '../state/walk/authordraft'
-import { listWalks, subscribeWalks, walkById } from '../state/walkstore'
+import { listWalks, subscribeWalks } from '../state/walkstore'
 import { platform } from '../platform'
 import PresenterScreen from '../present/PresenterScreen'
 import { PROJECTOR_QUERY, PROJECTOR_WINDOW } from '../present/projector'
 import { AppToolbar } from './AppToolbar'
+import { applyLoadChoice } from './loadpick'
 import type { PresentState } from './presentbutton'
 import { PALETTE_HOOK_SELECTOR } from './PaletteGlyph'
 import { useStudioBus } from '../state/bus'
@@ -402,15 +403,7 @@ export default function StudioView() {
   ]
   const onLoadPick = (choice: LoadChoice, how?: 'save' | 'discard') => {
     if (how === 'save') saveDraftAsWalk('')
-    if (choice.walkId == null) {
-      bus.clearRoute()
-      return
-    }
-    if (typeof choice.walkId !== 'string') return
-    const w = walkById(choice.walkId)
-    if (!w) return
-    bus.activateWalk(w.id, 0)
-    if (w.stops[0]) bus.setFocus(w.stops[0].id, 'walk')
+    applyLoadChoice(bus, choice)
   }
 
   // ── coming back from the presenter (#214) ─────────────────────────────────

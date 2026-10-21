@@ -1,0 +1,68 @@
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as Draft from './authordraft'
+
+type DraftModule = typeof Draft
+
+function probe(mod: DraftModule): { draft: Draft.AuthorState; unsaved: string | undefined } {
+  let seen: { draft: Draft.AuthorState; unsaved: string | undefined } | null = null
+  const Probe = () => {
+    seen = { draft: mod.useAuthorDraft(), unsaved: mod.useDraftUnsaved() }
+    return null
+  }
+  renderToStaticMarkup(createElement(Probe))
+  return seen!
+}
+
+function stubStore(seed: Record<string, string> = {}) {
+  const map = new Map(Object.entries(seed))
+  vi.stubGlobal('localStorage', {
+    getItem: (k: string) => map.get(k) ?? null,
+    setItem: (k: string, v: string) => void map.set(k, v),
+  })
+}
+
+describe('useDraftUnsaved — edits since the baseline', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    stubStore()
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('an edit is dirty and undo back to the baseline is clean', async () => {
+    const mod = await import('./authordraft')
+    expect(probe(mod).unsaved).toBeUndefined()
+
+    probe(mod).draft.insertNode('stk-dns-naming')
+    expect(probe(mod).unsaved).toBe('The walk draft')
+
+    mod.undoDraft()
+    expect(probe(mod).unsaved).toBeUndefined()
+  })
+
+  it('saving the draft as a walk makes it clean again', async () => {
+    const mod = await import('./authordraft')
+    probe(mod).draft.insertNode('stk-dns-naming')
+    expect(probe(mod).unsaved).toBe('The walk draft')
+
+    expect(mod.saveDraftAsWalk('')).not.toBeNull()
+    expect(probe(mod).unsaved).toBeUndefined()
+  })
+
+  it('a restored draft starts clean', async () => {
+    vi.resetModules()
+    stubStore({
+      'pkt.walkdesk.draft': JSON.stringify({
+        v: 1,
+        data: { stops: [{ node: 'stk-dns-naming', variants: [] }], choices: {}, withOptionals: true },
+      }),
+    })
+
+    const mod = await import('./authordraft')
+    const first = probe(mod)
+    expect(first.draft.stops).toHaveLength(1)
+    expect(first.unsaved).toBeUndefined()
+  })
+})

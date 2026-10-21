@@ -60,7 +60,7 @@ function store<T>(initial: T): Store<T> {
 
 /** the useState of a shared store — same shape, one value across all callers */
 function useStore<T>(s: Store<T>): [T, (v: T) => void] {
-  return [useSyncExternalStore(s.subscribe, s.get), s.set]
+  return [useSyncExternalStore(s.subscribe, s.get, s.get), s.set]
 }
 
 /** The draft starts SEEDED with a fork and an optional stop so branching is
@@ -199,7 +199,7 @@ const markSaved = () => {
 /** the name of what holds unsaved changes, or undefined when nothing is edited */
 export function useDraftUnsaved(): string | undefined {
   const [dirty] = useStore(dirtyStore)
-  return dirty ? 'the walk draft' : undefined
+    return dirty ? 'The walk draft' : undefined
 }
 
 // ── Undo / redo over the stops tree (#34) ────────────────────────────────────

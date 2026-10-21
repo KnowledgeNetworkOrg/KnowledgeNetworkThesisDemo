@@ -492,7 +492,8 @@
         "contract": "components/nav/LoadDialog.d.ts",
         "syncedAt": "2026-10-21",
         "deviations": [
-          "2026-10-21 NEW FILE, OB-301: the toolbar's Load dialog, ported whole. Select then Load, a footer across the card, hover/Tab previews, focus trapped and restored, and `UnsavedWarning` replacing the card in place on Cancel's return. The host's `preview` is optional; without it the frame shows the labelled stripe."
+          "2026-10-21 NEW FILE, OB-301: the toolbar's Load dialog, ported whole. Select then Load, a footer across the card, hover/Tab previews, focus trapped and restored, and `UnsavedWarning` replacing the card in place on Cancel's return. The host's `preview` is optional; without it the frame shows the labelled stripe.",
+          "2026-10-21 (OB-301) ★ LOCAL: the card is hidden rather than unmounted under the warning, so Cancel used to leave focus on the body and Escape/Tab stopped working. An effect puts focus back on the card when `pending` returns to null; the DS source has the same gap."
         ]
       },
       "src/ds/chrome/MeasureBox.tsx": {
