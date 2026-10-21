@@ -122,7 +122,11 @@ export interface DropRefusalProps {
    *  do not reintroduce it as a default.
    *
    *  ONE LINE. It never wraps — it is read in motion under a moving pointer. A sentence long
-   *  enough to need two lines is a sentence that belongs somewhere else */
+   *  enough to need two lines is a sentence that belongs somewhere else.
+   *
+   *  PASS ONE OF `REFUSAL_REASONS`, never a retyped string: `adjacent` ('already adjacent') for
+   *  the same node twice in a row, `inside` ('inside itself') for a group dropped into its own
+   *  inside (owner, 2026-10-01) */
   reason?: string
   /** merged last onto the pill — for a host's placement, never for its paint */
   style?: CSSProperties
