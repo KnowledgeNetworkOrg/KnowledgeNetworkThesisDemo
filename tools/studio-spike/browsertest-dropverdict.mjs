@@ -474,7 +474,9 @@ await page.waitForTimeout(400)
     ok('group road: the saved draft is untouched', (await storedDraft()) === draftHere)
     ok('group road: nothing is logged', logged.length === loggedBefore, logged.slice(loggedBefore).join(' | '))
 
-    // the map's shape of drop: dispatched with a readable payload anyway, refused by the rule again
+    // the map's shape of drop: dispatched with a readable payload anyway, refused by the rule again.
+    // moveBlock also refuses a block moved into its own subtree, so the road check below guards
+    // the road, not handleDrop's dropAllowed guard; the pill check is the verdict's
     await fire('dragover', between, { data: 'blk:b.1' })
     await settle()
     await fire('drop', between, { data: 'blk:b.1' })
@@ -483,10 +485,11 @@ await page.waitForTimeout(400)
       JSON.stringify(await roadOrder()))
     ok('group road: …and leaves no pill behind', (await drawn()).pill === null)
 
-    // the road opened on a fresh history, so if the refusal had recorded anything undo would take it back
+    // the road opened on a fresh history, so undo here shows the road ends where it began. It
+    // guards the road, not the verdict: moveBlock commits nothing for this move either way
     await page.keyboard.press('Control+z')
     await page.waitForTimeout(250)
-    ok('group road: undo after the refusals changes nothing (no history entry)',
+    ok('group road: undo after the refusals leaves the road as it began',
       JSON.stringify(await roadOrder()) === JSON.stringify(ROAD_ORDER) && (await storedDraft()) === draftHere, JSON.stringify(await roadOrder()))
   }
 }
