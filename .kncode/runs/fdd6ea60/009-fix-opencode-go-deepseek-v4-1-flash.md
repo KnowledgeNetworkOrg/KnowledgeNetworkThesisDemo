@@ -1,4 +1,0 @@
-1. R1-4 fixed: rewrote `src/ds/PROVENANCE.json:175` to name `REFUSAL_REASONS` (`adjacent` and `inside`) without quoting either sentence; the card's grep now returns only `src/ds/graph/DropVerdict.tsx:109`, and the file still parses.
-2. R1-5 fixed: restored the em dashes in the 2026-09-26 entry at `src/ds/PROVENANCE.json:176` and used an em dash in the new entry, so only the new line and `syncedAt` differ.
-
-Assumptions: the 2026-09-26 entry's original em dashes were the three in its dash-separated clauses (`#347` clause, the `dropGap 4` aside, and the `neighboursOf` clause); with git unavailable to me I restored them by the file's own style rather than from the old bytes.
