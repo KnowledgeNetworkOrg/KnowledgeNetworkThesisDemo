@@ -17,8 +17,9 @@ loaded here:
 
 `npm run verify` builds (typecheck and `vite build`), typechecks `desktop/`
 against the app's platform contract, lints, and tests. It reaches outside this
-repository for nothing. It needs both package sets installed once, if
-`node_modules` is missing: `npm ci` and `npm ci --prefix desktop`.
+repository for nothing. It needs both package sets installed once, each
+where its `node_modules` is missing: `npm ci` for the root and
+`npm ci --prefix desktop` for `desktop/`.
 
 The import rule between the folders under `src/` is written in
 `src/layering.test.ts`.
