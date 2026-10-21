@@ -477,7 +477,9 @@ try {
   }
   // what a step or a roam is ALLOWED to change: the pins, the walk line, the lit cell (its spotlight and its bold name), the caption, and the roll's clock
   const litLabel = async () => { const id = await liveCard().locator('svg[data-sel]').first().getAttribute('data-sel').catch(() => null); return id ? boxesOf(`[data-label="${id}"]`) : [] }
-  const moving = async () => [...(await boxesOf('[data-routestop]')), ...(await boxesOf('[data-routearrow]')), ...(await boxesOf('[data-spot]')), ...(await litLabel()), ...(await boxesOf('[data-projected-caption]')), ...(await page.locator('[data-filmroll-label]').evaluateAll((els) => els.map((e) => { const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height } })))]
+  // a merged pin's pill ("1–2.2") is wider than the 22px foreignObject that `[data-routestop]`
+  // measures — the button overflows it, visibly — so the button's own box is masked as well
+  const moving = async () => [...(await boxesOf('[data-routestop]')), ...(await boxesOf('[data-routestop] button')), ...(await boxesOf('[data-routearrow]')), ...(await boxesOf('[data-spot]')), ...(await litLabel()), ...(await boxesOf('[data-projected-caption]')), ...(await page.locator('[data-filmroll-label]').evaluateAll((els) => els.map((e) => { const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height } })))]
   const cam0 = await camera()
   const masks0 = await moving()
   const shot0 = (await wallMap().screenshot()).toString('base64')
