@@ -18,13 +18,13 @@ export const HUE_DEGREES: Record<string, number> = { rose: 350, brick: 20, clay:
 /** one resolved OKLCH colour: the three numbers, and the same value as a CSS string */
 export interface OklchValue { l: number; c: number; h: number; css: string }
 
-/** THE GHOST ROLE'S TWO NUMBERS, one place (OB-223). CHOSEN, not derived — see `topicPaint`'s
- *  docblock for why they sit below the family-fill band (`nestedFamilyPaint`, L 0.720–0.900): one
- *  tone under that band stays visible over the lightest child and never goes darker than the
- *  darkest. Read by `topicPaint().ghost` and by `topicPaintValues().ghost`, so the token twin and
- *  the JS-resolved twin cannot disagree; pinned by topicpaint.test.ts. */
-export const GHOST_L = 0.640
-export const GHOST_C = 0.110
+/** THE GHOST ROLE'S TWO NUMBERS, one place (OB-271). CHOSEN, not derived — see `topicPaint`'s
+ *  docblock for why they sit INSIDE the family-fill band (`nestedFamilyPaint`, L 0.720–0.900): a pale
+ *  tone inside that band reads as background context without competing with the children's names.
+ *  Read by `topicPaint().ghost` and by `topicPaintValues().ghost`, so the token twin and the
+ *  JS-resolved twin cannot disagree; pinned by topicpaint.test.ts. */
+export const GHOST_L = 0.800
+export const GHOST_C = 0.070
 
 /** the ghost as the string both twins hand out — a RESOLVED `oklch()` with no alpha, one value per
  *  hue. Three-place lightness and chroma and a one-place hue, exactly as the DS writes it. */

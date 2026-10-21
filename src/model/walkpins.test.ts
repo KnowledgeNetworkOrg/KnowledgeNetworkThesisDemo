@@ -18,8 +18,8 @@ import { describe, expect, test } from 'vitest'
 
 import { WALKS } from '../corpus/walks'
 import { topicIds } from '../corpus/graph'
-import { walkAnchorAt } from './atlas'
-import { maxTier } from './nested'
+import { cellPolyOf, flightTargetOf, walkAnchorAt } from './atlas'
+import { maxTier, pointInPoly } from './nested'
 import { crowdIds, PIN_GAP, PIN_NO_POSITION, PIN_SIZE, PIN_SIZE_MIN, pinPosition, pinSizeFor, separate, walkPins } from './walkpins'
 import type { WalkPin } from './walkpins'
 
@@ -207,6 +207,128 @@ describe('OB-214 — optional stops on the map', () => {
       const allOpt = walkPins({ route, optional: route.map(() => true), level: lv, px: p, labelBoxes: [] })
       expect(allOpt.map((x) => ({ ...x, optional: false }))).toEqual(plain)
       expect(allOpt.every((x) => x.optional)).toBe(true)
+    }
+  })
+})
+
+// ── OB-274 — the pin must say the same thing as the walk's light ───────────
+// A one-stop pin belongs to its stop, not to the ancestor drawn at this level:
+// during playback the map lights the stop's own cell, so the pin has to be in it.
+// A merged run still stands for the whole drawn cell and keeps today's placement.
+
+/** the old, ancestor-only placement, kept here as the reference the OB-274 change
+ *  must not disturb: every pin's identity and size, and every run pin's centre. */
+function ancestorPins(route: string[], level: number, px: (v: number) => number): WalkPin[] {
+  const resolved: { visId: string; c: { x: number; y: number }; step: number }[] = []
+  route.forEach((id, i) => {
+    const a = walkAnchorAt(id, level)
+    if (a) resolved.push({ visId: a.visId, c: a.c, step: i })
+  })
+  const groups: { visId: string; c: { x: number; y: number }; steps: number[] }[] = []
+  for (const s of resolved) {
+    const last = groups[groups.length - 1]
+    if (last && last.visId === s.visId) last.steps.push(s.step)
+    else groups.push({ visId: s.visId, c: s.c, steps: [s.step] })
+  }
+  const crowdOf = crowdIds(groups.map((g) => g.c), px)
+  const crowdSize = new Map<number, number>()
+  for (const id of crowdOf) crowdSize.set(id, (crowdSize.get(id) ?? 0) + 1)
+  const spotKey = (c: { x: number; y: number }) => `${c.x.toFixed(4)},${c.y.toFixed(4)}`
+  const totals = new Map<string, number>()
+  for (const g of groups) totals.set(spotKey(g.c), (totals.get(spotKey(g.c)) ?? 0) + 1)
+  const placed = new Map<string, number>()
+  const pins: WalkPin[] = groups.map((g, i) => {
+    const size = pinSizeFor(crowdSize.get(crowdOf[i])!)
+    const spot = spotKey(g.c)
+    const together = totals.get(spot)!
+    let c = g.c
+    if (together > 1) {
+      const idx = placed.get(spot) ?? 0
+      placed.set(spot, idx + 1)
+      const angle = (2 * Math.PI * idx) / together - Math.PI / 2
+      const radius = px(size * 1.3 + 6)
+      c = { x: g.c.x + Math.cos(angle) * radius, y: g.c.y + Math.sin(angle) * radius }
+    }
+    return { key: `${g.visId}-${g.steps[0]}`, visId: g.visId, step: g.steps[0], stepEnd: g.steps[g.steps.length - 1], c, size, optional: false }
+  })
+  separate(pins, px)
+  return pins
+}
+
+describe('OB-274 — a one-stop pin sits in the stop’s own cell', () => {
+  test('every authored walk, every coarser level, unless stage 6 had to separate a crowd', () => {
+    for (const walk of WALKS) {
+      const route = walk.stops.map((s) => s.id)
+      for (const level of LEVELS) {
+        const px = pxAt(level, 1.2)
+        const pins = walkPins({ route, level, px, labelBoxes: [] })
+        for (const pin of pins) {
+          if (pin.step !== pin.stepEnd) continue
+          const stop = route[pin.step]
+          const own = flightTargetOf(stop)!
+          if (level >= own.tier) continue
+          const poly = cellPolyOf(stop, own.c)
+          expect(poly, `${walk.id} ${stop} L${level}`).not.toBeNull()
+          // with no labels, a one-stop pin leaves its own centre only in stage 6
+          if (pin.c.x === own.c.x && pin.c.y === own.c.y)
+            expect(pointInPoly(pin.c, poly!), `${walk.id} ${stop} L${level}`).toBe(true)
+        }
+      }
+    }
+  })
+
+  test('a one-stop pin on its own cell keeps the OB-087 arc', () => {
+    for (const level of LEVELS) {
+      for (const home of topicIds) {
+        const anchor = walkAnchorAt(home, level)
+        if (anchor?.visId !== home) continue
+        const away = topicIds.find((id) => {
+          const a = walkAnchorAt(id, level)
+          return a !== null && a.visId !== home
+        })
+        if (!away) continue
+        const px = pxAt(level, 1.2)
+        const pins = walkPins({ route: [home, away, home], level, px, labelBoxes: [] })
+        const onHome = pins.filter((p) => p.visId === home)
+        expect(onHome, `L${level} ${home}`).toHaveLength(2)
+        for (const p of onHome)
+          expect(Math.hypot(p.c.x - anchor.c.x, p.c.y - anchor.c.y), `L${level} ${home}`).toBeCloseTo(px(p.size * 1.3 + 6), 6)
+        return
+      }
+    }
+    throw new Error('no stop resolves to its own cell at any level')
+  })
+
+  test('during playback the lit cell contains its own pin', () => {
+    for (const walk of WALKS) {
+      for (const stop of walk.stops.map((s) => s.id)) {
+        const own = flightTargetOf(stop)!
+        for (const level of LEVELS) {
+          if (level >= own.tier) continue
+          const px = pxAt(level, 1.2)
+          const boxes = [{ x0: own.c.x - px(60), y0: own.c.y - px(9), x1: own.c.x + px(60), y1: own.c.y + px(9) }]
+          const [pin] = walkPins({ route: [stop], level, px, labelBoxes: boxes })
+          expect(pointInPoly(pin.c, cellPolyOf(stop, own.c)!), `${stop} L${level}`).toBe(true)
+        }
+      }
+    }
+  })
+
+  test('only c moves: identity, size and every run pin’s centre are unchanged', () => {
+    for (const walk of WALKS) {
+      const route = walk.stops.map((s) => s.id)
+      for (const level of LEVELS) {
+        for (const f of FITS) {
+          const px = pxAt(level, f)
+          const pins = walkPins({ route, level, px, labelBoxes: [] })
+          const before = ancestorPins(route, level, px)
+          const shape = (p: WalkPin) => ({ key: p.key, visId: p.visId, step: p.step, stepEnd: p.stepEnd, size: p.size, optional: p.optional })
+          expect(pins.map(shape)).toEqual(before.map(shape))
+          pins.forEach((p, k) => {
+            if (p.step < p.stepEnd) expect(p.c, `${walk.id} L${level} f${f} run ${p.key}`).toEqual(before[k].c)
+          })
+        }
+      }
     }
   })
 })
