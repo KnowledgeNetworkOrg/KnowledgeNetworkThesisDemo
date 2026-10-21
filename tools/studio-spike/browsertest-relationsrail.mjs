@@ -53,6 +53,32 @@ const ok = (name, cond, detail = '') => {
 }
 const near = (a, b, tol) => Math.abs(a - b) <= tol
 
+/** everything the separator at `sel` paints on its own, itself, every element inside it, and
+ *  their `::before`/`::after`: a background, a border, a shadow or an outline. Empty means the
+ *  seam is blank. A colour counts as blank only when its alpha is 0, however the browser spells
+ *  it: `transparent`, `rgba(…, 0)`, or a `color()`/`oklch()` ending `/ 0`. */
+const seamPaint = (page, sel) => page.evaluate((s) => {
+  const sep = document.querySelector(s)
+  if (!sep) return ['no separator']
+  const clear = (c) => c === 'transparent' || /^rgba\(.*,\s*0\)$/.test(c) || /\/\s*0\)$/.test(c)
+  const out = []
+  for (const el of [sep, ...sep.querySelectorAll('*')]) {
+    for (const pseudo of [null, '::before', '::after']) {
+      const cs = getComputedStyle(el, pseudo)
+      if (pseudo && (cs.content === 'none' || cs.content === 'normal')) continue
+      const tag = (el === sep ? 'separator' : el.tagName.toLowerCase()) + (pseudo || '')
+      if (!clear(cs.backgroundColor)) out.push(`${tag} background ${cs.backgroundColor}`)
+      if (cs.backgroundImage !== 'none') out.push(`${tag} background-image`)
+      for (const e of ['Top', 'Right', 'Bottom', 'Left']) {
+        if (cs['border' + e + 'Style'] !== 'none' && parseFloat(cs['border' + e + 'Width']) > 0 && !clear(cs['border' + e + 'Color'])) out.push(`${tag} border-${e.toLowerCase()} ${cs['border' + e + 'Width']}`)
+      }
+      if (cs.boxShadow !== 'none') out.push(`${tag} box-shadow ${cs.boxShadow}`)
+      if (cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0 && !clear(cs.outlineColor)) out.push(`${tag} outline ${cs.outlineWidth}`)
+    }
+  }
+  return out
+}, sel)
+
 /** boot the app on one corpus, hand the page to `fn`, and take everything down again */
 async function withApp(label, env, fn) {
   const { vite, port } = await startVite({ env })
@@ -441,6 +467,13 @@ await withApp('teaching', {}, async (page) => {
     await page.mouse.move(sb.x + sb.w / 2, sb.y + sb.h / 2)
     await page.mouse.down()
     await page.mouse.move(sb.x + sb.w / 2 + 30, sb.y + sb.h / 2, { steps: 10 })
+    /* OB-253 done-when 4: the figure follows the seam WHILE it is held, not only on release.
+       Read with the button still down; RailFrame hands `live` to the children mid-gesture. */
+    await page.waitForTimeout(150)
+    const railMid = await page.evaluate((DOC) => document.querySelector(DOC + ' [data-relations-figure]').parentElement.getBoundingClientRect().width, DOC)
+    const figMid = (await rectOf(`${DOC} svg[data-relation-orbit]`)).w
+    ok('mid-drag, button still down: the rail has already narrowed by the drag', near(railBefore - railMid, 30, 4), `${Math.round(railBefore)} -> ${Math.round(railMid)}`)
+    ok('mid-drag, button still down: the figure has already followed it', near(figBefore - figMid, railBefore - railMid, 2), `${Math.round(figBefore)} -> ${Math.round(figMid)}`)
     await page.mouse.up()
     await page.waitForTimeout(400)
     const railAfter = await page.evaluate((DOC) => document.querySelector(DOC + ' [data-relations-figure]').parentElement.getBoundingClientRect().width, DOC)
@@ -459,6 +492,45 @@ await withApp('teaching', {}, async (page) => {
     await page.waitForTimeout(400)
     const railBack = await page.evaluate((DOC) => document.querySelector(DOC + ' [data-relations-figure]').parentElement.getBoundingClientRect().width, DOC)
     ok('double-click fits the seam back', near(railBack, railBefore, 2), `${Math.round(railAfter)} -> ${Math.round(railBack)}`)
+
+    /* OB-253 done-when 2, the Relations half: the seam widens the rail up to
+       `min(420, pane − 210)` and no further. Both numbers are read from the DOM rather than
+       trusted from PANE_RAIL_METRICS: the pane is the box `usePaneWidth` measures, the rail is
+       the separator's own frame. The drag goes far past either stop. Run at two windows, so that
+       each side of the `min` is the one that binds: at 1750 the Document pane is wide enough for
+       the 420 stretch, and at 1280 it is not, so `pane − 210` stops the rail first. */
+    for (const vw of [1750, 1280]) {
+      await page.setViewportSize({ width: vw, height: 950 })
+      await page.waitForTimeout(400)
+      const fitW = await page.evaluate((DOC) => document.querySelector(DOC + ' [role="separator"]').parentElement.getBoundingClientRect().width, DOC)
+      const sb2 = await rectOf(sepSel)
+      await page.mouse.move(sb2.x + sb2.w / 2, sb2.y + sb2.h / 2)
+      await page.mouse.down()
+      await page.mouse.move(sb2.x + sb2.w / 2 - 600, sb2.y + sb2.h / 2, { steps: 12 })
+      await page.mouse.up()
+      await page.waitForTimeout(400)
+      const stop = await page.evaluate((DOC) => ({
+        pane: document.querySelector(DOC).getBoundingClientRect().width,
+        rail: document.querySelector(DOC + ' [role="separator"]').parentElement.getBoundingClientRect().width,
+      }), DOC)
+      const want = Math.min(420, stop.pane - 210)
+      const binds = 420 <= stop.pane - 210 ? 'stretch 420' : 'pane − 210'
+      ok(`at ${vw}px, dragged far past its stop, the Relations rail widens to min(420, pane − 210) and no further (${binds} binds)`, near(stop.rail, want, 2), JSON.stringify({ rail: Math.round(stop.rail), pane: Math.round(stop.pane), stop: Math.round(want) }))
+      await page.locator(sepSel).first().dblclick()
+      await page.waitForTimeout(400)
+      const back2 = await page.evaluate((DOC) => document.querySelector(DOC + ' [role="separator"]').parentElement.getBoundingClientRect().width, DOC)
+      ok(`at ${vw}px, double-click fits it back from there`, near(back2, fitW, 2), `${Math.round(back2)} vs ${Math.round(fitW)}`)
+    }
+    await page.setViewportSize({ width: 1750, height: 950 })
+    await page.waitForTimeout(400)
+
+    /* OB-253 done-when 3, the Document half: at rest the seam draws nothing beyond the rail's
+       own 1px border, which is on the rail's frame, not on the separator. The pointer moves off
+       first: the double-click left it over the seam, and a hovered seam lights its hairline. */
+    await park()
+    await page.waitForTimeout(400)
+    const painted = await seamPaint(page, sepSel)
+    ok('at rest, the Relations seam paints nothing of its own', painted.length === 0, JSON.stringify(painted))
   }
 
   // ── OB-229 clause 4: the rail closes, and its way back is a labelled button in the top-right ───
