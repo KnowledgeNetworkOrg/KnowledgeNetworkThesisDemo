@@ -1,5 +1,5 @@
 import React from 'react'
-import { Pane, PaneScroller, scrollerPadRight } from '../chrome/Pane.jsx'
+import { Pane, PaneScroller, scrollerPadRight, SCROLLER_INSET } from '../chrome/Pane.jsx'
 import { LEGEND_INSET } from '../chrome/PaneHeader.jsx'
 import { PaneColumnHeader } from '../chrome/PaneColumnHeader.jsx'
 import { IconButton, wrapTip, useRecede } from '../chrome/IconButton.jsx'
@@ -59,6 +59,38 @@ export const NOTE_CATEGORY_POOL = {
   },
 }
 
+/** HOW FAR EACH TYPE GLYPH IS MOVED DOWN, in em, so its INK sits on its tag's centre (owner, 21 Oct:
+ *  the "!" sat high in its chip). DERIVED from JetBrains Mono, measured with canvas `measureText`
+ *  2026-10-21, at bold and regular alike: a box centring a line of `lineHeight: 1` puts the point
+ *  (fontAscent 0.93 − fontDescent 0.39) / 2 = 0.27em above the baseline on its centre, and each
+ *  value is the glyph's ink centre minus that 0.27. "!" and "?" run from the baseline to cap height,
+ *  centre 0.36, so they sat 0.09em (1.2px on the 13px chip) high; "→" is already centred. Re-measure
+ *  if the mono face changes. A glyph not listed draws unmoved: add it here when it joins the pool. */
+export const GLYPH_DROP = { '!': 0.09, '?': 0.09, '→': 0, '+': 0.06, '~': 0.08, '#': 0.1, '=': 0.06, '@': 0.01, '%': 0.1, '§': 0.03 }
+
+/** a glyph, moved onto its box's centre by `GLYPH_DROP`. Drawn as a grid item (blockified), so the
+ *  transform applies; it moves the ink and never the box, so the tag's size cannot change */
+export function TagGlyph({ glyph }) {
+  const d = GLYPH_DROP[glyph] || 0
+  return <span style={{ display: 'block', transform: d ? 'translateY(' + d + 'em)' : undefined }}>{glyph}</span>
+}
+
+/* ROOM INSIDE THE FLAG LISTS' SCROLLERS, cancelled by an equal negative margin so nothing moves
+   (owner, 21 Oct: the open textbox of a flag was cut off). A scroller clips at its own box, and a
+   row bleeds 6px each side (`margin: '0 -6px'`) for its wash, so the wash and the edit outline
+   (`INLINE_EDIT_STYLE`: 3px offset + 1px = 4px outside the words) were cut at the column's edge.
+   `x` 6 DERIVED: the row's bleed. `y` 4 DERIVED: the outline's reach, so the first and last rows'
+   rings clear the scroller's top and foot. */
+const FLAGS_ROOM = { x: 6, y: 4 }
+/* the scroller style that grants that room, IN LONGHANDS: `PaneScroller` sets `marginTop`/`marginBottom`
+   itself, and a `margin` shorthand laid over them replaced the review list's `SCROLLER_INSET` too
+   (found in review, 21 Oct: the review list rode 16px up into its head). `insetY` is the vertical
+   margin the list had before the room was added: 0 for the live list, `SCROLLER_INSET` for review. */
+function flagsRoom(insetY) {
+  const R = FLAGS_ROOM
+  return { paddingTop: R.y, paddingBottom: R.y, paddingLeft: R.x, paddingRight: R.x + scrollerPadRight(), marginTop: insetY - R.y, marginBottom: insetY - R.y, marginLeft: -R.x, marginRight: -R.x }
+}
+
 /** The pane's numbers.
  *  - `chat` / `chatMin` (220): the Class chat column STARTS at its minimum (owner, v4, 6 Oct — it
  *    is parked until the student app exists, so it stays on screen but small) and the column
@@ -73,7 +105,7 @@ export const NOTE_CATEGORY_POOL = {
  *  - `rowTag` (16): a flag row's tag, smaller than the composer's 22×19 because the row is one line.
  *  - the rest are the composer's and the tag box's own geometry, unchanged. */
 export const LECTURE_NOTES_METRICS = {
-  chat: 220, chatMin: 220, preparedMin: 260, divider: 14,
+  chat: 220, chatMin: 220, preparedMin: 260, divider: 14, aside: 360,
   prepared: 150, preparedMinH: 60, flagsMinH: 96, undoMs: 2000, rowTag: 16,
   /* how long a new flag's wash takes to fade out when `undoMs` is up (CHOSEN, owner 16 Oct: "slowly").
      Drawn as `calc(var(--dur-fade) * 6)` so reduced motion collapses it with the rest of the ladder;
@@ -103,9 +135,10 @@ export function EnterMark({ size = 11, style }) {
 }
 
 /** ONE TYPE TAG: the glyph in its type's wash. `as="button"` makes it pickable and it answers the
- *  pointer with an edge and a bark ring, never by changing the wash (the type's identity). `size`
+ *  pointer with an edge, never by changing the wash (the type's identity), and with no ring round
+ *  it (owner, 21 Oct: the 2px bark-100 ring read as a white border on a selected row's wash). `size`
  *  draws it square — a flag row's 16px tag. `dashed` with no `cat` is the empty slot. */
-function CategoryTag({ cat, title, dashed, glyph, as, onClick, live, size }) {
+function CategoryTag({ cat, title, dashed, glyph, hotGlyph, as, onClick, live, size }) {
   const M = LECTURE_NOTES_METRICS
   const [hot, setHot] = React.useState(false)
   if (!cat && !dashed) return null
@@ -115,16 +148,17 @@ function CategoryTag({ cat, title, dashed, glyph, as, onClick, live, size }) {
   return (
     <Tag type={button ? 'button' : undefined} onClick={onClick}
       onMouseEnter={button ? () => setHot(true) : undefined} onMouseLeave={button ? () => setHot(false) : undefined}
+      onFocus={button ? () => setHot(true) : undefined} onBlur={button ? () => setHot(false) : undefined}
       title={title === false ? undefined : wrapTip(title || (cat ? cat.label : ''))} style={{
         flexShrink: 0, width: w, height: h, boxSizing: 'border-box', padding: 0,
         borderRadius: size ? 4 : 'var(--radius-xs)', background: cat ? cat.wash : 'transparent',
         border: live ? '1px solid var(--text-2)' : button && hot ? '1px solid var(--border-strong)' : cat ? '1px solid transparent' : '1px dashed var(--border-dashed)',
-        boxShadow: button && hot ? '0 0 0 2px var(--bark-100)' : 'none',
+        boxShadow: 'none',
         display: 'grid', placeItems: 'center', cursor: button ? 'pointer' : undefined,
         fontFamily: 'var(--font-mono)', fontSize: 11, lineHeight: 1, fontWeight: cat ? 'var(--fw-bold)' : 'var(--fw-regular)',
         color: cat ? 'var(--text-1)' : 'var(--text-2)',
         transition: 'var(--transition-wash)',
-      }}>{cat ? cat.glyph : glyph}</Tag>
+      }}>{cat ? <TagGlyph glyph={cat.glyph} /> : (hot && hotGlyph) || glyph ? <TagGlyph glyph={(hot && hotGlyph) || glyph} /> : null}</Tag>
   )
 }
 
@@ -190,11 +224,14 @@ function TypeList({ categories, current, onPick }) {
  *    review of flags.
  *  - THE WORDS ARE CLICK-TO-EDIT, like the prepared notes (owner, 15 Oct): a faint outline and a text
  *    cursor under the pointer, a click opens them in place. No pencil.
- *  - UNDER THE POINTER: the bin (resolve), and on a plain note the dashed + that gives it a type. They
- *    cover the time rather than pushing the words, so nothing re-wraps when the pointer arrives.
+ *  - UNDER THE POINTER: the bin (resolve). It covers the time rather than pushing the words, so
+ *    nothing re-wraps when the pointer arrives.
+ *  - A PLAIN NOTE KEEPS THE TAG'S PLACE (owner, 21 Oct): an empty dashed slot where the tag would be,
+ *    so every row's words start at the same indent. Under the pointer it shows a "+", and it opens the
+ *    type list like a tag does. There is no "+" among the hover actions any more.
  *  - THE TAG IS A BUTTON when `onCategory` is passed: it opens the type list, the composer's own.
  *  The row's own words opt back into selection inside a column that refuses it. */
-function FlagRow({ entry, cat, categories, onCategory, onCommit, onResolve, fresh, resolved, instant, onSelect }) {
+function FlagRow({ entry, cat, categories, onCategory, onCommit, onResolve, fresh, resolved, instant, onSelect, onSelected }) {
   const M = LECTURE_NOTES_METRICS
   const [hot, setHot] = React.useState(false)
   const [shown, show, hide] = useRecede()
@@ -220,8 +257,8 @@ function FlagRow({ entry, cat, categories, onCategory, onCommit, onResolve, fres
     /* THE ROW'S TYPE MENU PAINTS ON THE PAGE (owner, 15 Oct: it opened inside the flags list, whose
        scroller clips, and was cut off at the list's foot). Placed off the tag's own rect: below it,
        or above when the room below is short, and closed on any scroll so it never floats loose. `menu`
-       holds the SIDE: a tag at the row's left opens rightward ('left'); the plain note's "+" at the
-       row's right end opens leftward ('right'), so it stays over the notes column, not the chat */
+       holds the SIDE: every row's tag (or a plain note's empty slot) sits at the row's left and opens
+       rightward ('left'); 'right' opens leftward from a right-hand anchor, unused since 21 Oct */
     const a = menuRef.current && menuRef.current.getBoundingClientRect()
     if (a) {
       const h = (categories.length + 1) * 26 + 16
@@ -246,7 +283,12 @@ function FlagRow({ entry, cat, categories, onCategory, onCommit, onResolve, fres
      transparent: the actions' backdrop paints the same value over the row to hide the time, and a
      translucent value laid twice would draw a darker pill round the bin */
   const freshWash = cat ? 'color-mix(in oklab, ' + cat.wash + ' 25%, var(--surface-paper))' : 'var(--bark-50)'
-  const wash = fresh ? freshWash : hot || editing ? 'var(--bark-50)' : 'transparent'
+  /* ON A SELECTED SLIDE'S GROUP THE ROW ADDS NO WASH OF ITS OWN (owner, 21 Oct: the hover's bark-50
+     painted a pale box over the group's blue, which showed as a white border round the tag while the
+     words were open). The group's wash already says "this slide"; the words' outline says the rest.
+     The actions' backdrop takes the group's wash for the same reason: it must match what it covers. */
+  const restWash = onSelected ? 'var(--state-selected-wash)' : 'var(--bark-50)'
+  const wash = fresh ? freshWash : (hot || editing) && !onSelected ? 'var(--bark-50)' : 'transparent'
   /* THE NEW-FLAG WASH FADES SLOWLY (owner, 16 Oct). Only the fresh → settled change takes the long
      fade; hover and editing keep the quick one, so the row still answers the pointer at once. The
      actions' backdrop takes the same timing, or it would snap while the row behind it fades. */
@@ -264,16 +306,17 @@ function FlagRow({ entry, cat, categories, onCategory, onCommit, onResolve, fres
   const tag = cat ? (
     onCategory && !resolved ? <CategoryTag cat={cat} size={M.rowTag} as="button" title={'type: ' + cat.label + ' · click to change'} onClick={(e) => { e.stopPropagation(); setMenu((v) => (v ? false : 'left')) }} />
       : <CategoryTag cat={cat} size={M.rowTag} />
-  ) : null
+  ) : onCategory && !resolved ? <CategoryTag dashed glyph={up || menu ? '+' : ''} hotGlyph="+" size={M.rowTag} as="button" title="no type · click to give it one" onClick={(e) => { e.stopPropagation(); setMenu((v) => (v ? false : 'left')) }} />
+    : <CategoryTag dashed glyph="" size={M.rowTag} title="no type" />
   const typeMenu = () => (menu && menuAt && typeof document !== 'undefined' ? portalInto(document.body,
     <div ref={popRef} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} style={{ position: 'fixed', left: menuAt.left, top: menuAt.top, bottom: menuAt.bottom, width: M.popover, background: 'var(--surface-paper)', border: '1px solid var(--border-frame)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--lift-2)', padding: 4, boxSizing: 'border-box', zIndex: 1000 }}>
       <TypeList categories={categories} current={entry.category} onPick={(k) => { setMenu(false); if (k !== entry.category) onCategory(entry, k) }} />
     </div>
   ) : null)
-  /* A PLAIN NOTE DRAWS NO TAG SLOT AT REST — an empty wrapper still takes the row's gap and indents
-     the words (the OB-207 fault, 2026-09-27). Its "give it a type" button rides with the hover
-     actions at the right instead, so nothing moves when the pointer arrives. */
-  const plainType = !cat && onCategory && !resolved
+  /* A PLAIN NOTE DRAWS AN EMPTY DASHED SLOT where the tag goes (owner, 21 Oct), REVERSING 2026-09-27's
+     "no tag slot at rest" (the OB-207 fault was an INVISIBLE wrapper indenting the words; a drawn
+     slot is the indent on purpose). The words of every row start at one indent, and the slot is
+     where a type is given. */
   /* THE CONFIRMATION IS A LINE UNDER THE FLAG, NOT IN PLACE OF IT (owner, 15 Oct: replacing the row
      hid what was being deleted, and its border sat on the row's 6px bleed, which the column clips,
      so both sides were cut). The row stays as it was; the question, Keep and Delete sit on a second
@@ -291,12 +334,10 @@ function FlagRow({ entry, cat, categories, onCategory, onCommit, onResolve, fres
     <div onMouseEnter={() => { setHot(true); show() }} onMouseLeave={() => { setHot(false); hide() }}
       onClick={onSelect && !editing ? () => onSelect(entry) : undefined}
       style={{ position: 'relative', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 6, padding: '3px 6px', margin: '0 -6px', borderRadius: 'var(--radius-sm)', background: wash, cursor: onSelect ? 'pointer' : 'default', transition: washFade }}>
-      {tag ? (
-        <span ref={menuRef} style={{ position: 'relative', display: 'inline-flex', marginTop: 2, width: M.rowTag, flexShrink: 0 }}>
-          {tag}
-          {typeMenu()}
-        </span>
-      ) : null}
+      <span ref={menuRef} style={{ position: 'relative', display: 'inline-flex', marginTop: 2, width: M.rowTag, flexShrink: 0 }}>
+        {tag}
+        {typeMenu()}
+      </span>
       <div style={{ flex: 1, minWidth: 0 }} onClick={editing ? (e) => e.stopPropagation() : undefined}>
         {editing ? (
           <InlineText value={entry.text || ''} multiline enterInserts editing placeholder="enter description"
@@ -324,14 +365,8 @@ function FlagRow({ entry, cat, categories, onCategory, onCommit, onResolve, fres
          invisible against the row: on a FRESH row (amber) a bark-50 backdrop drew a pale pill round
          the bin, which read as an elongated button (owner, 15 Oct). Since the undo went, a fresh row
          is the one that shows its actions while washed. */}
-      {!resolved && (canEdit || onResolve || plainType) ? (
-        <span onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', right: 6, top: 3, height: 'calc(var(--fs-body) * var(--lh-snug))', display: 'flex', alignItems: 'center', gap: 0, paddingLeft: 6, borderRadius: 'var(--radius-sm)', background: up || menu ? (fresh ? freshWash : 'var(--bark-50)') : 'transparent', transition: settlingNow ? washFade : undefined, pointerEvents: up || menu ? 'auto' : 'none' }}>
-          {plainType && (up || menu) ? (
-            <span ref={menuRef} style={{ position: 'relative', display: 'inline-flex', margin: '0 3px' }}>
-              <CategoryTag dashed glyph="+" size={M.rowTag} as="button" title="give it a type" onClick={(e) => { e.stopPropagation(); setMenu((v) => (v ? false : 'right')) }} />
-              {typeMenu()}
-            </span>
-          ) : null}
+      {!resolved && (canEdit || onResolve) ? (
+        <span onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', right: 6, top: 3, height: 'calc(var(--fs-body) * var(--lh-snug))', display: 'flex', alignItems: 'center', gap: 0, paddingLeft: 6, borderRadius: 'var(--radius-sm)', background: up || menu ? (fresh ? freshWash : restWash) : 'transparent', transition: settlingNow ? washFade : undefined, pointerEvents: up || menu ? 'auto' : 'none' }}>
           {onResolve ? <IconButton tone="danger" size={20} label="delete this flag" title="delete · asks first" reveal={up} onClick={(e) => { if (e && e.stopPropagation) e.stopPropagation(); setConfirming(true) }}><BinMark lift={false} /></IconButton> : null}
         </span>
       ) : null}
@@ -465,8 +500,10 @@ function Composer({ categories, category, onCategoryChange, draft, onDraftChange
 }
 
 /** THE TALLY beside the "Flags" head (v4): this list's flags counted by type. ONLY A COUNTED TYPE
- *  SHOWS (owner, 15 Oct: no faded zeros beside a real count); "N plain" counts the notes typed with
- *  no type, and shows only when there is one. The head draws no tally at all on an empty list. */
+ *  SHOWS (owner, 15 Oct: no faded zeros beside a real count). The notes with no type count LAST, in
+ *  the same shape as the rest — their empty dashed slot, then the number (owner, 21 Oct: "1 plain"
+ *  put its number first and read as something else) — and only when there is one. The head draws
+ *  no tally at all on an empty list. */
 function FlagTally({ list, categories }) {
   const n = {}
   let plain = 0
@@ -479,7 +516,11 @@ function FlagTally({ list, categories }) {
           <span style={{ display: 'inline-flex', opacity: n[c.key] ? 1 : 0.5 }}><CategoryTag cat={c} size={LECTURE_NOTES_METRICS.rowTag} title={false} /></span>{n[c.key] || 0}
         </span>
       ))}
-      {plain ? <span>{plain} plain</span> : null}
+      {plain ? (
+        <span title={wrapTip('no type')} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <CategoryTag dashed glyph="" size={LECTURE_NOTES_METRICS.rowTag} title={false} />{plain}
+        </span>
+      ) : null}
     </span>
   )
 }
@@ -554,6 +595,7 @@ export function LectureNotes({
   menuOpen, onMenuOpenChange, title, flagsLabel, usualFlag = 'fix', style,
   selectedStop, onSelectStop,
   stop, stops,
+  aside, asideLabel = 'Preview', asideWidth = LECTURE_NOTES_METRICS.aside,
 }) {
   const M = LECTURE_NOTES_METRICS
   const review = variant === 'review'
@@ -585,7 +627,7 @@ export function LectureNotes({
     <FlagRow key={e.id != null ? e.id : i} entry={e} cat={byKey[e.category]} categories={categories}
       onCategory={onEntryCategoryChange} onCommit={onEntryCommit} onResolve={resolve}
       fresh={FlagMath.fresh(e, now)} resolved={FlagMath.lingering(e, now)}
-      instant={review ? !M.reviewRecede : !M.liveRecede} onSelect={opts && opts.onSelect} />
+      instant={review ? !M.reviewRecede : !M.liveRecede} onSelect={opts && opts.onSelect} onSelected={!!(opts && opts.selected)} />
   )
   /* ── LIVE STATE (declared before the review branch so the hook order never depends on the variant) ── */
   const [editingPrep, setEditingPrep] = React.useState(false)
@@ -679,10 +721,15 @@ export function LectureNotes({
     all.forEach((e) => { slides[e.stop != null ? 's' + e.stop : e.stopLabel || '?'] = true })
     const nSlides = Object.keys(slides).length
     return (
-      <Pane title={title || 'notes from this lecture'} scroll="none" bodyStyle={{ padding: M.headClear + 'px 14px 12px ' + M.legendInset + 'px', userSelect: 'none', WebkitUserSelect: 'none' }}
+      <Pane title={title || 'notes from this lecture'} scroll="none" bodyStyle={{ padding: M.headClear + 'px 14px 12px ' + M.legendInset + 'px', userSelect: 'none', WebkitUserSelect: 'none', ...(aside ? { flexDirection: 'row', gap: 0 } : null) }}
         style={{ flex: 1, minHeight: 0, userSelect: 'none', WebkitUserSelect: 'none', ...style }}>
+        {/* WITH `aside` THE REVIEW COPY HAS TWO COLUMNS, as the live pane has (owner, 21 Oct): the flags
+           on the left, the aside (the recap's preview of the shown slide) on the right under its own
+           head, a hairline between. The same gutter and hairline as the live pane's chat divider, but
+           fixed: nothing here is worth resizing at the end of a lecture. */}
+        <div style={aside ? { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, paddingRight: M.gutter } : { display: 'contents' }}>
         <Head title={flagsLabel != null ? flagsLabel : 'Flags'} after={all.length ? <FlagTally list={all} categories={categories} /> : undefined} trailing={all.length ? <Count>{plural(nSlides, 'slide') + ' · ' + plural(all.length, 'flag')}</Count> : undefined} />
-        <PaneScroller>
+        <PaneScroller style={flagsRoom(SCROLLER_INSET)}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {groups.length ? groups.map((g, gi) => {
               const sel = selectedStop != null && g.stop === selectedStop
@@ -690,12 +737,24 @@ export function LectureNotes({
               return (
                 <div key={g.k + gi} style={{ padding: '4px 6px 6px', margin: '0 -6px', borderTop: gi && !sel ? '1px solid var(--border-hair)' : '1px solid transparent', borderRadius: sel ? 'var(--radius-md)' : 0, background: sel ? 'var(--state-selected-wash)' : 'transparent', transition: 'var(--transition-wash)' }}>
                   <div onClick={pick} title={pick ? wrapTip('show this slide') : undefined} style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-semibold)', color: 'var(--text-1)', lineHeight: 'var(--lh-snug)', padding: '4px 0 3px', cursor: pick ? 'pointer' : 'default' }}>{g.label}</div>
-                  {g.items.map((e, i) => row(e, i, { onSelect: pick }))}
+                  {g.items.map((e, i) => row(e, i, { onSelect: pick, selected: sel }))}
                 </div>
               )
             }) : <p style={{ margin: '4px 0 0', fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', color: 'var(--text-2)', lineHeight: 'var(--lh-normal)' }}>nothing was flagged this lecture.</p>}
           </div>
         </PaneScroller>
+        </div>
+        {aside ? (
+          <React.Fragment>
+            <div aria-hidden="true" style={{ flex: 'none', width: M.divider, marginLeft: -M.divider / 2, marginRight: M.gutter - M.divider / 2, position: 'relative' }}>
+              <div style={{ position: 'absolute', top: 0, bottom: 0, left: M.divider / 2, width: 1, background: 'var(--border-hair)' }} />
+            </div>
+            <div style={{ flexShrink: 0, width: asideWidth, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              <Head title={asideLabel} />
+              {aside}
+            </div>
+          </React.Fragment>
+        ) : null}
       </Pane>
     )
   }
@@ -753,7 +812,7 @@ export function LectureNotes({
           </div>
           <Head title={liveFlagsLabel} after={hasFlags ? <FlagTally list={counted(liveList)} categories={categories} /> : undefined} trailing={hasFlags ? <Count>{plural(n, 'flag')}</Count> : undefined} />
           <div ref={flagsRef} style={{ flex: '1 1 0', minHeight: M.flagsMinH, display: 'flex', flexDirection: 'column' }}>
-            <PaneScroller style={{ marginTop: 0, marginBottom: 0 }}>
+            <PaneScroller style={flagsRoom(0)}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {liveList.length ? liveList.map((e, i) => row(e, i)) : (
                   <p style={{ margin: '2px 0 0', fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', color: 'var(--text-2)', lineHeight: 'var(--lh-normal)' }}>nothing yet.</p>

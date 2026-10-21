@@ -1,0 +1,43 @@
+/* ELEVATION.
+
+   Shadows are WARM — cast in bark, never in blue-grey. They are soft, wide and
+   low-contrast: a P.Kt surface sits on the page, it does not float above it.
+
+   Containment reads as depth, not hue:
+     a node          -> raised   (--lift-1, white face)
+     a group         -> raised ONE STEP higher (--lift-group, white face, open or folded),
+                        with a depth strip peeking from behind it (--surface-sunken, alternating
+                        to --surface-sunken-2 by depth, since two strips of one tint read as one)
+   Never a lift and a sink on the same element. (Until 2026-08-21 an open group was a recessed
+   --sink-1 well; it is white now in both states.) */
+:root {
+  --lift-1: 0 1px 2px rgba(53, 49, 42, 0.06), 0 4px 10px -6px rgba(53, 49, 42, 0.18);
+  /* A GROUP'S lift (`VersionedGroup`'s card, open and folded; named 2026-10-01). CHOSEN by the owner
+     2026-08-21: --lift-2 sized right but read too raised, so this keeps the contact shadow and
+     tightens the ambient one. It sits one step above a node so a chip's domain hue cannot
+     out-shout the group's grey edge. Not a node's --lift-1, and not --lift-2. */
+  --lift-group: 0 1px 2px rgba(53, 49, 42, 0.06), 0 3px 6px -4px rgba(53, 49, 42, 0.20);
+  --lift-2: 0 1px 2px rgba(53, 49, 42, 0.07), 0 10px 20px -12px rgba(53, 49, 42, 0.28);
+  --lift-3: 0 2px 4px rgba(53, 49, 42, 0.08), 0 20px 36px -16px rgba(53, 49, 42, 0.34);
+  --lift-drag: 0 3px 6px rgba(53, 49, 42, 0.10), 0 26px 44px -18px rgba(53, 49, 42, 0.40);
+  /* THE SCRIM behind a modal warning (`WarningDialog`, 2026-10-01): bark-800 at 32%, the same
+     brown every lift is cast in, so the app dims rather than greys. CHOSEN: dark enough that the
+     dialog is plainly the only live thing, light enough that the walk behind it stays legible. */
+  --scrim: rgba(53, 49, 42, 0.32);
+
+  --sink-1: inset 0 1px 3px rgba(53, 49, 42, 0.10), inset 0 0 0 1px rgba(255, 255, 255, 0.55); /* @kind shadow */
+  --sink-2: inset 0 2px 5px rgba(53, 49, 42, 0.13), inset 0 0 0 1px rgba(255, 255, 255, 0.5); /* @kind shadow */
+
+  /* rings — one ring per meaning, never stacked */
+  --ring-selected: 0 0 0 2px var(--state-selected);
+  --ring-linked: 0 0 0 1.5px var(--state-linked);  /* softest ring — correspondence, not commitment */
+  --ring-primary: 0 0 0 2px var(--accent-primary);
+  --ring-walk: 0 0 0 2px var(--accent-walk);
+  --ring-danger: 0 0 0 2px var(--state-danger);
+  --ring-focus: 0 0 0 3px rgba(79, 128, 162, 0.32);  /* keyboard focus only */
+
+  /* dimming */
+  --opacity-off-path: 0.5; /* @kind other */
+  --opacity-drag-rest: 0.35; /* @kind other */
+  --opacity-disabled: 0.35; /* @kind other */
+}

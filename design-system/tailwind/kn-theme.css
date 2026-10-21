@@ -1,0 +1,403 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   KnowledgeNetwork Design System — TAILWIND THEME (v4, CSS-first)
+   Generated from the design system project. DO NOT EDIT BY HAND.
+
+   This file is the *utility surface*: it turns every token into a real Tailwind
+   class so no rule in the app ever needs an arbitrary value again.
+   `bg-canopy`, `text-ink-2`, `rounded-lg`, `shadow-lift-1`, `text-body`,
+   `font-display`, `border-hair`, `ease-soft` — all generated from here.
+
+   Values are restated as literals rather than `var()` references on purpose:
+   Tailwind v4's `@theme` namespaces (--color-*, --font-*, --text-*, --radius-*,
+   --shadow-*, --ease-*) collide by name with several of the design system's own
+   token names, and a var pointing at itself is circular. Both this file and
+   kn-tokens.css are generated from the same source in the same pass, so they
+   cannot drift — but that also means neither is safe to hand-edit.
+
+   Load order in the app's entry CSS:
+       @import "tailwindcss";
+       @import "./kn/kn-tokens.css";      <- runtime vars: var(--moss-500) etc
+       @import "./kn/kn-theme.css";       <- this file: the utility surface
+       @import "./kn/kn-base.css";        <- element defaults, scrollbars
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@theme {
+  /* ══ Fonts ═══════════════════════════════════════════════════════════════ */
+  --font-display: "Quicksand", ui-rounded, "Segoe UI", system-ui, sans-serif;
+  --font-ui: "Nunito", ui-rounded, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ══ Type scale — the P.Kt ramp. This is what new work uses. ═══════════════ */
+  --text-micro: 11px;        /* step numbers, via tags, glyph marks */
+  --text-caption: 12px;      /* eyebrows, meta lines, section labels */
+  --text-body: 13px;         /* THE workhorse: rows, chips, buttons */
+  --text-title: 15px;        /* pane titles, card titles */
+  --text-head: 18px;         /* document title */
+  --text-display: 28px;      /* screen headline */
+  --text-display-lg: 44px;   /* the one big number / the brand line */
+
+  /* as-built sizes the app renders TODAY. Present so the migration is a
+     find-and-replace, not a guess — they are not a target. Anything a person
+     reads rather than glances at should end up at text-body or larger. */
+  --text-ab-micro: 9px;
+  --text-ab-meta: 9.5px;
+  --text-ab-caption: 10px;
+  --text-ab-label: 10.5px;
+  --text-ab-body: 11px;
+  --text-ab-pane: 12px;
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.35;
+  --leading-normal: 1.6;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-heavy: 800;
+
+  --tracking-display: -0.015em;
+  /* every all-caps string carries tracking-caps; eyebrow is its alias */
+  --tracking-caps: 0.12em;
+  --tracking-eyebrow: var(--tracking-caps);
+
+  /* ══ Colour · chrome ramps ════════════════════════════════════════════════ */
+  --color-bark-50: #faf8f4;
+  --color-bark-100: #f2eee6;
+  --color-bark-200: #e6e0d4;
+  --color-bark-300: #d3cabb;
+  --color-bark-400: #b0a693;
+  --color-bark-500: #8a8071;
+  --color-bark-600: #6b6255;
+  --color-bark-700: #4e483e;
+  --color-bark-800: #35312a;
+  --color-bark-900: #23201b;
+
+  --color-moss-50: #f0f5ee;
+  --color-moss-100: #dfe9da;
+  --color-moss-200: #c2d6ba;
+  --color-moss-300: #9dbd93;
+  --color-moss-400: #74a068;
+  --color-moss-500: #558148;
+  --color-moss-600: #416838;
+  --color-moss-700: #33512d;
+  --color-moss-800: #263c22;
+
+  --color-acorn-50: #fbf4e8;
+  --color-acorn-100: #f5e6cb;
+  --color-acorn-200: #eccfa0;
+  --color-acorn-300: #ddb26e;
+  --color-acorn-400: #cb9441;
+  --color-acorn-500: #b47a2b;
+  --color-acorn-600: #94611f;
+
+  --color-pond-50: #eef3f7;
+  --color-pond-100: #dae7ef;
+  --color-pond-200: #bcd3e3;
+  --color-pond-300: #99bcd5;
+  --color-pond-400: #6f9dbd;
+  --color-pond-500: #4f80a2;
+  --color-pond-600: #3d6884;
+  --color-pond-vivid: #2e86c8;      /* the one saturated blue: an open text editor's edge, nothing else */
+
+  --color-berry-50: #fbf0ee;
+  --color-berry-100: #f5dcd8;
+  --color-berry-500: #b4574a;
+  --color-berry-600: #99453a;   /* berry = the act will not proceed: destruction AND refusal (scope widened 2026-09-18) */
+
+  /* ══ Colour · data · THE HUE RING ═════════════════════════════════════════
+     Sixteen hues, five roles each — the whole data palette. `bg-hue-teal`,
+     `text-hue-teal-ink`, `border-hue-teal`, `bg-hue-teal-wash`. A topic is a FILLED mark
+     and a relation is a LINE in the stroke role, which is what keeps the two families
+     apart now that both draw from one ring; hosts assign from TOPIC_WALK in
+     components/graph/DomainDot.jsx, not from this declaration order — topics walk it forward,
+     relation kinds backward, so the first eight of each family never share a hue. Data runs at
+     C 0.14–0.15 and chrome at or below C 0.09 — that chroma gap, not hue, is what
+     separates a data green from the moss primary. Full reasoning in tokens/colors.css;
+     this file restates the values as literals because a var() here would be circular. */
+  --color-hue-rose: oklch(0.55 0.15 350);
+  --color-hue-rose-ink: oklch(0.44 0.14 350);
+  --color-hue-rose-stroke: oklch(0.6 0.14 350);
+  --color-hue-rose-wash: oklch(0.955 0.038 350);
+  --color-hue-rose-wash-raised: oklch(0.925 0.055 350);
+
+  --color-hue-brick: oklch(0.55 0.15 20);
+  --color-hue-brick-ink: oklch(0.44 0.14 20);
+  --color-hue-brick-stroke: oklch(0.6 0.14 20);
+  --color-hue-brick-wash: oklch(0.955 0.038 20);
+  --color-hue-brick-wash-raised: oklch(0.925 0.055 20);
+
+  --color-hue-clay: oklch(0.55 0.15 42);
+  --color-hue-clay-ink: oklch(0.44 0.14 42);
+  --color-hue-clay-stroke: oklch(0.6 0.14 42);
+  --color-hue-clay-wash: oklch(0.955 0.038 42);
+  --color-hue-clay-wash-raised: oklch(0.925 0.055 42);
+
+  --color-hue-amber: oklch(0.55 0.15 65);
+  --color-hue-amber-ink: oklch(0.44 0.14 65);
+  --color-hue-amber-stroke: oklch(0.6 0.14 65);
+  --color-hue-amber-wash: oklch(0.955 0.038 65);
+  --color-hue-amber-wash-raised: oklch(0.925 0.055 65);
+
+  --color-hue-honey: oklch(0.55 0.15 88);
+  --color-hue-honey-ink: oklch(0.44 0.14 88);
+  --color-hue-honey-stroke: oklch(0.6 0.14 88);
+  --color-hue-honey-wash: oklch(0.955 0.038 88);
+  --color-hue-honey-wash-raised: oklch(0.925 0.055 88);
+
+  --color-hue-olive: oklch(0.55 0.15 110);
+  --color-hue-olive-ink: oklch(0.44 0.14 110);
+  --color-hue-olive-stroke: oklch(0.6 0.14 110);
+  --color-hue-olive-wash: oklch(0.955 0.038 110);
+  --color-hue-olive-wash-raised: oklch(0.925 0.055 110);
+
+  --color-hue-lime: oklch(0.55 0.15 130);
+  --color-hue-lime-ink: oklch(0.44 0.14 130);
+  --color-hue-lime-stroke: oklch(0.6 0.14 130);
+  --color-hue-lime-wash: oklch(0.955 0.038 130);
+  --color-hue-lime-wash-raised: oklch(0.925 0.055 130);
+
+  --color-hue-leaf: oklch(0.55 0.15 148);
+  --color-hue-leaf-ink: oklch(0.44 0.14 148);
+  --color-hue-leaf-stroke: oklch(0.6 0.14 148);
+  --color-hue-leaf-wash: oklch(0.955 0.038 148);
+  --color-hue-leaf-wash-raised: oklch(0.925 0.055 148);
+
+  --color-hue-fern: oklch(0.55 0.15 166);
+  --color-hue-fern-ink: oklch(0.44 0.14 166);
+  --color-hue-fern-stroke: oklch(0.6 0.14 166);
+  --color-hue-fern-wash: oklch(0.955 0.038 166);
+  --color-hue-fern-wash-raised: oklch(0.925 0.055 166);
+
+  --color-hue-jade: oklch(0.55 0.15 183);
+  --color-hue-jade-ink: oklch(0.44 0.14 183);
+  --color-hue-jade-stroke: oklch(0.6 0.14 183);
+  --color-hue-jade-wash: oklch(0.955 0.038 183);
+  --color-hue-jade-wash-raised: oklch(0.925 0.055 183);
+
+  --color-hue-teal: oklch(0.55 0.15 198);
+  --color-hue-teal-ink: oklch(0.44 0.14 198);
+  --color-hue-teal-stroke: oklch(0.6 0.14 198);
+  --color-hue-teal-wash: oklch(0.955 0.038 198);
+  --color-hue-teal-wash-raised: oklch(0.925 0.055 198);
+
+  --color-hue-river: oklch(0.55 0.15 214);
+  --color-hue-river-ink: oklch(0.44 0.14 214);
+  --color-hue-river-stroke: oklch(0.6 0.14 214);
+  --color-hue-river-wash: oklch(0.955 0.038 214);
+  --color-hue-river-wash-raised: oklch(0.925 0.055 214);
+
+  --color-hue-cobalt: oklch(0.55 0.15 236);
+  --color-hue-cobalt-ink: oklch(0.44 0.14 236);
+  --color-hue-cobalt-stroke: oklch(0.6 0.14 236);
+  --color-hue-cobalt-wash: oklch(0.955 0.038 236);
+  --color-hue-cobalt-wash-raised: oklch(0.925 0.055 236);
+
+  --color-hue-iris: oklch(0.55 0.15 262);
+  --color-hue-iris-ink: oklch(0.44 0.14 262);
+  --color-hue-iris-stroke: oklch(0.6 0.14 262);
+  --color-hue-iris-wash: oklch(0.955 0.038 262);
+  --color-hue-iris-wash-raised: oklch(0.925 0.055 262);
+
+  --color-hue-violet: oklch(0.55 0.15 292);
+  --color-hue-violet-ink: oklch(0.44 0.14 292);
+  --color-hue-violet-stroke: oklch(0.6 0.14 292);
+  --color-hue-violet-wash: oklch(0.955 0.038 292);
+  --color-hue-violet-wash-raised: oklch(0.925 0.055 292);
+
+  --color-hue-mallow: oklch(0.55 0.15 322);
+  --color-hue-mallow-ink: oklch(0.44 0.14 322);
+  --color-hue-mallow-stroke: oklch(0.6 0.14 322);
+  --color-hue-mallow-wash: oklch(0.955 0.038 322);
+  --color-hue-mallow-wash-raised: oklch(0.925 0.055 322);
+
+  /* the ring by index, in HUE order — the reading order, not the assignment order */
+  --color-hue-slot-1: oklch(0.55 0.15 350);
+  --color-hue-slot-2: oklch(0.55 0.15 20);
+  --color-hue-slot-3: oklch(0.55 0.15 42);
+  --color-hue-slot-4: oklch(0.55 0.15 65);
+  --color-hue-slot-5: oklch(0.55 0.15 88);
+  --color-hue-slot-6: oklch(0.55 0.15 110);
+  --color-hue-slot-7: oklch(0.55 0.15 130);
+  --color-hue-slot-8: oklch(0.55 0.15 148);
+  --color-hue-slot-9: oklch(0.55 0.15 166);
+  --color-hue-slot-10: oklch(0.55 0.15 183);
+  --color-hue-slot-11: oklch(0.55 0.15 198);
+  --color-hue-slot-12: oklch(0.55 0.15 214);
+  --color-hue-slot-13: oklch(0.55 0.15 236);
+  --color-hue-slot-14: oklch(0.55 0.15 262);
+  --color-hue-slot-15: oklch(0.55 0.15 292);
+  --color-hue-slot-16: oklch(0.55 0.15 322);
+
+  /* ══ Colour · data · the shipped EXAMPLE palette ══════════════════════════
+     The six CS domains and four CS relationships the system was built for, kept as a
+     worked example rather than as product vocabulary. Every one is a ring slot now, so
+     these six hues shifted slightly on 2026-08-21j. New work takes a ring slot. */
+  --color-domain-sys: oklch(0.55 0.15 148);
+  --color-domain-math: oklch(0.55 0.15 292);
+  --color-domain-cs: oklch(0.55 0.15 236);
+  --color-domain-net: oklch(0.55 0.15 198);
+  --color-domain-sec: oklch(0.55 0.15 65);
+  --color-domain-se: oklch(0.55 0.15 166);
+
+  /* the raw authored hex from src/corpus/graph.ts — only for pixel-matching
+     the current build. Never mix the two in one VIEW: a legend keyed to a ring slot
+     above canvas lines drawn from the raw hex is a key that disagrees with its own
+     drawing. Swatches and strokes convert together or not at all (app, 2026-08-18). */
+  --color-domain-sys-raw: #008300;
+  --color-domain-math-raw: #4a3aa7;
+  --color-domain-cs-raw: #2a78d6;
+  --color-domain-net-raw: #0891b2;
+  --color-domain-sec-raw: #eda100;
+  --color-domain-se-raw: #1baf7a;
+
+  /* ══ Colour · data · example edge kinds ═══════════════════════════════════
+     In the STROKE role, because a relation is a line. `depends-on` is deliberately
+     not a ring hue: the backbone is the common case and recedes. */
+  --color-edge-depends-on: #ada291;
+  --color-edge-uses: oklch(0.6 0.14 42);
+  --color-edge-see-also: oklch(0.6 0.14 322);
+  --color-edge-implemented-with: oklch(0.6 0.14 20);
+  --color-edge-mixed: oklch(0.52 0.035 255);
+
+  --color-edge-depends-on-raw: #94a3b8;
+  --color-edge-uses-raw: #eb6834;
+  --color-edge-see-also-raw: #e87ba4;
+  --color-edge-implemented-with-raw: #e34948;
+  --color-edge-mixed-raw: #64748b;
+
+  /* ══ Colour · surfaces ════════════════════════════════════════════════════
+     Containment reads as depth: canopy is the desk, paper is a pane, raised is
+     a card or node, sunken is a well. */
+  --color-canopy: #f2eee6;
+  --color-paper: #fdfcfa;
+  --color-raised: #ffffff;
+  --color-sunken: #eae4d9;
+  --color-sunken-2: #e2dbcd;      /* a group nested in a group — wells alternate by depth */
+  --color-hover: rgba(53, 49, 42, 0.04);
+  --color-hover-raised: #faf8f4;   /* a wash can't tint white — swap the face */
+  --color-press: rgba(53, 49, 42, 0.07);
+  --color-veil: rgba(253, 252, 250, 0.72);
+
+  /* ══ Colour · borders ═════════════════════════════════════════════════════ */
+  --color-hair: rgba(53, 49, 42, 0.17);    /* divisions inside a pane */
+  --color-rule: rgba(53, 49, 42, 0.25);    /* pane and card edges */
+  --color-frame: #b0a693;                  /* a pane's own frame */
+  --color-border-strong: rgba(53, 49, 42, 0.28);
+  --color-border-dashed: #d3cabb;          /* dashed ALWAYS means conditional */
+  /* a walk-tinted CONTROL's border in its active state — a pressed toggle. Named
+     `border-walk` rather than `walk`, which is already the walk ACCENT below. */
+  --color-border-walk: #ddb26e;
+
+  /* ══ Colour · ink ═════════════════════════════════════════════════════════ */
+  --color-ink-1: #35312a;
+  --color-ink-2: #4e483e;
+  --color-ink-3: #8a8071;
+  --color-ink-inverse: #fdfcfa;
+  --color-ink-accent: #33512d;
+  --color-ink-walk: #94611f;
+
+  /* ══ Colour · state ═══════════════════════════════════════════════════════ */
+  --color-primary: #558148;
+  --color-primary-ink: #33512d;
+  --color-primary-wash: #f0f5ee;
+  /* walk = acorn. Thesis demo: movement through the corpus. Knowledge Network Code: CAUTION
+     (owner, 2026-10-03); progress there stays `selected`. See tokens/colors.css, acorn. */
+  --color-walk: #b47a2b;
+  --color-walk-wash: #fbf4e8;
+  --color-selected: #4f80a2;
+  --color-selected-wash: #eef3f7;
+  --color-linked: #99bcd5;         /* cross-pane hover correspondence only */
+  --color-editing: #2e86c8;        /* the line you are typing into — pond's vivid step, drawn on TEXT at 1px */
+  --color-danger: #b4574a;
+  --color-danger-wash: #fbf0ee;
+  /* the DRAG VERDICT, and the asymmetry is deliberate — a valid drop is silent, so green is one
+     value (the landing line) and never writes; the refusal has a pill to draw, so red keeps four
+     rungs. Do not add a yes-wash or yes-ink to balance them. Mirrors `--verdict-*` in
+     `tokens/colors.css`; both files change together. */
+  --color-verdict-yes: #558148;
+  --color-verdict-no: #b4574a;
+  --color-verdict-no-wash: #fbf0ee;
+  --color-verdict-no-hair: #f5dcd8;
+  --color-verdict-no-ink: #99453a;
+  /* `--color-optional` was deleted on 2026-08-21j with its token twin, OB-042's receipt having
+     landed at `aac8764`. Use `border-walk`; an optional node dashes its own border. */
+
+  /* ══ Radii — the brand is ROUND. Nothing in a P.Kt UI is square. ══════════ */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+
+  /* ══ Spacing — 4px grid plus a 6px half-step ══════════════════════════════
+     The default Tailwind scale already covers 4/8/12/16/20/24/32/40/48
+     (p-1 … p-12). These two add the off-grid steps the round shapes need. */
+  --spacing-05: 2px;
+  --spacing-15: 6px;
+
+  /* ══ Elevation — shadows are WARM, cast in bark, never blue-grey ══════════ */
+  --shadow-lift-1: 0 1px 2px rgba(53, 49, 42, 0.06), 0 4px 10px -6px rgba(53, 49, 42, 0.18);
+  --shadow-lift-group: 0 1px 2px rgba(53, 49, 42, 0.06), 0 3px 6px -4px rgba(53, 49, 42, 0.20);
+  --shadow-lift-2: 0 1px 2px rgba(53, 49, 42, 0.07), 0 10px 20px -12px rgba(53, 49, 42, 0.28);
+  --shadow-lift-3: 0 2px 4px rgba(53, 49, 42, 0.08), 0 20px 36px -16px rgba(53, 49, 42, 0.34);
+  --shadow-lift-drag: 0 3px 6px rgba(53, 49, 42, 0.10), 0 26px 44px -18px rgba(53, 49, 42, 0.40);
+  --color-scrim: rgba(53, 49, 42, 0.32);
+
+  --inset-shadow-sink-1: inset 0 1px 3px rgba(53, 49, 42, 0.10), inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+  --inset-shadow-sink-2: inset 0 2px 5px rgba(53, 49, 42, 0.13), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+
+  /* rings — one ring per meaning, never stacked. A ring over an element's own
+     lift is not stacking; that combination is correct for `lit`. */
+  --shadow-ring-selected: 0 0 0 2px #4f80a2;
+  --shadow-ring-linked: 0 0 0 1.5px #99bcd5;
+  --shadow-ring-primary: 0 0 0 2px #558148;
+  --shadow-ring-walk: 0 0 0 2px #b47a2b;
+  --shadow-ring-danger: 0 0 0 2px #b4574a;
+  --shadow-ring-focus: 0 0 0 3px rgba(79, 128, 162, 0.32);
+
+  /* ══ Motion — a relayout should be legible, not a teleport. ═══════════════
+     Nothing bounces, nothing springs, nothing overshoots. Never animate colour. */
+  --ease-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-settle: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --animate-drill-down: drill-down 280ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  --animate-drill-up: drill-up 280ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  --animate-drill-left: drill-left 280ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  --animate-drill-right: drill-right 280ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* Durations are NOT in a Tailwind theme namespace that generates utilities
+   reliably across v4 minors, so reference the token directly:
+       duration-[var(--dur-tap)]        90ms   press feedback
+       duration-[var(--dur-hover)]     140ms   washes, borders, shadows
+       duration-[var(--dur-trace)]     180ms   edge traces
+       duration-[var(--dur-move)]      200ms   a block changing position
+       duration-[var(--dur-fade)]      250ms
+       duration-[var(--dur-enter)]     280ms   something arriving
+       duration-[var(--dur-relayout)]  300ms   nodes visibly making room
+       duration-[var(--dur-flight)]    400ms   a whole panel crossing the surface
+
+   `--transition-trace` (in tokens/motion.css) bundles opacity AND stroke-width, and is for
+   line-work at a FIXED scale only. On a zooming surface, where a stroke is counter-scaled
+   against the camera and so recomputed every frame, animate opacity alone — the full
+   reasoning and the measurements are on the token itself. General form: transition a value
+   the code sets in discrete steps, never one it recomputes continuously.
+
+   `--transition-wash-tracking` (none, added 2026-09-16) is the wash of a highlight that
+   FOLLOWS THE POINTER down an open list — a dropdown option, a popover row, a finder row.
+   It does not animate in either direction: on `--transition-wash` the highlight arrived
+   140ms late and lingered 140ms after the pointer left the row. Persistent controls
+   (buttons, chips, pills, presets, tree rows) keep `--transition-wash`. Not a `@theme`
+   entry: transitions generate no utility here, so reference the token directly
+   (`transition-[var(--transition-wash-tracking)]`, or just leave it off the element).
+
+   Layout constants are likewise token references, not utilities — they are
+   measurements, not a scale:
+       w-[var(--sidebar-w)]  h-[var(--pane-header-h)]
+       w-[var(--road-node-w)]  gap-[var(--road-gap)]
+   The --road-* values are a RECORD of the const-s in
+   src/instruments/walkdesk/AuthorRoad.tsx, not a coupling: nothing in src/
+   reads one. Narrowed 2026-08-18, when --road-pad and --rail-w were removed
+   from tokens/spacing.css for naming constants no longer in src/ (which is why
+   w-[var(--rail-w)] is no longer offered above). See tokens/spacing.css. */
