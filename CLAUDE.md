@@ -17,7 +17,8 @@ loaded here:
 
 `npm run verify` builds (typecheck and `vite build`), typechecks `desktop/`
 against the app's platform contract, lints, and tests. It reaches outside this
-repository for nothing. Install first with `npm ci` and `npm ci --prefix desktop`.
+repository for nothing. It needs both package sets installed once, if
+`node_modules` is missing: `npm ci` and `npm ci --prefix desktop`.
 
 The import rule between the folders under `src/` is written in
 `src/layering.test.ts`.
@@ -52,7 +53,8 @@ the node from the loaded data, or branch on `CORPUS_NAME`.
    change was made, what was tried and rejected. A KnowledgeNetwork-Code run
    cannot; its card is in its prompt.
 
-No one source is complete. When a document and the code disagree, the code and
+No one source is complete, and a page is not authoritative just because it is
+written down. When a document and the code disagree, the code and
 the issue thread win, unless the document records a decision that has not been
 implemented yet.
 
