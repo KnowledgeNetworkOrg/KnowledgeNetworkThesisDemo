@@ -202,7 +202,8 @@ const markSaved = () => {
 }
 
 /** "Load without saving": the draft's edits stop counting as unsaved, and the
- *  draft itself is left as it is. Putting it back to the baseline would be the
+ *  draft itself is left as it is, so the next Load does not warn about those
+ *  edits again until the draft is edited further. Putting it back to the baseline would be the
  *  literal reading of the warning, but the walk editor publishes the draft's road
  *  on every change (usePublishPresentedRoute), so a revert made during a Load
  *  would overwrite the walk that was just loaded on the bus. */
