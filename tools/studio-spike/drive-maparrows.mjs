@@ -523,7 +523,8 @@ ok('the tints of hover, spotlight and selection are their own group under the la
 ok('there are cell names to judge', ghostFacts.names > 0, `${ghostFacts.names} names`)
 ok('EVERY cell name is drawn in the paper case — paint-order stroke, --surface-paper, round joins, no alpha', ghostFacts.namesCased === ghostFacts.names, `${ghostFacts.namesCased} of ${ghostFacts.names}`)
 ok('and the SELECTED name wears it exactly as the others do — the case is not a selection channel', !ghostFacts.selectedName || ghostFacts.selectedCased, `selected name present: ${ghostFacts.selectedName}`)
-ok('the ghost headings are ONE opaque tone — oklch(0.640 0.110 <hue>), no alpha — at full opacity', ghostFacts.ghosts.length > 0 && ghostFacts.ghosts.every((g) => /^oklch\(0\.640 0\.110 [\d.]+\)$/.test(g.fill || '') && g.opacity === '1'), JSON.stringify(ghostFacts.ghosts))
+// the tone is `GHOST_L`/`GHOST_C` in src/ds/graph/topicvalues.ts — 0.800/0.070 since OB-271 (#439) made it paler
+ok('the ghost headings are ONE opaque tone — oklch(0.800 0.070 <hue>), no alpha — at full opacity', ghostFacts.ghosts.length > 0 && ghostFacts.ghosts.every((g) => /^oklch\(0\.800 0\.070 [\d.]+\)$/.test(g.fill || '') && g.opacity === '1'), JSON.stringify(ghostFacts.ghosts))
 ok('and painted ABOVE the washes and BELOW the names, so a name crossing one survives on its case', ghostFacts.ghosts.every((g) => g.aboveWashes && g.belowNames), JSON.stringify(ghostFacts.ghosts))
 await page.screenshot({ path: OUT + '/map-ghost-selected.png' })
 await page.keyboard.press('Escape')
