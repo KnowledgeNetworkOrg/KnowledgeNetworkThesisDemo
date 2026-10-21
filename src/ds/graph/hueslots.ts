@@ -121,14 +121,15 @@ export function domainToken(domain?: string | null): string {
  *  per-hue tokens would be sixteen tokens for one role — painted ABOVE every fill and every
  *  selection wash, never composited through them.
  *
- *  L 0.640 / C 0.110 are CHOSEN, not derived, and chosen against the family fills this system
- *  already ships: `nestedFamilyPaint` spans L 0.720–0.900, so one tone below that band stays
- *  visible over the lightest child and never goes darker than the darkest. It is deliberately not
+ *  L 0.800 / C 0.070 are CHOSEN, not derived, and chosen against the family fills this system
+ *  already ships: `nestedFamilyPaint` spans L 0.720–0.900, so a pale tone INSIDE that band reads as
+ *  context instead of competing with the children’s names (OB-271). It is deliberately not
  *  anybody's `ink` — a ghost heading is not a label, and the ink roles are computed to hold 4.5:1,
  *  which is the opposite of what this needs.
  *
- *  A CELL NAME MUST NOT DEPEND ON THIS BEING LIGHT. It is an opaque mid-tone, so a name crossing it
- *  survives on its paper case (`LabelCut.case`), never on the ghost yielding. */
+ *  A GHOST HEADING WEARS NO OUTLINE (OB-271): its pale tone is far enough from the children’s ink
+ *  that a case would only add noise. A CELL NAME still keeps its paper case (`LabelCut.case`) for
+ *  the fills and washes it crosses. */
 export function topicPaint(topic?: string | null): { hue: string | null; mark: string; ink: string; stroke: string; wash: string; washRaised: string; ghost: string } {
   const hue = topic != null && HUE_RING.includes(topic) ? topic : null
   if (!hue) return { hue: null, mark: 'var(--swatch-anchor-fallback)', ink: 'var(--swatch-ink-fallback)', stroke: 'var(--swatch-anchor-fallback)', wash: 'var(--swatch-fill-fallback)', washRaised: 'var(--swatch-fill-fallback)', ghost: 'var(--swatch-anchor-fallback)' }
