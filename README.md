@@ -38,9 +38,14 @@ KnowledgeNetworkThesisDemo/
 │   ├── model/               # pure derivations — layouts, lenses, visibility, nav helpers
 │   ├── instruments/         # one file per navigation view (map, walk, tree, plex, trail, …)
 │   ├── studio/              # StudioView — the instrument palette + presets + sync bus
+│   ├── state/               # the sync bus, the walk draft and its store
+│   ├── present/             # presenter mode
+│   ├── platform/            # storage: the web build, and the contract the desktop host implements
+│   ├── ds/                  # ported design-system components (PROVENANCE.json says from where)
+│   ├── tokens/              # vendored design-system tokens
 │   ├── App.tsx, main.tsx
 │   └── index.css
-├── skills/                  # packaged procedures, and material mirrored in from outside
+├── desktop/                 # the Electron host, its own npm package
 ├── tools/*-spike/           # spike verification scripts + RESULTS.md write-ups
 └── package.json
 ```
@@ -55,15 +60,9 @@ the sources that actually hold it:
   `AuthorRoad.tsx` and the ops in `authordraft.ts` document themselves.
 - **`tools/*-spike/RESULTS.md`** — spike findings, beside the shots that
   produced them.
-- **`.claude/skills/`** — packaged procedures. `design-pull/` is the one that
-  carries weight: the pull-direction sync with the **KnowledgeNetwork Design
-  System** Claude Design project, which is the source of truth for style.
-  (Named off Claude Code's built-in `/design-sync`, which pushes the wrong way
-  and cannot be overridden by a project skill of the same name — see that
-  skill's own header.) (A
-  top-level `skills/` folder used to hold a local mirror of that system. It was
-  removed with #44 and the folder is gone — this bullet described it until
-  2026-08-18.)
+- **Issues labelled `design-system`** — work sent by the design agent from the
+  **KnowledgeNetwork Design System** Claude Design project, which is the source
+  of truth for style. `CLAUDE.md` describes how that exchange works.
 
 ## Scripts
 

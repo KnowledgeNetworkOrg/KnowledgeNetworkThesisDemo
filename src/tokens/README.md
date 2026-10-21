@@ -3,7 +3,7 @@
 These CSS files are a **vendored snapshot** of the `tokens/` folder in the
 **KnowledgeNetwork Design System** (a Claude Design project), which is the
 source of truth for style. They are kept **byte-identical** to the project so a
-future `/design-pull` `get_file` can diff cleanly against them.
+newer copy from the project can be diffed cleanly against them.
 
 The recorded fingerprint of this snapshot — DS project id, per-file `sha256`
 hashes, and sync date — lives in [`../ds/PROVENANCE.json`](../ds/PROVENANCE.json).
@@ -12,8 +12,9 @@ compare against it to detect drift. Publishing the DS as a real versioned
 dependency is tracked in issue #66.
 
 **Do not hand-edit these files.** A value here is wrong the moment it disagrees
-with the design project. To change one, change it in the design project and
-re-vendor via `/design-pull`. This is issue #57 (roadmap #58); the drift guard
+with the design project. To change one, change it in the design project; the
+design agent sends the new file with a `design-system` card, and that card
+re-vendors it (see `CLAUDE.md`). This is issue #57 (roadmap #58); the drift guard
 that enforces "code only reaches these through `var(--token)`" is the raw-hex /
 raw-px bans in `eslint.config.js`, wired in #61. They port the DS's
 `_adherence.oxlintrc.json` reference spec into native ESLint rules, scoped to the

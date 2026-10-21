@@ -48,8 +48,7 @@ project is assembled from whichever sources actually hold it:
 | GitHub issues and PRs | in-flight work, why a change was made, what was tried and rejected |
 | the code and its comments | the current model — the ops in `authordraft.ts`, the layout arithmetic in `AuthorRoad.tsx` |
 | `tools/*-spike/RESULTS.md` | spike findings, next to the shots that produced them |
-| `skills/` | packaged procedures, and material mirrored in from outside |
-| `design-handoff/` | the running conversation with the design agent |
+| `design-system/` | the design system's own copies of the files a design-system card ports |
 
 Read the sources the task actually touches. Do not assume any one of them is
 complete, and do not treat a page as authoritative just because it is written
@@ -58,33 +57,36 @@ unless the document records a decision that has not been implemented yet.
 
 ## Session start
 
-1. Skim the open issues covering the area you are about to touch.
+1. Skim the open issues covering the area you are about to touch, if you can
+   reach GitHub. A KnowledgeNetwork-Code run cannot; its card is in its prompt.
 2. Read the files the task names, plus their neighbours in the same folder.
 3. If a spike covers the area, read its `RESULTS.md` before re-deriving it.
 
 ## Design agent
 
-A design agent works on the visual system in a Claude Design project and cannot
-write to this repo. `design-handoff/` is our side of that conversation; read
-`design-handoff/PROTOCOL.md` once — it is short, and it is the whole contract.
+A design agent works on the visual system in its own Claude Design project and
+cannot write to this repo. Everything between it and this repo goes through
+GitHub issues.
 
-Replies to the design agent go out as **GitHub issues**, not files — as of #75
-the old `design-handoff/msg/NNNN` files and `from-code.md` are retired (three
-side-by-side checkouts made hand-minted numbers and one overwrite-in-place status
-file collide). A **port divergence** — a `src/ds/**` port differing from the DS
-source — is a comment on the standing drift-log **#74**; a study, decision, or
-question is its own issue; cite the **real commit sha** in the issue when a diff
-base matters.
+- **Its work arrives as a card**: an issue labelled `design-system` that carries
+  its own `done when:`. The title keeps the `OB-nnn` id the design project gave
+  it. That id is not an issue number here, and the two often coincide by accident.
+- **The files a card ports are copied into `design-system/`** by a PR of their
+  own, merged before the card runs (#443 is the first). They are the design
+  system's copies: read them and compare against them, never edit them, and port
+  only what the card asks for.
+- **Answer on the card**: done (name the commit), declined (and why), blocked
+  (and on what), or a question. A port divergence, where a `src/ds/**` port
+  differs from its source, is a comment on the drift log **#74**. A study or a
+  question of our own is its own issue. Cite the real commit sha whenever a diff
+  base matters.
 
-As of **2026-08-18** there is a second outbound channel: **receipts written
-straight into the design project**, through the `DesignSync` tool's write methods
-(`finalize_plan` → `write_files`). A receipt answers one obligation — done with a
-commit sha, declined with a reason, blocked, or a question — and lands as
-`receipts/<sha>.md`, one file per sync run. Issues stay the channel for anything
-needing discussion, an attachment, or a third party. Inbound, the design agent
-authors in its own project and marks binding work under `## OBLIGATIONS` in its
-`design-sync.md`: **read that section before starting a run.**
-`design-handoff/PROTOCOL.md` is the whole contract — read it once.
+The design-sync channel that came before this was retired on 2026-10-20. That
+covers the `DesignSync` tool, receipts written into the design project,
+`## OBLIGATIONS` in its `design-sync.md`, the `/design-pull` skill and
+`design-handoff/`. It is in git history. The `OB-nnn` and `receipts/<sha>.md`
+citations in code comments stay as history; there is nothing to read behind them
+from here.
 
 ## This repo's role
 

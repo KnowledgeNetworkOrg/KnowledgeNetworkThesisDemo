@@ -15,6 +15,13 @@ use. Only the repository owner turns it off, by changing this line.
 
 These rules apply across the KnowledgeNetwork projects; this is this repository's copy.
 
+**A pull request opened by a KnowledgeNetwork-Code run is reviewed inside the run.** The
+run's review step is the reviewer that did not write the change (rule 1), its review loop is
+the rounds (rule 4), and the pull request description the run writes is the record (rule 2).
+An agent working as one of the run's steps does not start reviewers or post a closing
+comment. Commits pushed to that branch after the run are a change like any other, and rules 1
+to 4 apply to them.
+
 1. **Every pull request is reviewed by two or more agents before it merges.** The agent that
    wrote the change is one of them, and at least one other reviews it. A reviewer may be a
    CLI coding tool or a desktop app. A separate session counts as another agent, even on the
