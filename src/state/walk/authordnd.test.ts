@@ -84,77 +84,95 @@ const box = (key: string, steps: Stop[]): Stop => ({ key, title: key, variants: 
 const road = [L('a'), L('b'), L('c'), box('g', [L('x'), L('a')]), L('a')]
 
 describe('dropAllowed — a new node from the palette (or the map)', () => {
-  test('a twin directly above or below refuses the gap', () => {
-    expect(dropAllowed(road, 'pal:b', [1])).toBe(false) // a | b  — b below
-    expect(dropAllowed(road, 'pal:b', [2])).toBe(false) // b | c  — b above
+  test('a twin directly above or below refuses the gap as adjacent', () => {
+    expect(dropAllowed(road, 'pal:b', [1])).toBe('adjacent') // a | b  — b below
+    expect(dropAllowed(road, 'pal:b', [2])).toBe('adjacent') // b | c  — b above
   })
 
   test('every other gap takes it', () => {
-    expect(dropAllowed(road, 'pal:b', [0])).toBe(true)
-    expect(dropAllowed(road, 'pal:b', [3])).toBe(true)
-    expect(dropAllowed(road, 'pal:b', [5])).toBe(true)
+    expect(dropAllowed(road, 'pal:b', [0])).toBeNull()
+    expect(dropAllowed(road, 'pal:b', [3])).toBeNull()
+    expect(dropAllowed(road, 'pal:b', [5])).toBeNull()
   })
 
   test('the first and last slots have one neighbour each', () => {
-    expect(dropAllowed(road, 'pal:a', [0])).toBe(false) // head, a below
-    expect(dropAllowed(road, 'pal:a', [5])).toBe(false) // tail, a above
-    expect(dropAllowed(road, 'pal:c', [5])).toBe(true)
+    expect(dropAllowed(road, 'pal:a', [0])).toBe('adjacent') // head, a below
+    expect(dropAllowed(road, 'pal:a', [5])).toBe('adjacent') // tail, a above
+    expect(dropAllowed(road, 'pal:c', [5])).toBeNull()
   })
 
   test('the same node elsewhere in the walk is fine — only adjacency is refused', () => {
-    expect(dropAllowed(road, 'pal:a', [2])).toBe(true) // b | c, with an `a` two steps away
+    expect(dropAllowed(road, 'pal:a', [2])).toBeNull() // b | c, with an `a` two steps away
   })
 
   test('a group beside the gap blocks nothing, whatever it holds', () => {
     // g holds x first — a group is never compared by its contents
-    expect(dropAllowed(road, 'pal:x', [3])).toBe(true)
-    expect(dropAllowed(road, 'pal:a', [4])).toBe(false) // …but the leaf `a` below the group still counts
-    expect(dropAllowed(road, 'pal:c', [4])).toBe(true)
+    expect(dropAllowed(road, 'pal:x', [3])).toBeNull()
+    expect(dropAllowed(road, 'pal:a', [4])).toBe('adjacent') // …but the leaf `a` below the group still counts
+    expect(dropAllowed(road, 'pal:c', [4])).toBeNull()
   })
 
   test('an unset slot beside the gap blocks nothing', () => {
     const r = [L('a'), UNSET, L('b')]
-    expect(dropAllowed(r, 'pal:a', [1])).toBe(false) // a | picker
-    expect(dropAllowed(r, 'pal:a', [2])).toBe(true) // picker | b
-    expect(dropAllowed([UNSET, UNSET], 'pal:a', [1])).toBe(true)
+    expect(dropAllowed(r, 'pal:a', [1])).toBe('adjacent') // a | picker
+    expect(dropAllowed(r, 'pal:a', [2])).toBeNull() // picker | b
+    expect(dropAllowed([UNSET, UNSET], 'pal:a', [1])).toBeNull()
   })
 
   test("inside a group, the group's own list is the one read", () => {
-    expect(dropAllowed(road, 'pal:x', [3, 0, 0])).toBe(false) // head of g, x below
-    expect(dropAllowed(road, 'pal:a', [3, 0, 2])).toBe(false) // tail of g, a above
-    expect(dropAllowed(road, 'pal:c', [3, 0, 1])).toBe(true)
+    expect(dropAllowed(road, 'pal:x', [3, 0, 0])).toBe('adjacent') // head of g, x below
+    expect(dropAllowed(road, 'pal:a', [3, 0, 2])).toBe('adjacent') // tail of g, a above
+    expect(dropAllowed(road, 'pal:c', [3, 0, 1])).toBeNull()
   })
 })
 
 describe('dropAllowed — a block already on the road', () => {
   test('dropping a node back where it stands is allowed', () => {
-    expect(dropAllowed(road, 'blk:b.1', [1])).toBe(true)
-    expect(dropAllowed(road, 'blk:b.1', [2])).toBe(true)
+    expect(dropAllowed(road, 'blk:b.1', [1])).toBeNull()
+    expect(dropAllowed(road, 'blk:b.1', [2])).toBeNull()
   })
 
   test('the moved block leaves its list first, so the gap it lands in is judged without it', () => {
     // the last `a` moved up to sit between a and b — refused; between c and g — fine
-    expect(dropAllowed(road, 'blk:b.4', [1])).toBe(false)
-    expect(dropAllowed(road, 'blk:b.4', [3])).toBe(true)
+    expect(dropAllowed(road, 'blk:b.4', [1])).toBe('adjacent')
+    expect(dropAllowed(road, 'blk:b.4', [3])).toBeNull()
     // the first `a` moved to the tail lands beside the other `a`
-    expect(dropAllowed(road, 'blk:b.0', [5])).toBe(false)
+    expect(dropAllowed(road, 'blk:b.0', [5])).toBe('adjacent')
   })
 
   test('a move from another list leaves the landing list as it is', () => {
     // the `a` inside g, lifted out to the root
-    expect(dropAllowed(road, 'blk:b.3.0.1', [5])).toBe(false)
-    expect(dropAllowed(road, 'blk:b.3.0.1', [1])).toBe(false)
-    expect(dropAllowed(road, 'blk:b.3.0.1', [2])).toBe(true)
+    expect(dropAllowed(road, 'blk:b.3.0.1', [5])).toBe('adjacent')
+    expect(dropAllowed(road, 'blk:b.3.0.1', [1])).toBe('adjacent')
+    expect(dropAllowed(road, 'blk:b.3.0.1', [2])).toBeNull()
   })
 
-  test('a group or an unset slot is never refused — the rule has no id for it', () => {
-    expect(dropAllowed(road, 'blk:b.3', [0])).toBe(true)
-    expect(dropAllowed([L('a'), UNSET, L('a')], 'blk:b.1', [0])).toBe(true)
+  test('a group or an unset slot is never refused by adjacency — the rule has no id for it', () => {
+    expect(dropAllowed(road, 'blk:b.3', [0])).toBeNull()
+    expect(dropAllowed([L('a'), UNSET, L('a')], 'blk:b.1', [0])).toBeNull()
   })
 
   test('a route pulled out of a fork, or a payload nobody knows, is never refused', () => {
-    expect(dropAllowed(road, 'var:b.3~0', [0])).toBe(true)
-    expect(dropAllowed(road, '', [0])).toBe(true)
+    expect(dropAllowed(road, 'var:b.3~0', [0])).toBeNull()
+    expect(dropAllowed(road, '', [0])).toBeNull()
+  })
+})
+
+describe('dropAllowed — a group dragged into itself', () => {
+  test('a gap between the dragged group\'s own stops is inside itself', () => {
+    expect(dropAllowed(road, 'blk:b.3', [3, 0, 1])).toBe('inside')
+    expect(dropAllowed(road, 'blk:b.3', [3, 0, 0])).toBe('inside')
+    expect(dropAllowed(road, 'blk:b.3', [3, 0, 2])).toBe('inside')
+  })
+
+  test('the group back at its own place, or beside itself, is not inside', () => {
+    expect(dropAllowed(road, 'blk:b.3', [3])).toBeNull()
+    expect(dropAllowed(road, 'blk:b.3', [4])).toBeNull()
+  })
+
+  test('a group whose path is not a prefix of the gap is judged by adjacency as before', () => {
+    expect(dropAllowed(road, 'blk:b.3', [1])).toBeNull()
+    expect(dropAllowed(road, 'blk:b.4', [1])).toBe('adjacent')
   })
 })
 
@@ -169,23 +187,28 @@ describe('draggedNode', () => {
 })
 
 describe('refusedAt — the picker filling its own slot (OB-220)', () => {
-  test('a slot between two resolved stops refuses exactly those two', () => {
-    expect(refusedAt([L('a'), UNSET, L('b')], [1], [1])).toEqual(['a', 'b'])
+  test('a slot between two resolved stops refuses exactly those two, as adjacent', () => {
+    expect(refusedAt([L('a'), UNSET, L('b')], [1], [1])).toEqual({ ids: ['a', 'b'], reason: 'adjacent' })
   })
 
   test('with a picker on one side, only the resolved side is refused', () => {
-    expect(refusedAt([L('a'), UNSET, UNSET, L('b')], [1], [1])).toEqual(['a'])
-    expect(refusedAt([L('a'), UNSET, UNSET, L('b')], [2], [2])).toEqual(['b'])
+    expect(refusedAt([L('a'), UNSET, UNSET, L('b')], [1], [1])).toEqual({ ids: ['a'], reason: 'adjacent' })
+    expect(refusedAt([L('a'), UNSET, UNSET, L('b')], [2], [2])).toEqual({ ids: ['b'], reason: 'adjacent' })
   })
 
   test('at either end of a list, the one neighbour it has', () => {
-    expect(refusedAt([UNSET, L('b')], [0], [0])).toEqual(['b'])
-    expect(refusedAt([L('a'), UNSET], [1], [1])).toEqual(['a'])
-    expect(refusedAt([UNSET], [0], [0])).toEqual([])
+    expect(refusedAt([UNSET, L('b')], [0], [0])).toEqual({ ids: ['b'], reason: 'adjacent' })
+    expect(refusedAt([L('a'), UNSET], [1], [1])).toEqual({ ids: ['a'], reason: 'adjacent' })
+    expect(refusedAt([UNSET], [0], [0])).toEqual({ ids: [], reason: null })
   })
 
   test('a group beside the slot refuses nothing', () => {
-    expect(refusedAt([box('g', [L('a')]), UNSET, L('b')], [1], [1])).toEqual(['b'])
+    expect(refusedAt([box('g', [L('a')]), UNSET, L('b')], [1], [1])).toEqual({ ids: ['b'], reason: 'adjacent' })
+  })
+
+  test('a target beneath the moving block is inside, not adjacent', () => {
+    const r = [L('a'), box('g', [L('x'), L('a')]), L('b')]
+    expect(refusedAt(r, [1, 0, 1], [1])).toEqual({ ids: [], reason: 'inside' })
   })
 })
 
@@ -246,6 +269,15 @@ describe('handleDrop re-asks the rule, and a refusal does nothing at all', () =>
     expect(ops.setCaret).not.toHaveBeenCalled()
     // stopped, so the road's catch-all cannot then append it at the end
     expect(e.stopPropagation).toHaveBeenCalled()
+  })
+
+  test('a group dragged into its own gap runs no op, so undo has nothing new', () => {
+    const { ops, state } = fakeState()
+    handleDrop(dragEvent({ readable: 'blk:b.3' }), [3, 0, 1], state)
+    expect(ops.insertNode).not.toHaveBeenCalled()
+    expect(ops.moveBlock).not.toHaveBeenCalled()
+    expect(ops.extractVariant).not.toHaveBeenCalled()
+    expect(ops.setCaret).not.toHaveBeenCalled()
   })
 
   test('allowed: the same op as ever', () => {

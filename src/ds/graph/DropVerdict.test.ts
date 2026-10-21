@@ -6,7 +6,7 @@
 
 import { describe, expect, test } from 'vitest'
 
-import { adjacentDuplicates, DropVerdict, neighboursOf, verdictPaint, VERDICT_METRICS } from './DropVerdict'
+import { adjacentDuplicates, DropVerdict, neighboursOf, REFUSAL_REASONS, verdictPaint, VERDICT_METRICS } from './DropVerdict'
 
 describe('adjacentDuplicates', () => {
   test("the obligation's own example: the nulls and the non-adjacent repeat both pass", () => {
@@ -56,6 +56,14 @@ describe('neighboursOf — the DS card table, slot by slot', () => {
 
   test('an empty list refuses nothing', () => {
     expect(neighboursOf([], 0)).toEqual([])
+  })
+})
+
+describe('REFUSAL_REASONS', () => {
+  test('the two keys are distinct sentences, and the capitalised door points at the same object', () => {
+    expect(Object.keys(REFUSAL_REASONS)).toEqual(['adjacent', 'inside'])
+    expect(REFUSAL_REASONS.adjacent).not.toBe(REFUSAL_REASONS.inside)
+    expect(DropVerdict.REASONS).toBe(REFUSAL_REASONS)
   })
 })
 

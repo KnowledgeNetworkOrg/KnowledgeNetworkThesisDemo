@@ -102,19 +102,31 @@ export function DropLine({ ok, width, direction = 'down', style }: DropLineProps
   )
 }
 
+/** THE REFUSAL SENTENCES, as code — a host passes one of these, never its own retyping.
+ *  `adjacent`: the same node twice in a row (owner, 2026-09-18). `inside`: a group dropped into
+ *  its own inside (owner, 2026-10-01) — "already adjacent" was the only sentence and was wrong
+ *  there; two words, like its sibling, because it is read in motion. */
+export const REFUSAL_REASONS = { adjacent: 'already adjacent', inside: 'inside itself' }
+
+export type RefusalReason = keyof typeof REFUSAL_REASONS
+
 export interface DropRefusalProps {
   /** the sentence. **MUST BE SIDE-FREE** — the same refusal happens dragging a node above its
    *  twin or below it, so anything naming a side ("already the step above") is wrong half the
    *  time, and this component is never told which neighbour it is refusing.
    *
-   *  Default and shipped wording: `'already adjacent'` (owner, 2026-09-18). It describes the
-   *  RELATIONSHIP rather than the node, so it cannot be read as "this node is a copy" — a live
-   *  misreading in a corpus where nodes genuinely can be duplicated and versioned. `'duplicate
-   *  node'` was the owner's first wording and was changed for exactly that reason; do not
-   *  reintroduce it as a default.
+   *  Default and shipped wording: `REFUSAL_REASONS.adjacent` (owner, 2026-09-18). It describes
+   *  the RELATIONSHIP rather than the node, so it cannot be read as "this node is a copy" — a
+   *  live misreading in a corpus where nodes genuinely can be duplicated and versioned.
+   *  `'duplicate node'` was the owner's first wording and was changed for exactly that reason;
+   *  do not reintroduce it as a default.
    *
    *  ONE LINE. It never wraps — it is read in motion under a moving pointer. A sentence long
-   *  enough to need two lines is a sentence that belongs somewhere else */
+   *  enough to need two lines is a sentence that belongs somewhere else.
+   *
+   *  PASS ONE OF `REFUSAL_REASONS`, never a retyped string: `adjacent` ('already adjacent') for
+   *  the same node twice in a row, `inside` ('inside itself') for a group dropped into its own
+   *  inside (owner, 2026-10-01) */
   reason?: string
   /** merged last onto the pill — for a host's placement, never for its paint */
   style?: CSSProperties
@@ -141,7 +153,7 @@ export interface DropRefusalProps {
  *
  * ONE LINE, NEVER WRAPPING. It is read in motion, under a moving pointer.
  */
-export function DropRefusal({ reason = 'already adjacent', style }: DropRefusalProps) {
+export function DropRefusal({ reason = REFUSAL_REASONS.adjacent, style }: DropRefusalProps) {
   const p = verdictPaint(false)
   return (
     <span role="status" style={{
@@ -196,4 +208,4 @@ export function neighboursOf(ids: (string | null)[], at: number): string[] {
  *  and the metrics are published here as well as on their own names — a card, a contract or a
  *  port that reads `verdictPaint` off the namespace would find nothing there. Same function
  *  objects, not copies. */
-export const DropVerdict = { paint: verdictPaint, METRICS: VERDICT_METRICS, adjacentDuplicates, neighboursOf }
+export const DropVerdict = { paint: verdictPaint, METRICS: VERDICT_METRICS, REASONS: REFUSAL_REASONS, adjacentDuplicates, neighboursOf }
