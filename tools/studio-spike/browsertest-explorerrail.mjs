@@ -53,6 +53,31 @@ const selId = () => page.evaluate(() => document.querySelector('svg[data-nested]
 const park = async () => { await page.mouse.move(5, 5); await page.waitForTimeout(140) }
 /** cross INTO a target rather than teleporting onto it — see the note at the top */
 const glideTo = async (p) => { await page.mouse.move(p.x, p.y, { steps: 14 }); await page.waitForTimeout(300) }
+/** everything the separator at `sel` paints on its own, itself, every element inside it, and
+ *  their `::before`/`::after`: a background, a border, a shadow or an outline. Empty means the
+ *  seam is blank. A colour counts as blank only when its alpha is 0, however the browser spells
+ *  it: `transparent`, `rgba(…, 0)`, or a `color()`/`oklch()` ending `/ 0`. */
+const seamPaint = (page, sel) => page.evaluate((s) => {
+  const sep = document.querySelector(s)
+  if (!sep) return ['no separator']
+  const clear = (c) => c === 'transparent' || /^rgba\(.*,\s*0\)$/.test(c) || /\/\s*0\)$/.test(c)
+  const out = []
+  for (const el of [sep, ...sep.querySelectorAll('*')]) {
+    for (const pseudo of [null, '::before', '::after']) {
+      const cs = getComputedStyle(el, pseudo)
+      if (pseudo && (cs.content === 'none' || cs.content === 'normal')) continue
+      const tag = (el === sep ? 'separator' : el.tagName.toLowerCase()) + (pseudo || '')
+      if (!clear(cs.backgroundColor)) out.push(`${tag} background ${cs.backgroundColor}`)
+      if (cs.backgroundImage !== 'none') out.push(`${tag} background-image`)
+      for (const e of ['Top', 'Right', 'Bottom', 'Left']) {
+        if (cs['border' + e + 'Style'] !== 'none' && parseFloat(cs['border' + e + 'Width']) > 0 && !clear(cs['border' + e + 'Color'])) out.push(`${tag} border-${e.toLowerCase()} ${cs['border' + e + 'Width']}`)
+      }
+      if (cs.boxShadow !== 'none') out.push(`${tag} box-shadow ${cs.boxShadow}`)
+      if (cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0 && !clear(cs.outlineColor)) out.push(`${tag} outline ${cs.outlineWidth}`)
+    }
+  }
+  return out
+}, sel)
 /** the pill box is the row's first child; its background IS the wash under test */
 const pillWash = (id) => page.evaluate((id) => {
   const row = document.querySelector(`[data-explorer-rail] [data-node-id="${id}"]`)
@@ -254,47 +279,40 @@ if (railBox && (await sep.count()) === 1) {
 
   /* OB-253 done-when 2, the Explorer half: the seam widens the rail up to `min(360, pane − 190)`
      and no further. The pane is the box `usePaneWidth` measures (the rail wrapper's parent), and
-     both numbers come from the DOM. At this window the map pane is far wider than 550, so the
-     360 stretch is what binds; the `pane − keep` side is the Relations driver's, where a 1280
-     window makes it bind. */
-  const sb2 = await sep.first().boundingBox()
-  await page.mouse.move(sb2.x + sb2.width / 2, sb2.y + sb2.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(sb2.x + sb2.width / 2 + 600, sb2.y + sb2.height / 2, { steps: 12 })
-  await page.mouse.up()
-  await page.waitForTimeout(300)
-  const stop = await page.evaluate(() => {
-    const rail = document.querySelector('[data-explorer-rail]')
-    return { pane: rail.parentElement.getBoundingClientRect().width, rail: rail.querySelector('[role="separator"]').parentElement.getBoundingClientRect().width }
-  })
-  const want = Math.min(360, stop.pane - 190)
-  ok('dragged far past its stop, the Explorer rail widens to min(360, pane − 190) and no further', Math.abs(stop.rail - want) <= 2, JSON.stringify({ rail: Math.round(stop.rail), pane: Math.round(stop.pane), stop: Math.round(want) }))
-  await sep.first().dblclick()
-  await page.waitForTimeout(300)
-  const back2 = (await page.locator('[data-explorer-rail]').boundingBox()).width
-  ok('…and double-click fits it back from there', Math.abs(back2 - railBox.width) <= 2, `${back2} vs ${railBox.width}`)
+     both numbers come from the DOM. Run at two windows, so that each side of the `min` binds once:
+     at 1750 the map pane (about 670) is wider than 550 and the 360 stretch binds; at 1280 it is
+     about 460, and `pane − 190` stops the rail first. */
+  for (const vw of [1750, 1280]) {
+    await page.setViewportSize({ width: vw, height: 950 })
+    await page.waitForTimeout(400)
+    const fitW = await page.evaluate(() => document.querySelector('[data-explorer-rail] [role="separator"]').parentElement.getBoundingClientRect().width)
+    const sb2 = await sep.first().boundingBox()
+    await page.mouse.move(sb2.x + sb2.width / 2, sb2.y + sb2.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(sb2.x + sb2.width / 2 + 600, sb2.y + sb2.height / 2, { steps: 12 })
+    await page.mouse.up()
+    await page.waitForTimeout(300)
+    const stop = await page.evaluate(() => {
+      const rail = document.querySelector('[data-explorer-rail]')
+      return { pane: rail.parentElement.getBoundingClientRect().width, rail: rail.querySelector('[role="separator"]').parentElement.getBoundingClientRect().width }
+    })
+    const want = Math.min(360, stop.pane - 190)
+    const binds = 360 <= stop.pane - 190 ? 'stretch 360' : 'pane − 190'
+    ok(`at ${vw}px, dragged far past its stop, the Explorer rail widens to min(360, pane − 190) and no further (${binds} binds)`, Math.abs(stop.rail - want) <= 2, JSON.stringify({ rail: Math.round(stop.rail), pane: Math.round(stop.pane), stop: Math.round(want) }))
+    await sep.first().dblclick()
+    await page.waitForTimeout(300)
+    const back2 = await page.evaluate(() => document.querySelector('[data-explorer-rail] [role="separator"]').parentElement.getBoundingClientRect().width)
+    ok(`at ${vw}px, double-click fits it back from there`, Math.abs(back2 - fitW) <= 2, `${Math.round(back2)} vs ${Math.round(fitW)}`)
+  }
+  await page.setViewportSize({ width: 1750, height: 950 })
+  await page.waitForTimeout(400)
 
   /* OB-253 done-when 3, the Explorer half: at rest the seam paints nothing of its own; the 1px
      line there is the rail frame's border. The pointer moves off first, because a hovered seam
      lights its hairline. */
   await park()
   await page.waitForTimeout(300)
-  const painted = await page.evaluate(() => {
-    const sep = document.querySelector('[data-explorer-rail] [role="separator"]')
-    const out = []
-    for (const el of [sep, ...sep.querySelectorAll('*')]) {
-      const cs = getComputedStyle(el)
-      const tag = el === sep ? 'separator' : el.tagName.toLowerCase()
-      if (!/^(transparent|rgba\(0, 0, 0, 0\))$/.test(cs.backgroundColor)) out.push(`${tag} background ${cs.backgroundColor}`)
-      if (cs.backgroundImage !== 'none') out.push(`${tag} background-image`)
-      for (const e of ['Top', 'Right', 'Bottom', 'Left']) {
-        if (cs['border' + e + 'Style'] !== 'none' && parseFloat(cs['border' + e + 'Width']) > 0) out.push(`${tag} border-${e.toLowerCase()} ${cs['border' + e + 'Width']}`)
-      }
-      if (cs.boxShadow !== 'none') out.push(`${tag} box-shadow ${cs.boxShadow}`)
-      if (cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0) out.push(`${tag} outline ${cs.outlineWidth}`)
-    }
-    return out
-  })
+  const painted = await seamPaint(page, '[data-explorer-rail] [role="separator"]')
   ok('at rest, the Explorer seam paints nothing of its own', painted.length === 0, JSON.stringify(painted))
 
   /* A CLICK ON THE SEAM IS NOT A CHOICE (reviewer-found on #372). At full width a pinned fit and

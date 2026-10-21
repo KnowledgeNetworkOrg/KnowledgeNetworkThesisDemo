@@ -53,22 +53,28 @@ const ok = (name, cond, detail = '') => {
 }
 const near = (a, b, tol) => Math.abs(a - b) <= tol
 
-/** everything the separator at `sel` paints on its own, itself and every element inside it: a
- *  background, a border, a shadow or an outline. Empty means the seam is blank. */
+/** everything the separator at `sel` paints on its own, itself, every element inside it, and
+ *  their `::before`/`::after`: a background, a border, a shadow or an outline. Empty means the
+ *  seam is blank. A colour counts as blank only when its alpha is 0, however the browser spells
+ *  it: `transparent`, `rgba(…, 0)`, or a `color()`/`oklch()` ending `/ 0`. */
 const seamPaint = (page, sel) => page.evaluate((s) => {
   const sep = document.querySelector(s)
   if (!sep) return ['no separator']
+  const clear = (c) => c === 'transparent' || /^rgba\(.*,\s*0\)$/.test(c) || /\/\s*0\)$/.test(c)
   const out = []
   for (const el of [sep, ...sep.querySelectorAll('*')]) {
-    const cs = getComputedStyle(el)
-    const tag = el === sep ? 'separator' : el.tagName.toLowerCase()
-    if (!/^(transparent|rgba\(0, 0, 0, 0\))$/.test(cs.backgroundColor)) out.push(`${tag} background ${cs.backgroundColor}`)
-    if (cs.backgroundImage !== 'none') out.push(`${tag} background-image`)
-    for (const e of ['Top', 'Right', 'Bottom', 'Left']) {
-      if (cs['border' + e + 'Style'] !== 'none' && parseFloat(cs['border' + e + 'Width']) > 0) out.push(`${tag} border-${e.toLowerCase()} ${cs['border' + e + 'Width']}`)
+    for (const pseudo of [null, '::before', '::after']) {
+      const cs = getComputedStyle(el, pseudo)
+      if (pseudo && (cs.content === 'none' || cs.content === 'normal')) continue
+      const tag = (el === sep ? 'separator' : el.tagName.toLowerCase()) + (pseudo || '')
+      if (!clear(cs.backgroundColor)) out.push(`${tag} background ${cs.backgroundColor}`)
+      if (cs.backgroundImage !== 'none') out.push(`${tag} background-image`)
+      for (const e of ['Top', 'Right', 'Bottom', 'Left']) {
+        if (cs['border' + e + 'Style'] !== 'none' && parseFloat(cs['border' + e + 'Width']) > 0 && !clear(cs['border' + e + 'Color'])) out.push(`${tag} border-${e.toLowerCase()} ${cs['border' + e + 'Width']}`)
+      }
+      if (cs.boxShadow !== 'none') out.push(`${tag} box-shadow ${cs.boxShadow}`)
+      if (cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0 && !clear(cs.outlineColor)) out.push(`${tag} outline ${cs.outlineWidth}`)
     }
-    if (cs.boxShadow !== 'none') out.push(`${tag} box-shadow ${cs.boxShadow}`)
-    if (cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0) out.push(`${tag} outline ${cs.outlineWidth}`)
   }
   return out
 }, sel)
