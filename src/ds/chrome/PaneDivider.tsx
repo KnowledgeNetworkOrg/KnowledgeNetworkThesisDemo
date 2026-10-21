@@ -105,7 +105,7 @@ export function deskBounds({ sizes = [], index = 0, fits = [] }: {
   }
 }
 
-/** THE DRAG HANDLE BETWEEN TWO PANES — a 14px hit strip drawing a 1px hairline, `col-resize`,
+/** THE DRAG HANDLE BETWEEN TWO PANES — a 14px hit strip drawing a 1px hairline, `ew-resize`,
  *  reporting the pointer's px travel and nothing else.
  *
  *  WHAT IT REPORTS, and why it is a DELTA rather than a width: the handle does not know what the
@@ -246,7 +246,9 @@ export function PaneDivider({ orientation = 'vertical', onDrag, onDragEnd, onRes
       style={{
         flex: 'none', position: 'relative', outline: 'none', touchAction: 'none',
         ...(vertical ? { width: D.hit, alignSelf: 'stretch' } : { height: D.hit, width: '100%' }),
-        cursor: disabled ? 'default' : (vertical ? 'col-resize' : 'row-resize'),
+        /* `ew-resize` / `ns-resize`, the system's own arrows (owner 2026-10-20): Chrome on Windows
+           draws its column and row resize cursors as a grey bitmap of its own, which read as "half greyed out" */
+        cursor: disabled ? 'default' : (vertical ? 'ew-resize' : 'ns-resize'),
         /* THE WHOLE STRIP DOES NOT PAINT. A 14px band in any tint reads as a gutter between two
            documents; the hairline is the only mark, and it thickens rather than lighting a box. */
         ...style,
@@ -260,7 +262,7 @@ export function PaneDivider({ orientation = 'vertical', onDrag, onDragEnd, onRes
            two panes is already drawn — by the two panes' own frames — so a resting hairline in the
            gutter is a THIRD line saying what the first two say. The mark is the answer to a
            gesture rather than furniture: it fades in under the pointer, on keyboard focus (`lit`
-           covers both) and while dragging. The strip keeps its 14px and its `col-resize`, so the
+           covers both) and while dragging. The strip keeps its 14px and its resize cursor, so the
            boundary is still found the way a boundary is found. */
         background: dragging ? 'var(--accent-primary)' : lit ? 'var(--border-frame)' : 'transparent',
         transition: 'background var(--dur-hover) var(--ease-soft), width .12s var(--ease-soft), height .12s var(--ease-soft)',

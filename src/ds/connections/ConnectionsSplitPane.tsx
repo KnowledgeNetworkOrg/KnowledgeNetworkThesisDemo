@@ -536,7 +536,7 @@ export function ConnectionsSplitPane({ tree, domain, selected, selectedId, onSel
           onDoubleClick={(collapsed || narrow) ? undefined : fitToContent}
           onClick={collapsed ? () => setCollapsed(false) : undefined}
           title={wrapTip(collapsed ? 'show contains' : 'drag to resize · double-click to fit')}
-          style={{ flex: 'none', width: PM.divider, cursor: (collapsed || narrow) ? 'pointer' : 'col-resize', position: 'relative' }}
+          style={{ flex: 'none', width: PM.divider, cursor: (collapsed || narrow) ? 'pointer' : 'ew-resize', position: 'relative' }}
         >
           {(collapsed || narrow) ? null : (
             <div style={{ position: 'absolute', top: 0, bottom: 0, left: 6, width: 1, background: dragging ? 'var(--accent-primary)' : 'var(--border-hair)' }} />
