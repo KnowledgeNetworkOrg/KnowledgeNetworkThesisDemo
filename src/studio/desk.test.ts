@@ -118,7 +118,7 @@ describe('OB-170 — a reset belongs to its seam and goes through the clamp', ()
     expect(partial.atPreset).toBe(false)
   })
 
-  it('stops at a floor instead of restoring the split under it (Plan, walk editor at its floor)', () => {
+  it('stops at a floor instead of restoring the split under it (Plan, every pane at its floor)', () => {
     // Plan opens 1.6 : 2 : 2. With every pane at its own floor, the map and the document
     // hold too little for a 1:1 split to keep the document at its rail floor.
     const plan = PRESETS.find((p) => p.id === 'plan')!
