@@ -25,7 +25,7 @@ import { AppHeader, CountBadge, deskBounds, EDGE_TOKEN, FamilyColumn, FIRST_SCRO
 import type { EdgeKind, LoadChoice, LoadMap } from '@/ds'
 
 import { byId, ROOT_ID, topicHueOf } from '../corpus/graph'
-import { discardDraftEdits, saveDraftAsWalk, useDraftUnsaved } from '../state/walk/authordraft'
+import { forgetDraftUnsaved, saveDraftAsWalk, useDraftUnsaved } from '../state/walk/authordraft'
 import { listWalks, subscribeWalks } from '../state/walkstore'
 import { platform } from '../platform'
 import PresenterScreen from '../present/PresenterScreen'
@@ -79,6 +79,12 @@ const PALETTE_ANIM_MS = 400
  *  which hop of the FLIP it is on — `measuring` and `shrink` exist only for
  *  opening, which has to be measured at rest before it can start shrunk. */
 type PaletteAnim = { dir: 'closing' | 'opening'; phase: 'measuring' | 'shrink' | 'grow' | 'go'; dx: number; dy: number }
+
+/** "2026-10-21 17:20" in local time: one fixed form, whatever the system locale */
+const localStamp = (d: Date) => {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
 
 export default function StudioView() {
   // ── composition: which panes are on screen, and how big ───────────────────
@@ -405,8 +411,8 @@ export default function StudioView() {
     // The draft is never unsaved while it resolves to no stops, so a save from the
     // warning always writes a walk. It is named by the time it was taken, so saves
     // made this way stay apart in the Load list rather than all reading "untitled walk".
-    if (how === 'save') saveDraftAsWalk('walk draft, ' + new Date().toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }))
-    else if (how === 'discard') discardDraftEdits()
+    if (how === 'save') saveDraftAsWalk('walk draft, ' + localStamp(new Date()))
+    else if (how === 'discard') forgetDraftUnsaved()
     applyLoadChoice(bus, choice)
   }
 

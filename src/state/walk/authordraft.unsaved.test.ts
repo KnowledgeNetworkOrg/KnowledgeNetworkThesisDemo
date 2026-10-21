@@ -51,20 +51,15 @@ describe('useDraftUnsaved — edits since the baseline', () => {
     expect(probe(mod).unsaved).toBeUndefined()
   })
 
-  it('discarding puts the draft back to its baseline, and undo brings the edit back', async () => {
+  it('loading without saving leaves the draft as it is and stops warning about it', async () => {
     const mod = await import('./authordraft')
-    const before = probe(mod).draft.stops
     probe(mod).draft.insertNode('stk-dns-naming')
     const edited = probe(mod).draft.stops
     expect(probe(mod).unsaved).toBe('The walk draft')
 
-    mod.discardDraftEdits()
-    expect(probe(mod).draft.stops).toBe(before)
-    expect(probe(mod).unsaved).toBeUndefined()
-
-    mod.undoDraft()
+    mod.forgetDraftUnsaved()
     expect(probe(mod).draft.stops).toBe(edited)
-    expect(probe(mod).unsaved).toBe('The walk draft')
+    expect(probe(mod).unsaved).toBeUndefined()
   })
 
   it('a draft with no stops left is not unsaved, since a save would keep nothing', async () => {

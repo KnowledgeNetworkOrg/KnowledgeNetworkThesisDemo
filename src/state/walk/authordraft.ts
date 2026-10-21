@@ -201,16 +201,12 @@ const markSaved = () => {
   refreshDirty()
 }
 
-/** put the draft back to its baseline: "Load without saving" means the edits are
- *  lost, as the warning says. The tree goes back through commitStops, so Ctrl+Z
- *  can still bring the edits back. */
-export function discardDraftEdits(): void {
-  commitStops(baseStops)
-  selectedStore.set(new Set())
-  caretStore.set(null)
-  choicesStore.set(baseChoices)
-  optionalsStore.set(baseOptionals)
-}
+/** "Load without saving": the draft's edits stop counting as unsaved, and the
+ *  draft itself is left as it is. Putting it back to the baseline would be the
+ *  literal reading of the warning, but the walk editor publishes the draft's road
+ *  on every change (usePublishPresentedRoute), so a revert made during a Load
+ *  would overwrite the walk that was just loaded on the bus. */
+export const forgetDraftUnsaved = (): void => markSaved()
 
 /** the name of what holds unsaved changes, or undefined when nothing is edited */
 export function useDraftUnsaved(): string | undefined {
