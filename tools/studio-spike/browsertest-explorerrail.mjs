@@ -252,6 +252,51 @@ if (railBox && (await sep.count()) === 1) {
   const back = (await page.locator('[data-explorer-rail]').boundingBox()).width
   ok('double-click returns the seam to the rail\'s own fit', Math.abs(back - railBox.width) <= 2, `${grown} -> ${back}`)
 
+  /* OB-253 done-when 2, the Explorer half: the seam widens the rail up to `min(360, pane − 190)`
+     and no further. The pane is the box `usePaneWidth` measures (the rail wrapper's parent), and
+     both numbers come from the DOM. At this window the map pane is far wider than 550, so the
+     360 stretch is what binds; the `pane − keep` side is the Relations driver's, where a 1280
+     window makes it bind. */
+  const sb2 = await sep.first().boundingBox()
+  await page.mouse.move(sb2.x + sb2.width / 2, sb2.y + sb2.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(sb2.x + sb2.width / 2 + 600, sb2.y + sb2.height / 2, { steps: 12 })
+  await page.mouse.up()
+  await page.waitForTimeout(300)
+  const stop = await page.evaluate(() => {
+    const rail = document.querySelector('[data-explorer-rail]')
+    return { pane: rail.parentElement.getBoundingClientRect().width, rail: rail.querySelector('[role="separator"]').parentElement.getBoundingClientRect().width }
+  })
+  const want = Math.min(360, stop.pane - 190)
+  ok('dragged far past its stop, the Explorer rail widens to min(360, pane − 190) and no further', Math.abs(stop.rail - want) <= 2, JSON.stringify({ rail: Math.round(stop.rail), pane: Math.round(stop.pane), stop: Math.round(want) }))
+  await sep.first().dblclick()
+  await page.waitForTimeout(300)
+  const back2 = (await page.locator('[data-explorer-rail]').boundingBox()).width
+  ok('…and double-click fits it back from there', Math.abs(back2 - railBox.width) <= 2, `${back2} vs ${railBox.width}`)
+
+  /* OB-253 done-when 3, the Explorer half: at rest the seam paints nothing of its own; the 1px
+     line there is the rail frame's border. The pointer moves off first, because a hovered seam
+     lights its hairline. */
+  await park()
+  await page.waitForTimeout(300)
+  const painted = await page.evaluate(() => {
+    const sep = document.querySelector('[data-explorer-rail] [role="separator"]')
+    const out = []
+    for (const el of [sep, ...sep.querySelectorAll('*')]) {
+      const cs = getComputedStyle(el)
+      const tag = el === sep ? 'separator' : el.tagName.toLowerCase()
+      if (!/^(transparent|rgba\(0, 0, 0, 0\))$/.test(cs.backgroundColor)) out.push(`${tag} background ${cs.backgroundColor}`)
+      if (cs.backgroundImage !== 'none') out.push(`${tag} background-image`)
+      for (const e of ['Top', 'Right', 'Bottom', 'Left']) {
+        if (cs['border' + e + 'Style'] !== 'none' && parseFloat(cs['border' + e + 'Width']) > 0) out.push(`${tag} border-${e.toLowerCase()} ${cs['border' + e + 'Width']}`)
+      }
+      if (cs.boxShadow !== 'none') out.push(`${tag} box-shadow ${cs.boxShadow}`)
+      if (cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0) out.push(`${tag} outline ${cs.outlineWidth}`)
+    }
+    return out
+  })
+  ok('at rest, the Explorer seam paints nothing of its own', painted.length === 0, JSON.stringify(painted))
+
   /* A CLICK ON THE SEAM IS NOT A CHOICE (reviewer-found on #372). At full width a pinned fit and
      the fit itself draw the same number, so the check narrows the window until the rail shrinks
      below its own max, clicks without moving, and widens again: the rail must grow back. It
