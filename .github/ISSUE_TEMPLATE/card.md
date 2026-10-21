@@ -21,4 +21,5 @@ about: One change, small enough for one run to finish and one review to read
 `node tools/studio-spike/browsertest-<name>.mjs`. Name the drivers that cover the change,
 not "every driver passes". -->
 
-**Owner looks:** <!-- what only a person can judge, or "nothing" -->
+**Owner looks:** <!-- what only a person can judge, or "nothing". A `[owner looks]` line
+inside done when, as the design agent's cards write it, means the same. -->

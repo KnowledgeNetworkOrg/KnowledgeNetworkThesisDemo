@@ -70,7 +70,7 @@ GitHub issues.
 
 - **Its work arrives as a card**: an issue labelled `design-system` that carries
   its own `done when:`. The title keeps the `OB-nnn` id the design project gave
-  it. That id is not an issue number here, and the two often coincide by accident.
+  it. That id is not an issue number here, and the two can coincide by accident.
 - **The files a card ports are copied into `design-system/`** by a PR of their
   own, merged before the card runs (#443 is the first). They are the design
   system's copies: read them and compare against them, never edit them, and port
@@ -79,7 +79,8 @@ GitHub issues.
   (and on what), or a question. A port divergence, where a `src/ds/**` port
   differs from its source, is a comment on the drift log **#74**. A study or a
   question of our own is its own issue. Cite the real commit sha whenever a diff
-  base matters.
+  base matters. A KnowledgeNetwork-Code run cannot post: it says these things in
+  its reply, they reach its pull request, and the owner answers on the card.
 
 The design-sync channel that came before this was retired on 2026-10-20. That
 covers the `DesignSync` tool, receipts written into the design project,

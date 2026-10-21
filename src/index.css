@@ -44,7 +44,8 @@
    warm surfaces. The 4-level per-depth well tint collapses onto the DS's two
    sunken surfaces (depth 0 → --surface-sunken, deeper → --surface-sunken-2) —
    flagged to the design agent — originally through design-handoff/msg/, a
-   channel retired in #75. See design-handoff/PROTOCOL.md for the current one. */
+   channel retired in #75. Design work now arrives as `design-system` issues
+   (CLAUDE.md). */
 @theme {
   /* a GROUP is recessed: depth 0 sinks one step, deeper nesting the second */
   --surface-well-1: var(--surface-sunken);

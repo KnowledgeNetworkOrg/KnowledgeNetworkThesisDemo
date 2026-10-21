@@ -34,10 +34,10 @@ npm run dev
 ```text
 KnowledgeNetworkThesisDemo/
 ├── src/
-│   ├── corpus/              # the hand-authored graph: nodes, deep layers, documents, walks
+│   ├── corpus/              # the two corpora (teaching, hand-authored; courses, generated) and graph.ts, which picks one
 │   ├── model/               # pure derivations — layouts, lenses, visibility, nav helpers
 │   ├── instruments/         # one file per navigation view (map, walk, tree, plex, trail, …)
-│   ├── studio/              # StudioView — the instrument palette + presets + sync bus
+│   ├── studio/              # StudioView — the instrument palette + presets
 │   ├── state/               # the sync bus, the walk draft and its store
 │   ├── present/             # presenter mode
 │   ├── platform/            # storage: the web build, and the contract the desktop host implements
