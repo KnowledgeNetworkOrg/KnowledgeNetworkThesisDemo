@@ -119,8 +119,8 @@ describe('OB-170 — a reset belongs to its seam and goes through the clamp', ()
   })
 
   it('stops at a floor instead of restoring the split under it (Plan, walk editor at its floor)', () => {
-    // Plan opens 1.6 : 2 : 2. With the walk editor dragged to its floor, the map and the
-    // document hold too little for a 1:1 split to keep the document at its rail floor.
+    // Plan opens 1.6 : 2 : 2. With every pane at its own floor, the map and the document
+    // hold too little for a 1:1 split to keep the document at its rail floor.
     const plan = PRESETS.find((p) => p.id === 'plan')!
     const cols = plan.active.map((id) => column(id as string))
     const fits = deskFits(cols)
@@ -129,10 +129,8 @@ describe('OB-170 — a reset belongs to its seam and goes through the clamp', ()
     const mapAt = cols.findIndex((c) => c.members[0].id === 'map')
     expect(docAt).toBe(mapAt + 1)
     const docFloor = fits[docAt].floor
-    const sizes = cols.map(() => 0)
-    sizes[docAt] = docFloor
-    sizes[mapAt] = 676 - docFloor
-    cols.forEach((_, i) => { if (i !== docAt && i !== mapAt) sizes[i] = fits[i].floor })
+    const sizes = fits.map((f) => f.floor)
+    expect(sizes[mapAt]).toBeLessThan(docFloor) // so a 1:1 split lands under the document's floor
     const next = resetSeam({ sizes, fits, index: mapAt, preset })
     expect(next.sizes[docAt]).toBeGreaterThanOrEqual(docFloor)
     expect(next.sizes.reduce((s, w) => s + w, 0)).toBeCloseTo(sizes.reduce((s, w) => s + w, 0), 9)
