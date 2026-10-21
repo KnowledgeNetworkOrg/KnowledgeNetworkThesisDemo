@@ -22,6 +22,8 @@ The card describes the config as "the stock Vite template". It has grown past th
 | `react-refresh/only-export-components` | `reactRefresh.configs.vite`; switched off for `src/ds/**` and `tools/**` | `eslint.config.js` comments explain both exemptions |
 | `no-restricted-syntax` selectors: the host-shape ban (#211, all of `src/**`) and the raw-hex / raw-px bans (#61, three files) | custom esquery selectors written in `eslint.config.js` | the config comments (#211 is "the machine half" of a sentence in `src/platform/types.ts`); `design-handoff/PROTOCOL.md` lists the #61 bans as one of the two guards that exist |
 
+(`.claude/skills/design-pull/SKILL.md` and `design-handoff/PROTOCOL.md` were removed in #457, with the design-sync channel.)
+
 That is 34 `eslint-disable` comments in 24 files (counted 2026-10-01). Each is meant
 to sit on a line where an ESLint rule fires, which would make each a free test of
 whether a second tool fires there too. That is assumed until the run checks it:

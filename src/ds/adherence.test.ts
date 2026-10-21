@@ -383,7 +383,7 @@ describe('our DS ports document what the DS documents', () => {
 // of the screen — the hardest shape there is to read. Fold it at the element that
 // sets the attribute." (OB-032 in the DS, OB-034 for the host screens.)
 //
-// A component port cannot reach this rule: `/design-sync` rewrites `src/ds/**` and
+// A component port cannot reach this rule: a port rewrites `src/ds/**` and
 // never opens a screen file, and the screens are exactly where the unbounded
 // strings live — a corpus title interpolated into a sentence, a walk's whole
 // description. So it is the host's rule, and this is the machine half of it.
