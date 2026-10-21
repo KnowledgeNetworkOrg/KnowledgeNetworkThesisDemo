@@ -37,9 +37,13 @@ This step changed locked files: src/tokens/elevation.css, src/tokens/kn-theme.cs
 
 ### 5. review — agent (claude) — succeeded
 
-22:42–22:43 UTC (41.2s).
+22:42–22:43 UTC (43.2s). Commit `c5c0bdd`.
 Ran with claude-code 2.1.306 · claude-sonnet-5-5 · effort xhigh.
+Reviewed the change in 40s: PASS. Recorded as c5c0bdd.
 
-### 6. check — agent (opencode) — waiting
+### 6. check — agent (opencode) — succeeded
+
+22:45–22:47 UTC (87.4s).
+Ran with opencode 1.18.35 · opencode-go/deepseek-v4.1-flash.
 
 ### 7. land — tool — waiting
