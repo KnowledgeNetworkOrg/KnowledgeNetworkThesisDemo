@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { adjacentDuplicates, DropVerdict, verdictPaint, ARROW_BOW_MAX_DEG, ARROW_MIN_SHAFT_HEADS, Bullet, labelCase, LabelCut, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, ExplorerRail, ExplorerRailCorner, ExplorerRailMath, explorerRailWidth, FindMark, FIRST_LINE, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_DIVIDER_METRICS, PaneDivider, paneFit, clampDesk, deskBounds, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, REPLAY_PATH, STOP_CARD_METRICS, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StepDotMath, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkComplete, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
+import { adjacentDuplicates, DropVerdict, REFUSAL_REASONS, verdictPaint, ARROW_BOW_MAX_DEG, ARROW_MIN_SHAFT_HEADS, Bullet, labelCase, LabelCut, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, ExplorerRail, ExplorerRailCorner, ExplorerRailMath, explorerRailWidth, FindMark, FIRST_LINE, FIRST_ROW_PAD, FlagButton, FlagMark, IconButton, InlineText, LeafMark, OutlineMark, PANE_DIVIDER_METRICS, PaneDivider, paneFit, clampDesk, deskBounds, PANE_RAIL_METRICS, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, RailCorner, REPLAY_PATH, STOP_CARD_METRICS, RailFrame, RailMath, RailOpenButton, RelationsMark, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StepDotMath, StopTitle, WalkParts, WalkPinHover, walkBandSpan, walkArrival, walkArrivalLag, walkComplete, walkLook, walkProgress, WALK_LOOK_DEFAULTS, chipSpec, railFloor, railFits, railWidth, segmentWalked, usePaneWidth, usedStroke, walkEase, walkHoverStyle } from '@/ds'
 import { CONNECTIONS_BODY_STYLE, ConnectionsSplitPane, OpenAncestors, RelationCards } from '@/ds'
 import { LEGEND_ROW } from '@/ds'
 import { ORBIT_METRICS,OrbitMath, PANE_PLACEHOLDER_METRICS, PREVIEW_BANNER_METRICS, RELATION_STATS_METRICS, RelationOrbit, RelationStats, RelationsRailMath, StatsMath, orbitKinds, orbitMarks, orbitWedge, statKindRows } from '@/ds'
@@ -328,6 +328,7 @@ describe('ported but not adopted DS components', () => {
   it('verdictPaint / DropVerdict / adjacentDuplicates — published with the drag verdict; no app reader', () => {
     expect(verdictPaint(true)).toEqual({ line: 'var(--verdict-yes)' })
     expect(DropVerdict.paint).toBe(verdictPaint)
+    expect(DropVerdict.REASONS).toBe(REFUSAL_REASONS)
     expect(adjacentDuplicates(['a', 'b', 'b', null, null, 'a'])).toEqual([2])
   })
 

@@ -20,10 +20,14 @@ Copied the repository and cut run/470-ob-299-a-group-dragged-over-a-gap-a32d7f2b
 
 ### 2. plan — agent (opencode) — succeeded
 
-19:19–19:21 UTC (118.1s).
+19:19–19:21 UTC (120.2s). Commit `5ee00b8`.
 Ran with opencode 1.18.35 · opencode-go/deepseek-v4.1-flash.
+Read the card and wrote a plan in 110s. Recorded as 5ee00b8.
 
-### 3. edit — agent (opencode) — waiting
+### 3. edit — agent (opencode) — succeeded
+
+19:21–19:25 UTC (233.3s).
+Ran with opencode 1.18.35 · opencode-go/deepseek-v4.1-flash.
 
 ### 4. review — agent (claude) — waiting
 

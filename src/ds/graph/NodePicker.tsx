@@ -36,7 +36,7 @@ export interface NodeOption {
    *  `DropRefusal` answers a gesture the user actually MADE, while this only explains an absence,
    *  and berry on a menu row that has done nothing wrong spends the refusal hue on nothing.
    *
-   *  For the duplicate-node rule the wording is `'already adjacent'` — the same side-free
+   *  For the duplicate-node rule the wording is `REFUSAL_REASONS.adjacent` — the same side-free
    *  sentence `DropRefusal` defaults to, so the two surfaces of one rule say one thing. Ignored
    *  without `disabled` */
   reason?: string
