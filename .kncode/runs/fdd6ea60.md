@@ -50,10 +50,14 @@ Reviewed the change in 74s: REVISE. Recorded as 7974dfb.
 
 ### 7. fix — agent (opencode) — succeeded
 
-19:33–19:34 UTC (84.8s).
+19:33–19:34 UTC (87.4s). Commit `f62e2ab`.
 Ran with opencode 1.18.35 · opencode-go/deepseek-v4.1-flash.
+Changed 1 file, 2 lines added and 2 removed in 81s. Recorded as f62e2ab.
 
-### 8. review — agent (claude) — waiting
+### 8. review — agent (claude) — succeeded
+
+19:34–19:35 UTC (29.6s).
+Ran with claude-code 2.1.306 · claude-sonnet-5-5 · effort xhigh.
 
 ### 9. check — agent (opencode) — waiting
 
