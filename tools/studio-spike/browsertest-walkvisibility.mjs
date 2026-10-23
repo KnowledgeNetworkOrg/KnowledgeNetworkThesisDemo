@@ -70,6 +70,13 @@ const eye = () => page.getByLabel(/^(hide|show) the walk$/)
 const trail = page.locator('[aria-label="trail-strip"]')
 const playButtons = () => trail.getByRole('button').filter({ hasText: '▶' })
 const stopWalk = async () => { await trail.getByLabel('stop this walk').click(); await page.waitForTimeout(400) }
+// picking a preset closes the palette; reopen it from the toolbar before the next pick
+const openPalette = async () => {
+  if ((await page.locator('[aria-label="studio-sidebar"]').count()) === 0) {
+    await page.locator('[data-toolbar-hook="palette-toggle"]').click()
+    await page.waitForTimeout(400)
+  }
+}
 
 // ── the desk: the map, plus the Trail to switch walks with ───────────────────
 await page.getByLabel('studio-preset-explore').click()
@@ -147,6 +154,21 @@ ok('coming back to walk A finds it still hidden (per-walk state)', !(await drawn
 await eye().click()
 await page.waitForTimeout(300)
 ok('clicking the eye shows walk A again', await drawn())
+
+// ── #481: leaving the presenter does not republish the draft over a saved walk ──
+// compare each pin's run of stops by number, not its visId: the return from the
+// presenter re-peeks the focused stop and can move the camera to another level,
+// where the same stop carries a different visId and stops may merge into one pin.
+const pinSet = () => page.$$eval('svg[data-nested] [data-routestop]', (els) => els.map((el) => `${el.getAttribute('data-step')}-${el.getAttribute('data-step-end')}`).sort())
+const pinsOnWalk = await pinSet()
+ok('the loaded walk is drawn before the presenter', pinsOnWalk.length > 0, pinsOnWalk.join(','))
+await openPalette()
+await page.getByLabel('studio-preset-present').click()
+await page.waitForTimeout(700)
+await openPalette()
+await page.getByLabel('studio-preset-plan').click()
+await page.waitForTimeout(800)
+ok('#481: the walk editor, remounted by Plan, leaves the loaded walk\'s pins alone', JSON.stringify(await pinSet()) === JSON.stringify(pinsOnWalk), `${pinsOnWalk.join(',')} -> ${(await pinSet()).join(',')}`)
 
 await page.evaluate(() => localStorage.clear())
 await browser.close()
