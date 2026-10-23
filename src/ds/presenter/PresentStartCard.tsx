@@ -2,7 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, FocusEvent, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
 
 import { EditMark } from '../chrome/EditMark'
-import { IconButton, useRecede } from '../chrome/IconButton'
+import { IconButton, useRecede, wrapTip } from '../chrome/IconButton'
 import { InlineText } from '../chrome/InlineText'
 import { PaneScroller } from '../chrome/Pane'
 import { PillButton } from '../chrome/PillButton'
@@ -59,32 +59,60 @@ export interface StartReading {
 }
 
 export interface PresentStartCardProps {
+  /** the course or map name - kept for a screen reader's label of the walk list */
   course?: string
+  /** the sessions offered in the side column, in the host's order */
   sections?: StartSession[]
+  /** THE CHOSEN SESSION. `null` (the default, and what the host passes on every open) MEANS THE
+   *  NEW SESSION; clicking the lit "+ New session" creates it at once */
   selectedId?: string | number | null
+  /** the chosen session changed; `null` means "the new session" */
   onSelectSection?: (id: string | number | null) => void
+  /** create a session now. Called with `''` - sessions are made unnamed - never by the card alone */
   onAddSection?: (name: string) => void
+  /** the new name, trimmed; `''` means untitled. Omit and no pencil is drawn */
   onRenameSection?: (id: string | number, name: string) => void
+  /** the whole new list of day numbers, sorted, after one toggle; `[]` = no days */
   onSetSectionMeets?: (id: string | number, meets: number[]) => void
+  /** called only after the card's own confirmation. Omit and no bin is drawn */
   onDeleteSection?: (id: string | number) => void
+  /** the walk open in Explore or Plan when Present was pressed */
   openWalk?: { id: string | number; title: string }
+  /** every walk "Load another walk" can start in, each with its stops in walk order */
   walks?: StartWalk[]
+  /** the professor's own reading place; omit and "Where I'm reading" is disabled */
   reading?: StartReading
+  /** the chosen start, once the card has resolved it */
   onStart?: (choice: StartChoice) => void
+  /** omit and no close mark is drawn, and Escape does nothing */
   onCancel?: () => void
+  /** Enter / R / P / arrows / Escape on the window while mounted. Default `true` */
   keys?: boolean
+  /** the clock the session labels read; the host's instant */
   now?: number | Date
+  /** the card's title; the walk the highlighted row would start when omitted */
   title?: string
+  /** what an unnamed session is called. Default "Untitled session" */
   untitledLabel?: string
+  /** the side column's caps label. Default "Sessions" */
   sessionsLabel?: string
+  /** the new-session row's words */
   newLabel?: string
+  /** the first row's words when it continues a walk */
   continueLabel?: string
+  /** the first row's words when it begins one */
   beginLabel?: string
+  /** the reading row's words */
   readingLabel?: string
+  /** the new-session row's second line, when it carries one */
   newLitLine?: string
+  /** the load-another-walk row's words */
   elsewhereLabel?: string
+  /** the load-another-walk row's second line */
   elsewhereLine?: string
+  /** the card's width in px. Default `START_CARD_METRICS.width` */
   width?: number
+  /** the card's own style overrides */
   style?: CSSProperties
 }
 
@@ -194,7 +222,7 @@ function DayPicker({ meets, onChange }: { meets?: number[]; onChange: (meets: nu
       {DAY_CHIP.map((label, n) => {
         const sel = on.has(n)
         return (
-          <button key={n} type="button" aria-pressed={sel} title={DAY_SHORT[n]} onClick={(e) => { e.currentTarget.focus(); onChange(toggleDay(meets, n)) }}
+          <button key={n} type="button" aria-pressed={sel} title={wrapTip(DAY_SHORT[n])} onClick={(e) => { e.currentTarget.focus(); onChange(toggleDay(meets, n)) }}
             style={{ width: 22, height: 22, padding: 0, flexShrink: 0, display: 'grid', placeItems: 'center', boxSizing: 'border-box',
               border: '1px solid ' + (sel ? 'var(--border-walk)' : 'var(--border-hair)'), borderRadius: 'var(--radius-sm)',
               background: sel ? 'var(--accent-walk-wash)' : 'var(--surface-raised)', color: sel ? 'var(--text-walk)' : 'var(--text-2)',
@@ -219,7 +247,7 @@ function StartRow({ icon, title, line, line2, keyLabel, on, disabled, onPick, on
 }) {
   const [hot, setHot] = useState(false)
   return (
-    <button type="button" disabled={disabled} onClick={onPick} title={rowTitle(title, keyLabel)}
+    <button type="button" disabled={disabled} onClick={onPick} title={wrapTip(rowTitle(title, keyLabel))}
       onMouseEnter={() => { setHot(true); if (onHover) onHover() }} onMouseLeave={() => setHot(false)}
       style={{
         display: 'flex', alignItems: 'center', gap: 12, width: '100%', minHeight: START_CARD_METRICS.row,
@@ -304,14 +332,14 @@ function SessionRow({ s, on, editing, untitled, now, onPick, onEdit, onRename, o
           style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1, padding: oneLine ? '4px 4px 4px 9px' : '6px 4px 4px 9px', cursor: 'pointer', fontFamily: 'var(--font-ui)', outline: 'none' }}>
           {oneLine ? (
             <span style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: START_CARD_METRICS.metaLine }}>
-              <span title={displayName(s, untitled)} style={{ ...nameStyle, flex: 1, minWidth: 0 }}>{displayName(s, untitled)}</span>
+              <span title={wrapTip(displayName(s, untitled))} style={{ ...nameStyle, flex: 1, minWidth: 0 }}>{displayName(s, untitled)}</span>
               {pair}
             </span>
           ) : (
             <Fragment>
               <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, paddingRight: 5 }}>
-                <span title={displayName(s, untitled)} style={{ ...nameStyle, minWidth: 0 }}>{displayName(s, untitled)}</span>
-                {lastAt ? <span title="last presented" style={{ marginLeft: 'auto', flexShrink: 0, fontSize: 'var(--fs-caption)', color: 'var(--text-2)', fontVariantNumeric: 'var(--tnum)', whiteSpace: 'nowrap' }}>{lastAt}</span> : null}
+                <span title={wrapTip(displayName(s, untitled))} style={{ ...nameStyle, minWidth: 0 }}>{displayName(s, untitled)}</span>
+                {lastAt ? <span title={wrapTip('last presented')} style={{ marginLeft: 'auto', flexShrink: 0, fontSize: 'var(--fs-caption)', color: 'var(--text-2)', fontVariantNumeric: 'var(--tnum)', whiteSpace: 'nowrap' }}>{lastAt}</span> : null}
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: START_CARD_METRICS.metaLine }}>
                 <span style={{ flex: 1, minWidth: 0, fontSize: 'var(--fs-caption)', color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{days}</span>
@@ -422,7 +450,7 @@ export function PresentStartCard({
     sc.scrollTop += b.top - a.top - (a.height - b.height) / 2
   }
   const edgePill = (pos: 'top' | 'bottom') => (
-    <button type="button" onClick={goSel} onMouseEnter={() => setEdgeHot(true)} onMouseLeave={() => setEdgeHot(false)} title="Scroll to the chosen session"
+    <button type="button" onClick={goSel} onMouseEnter={() => setEdgeHot(true)} onMouseLeave={() => setEdgeHot(false)} title={wrapTip('Scroll to the chosen session')}
       style={{ position: 'absolute', left: 0, right: 0, [pos]: 4, display: 'flex', alignItems: 'center', gap: 5, boxSizing: 'border-box', fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-micro)', textAlign: 'left', padding: '3px 9px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius-pill)', background: edgeHot ? 'var(--surface-hover)' : 'var(--surface-raised)', boxShadow: 'var(--lift-1)', color: 'var(--text-1)', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden' }}>
       <span aria-hidden="true" style={{ color: 'var(--text-3)' }}>{selEdge === 'above' ? '↑' : '↓'}</span>
       <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{real ? displayName(real, untitledLabel) : ''}</span>
@@ -482,7 +510,7 @@ export function PresentStartCard({
           <div style={{ ...caps, padding: '2px 4px 6px', flexShrink: 0 }}>{sessionsLabel}</div>
           {onAddSection ? (
             <button type="button" data-new-session="top" aria-pressed={isNew} onClick={() => (isNew ? addNew() : onSelectSection && onSelectSection(null))} onMouseEnter={() => setAddHot(true)} onMouseLeave={() => setAddHot(false)} onFocus={() => setAddHot(true)} onBlur={() => setAddHot(false)}
-              title={isNew ? 'create it now and name it' : 'present with a new, untitled session'}
+              title={wrapTip(isNew ? 'create it now and name it' : 'present with a new, untitled session')}
               style={{ flexShrink: 0, marginBottom: 2, padding: '7px 9px', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 1, border: '1px dashed ' + (isNew || addHot ? 'var(--border-walk)' : 'var(--border-dashed)'), borderRadius: 'var(--radius-sm)', background: isNew ? 'var(--surface-raised)' : addHot ? 'var(--accent-walk-wash)' : 'transparent', transition: 'var(--transition-wash)', cursor: 'pointer', fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-body)', fontWeight: isNew ? 'var(--fw-semibold)' : 'var(--fw-medium)', color: 'var(--text-walk)' }}>
               <span>{newLabel}</span>
               {isNew && newLitLine ? <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-regular)', color: 'var(--text-2)' }}>{newLitLine}</span> : null}

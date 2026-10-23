@@ -102,37 +102,71 @@ export interface RecapAction {
 }
 
 export interface LectureRecapProps {
+  /** the course name, set at display size in the head band */
   course: string
+  /** what was covered - no day or time, the clock line already says when */
   when?: string
+  /** the caps line above the course name. Composed from `elapsed`/`booked` when omitted */
   eyebrow?: string
+  /** "21:05" - the clock as it stopped, verbatim. Prefer `elapsedS` */
   elapsed?: string
+  /** "50:00" - the booked length, verbatim. Prefer `bookedS` */
   booked?: string
+  /** seconds; printed as mm:ss by `LectureClock.mmss` */
   elapsedS?: number
+  /** the booked length in seconds; printed as mm:ss */
   bookedS?: number
+  /** the wall clock when the lecture STARTED, verbatim - an override for `startedAt` */
   started?: string
+  /** the wall clock when it ENDED, verbatim - an override for `endedAt` */
   ended?: string
+  /** the instant the lecture started (ms or Date); printed with its date */
   startedAt?: number | Date | null
+  /** the instant it ended; printed with its date only when that is a different day */
   endedAt?: number | Date | null
+  /** the three numbers, read off the host's store; the recap words them */
   counts?: { stops: number; slides?: number; flags?: number; notes?: number; flagged?: number }
+  /** the stats verbatim - an override for `counts`, for a host composing more */
   stats?: RecapStat[]
+  /** the notes pane - `<LectureNotes variant="review" />`, AS AN ELEMENT: the recap adds its
+   *  preview to it as `aside`. Do not pass `aside` yourself */
   notes?: ReactNode
+  /** THE SHOWN SLIDE'S PICTURE - the host renders it, as it renders the film roll's cards */
   slide?: ReactNode
+  /** the shown slide's index in the walk. The HOST holds it: 0 until something is clicked */
   shownStop?: number
+  /** the walk's stop titles by index - gives the legend its title and the step buttons their ends */
   stops?: string[]
+  /** the walk's length, when `stops` is not passed */
   stopCount?: number
+  /** the step buttons asked for this index (already clamped). Omit and they are absent */
   onShowStop?: (index: number) => void
+  /** the aside's legend verbatim - an override for "preview" */
   slideLabel?: string
+  /** the flag chip on the shown slide made a flag of this type. Add a BARE flag to the shown
+   *  slide. Omit and no chip is drawn */
   onFlag?: (category: string) => void
+  /** the chip's three types. Default the first three of `NOTE_CATEGORIES` */
   flagTypes?: Array<{ key: string; glyph: string; label: string; short?: string; wash: string }>
+  /** the usual type's key - what a tap makes. Default 'fix' */
   usualFlag?: string
+  /** a type picked on the ring that is not the usual one: it is now. Store it */
   onUsualFlagChange?: (key: string) => void
+  /** the chip's hint tooltip. Default true */
   flagHint?: boolean
+  /** the closing actions, under the rule at the band's foot */
   actions?: RecapAction[]
+  /** the aside column's width. Default `LECTURE_RECAP_METRICS.aside` */
   asideWidth?: number
+  /** the recap's own style overrides */
   style?: CSSProperties
+  /** the session the lecture was recorded against, named beside the course */
   session?: StartSession
+  /** what an unnamed session is called. Default "Untitled session" */
   untitledLabel?: string
+  /** the walks, so "next time" can name the one that comes next */
   walks?: PresentStartCardProps['walks']
+  /** the lead-in before "next time" resumes the walk */
   nextLead?: string
   /** @deprecated v4 - the old flagged-slides list. Accepted and ignored */
   flagged?: Array<{ id?: string | number; title?: string; stop?: number }>
@@ -172,7 +206,7 @@ export function LectureRecap({
     </div>
   )
   return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', ...style }}>
+    <div data-lecture-recap="" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', ...style }}>
       <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', padding: LECTURE_RECAP_METRICS.headPad, boxSizing: 'border-box', background: 'var(--surface-paper)', border: '1px solid var(--border-frame)', borderRadius: 'var(--radius-lg)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 26 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -188,7 +222,7 @@ export function LectureRecap({
           ) : null}
           {when ? <div style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', lineHeight: 'var(--lh-snug)', color: 'var(--text-2)', marginTop: 6, textWrap: 'pretty' }}>{when}</div> : null}
         </div>
-        <div style={{ display: 'flex', flexShrink: 0, marginLeft: 'auto' }}>
+        <div data-recap-stats="" style={{ display: 'flex', flexShrink: 0, marginLeft: 'auto' }}>
           {statList.map((s, i) => <Stat key={s.label || i} stat={s} first={i === 0} />)}
         </div>
       </div>

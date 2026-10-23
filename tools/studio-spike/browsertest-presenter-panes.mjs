@@ -71,7 +71,7 @@ try {
   // ⏎ in the composer saves; the field must have focus first, and typing anywhere else would be
   // read by the screen's own single-letter shortcuts instead
   const write = async (text) => {
-    await notes().getByLabel('a note for this stop…').click()
+    await notes().getByLabel('a note for this slide.').click()
     await page.keyboard.type(text)
     await page.keyboard.press('Enter')
     await page.waitForTimeout(350)
@@ -246,8 +246,8 @@ try {
   ok('the category button opens the popover', (await page.locator('[data-note-categories]').count()) === 1)
   await page.locator('[data-note-categories]').getByText('new category…').click()
   await page.waitForTimeout(300)
-  await page.getByLabel('name the new category').fill('Homework')
-  await page.getByLabel('add this category').click()
+  await page.getByLabel('name the new type').fill('Homework')
+  await page.getByLabel('add this type').click()
   await page.waitForTimeout(400)
   ok('the minted category is stored against the professor, not the lecture',
     await page.evaluate(() => ((JSON.parse(localStorage.getItem('pkt.lecture.categories') || '{}').data || {}).list || []).some((c) => c.label === 'Homework')))
@@ -263,7 +263,7 @@ try {
   await page.waitForTimeout(400)
 
   // ── the prepared note, corrected at the lectern ─────────────────────────────
-  await notes().getByLabel('edit the prepared notes for this stop').dispatchEvent('click')
+  await notes().getByLabel('edit the prepared notes for this slide').dispatchEvent('click')
   await page.waitForTimeout(250)
   await page.keyboard.press('Control+A')
   await page.keyboard.type('Say the handshake out loud before the diagram goes up.\n\nSYN, SYN-ACK, ACK — then ask what happens if the third is lost.')

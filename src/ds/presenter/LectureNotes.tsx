@@ -161,16 +161,16 @@ function CategoryTag({ cat, title, dashed, glyph, hotGlyph, as, onClick, live, s
     transition: 'var(--transition-wash)',
   }
   const face = cat ? <TagGlyph glyph={cat.glyph} /> : (hot && hotGlyph) || glyph ? <TagGlyph glyph={(hot && hotGlyph) || glyph || ''} /> : null
-  const tip = title === false ? undefined : wrapTip(title || (cat ? cat.label : ''))
+  const tip = title === false ? undefined : (title || (cat ? cat.label : ''))
   if (button) {
     return (
       <button type="button" onClick={onClick}
         onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)}
         onFocus={() => setHot(true)} onBlur={() => setHot(false)}
-        title={tip} style={style}>{face}</button>
+        title={tip ? wrapTip(tip) : undefined} style={style}>{face}</button>
     )
   }
-  return <span onClick={onClick} title={tip} style={style}>{face}</span>
+  return <span onClick={onClick} title={tip ? wrapTip(tip) : undefined} style={style}>{face}</span>
 }
 
 /** THE TAG-AND-CARET TRIGGER - "a list drops from here", one hover for every instance. */
@@ -310,7 +310,7 @@ function FlagRow({ entry, cat, categories, onCategory, onCommit, onResolve, fres
     </div>
   ) : null
   return (
-    <div onMouseEnter={() => { setHot(true); show() }} onMouseLeave={() => { setHot(false); hide() }}
+    <div data-lecture-note="" onMouseEnter={() => { setHot(true); show() }} onMouseLeave={() => { setHot(false); hide() }}
       onClick={onSelect && !editing ? () => onSelect(entry) : undefined}
       style={{ position: 'relative', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 6, padding: '3px 6px', margin: '0 -6px', borderRadius: 'var(--radius-sm)', background: wash, cursor: onSelect ? 'pointer' : 'default', transition: washFade }}>
       <span ref={menuRef} style={{ position: 'relative', display: 'inline-flex', marginTop: 2, width: M.rowTag, flexShrink: 0 }}>
@@ -395,9 +395,9 @@ function Composer({ categories, category, onCategoryChange, draft, onDraftChange
     setNaming(false); setName(''); setPicking(false); setPicked(null); setOpen(false)
   }
   return (
-    <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap: 6, minHeight: M.composer, boxSizing: 'border-box', marginLeft: -7, padding: '0 6px 3px 4px', background: 'var(--surface-raised)', borderRadius: 'var(--radius-md)', border: '1px solid ' + (focused ? 'var(--state-editing)' : 'var(--border-strong)'), transition: 'border-color var(--dur-hover) var(--ease-soft)' }}>
+    <div data-note-composer="" style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap: 6, minHeight: M.composer, boxSizing: 'border-box', marginLeft: -7, padding: '0 6px 3px 4px', background: 'var(--surface-raised)', borderRadius: 'var(--radius-md)', border: '1px solid ' + (focused ? 'var(--state-editing)' : 'var(--border-strong)'), transition: 'border-color var(--dur-hover) var(--ease-soft)' }}>
       {open ? (
-        <div style={{ position: 'absolute', left: 0, bottom: 'calc(100% + 8px)', width: M.popover, background: 'var(--surface-paper)', border: '1px solid var(--border-frame)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--lift-2)', padding: 4, boxSizing: 'border-box', zIndex: 6 }}>
+        <div data-note-categories="" style={{ position: 'absolute', left: 0, bottom: 'calc(100% + 8px)', width: M.popover, background: 'var(--surface-paper)', border: '1px solid var(--border-frame)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--lift-2)', padding: 4, boxSizing: 'border-box', zIndex: 6 }}>
           <TypeList categories={categories} current={cat ? cat.key : undefined} onPick={(k) => { choose(k); setOpen(false) }} />
           {onAddCategory && naming ? (
             <div style={{ marginTop: 3, padding: '3px 4px 0', borderTop: '1px solid var(--border-hair)' }}>
@@ -470,7 +470,7 @@ function FlagTally({ list, categories }: { list: LectureNote[]; categories: Note
   list.forEach((e) => { if (e.category && categories.some((c) => c.key === e.category)) n[e.category] = (n[e.category] || 0) + 1; else plain += 1 })
   const shown = categories.filter((c) => n[c.key] > 0)
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-micro)', color: 'var(--text-2)' }}>
+    <span data-notes-tally="" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-micro)', color: 'var(--text-2)' }}>
       {shown.map((c) => (
         <span key={c.key} title={wrapTip(c.label)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: n[c.key] ? 'var(--text-2)' : 'var(--text-3)' }}>
           <span style={{ display: 'inline-flex', opacity: n[c.key] ? 1 : 0.5 }}><CategoryTag cat={c} size={LECTURE_NOTES_METRICS.rowTag} title={false} /></span>{n[c.key] || 0}
@@ -529,28 +529,50 @@ export const LECTURE_NOTES_FIT: PaneFit & { minHeight: number } = (() => {
 export interface LectureNotesProps {
   /** `live` (default): the two-column lecture pane. `review`: the recap's one-column copy */
   variant?: 'live' | 'review'
+  /** 1-based; the left head's FALLBACK when `stopTitle` is absent, and what resets the editor */
   stopNumber?: number
+  /** the slide's title - THE LEFT HEAD ITSELF */
   stopTitle?: string
+  /** the shown slide is not the projected one; the head's note says "roaming" */
   roaming?: boolean
+  /** the prepared notes - a STRING (editable on click, with `onPreparedCommit`) or rich nodes */
   prepared?: ReactNode
+  /** what the prepared box says when empty; also the editor's placeholder */
   preparedEmpty?: string
+  /** a click on the prepared notes edits them in place; fires on escape, blur or click outside
+   *  with the text, ONLY WHEN IT CHANGED. The store is the host's */
   onPreparedCommit?: (text: string) => void
+  /** for rich-node `prepared`: a click asks the host to open its own editor */
   onEditPrepared?: () => void
+  /** the prepared notes' height above the flags, px - for a host that persists the divider */
   preparedHeight?: number
+  /** the drag's report on mouse-up, and the double-click reset's. Store it as given */
   onPreparedHeightChange?: (height: number) => void
+  /** THE WHOLE LECTURE'S flags, newest first, each stamped `stop` and `at` */
   entries?: LectureNote[]
+  /** the type list. Default `NOTE_CATEGORIES`. USER-WIDE: persist it against the user */
   categories?: NoteCategory[]
+  /** the composer's uncontrolled text, when the host holds it */
   draft?: string
+  /** the composer's text changed; the host keeps the draft */
   onDraftChange?: (draft: string) => void
+  /** the composer's chosen type key. `undefined` = not chosen yet, `null` = "no type" */
   category?: string | null
+  /** the composer's type changed; `null` means "no type" */
   onCategoryChange?: (key: string) => void
+  /** the film roll's usual type - pass the SAME key as `FilmRoll usualFlag`. Default 'fix' */
   usualFlag?: string
+  /** the composer saved: text trimmed, may contain `\n`. Add an entry with `when` and `at` */
   onSave?: (note: { category?: string; text: string; stop?: number }) => void
+  /** shows "new type." in the composer's menu and receives the FINISHED type. Persist it */
   onAddCategory?: (category: NoteCategory) => void
   /** @deprecated renamed `onAddCategory`; still read */
   onNewCategory?: (category: NoteCategory) => void
+  /** a click on a row's words edited them in place; fires only when they changed */
   onEntryCommit?: (note: LectureNote, text: string) => void
+  /** the row's tag picked a new type (`undefined` = no type). Omit and the tag is not a button */
   onEntryCategoryChange?: (note: LectureNote, key: string | undefined) => void
+  /** THE BIN - DELETE RESOLVES. Stamp `resolvedAt` and keep the entry. Omit and there is no bin */
   onResolveEntry?: (note: LectureNote) => void
   /** @deprecated v4 - renamed `onResolveEntry`; still read, and must now stamp `resolvedAt` */
   onDeleteEntry?: (note: LectureNote) => void
@@ -558,27 +580,45 @@ export interface LectureNotesProps {
   onUndoEntry?: (note: LectureNote) => void
   /** @deprecated 15 Oct - never called */
   onRestoreEntry?: (note: LectureNote) => void
+  /** default "a note for this slide." */
   composerPlaceholder?: string
+  /** the Class chat column's width, px, for a host that persists the column divider. Default 220 */
   chatWidth?: number
+  /** the Class chat's width changed; the host stores it under the new setting */
   onChatWidthChange?: (width: number) => void
   /** @deprecated v4 - renamed `chatWidth`; still read */
   duringWidth?: number
   /** @deprecated renamed `onChatWidthChange`; still read */
   onDuringWidthChange?: (width: number) => void
+  /** the Class chat's content, when it exists. Omit for the parked placeholder */
   chat?: ReactNode
+  /** default "Class chat" */
   chatLabel?: string
+  /** the parked placeholder's words */
   chatEmpty?: string
+  /** controlled composer menu */
   menuOpen?: boolean
+  /** the composer menu's open state changed */
   onMenuOpenChange?: (open: boolean) => void
+  /** the pane's legend. Default "notes" live, "notes from this lecture" in review */
   title?: string
+  /** the list's head. Default "Flagged during lecture" live, "Flags" in review */
   flagsLabel?: string
+  /** REVIEW: the slide the recap's viewer is showing - its group is washed */
   selectedStop?: number
+  /** REVIEW: a click on a slide's head or one of its rows asks to show that slide */
   onSelectStop?: (stop: number) => void
+  /** LIVE: the shown slide's index - the list filters to it and `onSave` stamps it */
   stop?: number
+  /** the walk's titles by index - review heads each group "stop N - Title" */
   stops?: string[]
+  /** REVIEW: a right-hand column beside the flags - the recap's preview of the shown slide */
   aside?: ReactNode
+  /** REVIEW: the aside column's head. Default "Preview" */
   asideLabel?: string
+  /** REVIEW: the aside column's width. Default `LECTURE_NOTES_METRICS.aside` (360) */
   asideWidth?: number
+  /** the pane's own style overrides */
   style?: CSSProperties
   /** @deprecated v4 - the old per-slide switch. Accepted and ignored */
   flagged?: boolean
@@ -710,7 +750,7 @@ export function LectureNotes({
     all.forEach((e) => { slides[e.stop != null ? 's' + e.stop : e.stopLabel || '?'] = true })
     const nSlides = Object.keys(slides).length
     return (
-      <Pane title={title || 'notes from this lecture'} scroll="none" bodyStyle={{ padding: M.headClear + 'px 14px 12px ' + M.legendInset + 'px', userSelect: 'none', WebkitUserSelect: 'none', ...(aside ? { flexDirection: 'row', gap: 0 } : null) }}
+      <Pane data-lecture-notes="review" title={title || 'notes from this lecture'} scroll="none" bodyStyle={{ padding: M.headClear + 'px 14px 12px ' + M.legendInset + 'px', userSelect: 'none', WebkitUserSelect: 'none', ...(aside ? { flexDirection: 'row', gap: 0 } : null) }}
         style={{ flex: 1, minHeight: 0, userSelect: 'none', WebkitUserSelect: 'none', ...style }}>
         <div style={aside ? { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, paddingRight: M.gutter } : { display: 'contents' }}>
         <Head title={flagsLabel != null ? flagsLabel : 'Flags'} after={all.length ? <FlagTally list={all} categories={categories} /> : undefined} trailing={all.length ? <Count>{plural(nSlides, 'slide') + ' · ' + plural(all.length, 'flag')}</Count> : undefined} />
@@ -721,7 +761,7 @@ export function LectureNotes({
               const s = g.stop
               const pick = onSelectStop && s != null ? () => onSelectStop(s) : undefined
               return (
-                <div key={g.k + gi} style={{ padding: '4px 6px 6px', margin: '0 -6px', borderTop: gi && !sel ? '1px solid var(--border-hair)' : '1px solid transparent', borderRadius: sel ? 'var(--radius-md)' : 0, background: sel ? 'var(--state-selected-wash)' : 'transparent', transition: 'var(--transition-wash)' }}>
+                <div key={g.k + gi} data-notes-group="" data-flagged-slide="" style={{ padding: '4px 6px 6px', margin: '0 -6px', borderTop: gi && !sel ? '1px solid var(--border-hair)' : '1px solid transparent', borderRadius: sel ? 'var(--radius-md)' : 0, background: sel ? 'var(--state-selected-wash)' : 'transparent', transition: 'var(--transition-wash)' }}>
                   <div onClick={pick} title={pick ? wrapTip('show this slide') : undefined} style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-semibold)', color: 'var(--text-1)', lineHeight: 'var(--lh-snug)', padding: '4px 0 3px', cursor: pick ? 'pointer' : 'default' }}>{g.label}</div>
                   {g.items.map((e, i) => row(e, i, { onSelect: pick, selected: sel }))}
                 </div>
@@ -750,15 +790,15 @@ export function LectureNotes({
   const proseStyle: CSSProperties = { display: 'block', fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-body)', lineHeight: 'var(--lh-normal)', color: 'var(--text-1)', textWrap: 'pretty', whiteSpace: 'pre-wrap', cursor: 'text' }
   const hairline = (vertical: boolean, active: boolean): CSSProperties => ({ position: 'absolute', background: active ? 'var(--accent-primary)' : 'var(--border-hair)', ...(vertical ? { top: 0, bottom: 0, left: M.divider / 2, width: 1 } : { left: 0, right: 0, top: M.divider / 2, height: 1 }) })
   return (
-    <Pane title={title || 'notes'} scroll="none" bodyStyle={{ flexDirection: 'row', gap: 0, padding: M.headClear + 'px 14px 12px ' + M.legendInset + 'px' }}
+    <Pane data-lecture-notes="live" title={title || 'notes'} scroll="none" bodyStyle={{ flexDirection: 'row', gap: 0, padding: M.headClear + 'px 14px 12px ' + M.legendInset + 'px' }}
       style={{ flex: 1, minHeight: 0, userSelect: 'none', WebkitUserSelect: 'none', ...style }}>
       <div ref={rowRef} style={{ display: 'flex', flex: 1, minWidth: 0, minHeight: 0 }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, paddingRight: M.gutter }}>
           <div style={{ userSelect: 'text', WebkitUserSelect: 'text' }}><Head title={stopTitle || 'stop ' + (stopNumber != null ? stopNumber : '—')} note={roaming ? 'roaming' : undefined} /></div>
-          <div ref={prepRef} style={{ flex: '0 1 ' + prepPref + 'px', minHeight: M.preparedMinH, display: 'flex', flexDirection: 'column', userSelect: 'text', WebkitUserSelect: 'text' }}>
+          <div ref={prepRef} data-notes-prepared="" style={{ flex: '0 1 ' + prepPref + 'px', minHeight: M.preparedMinH, display: 'flex', flexDirection: 'column', userSelect: 'text', WebkitUserSelect: 'text' }}>
             <PaneScroller style={{ padding: '4px 4px 4px 4px', paddingRight: 8 + scrollerPadRight(), margin: '-4px -4px -4px -4px' }}>
               {canEditPrepared ? (
-                <div onMouseEnter={() => setPrepHot(true)} onMouseLeave={() => setPrepHot(false)}
+                <div onMouseEnter={() => setPrepHot(true)} onMouseLeave={() => setPrepHot(false)} aria-label="edit the prepared notes for this slide"
                   style={{ borderRadius: 'var(--radius-xs)', outline: prepHot && !editingPrep ? '1px solid var(--border-rule)' : '1px solid transparent', outlineOffset: 3, transition: 'outline-color var(--dur-hover) var(--ease-soft)' }}>
                   <InlineText key={editingPrep ? 'edit' : 'rest'} value={prepared as string} multiline enterInserts editing={editingPrep}
                     placeholder={preparedEmpty} onOpen={() => setEditingPrep(true)}
@@ -780,7 +820,7 @@ export function LectureNotes({
             <div style={hairline(false, prepDrag)} />
           </div>
           <Head title={liveFlagsLabel} after={hasFlags ? <FlagTally list={counted(liveList)} categories={categories} /> : undefined} trailing={hasFlags ? <Count>{plural(n, 'flag')}</Count> : undefined} />
-          <div ref={flagsRef} style={{ flex: '1 1 0', minHeight: M.flagsMinH, display: 'flex', flexDirection: 'column' }}>
+          <div ref={flagsRef} data-notes-during="" style={{ flex: '1 1 0', minHeight: M.flagsMinH, display: 'flex', flexDirection: 'column' }}>
             <PaneScroller style={flagsRoom(0)}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {liveList.length ? liveList.map((e, i) => row(e, i)) : (

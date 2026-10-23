@@ -46,6 +46,7 @@ export interface FlagChipProps {
   onRingOpen?: () => void
   /** draws the ring open from mount, IN PLACE around the chip. FOR SPECIMEN CARDS */
   openOnMount?: boolean
+  /** the chip's own style overrides, applied at its anchor */
   style?: CSSProperties
 }
 

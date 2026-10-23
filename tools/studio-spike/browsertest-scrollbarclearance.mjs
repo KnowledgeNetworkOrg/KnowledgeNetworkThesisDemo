@@ -151,7 +151,7 @@ const runEngine = async (engine) => {
     await page.waitForTimeout(700)
     await page.locator('[data-toolbar-hook="present"]').click()
     await page.waitForTimeout(900)
-    const field = page.locator('[data-lecture-notes="live"]').getByLabel('a note for this stop…')
+    const field = page.locator('[data-lecture-notes="live"]').getByLabel('a note for this slide.')
     for (let i = 1; i <= 14; i++) {
       await field.click()
       await page.keyboard.type(`note ${i} — the handshake, the certificate chain, and what the class asked about it`)
