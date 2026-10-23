@@ -24,22 +24,22 @@ describe('the lecture clock', () => {
   it('reads the wall clock in 24 hours, with no commas', () => {
     expect(LectureClock.clockLabel(at(2026, 9, 4, 13, 12))).toBe('13:12')
     expect(LectureClock.clockLabel(at(2026, 9, 4, 9, 5))).toBe('09:05')
-    // the dated form is "Fri 4 Sep 2026 · 13:12" — weekday and month come from the locale's
+    // the dated form is "Fri 4 Sep 2026 13:12" — weekday and month come from the locale's
     // short names, so the test pins the SHAPE and the parts it owns rather than the words
     const dated = LectureClock.clockLabel(at(2026, 9, 4, 13, 12), true)
-    expect(dated).toMatch(/^\S+ 4 \S+ 2026 · 13:12$/)
+    expect(dated).toMatch(/^\S+ 4 \S+ 2026 13:12$/)
   })
 
   it('says the date once when the lecture began and ended on the same day', () => {
     const span = LectureClock.span(at(2026, 9, 4, 13, 12), at(2026, 9, 4, 14, 2))
-    expect(span.started).toMatch(/2026 · 13:12$/)
+    expect(span.started).toMatch(/2026 13:12$/)
     expect(span.ended).toBe('14:02')
   })
 
   it('says it TWICE across a day boundary — a lecture that ended after midnight', () => {
     const span = LectureClock.span(at(2026, 9, 4, 23, 40), at(2026, 9, 5, 0, 25))
-    expect(span.started).toMatch(/ 4 \S+ 2026 · 23:40$/)
-    expect(span.ended).toMatch(/ 5 \S+ 2026 · 00:25$/)
+    expect(span.started).toMatch(/ 4 \S+ 2026 23:40$/)
+    expect(span.ended).toMatch(/ 5 \S+ 2026 00:25$/)
   })
 
   it('gives back only the half it was given', () => {

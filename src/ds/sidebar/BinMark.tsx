@@ -17,9 +17,12 @@ export interface BinMarkProps {
   size?: number
   /** placement only (margin, flex); `transform` is overridden by the lift */
   style?: CSSProperties
+  /** default true: the 1.4px lift that lines the bin up with a pencil beside it. `false` only when
+   *  the bin stands alone in a round button (`LectureNotes`' flag row) */
+  lift?: boolean
 }
 
-export function BinMark({ size = 11, style }: BinMarkProps) {
+export function BinMark({ size = 11, style, lift = true }: BinMarkProps) {
   return (
     <svg
       width={size}
@@ -36,7 +39,7 @@ export function BinMark({ size = 11, style }: BinMarkProps) {
          below centre to begin with (path 3.25–13.45 in a 16 box). Beside the pencil in a note
          row the two sat 1.6px apart (owner, 2026-09-04). Same number as the pencil so the pair
          share a line; a nudge, not a redraw of the paths. */
-      style={{ display: 'block', flexShrink: 0, ...style, transform: `translateY(-${EDIT_MARK_LIFT}px)` }}
+      style={{ display: 'block', flexShrink: 0, ...style, transform: lift === false ? 'none' : `translateY(-${EDIT_MARK_LIFT}px)` }}
     >
       <path d="M2.75 4.5h10.5" />
       <path d="M6.25 4.5V3.25h3.5V4.5" />

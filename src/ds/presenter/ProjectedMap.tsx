@@ -26,11 +26,10 @@ function CloseButton({ onClick, revealed }: { onClick?: () => void; revealed: bo
         display: 'grid', placeItems: 'center', background: hot ? 'var(--bark-800)' : 'color-mix(in srgb, var(--surface-raised) 92%, transparent)',
         border: '1px solid ' + (hot ? 'var(--bark-800)' : 'var(--border-rule)'),
         color: hot ? 'var(--text-inverse)' : 'var(--text-1)', boxShadow: hot ? 'var(--lift-2)' : 'var(--lift-1)',
-        cursor: 'pointer', fontSize: 13, lineHeight: 1,
+        cursor: 'pointer', lineHeight: 1, padding: 0,
         opacity: revealed ? 1 : 0, pointerEvents: revealed ? 'auto' : 'none',
         transition: 'var(--transition-wash), opacity var(--dur-fade) var(--ease-soft)',
-        /* drawn, never typed (OB-201): 13 was the typed glyph's point size here */
-      }}><CloseMark size={13} /></button>
+      }}><CloseMark size={11} /></button>
   )
 }
 

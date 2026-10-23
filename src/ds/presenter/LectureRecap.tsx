@@ -1,38 +1,38 @@
-import { useState } from 'react'
-import type { CSSProperties, ReactNode } from 'react'
+import { Fragment, isValidElement, cloneElement, useState } from 'react'
+import type { CSSProperties, ReactElement, ReactNode } from 'react'
 
-import { FlagMark } from '../chrome/FlagMark'
 import { wrapTip } from '../chrome/IconButton'
-import { Pane, PaneScroller } from '../chrome/Pane'
+import { Pane } from '../chrome/Pane'
 import { LEGEND_INSET } from '../chrome/PaneHeader'
 import { PillButton } from '../chrome/PillButton'
+import { WalkerMark } from '../chrome/WalkerMark'
+import { FlagChip } from './FlagChip'
+import { LECTURE_NOTES_METRICS } from './LectureNotes'
+import { StartMath } from './PresentStartCard'
+import type { PresentStartCardProps, StartSession } from './PresentStartCard'
 
-/* Typed port of the DS components/presenter/LectureRecap.jsx (contract: LectureRecap.d.ts) —
-   part 7 of the presenter-mode split (OB-147, #267). */
+/* Typed port of the DS components/presenter/LectureRecap.jsx (contract: LectureRecap.d.ts),
+   v4: the preview column beside the review notes, the session and the next-time line. */
 
-/** The recap's numbers. `aside` (360) is the same column the quick actions deck stands in during
- *  the lecture, so nothing moves sideways when the lecture ends; `statValue` (26) is the one place
- *  in the system a numeral is set at display size, because these numbers ARE the screen's content. */
-export const LECTURE_RECAP_METRICS = { aside: 360, statValue: 26, statPad: 18, headPad: '15px 18px' }
+export interface RecapStat {
+  /** the numeral, verbatim - "6", "21:05". Set at display size, tabular */
+  value: string | number
+  /** two or three words under it, sentence case: "stops covered", "notes taken" */
+  label: string
+}
 
-/** THE CLOCK, AS CODE. Every rule below would otherwise live in the host and in prose — "24-hour,
- *  no commas, the date said once when the lecture ended the day it started" — which is the kind of
- *  rule a second host retypes differently. Published so the host passes INSTANTS and the recap
- *  does the wording; the string props survive as overrides for a host with its own clock.
- *  - `mmss(seconds)` → "21:05" (floored, zero-padded; the header bar's own face).
- *  - `clockLabel(t, withDate)` → "Fri 4 Sep 2026 · 13:12" or "13:12". Weekday and month are the
- *    locale's short names; the rest is fixed.
- *  - `span(startedAt, endedAt)` → `{ started, ended }`: the date on `started` always; on `ended`
- *    only when it is a different calendar day. */
+/** The recap's numbers. */
+export const LECTURE_RECAP_METRICS = { aside: LECTURE_NOTES_METRICS.aside, statValue: 26, statPad: 18, headPad: '15px 18px', step: 26 }
+
 const two = (n: number) => (n < 10 ? '0' : '') + n
-const mmss = (s: number) => { const v = Math.max(0, Math.floor(Number(s) || 0)); return two(Math.floor(v / 60)) + ':' + two(v % 60) }
+const mmss = (s: number) => { s = Math.max(0, Math.floor(Number(s) || 0)); return two(Math.floor(s / 60)) + ':' + two(s % 60) }
 const clockLabel = (t: number | Date, withDate?: boolean) => {
   const d = new Date(t)
   const time = two(d.getHours()) + ':' + two(d.getMinutes())
   if (!withDate) return time
-  return d.toLocaleDateString(undefined, { weekday: 'short' }) + ' ' + d.getDate() + ' ' + d.toLocaleDateString(undefined, { month: 'short' }) + ' ' + d.getFullYear() + ' · ' + time
+  return d.toLocaleDateString(undefined, { weekday: 'short' }) + ' ' + d.getDate() + ' ' + d.toLocaleDateString(undefined, { month: 'short' }) + ' ' + d.getFullYear() + ' ' + time
 }
-const span = (startedAt?: number | Date | null, endedAt?: number | Date | null): { started?: string; ended?: string } => {
+const span = (startedAt?: number | Date | null, endedAt?: number | Date | null) => {
   const out: { started?: string; ended?: string } = {}
   if (startedAt != null) out.started = clockLabel(startedAt, true)
   if (endedAt != null) out.ended = clockLabel(endedAt, !(startedAt != null && new Date(startedAt).toDateString() === new Date(endedAt).toDateString()))
@@ -40,37 +40,38 @@ const span = (startedAt?: number | Date | null, endedAt?: number | Date | null):
 }
 export const LectureClock = { mmss, clockLabel, span }
 
-/** what the recap counts, and the only three numbers it knows how to word */
-export interface RecapCounts {
-  /** stops covered this lecture */
-  stops: number
-  /** notes taken during it */
-  notes: number
-  /** slides flagged for revision */
-  flagged: number
-}
-
-/** one number and its word, as the stats row draws it */
-export interface RecapStat {
-  /** the numeral — display size, tabular figures. It is the screen's content, not a label */
-  value: ReactNode
-  /** what it counts, already pluralised */
-  label: string
-}
-
-/** THE STAT WORDING, AS CODE: `counts` in, three `{ value, label }` out, plural decided here. The
- *  numbers stay the host's (they are read off its store); only the words moved. */
-export const recapStats = ({ stops, notes, flagged }: RecapCounts): RecapStat[] => [
+/** THE STAT WORDING, AS CODE: `counts` in, three `{ value, label }` out, plural decided here. */
+export const recapStats = ({ stops, slides, flags, notes, flagged }: { stops: number; slides?: number; flags?: number; notes?: number; flagged?: number }): RecapStat[] => (flags != null ? [
   { value: stops, label: stops === 1 ? 'stop covered' : 'stops covered' },
-  { value: notes, label: notes === 1 ? 'note taken' : 'notes taken' },
-  { value: flagged, label: flagged === 1 ? 'slide flagged' : 'slides flagged' },
-]
-export const RecapMath = { stats: recapStats }
+  { value: slides == null ? 0 : slides, label: slides === 1 ? 'slide flagged' : 'slides flagged' },
+  { value: flags, label: flags === 1 ? 'flag' : 'flags' },
+] : [
+  { value: stops, label: stops === 1 ? 'stop covered' : 'stops covered' },
+  { value: notes == null ? 0 : notes, label: notes === 1 ? 'note taken' : 'notes taken' },
+  { value: flagged == null ? 0 : flagged, label: flagged === 1 ? 'slide flagged' : 'slides flagged' },
+])
 
-/** ONE STAT. Divided by a hairline rather than by space: four numbers in a row read as one
- *  instrument that way, and as four loose facts the other. The first one carries no rule — a
- *  leading hairline would read as a column edge with nothing on its left. */
-function Stat({ stat, first }: { stat: RecapStat; first?: boolean }) {
+const nextTimeRuns = (last?: StartSession['last'], walks?: PresentStartCardProps['walks'], lead?: string): Array<[string, boolean]> | null => {
+  if (!last) return null
+  const r = StartMath.resolve({ last }, null, walks)
+  return r.kind === 'continue' ? ([([lead != null ? lead : 'Next time, continue picks up at ', false] as [string, boolean])].concat(r.lineEm) as Array<[string, boolean]>) : r.lineEm
+}
+export const RecapMath = { stats: recapStats, nextTime: nextTimeRuns }
+
+/** THE SESSION THE LECTURE WAS RECORDED AGAINST. Read-only here. */
+function SessionLine({ session, untitled }: { session: StartSession; untitled: string }) {
+  const name = session.name || ''
+  const days = StartMath.meetsLabel(session.meets)
+  return (
+    <div title={wrapTip('the session this lecture was recorded against')} style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 22, minWidth: 0 }}>
+      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-body)', lineHeight: 'var(--lh-snug)', fontWeight: 'var(--fw-semibold)', color: name ? 'var(--text-2)' : 'var(--text-3)', fontStyle: name ? 'normal' : 'italic', whiteSpace: 'nowrap' }}>{name || untitled}</span>
+      {days ? <span style={{ flexShrink: 0, fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', color: 'var(--text-3)' }}>{days}</span> : null}
+    </div>
+  )
+}
+
+/** ONE STAT. Divided by a hairline rather than by space. */
+function Stat({ stat, first }: { stat: RecapStat; first: boolean }) {
   return (
     <div style={{ padding: '0 ' + LECTURE_RECAP_METRICS.statPad + 'px', borderLeft: first ? 'none' : '1px solid var(--border-hair)' }}>
       <b style={{ display: 'block', fontFamily: 'var(--font-display)', fontSize: LECTURE_RECAP_METRICS.statValue, lineHeight: 1.1, fontWeight: 'var(--fw-bold)', letterSpacing: 'var(--ls-display)', color: 'var(--text-1)', fontVariantNumeric: 'var(--tnum)' }}>{stat.value}</b>
@@ -79,116 +80,71 @@ function Stat({ stat, first }: { stat: RecapStat; first?: boolean }) {
   )
 }
 
-/** a slide the professor flagged while teaching, listed as something to come back to */
-export interface FlaggedSlide {
-  /** stable identity for the row; the list index is used when it is missing */
-  id?: string | number
-  /** the slide's own name */
-  title: ReactNode
-  /** what to call its position — "stop 4". Omit and `stop` is worded into one */
-  stopLabel?: string
-  /** the stop's zero-based index, worded as `stop N+1` when `stopLabel` is absent */
-  stop?: number
-  /** jump back to it. Omit and the row is a readout, not a control */
-  onOpen?: () => void
-}
-
-/** ONE FLAGGED SLIDE — a to-do, so it is a ROW with a filled flag and the stop it was on, not a
- *  quick-actions tile: the deck's tiles are things to DO now, and these are things to come back
- *  to. The flag is filled because the professor set it during the lecture; an outline flag is the
- *  hover hint on a slide that is NOT flagged, and reusing it here would say the opposite. */
-function FlaggedRow({ item }: { item: FlaggedSlide }) {
+/** ‹ AND › ON THE SHOWN SLIDE. Disabled at the first and the last slide. */
+function StepButton({ dir, disabled, onClick }: { dir: -1 | 1; disabled: boolean; onClick: () => void }) {
   const [hot, setHot] = useState(false)
-  const act = !!item.onOpen
+  const name = dir < 0 ? 'previous slide' : 'next slide'
   return (
-    <button type="button" disabled={!act} onClick={item.onOpen} onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)}
-      data-flagged-slide
-      title={wrapTip(act ? 'open this slide' : undefined)}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 9, width: '100%', height: 38, padding: '0 10px', boxSizing: 'border-box',
-        border: '1px solid ' + (act && hot ? 'var(--border-strong)' : 'var(--border-frame)'), borderRadius: 'var(--radius-md)',
-        background: act && hot ? 'var(--bark-50)' : 'var(--surface-paper)', cursor: act ? 'pointer' : 'default',
-        fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-semibold)', color: 'var(--text-1)',
-        textAlign: 'left', transition: 'var(--transition-wash)',
-      }}>
-      <span style={{ display: 'flex', flexShrink: 0, color: 'var(--acorn-600)' }}><FlagMark size={13} filled /></span>
-      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
-      <span style={{ marginLeft: 'auto', flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-micro)', color: 'var(--text-3)' }}>{item.stopLabel}</span>
+    <button type="button" aria-label={name} title={wrapTip(name)} disabled={disabled} onClick={onClick}
+      onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)}
+      style={{ position: 'absolute', top: '50%', [dir < 0 ? 'left' : 'right']: -LECTURE_RECAP_METRICS.step / 3, width: LECTURE_RECAP_METRICS.step, height: LECTURE_RECAP_METRICS.step, marginTop: -LECTURE_RECAP_METRICS.step / 2, zIndex: 3, padding: 0, boxSizing: 'border-box', borderRadius: '50%', display: 'grid', placeItems: 'center',
+        background: 'var(--surface-paper)', border: '1px solid ' + (hot && !disabled ? 'var(--border-strong)' : 'var(--border-rule)'), boxShadow: 'var(--lift-2)',
+        color: hot && !disabled ? 'var(--text-1)' : 'var(--text-2)', opacity: disabled ? 'var(--opacity-disabled)' : 1, cursor: disabled ? 'default' : 'pointer', transition: 'var(--transition-wash)' }}>
+      <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d={dir < 0 ? 'M6.3 2 3.3 5l3 3' : 'M3.7 2l3 3-3 3'} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
     </button>
   )
 }
 
-/** something to do now that the lecture is over, drawn under a rule below the flagged list */
 export interface RecapAction {
-  /** the pill's label, lower case */
   label: string
-  /** which face it wears; `quiet` when omitted */
-  tone?: 'quiet' | 'primary' | 'walk' | 'danger' | 'ghost' | 'neutral'
-  /** what pressing it does */
+  tone?: 'quiet' | 'primary' | 'walk' | 'danger' | 'neutral'
   onSelect?: () => void
 }
 
-/** The end-of-lecture recap — part 7 of the presenter-mode split, and the whole region the film
- *  roll and the strip occupied while the lecture was live.
- *
- *  INSTANTS FIRST, STRINGS AS OVERRIDES: a host passes `elapsedS` / `bookedS` (seconds),
- *  `startedAt` / `endedAt` (ms or Date) and `counts`, and the recap does every piece of wording; a
- *  string prop, where given, wins. */
 export interface LectureRecapProps {
-  /** what was being taught — the recap's headline */
-  course: ReactNode
-  /** the slot's own line under the course name — "Tuesday · lecture 4", say */
-  when?: ReactNode
-  /** replaces the whole caps line over the course name. Omit and it is composed from the
-   *  elapsed and booked times: "lecture ended · 47:12 of 50:00" */
-  eyebrow?: ReactNode
-  /** the elapsed time, already worded. Prefer `elapsedS` and let the recap say it */
+  course: string
+  when?: string
+  eyebrow?: string
   elapsed?: string
-  /** the booked length, already worded. Prefer `bookedS` */
   booked?: string
-  /** the start of the lecture, already worded. Prefer `startedAt` */
-  started?: string
-  /** the end of the lecture, already worded. Prefer `endedAt` */
-  ended?: string
-  /** the stats row, already worded. Prefer `counts` and let `recapStats` word it */
-  stats?: RecapStat[]
-  /** THE NOTES SIDE IS THE HOST'S OWN PANE (typically `LectureNotes variant="review"`): the
-   *  entries belong to the host, and one component owning both the live pane and the recap's copy
-   *  of it is how the two drift apart */
-  notes?: ReactNode
-  /** how long the lecture actually ran, in seconds */
   elapsedS?: number
-  /** how long it was booked for, in seconds */
   bookedS?: number
-  /** when it started — ms since the epoch, or a Date */
+  started?: string
+  ended?: string
   startedAt?: number | Date | null
-  /** when it ended — ms since the epoch, or a Date. The date is said again only when it is a
-   *  different calendar day from the start */
   endedAt?: number | Date | null
-  /** the three numbers the stats row draws, worded here */
-  counts?: RecapCounts
-  /** what was flagged for revision, in the order it should be revisited */
-  flagged?: FlaggedSlide[]
-  /** the aside pane's name */
-  flaggedTitle?: string
-  /** what the aside says when nothing was flagged */
-  flaggedEmpty?: ReactNode
-  /** what to do now the lecture is over — drawn as full-width pills under a rule, separated from
-   *  the flagged list because "what to revise" and "what to do now" are different questions */
+  counts?: { stops: number; slides?: number; flags?: number; notes?: number; flagged?: number }
+  stats?: RecapStat[]
+  notes?: ReactNode
+  slide?: ReactNode
+  shownStop?: number
+  stops?: string[]
+  stopCount?: number
+  onShowStop?: (index: number) => void
+  slideLabel?: string
+  onFlag?: (category: string) => void
+  flagTypes?: Array<{ key: string; glyph: string; label: string; short?: string; wash: string }>
+  usualFlag?: string
+  onUsualFlagChange?: (key: string) => void
+  flagHint?: boolean
   actions?: RecapAction[]
-  /** the aside's width. Defaults to the 360 the quick actions deck stood in, so nothing moves
-   *  sideways when the lecture ends */
   asideWidth?: number
-  /** merged into the recap's root — for its place in the host's own flex */
   style?: CSSProperties
+  session?: StartSession
+  untitledLabel?: string
+  walks?: PresentStartCardProps['walks']
+  nextLead?: string
+  /** @deprecated v4 - the old flagged-slides list. Accepted and ignored */
+  flagged?: Array<{ id?: string | number; title?: string; stop?: number }>
 }
 
 export function LectureRecap({
   course, when, eyebrow, elapsed, booked, started, ended, stats, notes,
   elapsedS, bookedS, startedAt, endedAt, counts,
-  flagged = [], flaggedTitle = 'flagged for revision',
-  flaggedEmpty = 'nothing was flagged this lecture.',
+  slide, shownStop = 0, stops, stopCount, onShowStop, slideLabel,
+  onFlag, flagTypes, usualFlag, onUsualFlagChange, flagHint,
   actions = [], asideWidth = LECTURE_RECAP_METRICS.aside, style,
+  session, untitledLabel = 'Untitled session', walks, nextLead,
 }: LectureRecapProps) {
   const clock = span(startedAt, endedAt)
   const elapsedTxt = elapsed != null ? elapsed : elapsedS != null ? mmss(elapsedS) : undefined
@@ -196,53 +152,67 @@ export function LectureRecap({
   const startedTxt = started != null ? started : clock.started
   const endedTxt = ended != null ? ended : clock.ended
   const statList = stats || (counts ? recapStats(counts) : [])
-  const rows = flagged.map((f) => (f.stopLabel != null || f.stop == null ? f : { ...f, stopLabel: 'stop ' + (f.stop + 1) }))
+  const count = stopCount != null ? stopCount : stops ? stops.length : 0
+  const at = Math.max(0, Math.min(count ? count - 1 : 0, shownStop || 0))
+  const legend = slideLabel != null ? slideLabel : 'Preview'
+  const nextRuns = nextTimeRuns(session && session.last, walks, nextLead)
   const line = eyebrow != null ? eyebrow : 'lecture ended' + (elapsedTxt ? ' · ' + elapsedTxt : '') + (elapsedTxt && bookedTxt ? ' of ' + bookedTxt : '')
+  const notesEl = isValidElement(notes) ? (notes as ReactElement<Record<string, unknown>>) : null
+  const preview = (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: '0 1 auto', minHeight: 0, aspectRatio: '1120 / 630' }}>
+        <div style={{ position: 'relative', height: '100%', maxWidth: '100%', aspectRatio: '1120 / 630' }}>
+          <div style={{ position: 'absolute', inset: 0, borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-frame)', background: 'var(--bark-50)' }}>{slide}</div>
+          {onFlag ? <span style={{ position: 'absolute', right: 6, top: 6, zIndex: 3 }}><FlagChip types={flagTypes} usual={usualFlag} onUsualChange={onUsualFlagChange} hint={flagHint} onFlag={onFlag} /></span> : null}
+          {onShowStop && count > 1 ? <StepButton dir={-1} disabled={at <= 0} onClick={() => onShowStop(at - 1)} /> : null}
+          {onShowStop && count > 1 ? <StepButton dir={1} disabled={at >= count - 1} onClick={() => onShowStop(at + 1)} /> : null}
+        </div>
+      </div>
+      {count ? <div style={{ flexShrink: 0, marginTop: 8, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-micro)', color: 'var(--text-3)' }}>{'stop ' + (at + 1) + ' of ' + count}</div> : null}
+    </div>
+  )
   return (
-    <div data-lecture-recap style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', ...style }}>
-      {/* THE HEAD IS A BAND, NOT A PANE: it carries no title hat and nothing in it scrolls, so a
-         `Pane` would put a legend on a thing whose whole first line already names it. It takes the
-         pane's own frame and radius so it belongs to the same set of objects. */}
-      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 26, padding: LECTURE_RECAP_METRICS.headPad, boxSizing: 'border-box', background: 'var(--surface-paper)', border: '1px solid var(--border-frame)', borderRadius: 'var(--radius-lg)' }}>
-        {/* THE HEAD IS THE SIDE THAT GIVES, THE NUMBERS NEVER ARE. `flex: 1; min-width: 0` here,
-           so the slot line wraps and the clock line ellipsises; the stats row is `flexShrink: 0`
-           — a number cut in half is a wrong number, and "slide flagg" is not a statistic. */}
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', ...style }}>
+      <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', padding: LECTURE_RECAP_METRICS.headPad, boxSizing: 'border-box', background: 'var(--surface-paper)', border: '1px solid var(--border-frame)', borderRadius: 'var(--radius-lg)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 26 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-micro)', fontWeight: 'var(--fw-bold)', letterSpacing: 'var(--ls-caps)', textTransform: 'uppercase', color: 'var(--acorn-600)' }}>{line}</div>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 24, lineHeight: 1.2, fontWeight: 'var(--fw-bold)', letterSpacing: 'var(--ls-display)', color: 'var(--text-1)', marginTop: 6, textWrap: 'pretty' }}>{course}</div>
-          {when ? <div style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', lineHeight: 'var(--lh-snug)', color: 'var(--text-2)', marginTop: 4, textWrap: 'pretty' }}>{when}</div> : null}
-          {/* WHEN IT STARTED AND WHEN IT ENDED — the two wall-clock readings the elapsed figure
-             cannot give back. Mono, because they are numerals. */}
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 14, rowGap: 2, marginTop: 6 }}>
+            <div style={{ minWidth: 0, fontFamily: 'var(--font-display)', fontSize: 24, lineHeight: 1.2, fontWeight: 'var(--fw-bold)', letterSpacing: 'var(--ls-display)', color: 'var(--text-1)', textWrap: 'pretty' }}>{course}</div>
+            {session ? <SessionLine session={session} untitled={untitledLabel} /> : null}
+          </div>
           {startedTxt || endedTxt ? (
-            <div style={{ display: 'flex', gap: 14, marginTop: 6, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-micro)', color: 'var(--text-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {startedTxt ? <span><span style={{ color: 'var(--text-3)' }}>started </span>{startedTxt}</span> : null}
-              {endedTxt ? <span><span style={{ color: 'var(--text-3)' }}>ended </span>{endedTxt}</span> : null}
+            <div style={{ marginTop: 4, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-micro)', color: 'var(--text-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {(startedTxt || '') + (startedTxt && endedTxt ? ' – ' : '') + (endedTxt || '')}
             </div>
           ) : null}
+          {when ? <div style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', lineHeight: 'var(--lh-snug)', color: 'var(--text-2)', marginTop: 6, textWrap: 'pretty' }}>{when}</div> : null}
         </div>
-        <div data-recap-stats style={{ display: 'flex', flexShrink: 0, marginLeft: 'auto' }}>
+        <div style={{ display: 'flex', flexShrink: 0, marginLeft: 'auto' }}>
           {statList.map((s, i) => <Stat key={s.label || i} stat={s} first={i === 0} />)}
         </div>
       </div>
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 'var(--space-3)' }}>
-        {notes}
-        <div style={{ flexShrink: 0, width: asideWidth, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <Pane title={flaggedTitle} scroll="none" bodyStyle={{ padding: '0 13px 12px ' + LEGEND_INSET + 'px' }} style={{ flex: 1, minHeight: 0 }}>
-            <PaneScroller style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {rows.length ? rows.map((f, i) => <FlaggedRow key={f.id != null ? f.id : i} item={f} />)
-                : <p style={{ margin: 0, fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', lineHeight: 'var(--lh-normal)', color: 'var(--text-2)' }}>{flaggedEmpty}</p>}
-            </PaneScroller>
-            {actions.length ? (
-              /* THE ACTIONS ARE NOT ROWS OF THE LIST: a rule above them and a bark-washed floor
-                 under them separate "what to revise" from "what to do now". Each pill is `block` —
-                 full width, label centred; the host's `tone` decides its face, `quiet` by
-                 default. */
-              <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 6, paddingTop: 10, marginTop: 10, borderTop: '1px solid var(--border-hair)' }}>
-                {actions.map((a, i) => <PillButton key={a.label || i} block tone={a.tone || 'quiet'} onClick={a.onSelect}>{a.label}</PillButton>)}
-              </div>
-            ) : null}
-          </Pane>
+      {nextRuns || actions.length ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border-hair)', fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', lineHeight: 'var(--lh-snug)', color: 'var(--text-2)' }}>
+          {nextRuns ? (<Fragment>
+          <span style={{ display: 'flex', flexShrink: 0, marginLeft: -5, transform: 'translateY(-1px)', color: 'var(--acorn-600)' }}><WalkerMark size={16} /></span>
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nextRuns.map((r, i) => (r[1] ? <span key={i} style={{ fontWeight: 'var(--fw-semibold)', color: 'var(--text-1)' }}>{r[0]}</span> : <Fragment key={i}>{r[0]}</Fragment>))}</span>
+          </Fragment>) : null}
+          {actions.length ? (
+            <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto', paddingLeft: 16 }}>
+              {actions.map((a, i) => <PillButton key={a.label || i} size="sm" tone={a.tone || 'quiet'} onClick={a.onSelect}>{a.label}</PillButton>)}
+            </div>
+          ) : null}
         </div>
+      ) : null}
+      </div>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 'var(--space-3)' }}>
+        {notesEl ? cloneElement(notesEl, { aside: preview, asideLabel: notesEl.props.asideLabel != null ? notesEl.props.asideLabel : legend, asideWidth: notesEl.props.asideWidth != null ? notesEl.props.asideWidth : asideWidth }) : (
+          <Fragment>
+            {notes}
+            <Pane title={legend} scroll="none" bodyStyle={{ padding: '4px 16px 12px ' + LEGEND_INSET + 'px' }} style={{ flexShrink: 0, width: asideWidth, minHeight: 0 }}>{preview}</Pane>
+          </Fragment>
+        )}
       </div>
     </div>
   )
