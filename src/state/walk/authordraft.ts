@@ -161,16 +161,6 @@ const nextVid = () => 'v' + (seq.vid++).toString(36)
  * a hook's returned callbacks. */
 const nextBoxKey = () => 'draft-' + seq.box++
 
-// Persist on every change to the three durable stores. No debounce: a commit is
-// one JSON.stringify of a tree with tens of stops in it, and the alternative —
-// a trailing timer — buys nothing measurable while opening a window in which a
-// reload loses the last keystroke. History is not written; see draftpersist.ts.
-const persist = () =>
-  saveDraft({ stops: stopsStore.get(), choices: choicesStore.get(), withOptionals: optionalsStore.get() })
-stopsStore.subscribe(persist)
-choicesStore.subscribe(persist)
-optionalsStore.subscribe(persist)
-
 // ── Unsaved work ────────────────────────────────────────────────────────────
 // The draft is written to storage on every change, so "unsaved" here means edited
 // since the baseline the app opened on (a restore or the seed) or the last save
@@ -181,24 +171,48 @@ optionalsStore.subscribe(persist)
 let baseStops = stopsStore.get()
 let baseChoices = choicesStore.get()
 let baseOptionals = optionalsStore.get()
-const dirtyStore = store(false)
+// History is not persisted, so a restored draft has no baseline to undo back to:
+// without this, one edit and its undo would read as saved. Only markSaved clears it.
+let restoredUnsaved = restored?.unsaved === true
 const draftWalkStops = () =>
   leafStops(resolveRoad(stopsStore.get(), choicesStore.get(), optionalsStore.get())).map((s) => ({ id: s.node, note: s.note ?? '' }))
-const refreshDirty = () =>
-  dirtyStore.set(
-    (stopsStore.get() !== baseStops ||
-      choicesStore.get() !== baseChoices ||
-      optionalsStore.get() !== baseOptionals) &&
-      draftWalkStops().length > 0,
-  )
+const draftUnsaved = () =>
+  (restoredUnsaved ||
+    stopsStore.get() !== baseStops ||
+    choicesStore.get() !== baseChoices ||
+    optionalsStore.get() !== baseOptionals) &&
+  draftWalkStops().length > 0
+
+// Persist on every change to the three durable stores. No debounce: a commit is
+// one JSON.stringify of a tree with tens of stops in it, and the alternative —
+// a trailing timer — buys nothing measurable while opening a window in which a
+// reload loses the last keystroke. History is not written; see draftpersist.ts.
+// The bit is computed here rather than read from dirtyStore: these subscriptions
+// run before refreshDirty's, so the store would still hold the previous value.
+const persist = () =>
+  saveDraft({
+    stops: stopsStore.get(),
+    choices: choicesStore.get(),
+    withOptionals: optionalsStore.get(),
+    unsaved: draftUnsaved(),
+  })
+stopsStore.subscribe(persist)
+choicesStore.subscribe(persist)
+optionalsStore.subscribe(persist)
+
+const dirtyStore = store(draftUnsaved())
+const refreshDirty = () => dirtyStore.set(draftUnsaved())
 stopsStore.subscribe(refreshDirty)
 choicesStore.subscribe(refreshDirty)
 optionalsStore.subscribe(refreshDirty)
 const markSaved = () => {
+  restoredUnsaved = false
   baseStops = stopsStore.get()
   baseChoices = choicesStore.get()
   baseOptionals = optionalsStore.get()
   refreshDirty()
+  // no store changed, so the persist subscriptions above do not fire
+  persist()
 }
 
 /** "Load without saving": the draft's edits stop counting as unsaved, and the

@@ -94,6 +94,12 @@ describe('parseDraft — a payload the app did not write this session', () => {
     expect(parseDraft(snap([leaf(A)], { withOptionals: false }))?.withOptionals).toBe(false)
   })
 
+  it('only a stored true is unsaved; an absent or false field reads as saved', () => {
+    expect(parseDraft(snap([leaf(A)]))?.unsaved).toBeUndefined()
+    expect(parseDraft(snap([leaf(A)], { unsaved: false }))?.unsaved).toBeUndefined()
+    expect(parseDraft(snap([leaf(A)], { unsaved: true }))?.unsaved).toBe(true)
+  })
+
   it('keeps the optional flag and a container description', () => {
     const stops: Stop[] = [{ node: A, optional: true, variants: [] }, { key: 'k', title: 't', description: 'what it is', variants: [{ id: 'v0', label: 'one', steps: [] }] }]
     const got = parseDraft(snap(stops))
@@ -198,6 +204,19 @@ describe('loadDraft / saveDraft — never throw', () => {
     const s: DraftSnapshot = { stops: [leaf(A)], choices: {}, withOptionals: false }
     saveDraft(s)
     expect(loadDraft()).toEqual(s)
+  })
+
+  it('writes the unsaved bit only when true, and reads it back', () => {
+    const store = stubStore()
+    const unsaved: DraftSnapshot = { stops: [leaf(A)], choices: {}, withOptionals: true, unsaved: true }
+    saveDraft(unsaved)
+    expect(JSON.parse(store.get('pkt.walkdesk.draft')!).data.unsaved).toBe(true)
+    expect(loadDraft()).toEqual(unsaved)
+
+    const saved: DraftSnapshot = { stops: [leaf(A)], choices: {}, withOptionals: true }
+    saveDraft(saved)
+    expect(JSON.parse(store.get('pkt.walkdesk.draft')!).data).not.toHaveProperty('unsaved')
+    expect(loadDraft()).toEqual(saved)
   })
 
   it('upgrades an old draft in place WITHOUT erasing a stop the corpus no longer knows', () => {
