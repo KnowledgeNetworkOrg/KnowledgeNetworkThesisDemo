@@ -66,9 +66,13 @@ conflict: with the viewer left on `main`'s behaviour and always mounted, the car
 
 ### 10. fix — agent (opencode) — succeeded
 
-20:53–20:54 UTC (64.8s).
+20:53–20:55 UTC (67.0s). Commit `1b0fcb3`.
 Ran with opencode 1.18.35 · opencode-go/deepseek-v4.1-flash.
+Changed 3 files, 17 lines added and 49 removed in 60s. Recorded as 1b0fcb3.
 
-### 11. review — agent (claude) — waiting
+### 11. review — agent (claude) — succeeded
+
+20:55–20:56 UTC (86.1s).
+Ran with claude-code 2.1.309 · claude-sonnet-5-5 · effort xhigh.
 
 ### 12. land — tool — waiting
