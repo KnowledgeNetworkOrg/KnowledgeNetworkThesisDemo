@@ -3,8 +3,9 @@
 For any coding agent working in this repository, whichever one it is, CLI tool or desktop
 app.
 
-- **This file holds the house rules.** They are written here and nowhere else, so read this
-  file rather than relying on a summary of it.
+- **This file holds the house rules: the pull request and card review rules for the agents a
+  person runs by hand,** below. They are written here and nowhere else, so read this file
+  rather than relying on a summary of it.
 - **`CLAUDE.md` is the project's map**: what the app is, where its knowledge lives, and which
   source to trust for what.
 
@@ -13,16 +14,14 @@ app.
 **Status: ON.** This process stands in until the KnowledgeNetwork-Code tool is ready for
 use. Only the repository owner turns it off, by changing this line.
 
-These rules apply across the KnowledgeNetwork projects; this is this repository's copy.
+These rules are this repository's own. The other KnowledgeNetwork projects keep their own, which
+may differ.
 
-**A pull request opened by a KnowledgeNetwork-Code run is reviewed inside the run.** The
-run's review step is the reviewer that did not write the change (rule 1), its review loop is
-the rounds (rule 4), and the pull request description the run writes is the record and
-stands in for rule 2's closing comment. That description names the agent behind each agent
-step, with its model and effort once the step has run, which is what rule 3 asks for, and
-quotes the last review with its verdict. An agent working as one of the run's steps does not
-start reviewers or post a closing comment. Commits pushed to that branch after the run are a
-change like any other, and rules 1 to 4 apply to them.
+They are for the agents a person runs by hand, on any pull request, one opened by a
+KnowledgeNetwork-Code run included. An agent the tool starts for a run, a step's or the
+conflict judge, does not follow them: the tool tells it never to run git or GitHub, and runs
+that run's reviews itself. On a run's pull request, the agent a person runs takes the author's
+part in every rule below: it answers each point, runs the rounds and posts the closing comment.
 
 1. **Every pull request is reviewed by two or more agents before it merges.** The agent that
    wrote the change is one of them, and at least one other reviews it. A reviewer may be a
@@ -89,5 +88,20 @@ change like any other, and rules 1 to 4 apply to them.
 GitHub does not let an account approve its own pull request, and every agent is that
 account, so nothing is ever posted as a GitHub review or approval. The reviews reach GitHub
 only inside rule 2's closing comment and any comments that continue it, each review ending
-with its verdict, or, for a KnowledgeNetwork-Code run's pull request, inside the description
-the run writes.
+with its verdict.
+
+## Card review before sign-off
+
+Before the owner signs off a card as ready to be worked on, one reviewer agent reviews and
+refines its requirements and design: a fresh session on Sonnet, not a copy of the conversation
+that wrote the card. It checks the card against the code and the decisions as they stand, and
+hands back the card with its wording fixed and a short list of what it changed and why. The
+agent that wrote the card reads that list, keeps or undoes each change, and gives the owner the
+result to sign off.
+
+One reviewer is enough for this check. It needs neither a second model nor rounds until
+reviewers agree. If the reviewer finds a question only the owner can answer, the card goes to
+the owner with that question instead of being signed off.
+
+This covers only a card's text before it is signed off. Once the card is implemented, its change
+is a pull request and is reviewed under the pull request rules above, unchanged.
