@@ -55,24 +55,36 @@ let lastPublished: RouteStep[] | null = null
  * to opt out — the walk viewer does this while a saved walk is playing, since
  * activateWalk already owns the route in that state.
  *
- * A SAVED WALK ALSO SILENCES THE EDITOR. While `activeWalk` is set the editor
- * publishes nothing, so a remount on the way back from the presenter, or a
- * later draft edit, cannot overwrite the walk loaded on the desk. Nor does it
- * republish a road already sent: `lastPublished` is the last one, so a remount
- * changes neither the route nor the trail (`setRouteSteps` marks the trail, and
- * `mark` only dedups at the log's tip). After the walk is cleared the route
- * stays as the clear left it until the draft's road actually changes.
+ * A SAVED WALK ALSO SILENCES THE EDITOR, which opts into `dedup`. While
+ * `activeWalk` is set the editor publishes nothing, so a remount on the way
+ * back from the presenter, or a later draft edit, cannot overwrite the walk
+ * loaded on the desk. Nor does it republish a road already sent: `lastPublished`
+ * is the last one, so a remount changes neither the route nor the trail
+ * (`setRouteSteps` marks the trail, and `mark` only dedups at the log's tip).
+ * After the walk is cleared the route stays as the clear left it until the
+ * draft's road actually changes.
+ *
+ * Without `dedup` the hook publishes whenever `road` is non-null and records
+ * nothing, so the viewer can hand the draft back after "stop this walk".
  *
  * Deliberately has no cleanup that clears the route: the editor and the
  * viewer can both have this mounted at once (panes bench rather than truly
  * unmount), and an unmount-time clear from one would wipe what the other
  * still wants shown. The single-caller version this replaced cleaned up via
- * bus.clearRoute(), which also nulls activeWalk — that is why closing the
+ * bus.clearRoute(), which also nulls activeWalk - that is why closing the
  * walk editor used to kill an active saved walk. Real clears now only come
  * from an explicit action: activateWalk, deactivateWalk, clearRoute. */
-export function usePublishPresentedRoute(bus: PublishedRouteBus, road: Stop[] | null): void {
+export function usePublishPresentedRoute(
+  bus: PublishedRouteBus,
+  road: Stop[] | null,
+  { dedup = false }: { dedup?: boolean } = {},
+): void {
   useEffect(() => {
     if (road === null) return
+    if (!dedup) {
+      bus.setRouteSteps(routeStepsOf(road))
+      return
+    }
     const publish = publishableRoad(road, bus.activeWalk, lastPublished)
     if (publish === null) return
     const steps = routeStepsOf(publish)
@@ -81,7 +93,7 @@ export function usePublishPresentedRoute(bus: PublishedRouteBus, road: Stop[] | 
     // bus is recreated every render; key only on the data that should retrigger
     // a publish.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [road, bus.activeWalk])
+  }, [road, bus.activeWalk, dedup])
 }
 
 /** The drill path a presentation view owns for itself.

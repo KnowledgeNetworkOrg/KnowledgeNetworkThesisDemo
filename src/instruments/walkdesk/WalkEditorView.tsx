@@ -82,7 +82,7 @@ export default function WalkEditorView({ bus }: { bus: WalkEditorViewBus }) {
   }, [])
 
   const resolved = usePresentedRoad()
-  usePublishPresentedRoute(bus, resolved)
+  usePublishPresentedRoute(bus, resolved, { dedup: true })
 
   return (
     // DS PaneHeader.d.ts rule 2: THE PANE BODY TAKES NO BACKGROUND OF ITS OWN — the
