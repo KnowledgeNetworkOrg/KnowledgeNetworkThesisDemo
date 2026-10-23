@@ -32,9 +32,19 @@ Changed 3 files, 129 lines added and 3 removed in 263s. Recorded as dce82aa.
 
 ### 4. check — agent (opencode) — fix requested
 
-17:25–17:49 UTC (1437.4s).
+17:25–17:49 UTC (1439.8s). Commit `396a30b`.
 Ran with opencode 1.18.35 · opencode-go/deepseek-v4.1-flash.
+The check step failed: #481: the walk editor, remounted by Plan, leaves the loaded walk's pins alone. Recorded as 396a30b. A fix and another check follow.
 
-### 5. review — agent (claude) — waiting
+### 5. decide — person — succeeded
 
-### 6. land — tool — waiting
+17:50–18:38 UTC (2915.8s).
+The conflict judge has something to ask the person.
+
+### 6. fix — agent (opencode) — waiting
+
+### 7. check — agent (opencode) — waiting
+
+### 8. review — agent (claude) — waiting
+
+### 9. land — tool — waiting
