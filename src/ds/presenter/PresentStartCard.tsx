@@ -90,11 +90,12 @@ export interface PresentStartCardProps {
   keys?: boolean
   /** the clock the session labels read; the host's instant */
   now?: number | Date
-  /** the card's title; the walk the highlighted row would start when omitted */
+  /** the card's title. Default "Start presenting"; the walk the highlighted row would
+   *  start is appended after a dash, and the title is bare on a row with no fixed walk */
   title?: string
   /** what an unnamed session is called. Default "Untitled session" */
   untitledLabel?: string
-  /** the side column's caps label. Default "Sessions" */
+  /** the side column's caps label. Default "Choose Session" */
   sessionsLabel?: string
   /** the new-session row's words */
   newLabel?: string

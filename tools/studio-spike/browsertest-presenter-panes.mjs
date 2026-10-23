@@ -71,7 +71,7 @@ try {
   // ⏎ in the composer saves; the field must have focus first, and typing anywhere else would be
   // read by the screen's own single-letter shortcuts instead
   const write = async (text) => {
-    await notes().getByLabel('a note for this slide.').click()
+    await notes().getByLabel('a note for this slide…').click()
     await page.keyboard.type(text)
     await page.keyboard.press('Enter')
     await page.waitForTimeout(350)

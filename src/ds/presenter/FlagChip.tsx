@@ -29,6 +29,28 @@ const shortOf = (c?: FlagType | null) => (c ? c.short || c.label : '')
 
 interface RingState { x: number; y: number; mode: 'hold' | 'click' | 'pin' }
 
+/**
+ * THE FLAG BUTTON - one chip, two gestures. TAP: one flag of the usual type at once; the new row
+ * in the notes pane is the confirmation. HOLD (`FLAG_CHIP_METRICS.hold`) or RIGHT-CLICK: a ring of
+ * the OTHER types around a cancel mark (the usual type is the tap, so it is not offered again).
+ * HELD: release on a petal to pick it; release in the middle or outside and nothing is made. A TYPE
+ * PICKED ON THE RING BECOMES THE USUAL ONE. Right-clicked (or opened from the keyboard): the ring
+ * stays open for a click; Escape or a click outside closes it. Enter/Space is the tap and the
+ * context-menu key opens the ring; there is no global key.
+ *
+ * WHAT THE HOST MUST DO:
+ *  1. `onFlag(key)` ADDS A BARE FLAG to the slide the chip is on - `{ stop, category: key,
+ *     text: '', when, at: Date.now() }`, the same entry the notes pane's composer writes, in the
+ *     same list. There is no second store. Pressing the same type twice makes two rows.
+ *  2. Pass the user's type list's first three as `types` (or omit for the defaults); only those
+ *     three ever appear on the ring.
+ *  3. HOLD AND STORE `usual`, and pass `onUsualChange`: a type picked on the ring becomes the
+ *     usual one and must survive a reload. Pass the SAME key to every chip (`FilmRoll usualFlag`,
+ *     `LectureRecap usualFlag`) and to `LectureNotes usualFlag`.
+ *
+ * THE RING IS PAINTED ON `document.body`, fixed at the chip's centre, so an `overflow: hidden`
+ * parent cannot clip it.
+ */
 export interface FlagChipProps {
   /** the ring types' source, in order. Default the first three of `NOTE_CATEGORIES` */
   types?: FlagType[]
@@ -153,7 +175,7 @@ export function FlagChip({ types, usual = 'fix', onUsualChange, onFlag, title, h
   const clickMode = !!ring && (ring.mode === 'click' || ring.mode === 'pin')
   const blocking = !!ring && ring.mode === 'click'
   const ringBody = ring ? (<Fragment>
-        <button type="button" role="menuitem" aria-label="cancel" title={wrapTip('cancel - no flag')}
+        <button type="button" role="menuitem" aria-label="cancel" title={wrapTip('cancel — no flag')}
           onMouseEnter={clickMode ? () => setPick('cancel') : undefined} onClick={clickMode ? () => fire('cancel') : undefined}
           style={{ position: 'absolute', left: -M.centre / 2, top: -M.centre / 2, width: M.centre, height: M.centre, padding: 0, boxSizing: 'border-box', pointerEvents: clickMode ? 'auto' : 'none', borderRadius: '50%', background: 'var(--surface-paper)', border: pick === 'cancel' ? '2px solid var(--border-strong)' : '1px solid var(--border-rule)', color: pick === 'cancel' ? 'var(--text-1)' : 'var(--text-2)', boxShadow: 'var(--lift-2)', display: 'grid', placeItems: 'center', cursor: clickMode ? 'pointer' : 'default' }}>
           <CloseMark size={11} />

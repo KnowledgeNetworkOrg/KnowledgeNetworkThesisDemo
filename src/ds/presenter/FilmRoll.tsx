@@ -175,6 +175,26 @@ export interface FilmRollLive {
   stopIndex?: number
 }
 
+/**
+ * The presenter film roll: the live slide with its two whole neighbours. The host supplies the
+ * slide content; this component places and scales the three cards and carries the flag/expand
+ * affordances.
+ *
+ * THE TRAVEL FRAME. A stop change plays one `Element.animate()` call, not a CSS transition: the
+ * row starts one step displaced on the side it came from, at half opacity, and settles over the
+ * computed `--dur-move` / `--ease-settle` (a cut under reduced motion). WHAT THE HOST MUST DO FOR
+ * THE CUE TO BE COMPLETE: pass `current.stopIndex`. With it every route into a new stop animates
+ * and the roll suppresses its click-driven path, so a slide never plays twice; without it only the
+ * roll's own clicks animate.
+ *
+ * PROJECTING OR NOT. Pass `projecting={false}` for a preview with nothing on the projector, and
+ * the same flag to the header bar (`state="preview"`), so the two never disagree.
+ *
+ * v4: THE ROLL IS FOR QUICK FLAGGING; THE NOTES PANE IS THE LOG. With `onFlag` the current frame
+ * wears `FlagChip` - tap for the usual type, hold for the ring - and the callback adds a bare flag
+ * to the shown slide. Every other frame wears the plain mark while its `flagged` is true; the host
+ * DERIVES `flagged` from the slide's unresolved flags.
+ */
 export interface FilmRollProps {
   /** the roll's reference height in px at scale 1 - the fill scales it with the widths */
   height?: number

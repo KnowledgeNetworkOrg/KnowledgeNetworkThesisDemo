@@ -6,6 +6,8 @@ import { LEGEND_ROW } from '@/ds'
 import { ORBIT_METRICS,OrbitMath, PANE_PLACEHOLDER_METRICS, PREVIEW_BANNER_METRICS, RELATION_STATS_METRICS, RelationOrbit, RelationStats, RelationsRailMath, StatsMath, orbitKinds, orbitMarks, orbitWedge, statKindRows } from '@/ds'
 import { LEADING_DROP, LOAD_DIALOG_METRICS, LOAD_PICKER_METRICS, LoadDialog, LoadPicker, MatchMath, MatchTitle, UnsavedWarning, WARNING_DIALOG_METRICS, WarningDialog, leadStart, matchParts } from '@/ds'
 
+import { FlagChip, FlagRing, FLAG_CHIP_METRICS, GLYPH_DROP, TagGlyph, NoteFlagMath, PresentStartCard, START_CARD_METRICS, StartMath, PresenterStripMath } from '@/ds'
+
 import provenance from './PROVENANCE.json?raw'
 
 // These components are exported from @/ds but have no direct importer outside
@@ -398,6 +400,39 @@ describe('the toolbar load dialog (OB-301)', () => {
     expect(leadStart('short averyverylongword', 18)).toBe(14)
     expect(MatchMath.parts).toBe(matchParts)
     expect(MatchMath.leadStart).toBe(leadStart)
+  })
+})
+
+// OB-303 ported the v4 presenter surfaces whole; OB-304 wires them into the host. Until then
+// they are reachable from @/ds but have no importer outside src/ds, so they are listed here.
+describe('the v4 presenter parts waiting on OB-304', () => {
+  it('FlagChip / FlagRing / FLAG_CHIP_METRICS - the chip and its ring', () => {
+    expect(typeof FlagChip).toBe('function')
+    expect(FlagRing.angles).toHaveLength(3)
+    expect(FlagRing.otherAngles).toHaveLength(2)
+    expect(typeof FlagRing.petalAt).toBe('function')
+    expect(FLAG_CHIP_METRICS.hold).toBe(300)
+    expect(FLAG_CHIP_METRICS.layer).toBe(1000)
+  })
+
+  it('GLYPH_DROP / TagGlyph / NoteFlagMath - the type tag and the list arithmetic', () => {
+    expect(GLYPH_DROP['!']).toBe(0.09)
+    expect(typeof TagGlyph).toBe('function')
+    expect(typeof NoteFlagMath.fresh).toBe('function')
+    expect(typeof NoteFlagMath.visible).toBe('function')
+    expect(typeof NoteFlagMath.nextExpiry).toBe('function')
+  })
+
+  it('PresentStartCard / START_CARD_METRICS / StartMath - the start card', () => {
+    expect(typeof PresentStartCard).toBe('function')
+    expect(START_CARD_METRICS.width).toBe(640)
+    expect(typeof StartMath.resolve).toBe('function')
+    expect(StartMath.displayName(null, 'Untitled session')).toBe('Untitled session')
+  })
+
+  it('PresenterStripMath - the strip geometry under a reachable name', () => {
+    expect(typeof PresenterStripMath.height).toBe('function')
+    expect(typeof PresenterStripMath.fillBounds).toBe('function')
   })
 })
 

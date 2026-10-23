@@ -526,6 +526,25 @@ export const LECTURE_NOTES_FIT: PaneFit & { minHeight: number } = (() => {
   return { narrowBelow: w, floor: w, minHeight: 340 }
 })()
 
+/**
+ * The notes pane (v4). WHAT THE HOST MUST DO FOR THE COLUMN AROUND IT: this pane is the
+ * `flex: 1; min-height: 0` child of the presenter's flex column, under the strip (`flex: none`) -
+ * do not give it a height and do not position it; it owns its own scroll, so never wrap it in a
+ * scrolling ancestor; the composer stays outside the scroller at the foot of the left column; set
+ * the chat width only through `chatWidth` and the prepared height only through `preparedHeight`.
+ *
+ * WHAT THE HOST MUST DO FOR FLAGS: one list for the lecture, newest-first, every entry stamped with
+ * its `stop` and `at`; the chip's `onFlag` and the composer's `onSave` both add to it. Pass the
+ * whole list with `stop` (the shown slide's index): the pane filters to that slide with the oldest
+ * at the top and the newest at the foot, and scrolls so the newest always shows. Delete RESOLVES -
+ * stamp `resolvedAt` and never erase; the pane drops resolved rows at once. A slide is "flagged"
+ * while it has an entry without `resolvedAt`: DERIVE it, never store a second bit.
+ *
+ * THE PREPARED NOTES are plain text; a click edits them in place (`InlineText`, multiline), and a
+ * commit changes them for every later lecture. `variant="review"` is the recap's copy: every flag
+ * grouped by slide in walk order. Pass `selectedStop` / `onSelectStop` to share the shown slide
+ * with the recap, and `aside` for its preview column.
+ */
 export interface LectureNotesProps {
   /** `live` (default): the two-column lecture pane. `review`: the recap's one-column copy */
   variant?: 'live' | 'review'
@@ -558,8 +577,10 @@ export interface LectureNotesProps {
   onDraftChange?: (draft: string) => void
   /** the composer's chosen type key. `undefined` = not chosen yet, `null` = "no type" */
   category?: string | null
-  /** the composer's type changed; `null` means "no type" */
-  onCategoryChange?: (key: string) => void
+  /** the composer's type changed; `null` means "no type", never `undefined`. The
+   *  `(key: string)` arm is this repo's v3 host, whose setter takes `string | undefined`;
+   *  OB-304 rewires it and the arm goes */
+  onCategoryChange?: ((key: string | null) => void) | ((key: string) => void)
   /** the film roll's usual type - pass the SAME key as `FilmRoll usualFlag`. Default 'fix' */
   usualFlag?: string
   /** the composer saved: text trimmed, may contain `\n`. Add an entry with `when` and `at` */
@@ -580,7 +601,7 @@ export interface LectureNotesProps {
   onUndoEntry?: (note: LectureNote) => void
   /** @deprecated 15 Oct - never called */
   onRestoreEntry?: (note: LectureNote) => void
-  /** default "a note for this slide." */
+  /** default "a note for this slide…" */
   composerPlaceholder?: string
   /** the Class chat column's width, px, for a host that persists the column divider. Default 220 */
   chatWidth?: number
@@ -643,6 +664,7 @@ export function LectureNotes({
 }: LectureNotesProps) {
   const M = LECTURE_NOTES_METRICS
   const review = variant === 'review'
+  // the pane hands back null for "no type"; the v3 host's setter still does not accept it
   const setCategory = onCategoryChange as ((key: string | null) => void) | undefined
   const resolve = onResolveEntry || onDeleteEntry
   const chatPref = chatWidth != null ? chatWidth : duringWidth
@@ -798,7 +820,7 @@ export function LectureNotes({
           <div ref={prepRef} data-notes-prepared="" style={{ flex: '0 1 ' + prepPref + 'px', minHeight: M.preparedMinH, display: 'flex', flexDirection: 'column', userSelect: 'text', WebkitUserSelect: 'text' }}>
             <PaneScroller style={{ padding: '4px 4px 4px 4px', paddingRight: 8 + scrollerPadRight(), margin: '-4px -4px -4px -4px' }}>
               {canEditPrepared ? (
-                <div onMouseEnter={() => setPrepHot(true)} onMouseLeave={() => setPrepHot(false)} aria-label="edit the prepared notes for this slide"
+                <div role="group" onMouseEnter={() => setPrepHot(true)} onMouseLeave={() => setPrepHot(false)} onClick={() => setEditingPrep(true)} aria-label="edit the prepared notes for this slide"
                   style={{ borderRadius: 'var(--radius-xs)', outline: prepHot && !editingPrep ? '1px solid var(--border-rule)' : '1px solid transparent', outlineOffset: 3, transition: 'outline-color var(--dur-hover) var(--ease-soft)' }}>
                   <InlineText key={editingPrep ? 'edit' : 'rest'} value={prepared as string} multiline enterInserts editing={editingPrep}
                     placeholder={preparedEmpty} onOpen={() => setEditingPrep(true)}

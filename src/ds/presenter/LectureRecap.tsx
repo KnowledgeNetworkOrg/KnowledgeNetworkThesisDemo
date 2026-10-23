@@ -101,6 +101,22 @@ export interface RecapAction {
   onSelect?: () => void
 }
 
+/**
+ * The end-of-lecture recap. WHAT THE HOST MUST DO:
+ * - Pass `session` - the stored session AFTER its `last` is written - so the recap draws it beside
+ *   the course name and says where next time starts. Store the session; do not rebuild one here.
+ * - Pass `counts` - `{ stops, slides, flags }` read off the host's own store (the old `notes` /
+ *   `flagged` are still read) - and the recap words them (`recapStats`). Do not recount.
+ * - Pass `startedAt` / `endedAt` (or the string overrides); `LectureClock` owns the wording.
+ * - Pass `LectureNotes variant="review"` AS AN ELEMENT in `notes`: the recap adds its preview as
+ *   `aside` itself. Do not pass `aside` directly; a non-element `notes` gets the preview in its own
+ *   pane beside it.
+ * - Hold `shownStop` and pass the shown slide as `slide`. Set it from `onShowStop` (< >) AND from
+ *   the notes slot's `onSelectStop`, and hand the same index to the slot as `selectedStop`.
+ *   Pass `stops` (or `stopCount`), and `onFlag` to put `FlagChip` on the shown slide; it adds a
+ *   bare flag to that slide, in the same list the live pane writes.
+ * "Close the presenter" is not an action here: it belongs to `PresenterHeaderBar onClose`.
+ */
 export interface LectureRecapProps {
   /** the course name, set at display size in the head band */
   course: string
@@ -141,7 +157,7 @@ export interface LectureRecapProps {
   stopCount?: number
   /** the step buttons asked for this index (already clamped). Omit and they are absent */
   onShowStop?: (index: number) => void
-  /** the aside's legend verbatim - an override for "preview" */
+  /** the aside's legend verbatim - an override for "Preview" */
   slideLabel?: string
   /** the flag chip on the shown slide made a flag of this type. Add a BARE flag to the shown
    *  slide. Omit and no chip is drawn */
