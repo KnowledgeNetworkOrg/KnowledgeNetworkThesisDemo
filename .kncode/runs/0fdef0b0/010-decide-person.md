@@ -1,3 +1,0 @@
-Accepted. The viewer stays on main's behaviour, and so does "stop this walk"; do not edit WalkViewer.tsx. The card's "Owner looks" line 2 (no route after a map-only Load) moves to a follow-up card, not this one.
-▎
-▎ Remove the trail-count check from browsertest-walkvisibility.mjs. It can't fail on main while the viewer is mounted. The pin-set check is the done-when check that fails on main. Also take review items 2–4 and both nits: read data-step with data-step-end in the pin check, say in the presented.ts docblock that the quiet-after-clear rule applies to the editor only, replace the duplicate "after a clear" test with the first-publish case (lastPublished null → returns the road), restore the em dash, and delete the dead steps at lines 184–188.

@@ -1,7 +1,0 @@
-9.1: (a), with the memo used by the editor only. Keep "stop this walk" restoring the draft. browsertest-walkdock.mjs section F stays as it is and must pass. Do not edit WalkViewer.tsx or the walkdock driver.
-▎
-▎ The dedup against lastPublished applies only when the walk editor calls the hook. Add an opt-in to usePublishPresentedRoute, for example usePublishPresentedRoute(bus, road, { dedup: true }), pass it from WalkEditorView.tsx (the card already allows that file), and record lastPublished only on that path. Without the opt-in, the hook behaves as it does on main: it publishes whenever road is non-null. WalkViewer.tsx already passes null while a saved walk plays, so it needs no change. publishableRoad stays the pure function the card describes, and its tests stand.
-▎
-▎ Rules 1–3 bind the editor: while a walk is active it publishes nothing, a remount never republishes the same road, and after a clear it stays quiet until the draft's road changes. They don't stop the viewer handing the draft back after the walk is stopped.
-
-C0-1: the new pin-set check in browsertest-walkvisibility.mjs compares [data-routestop] at two different camera levels, so the saved stop gets a different id even though the route hasn't changed. Read both sets at the same level (zoom back to the level used before Present), or compare a reading that doesn't depend on the level, such as the bus route's node ids. The check must still fail on main and pass after the fix.
