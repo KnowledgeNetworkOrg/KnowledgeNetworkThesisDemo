@@ -18,6 +18,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { isBox, resolveRoad, routeStepsOf } from './mockwalk'
 import type { Stop } from './mockwalk'
 import { useAuthorDraft, useRoad } from './authordraft'
+import type { ActiveWalkState } from '../../model/nav'
+import type { RouteStep } from '../../model/route'
 import type { Bus } from '../bus'
 
 /** the draft currently open on the desk, resolved: every container down to one
@@ -30,7 +32,21 @@ export function usePresentedRoad(): Stop[] {
 }
 
 /** the slice of the bus the presented-route writer uses */
-export type PublishedRouteBus = Pick<Bus, 'setRouteSteps'>
+export type PublishedRouteBus = Pick<Bus, 'setRouteSteps' | 'activeWalk'>
+
+/** What the editor should put on the bus: its road, or `null` when a saved walk
+ * owns the route or this exact road is already published. The comparison is
+ * serialized because `routeStepsOf` returns a fresh array every call. */
+export function publishableRoad(
+  road: Stop[],
+  activeWalk: ActiveWalkState | null,
+  lastPublished: RouteStep[] | null,
+): Stop[] | null {
+  if (activeWalk) return null
+  return JSON.stringify(routeStepsOf(road)) === JSON.stringify(lastPublished) ? null : road
+}
+
+let lastPublished: RouteStep[] | null = null
 
 /** Publishes the presented road onto the bus — WITH ITS GROUPS (#228, DS
  * OB-114): `bus.routeSteps` carries the tree, and `bus.route` is its flat
@@ -38,6 +54,14 @@ export type PublishedRouteBus = Pick<Bus, 'setRouteSteps'>
  * map's pins can number a group's nodes with the group's own step. Pass `null`
  * to opt out — the walk viewer does this while a saved walk is playing, since
  * activateWalk already owns the route in that state.
+ *
+ * A SAVED WALK ALSO SILENCES THE EDITOR. While `activeWalk` is set the editor
+ * publishes nothing, so a remount on the way back from the presenter, or a
+ * later draft edit, cannot overwrite the walk loaded on the desk. Nor does it
+ * republish a road already sent: `lastPublished` is the last one, so a remount
+ * changes neither the route nor the trail (`setRouteSteps` marks the trail, and
+ * `mark` only dedups at the log's tip). After the walk is cleared the route
+ * stays as the clear left it until the draft's road actually changes.
  *
  * Deliberately has no cleanup that clears the route: the editor and the
  * viewer can both have this mounted at once (panes bench rather than truly
@@ -49,11 +73,15 @@ export type PublishedRouteBus = Pick<Bus, 'setRouteSteps'>
 export function usePublishPresentedRoute(bus: PublishedRouteBus, road: Stop[] | null): void {
   useEffect(() => {
     if (road === null) return
-    bus.setRouteSteps(routeStepsOf(road))
+    const publish = publishableRoad(road, bus.activeWalk, lastPublished)
+    if (publish === null) return
+    const steps = routeStepsOf(publish)
+    lastPublished = steps
+    bus.setRouteSteps(steps)
     // bus is recreated every render; key only on the data that should retrigger
     // a publish.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [road])
+  }, [road, bus.activeWalk])
 }
 
 /** The drill path a presentation view owns for itself.

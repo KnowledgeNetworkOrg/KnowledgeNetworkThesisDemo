@@ -20,10 +20,14 @@ Copied the repository and cut run/481-the-walk-editor-republishes-the-draft-s-b4
 
 ### 2. plan — agent (opencode) — succeeded
 
-17:15–17:21 UTC (344.1s).
+17:15–17:21 UTC (346.3s). Commit `3399315`.
 Ran with opencode 1.18.35 · opencode-go/deepseek-v4.1-flash.
+Read the card and wrote a plan in 337s. Recorded as 3399315.
 
-### 3. edit — agent (opencode) — waiting
+### 3. edit — agent (opencode) — succeeded
+
+17:21–17:25 UTC (267.8s).
+Ran with opencode 1.18.35 · opencode-go/deepseek-v4.1-flash.
 
 ### 4. check — agent (opencode) — waiting
 

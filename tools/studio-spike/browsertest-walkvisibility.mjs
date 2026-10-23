@@ -70,6 +70,13 @@ const eye = () => page.getByLabel(/^(hide|show) the walk$/)
 const trail = page.locator('[aria-label="trail-strip"]')
 const playButtons = () => trail.getByRole('button').filter({ hasText: '▶' })
 const stopWalk = async () => { await trail.getByLabel('stop this walk').click(); await page.waitForTimeout(400) }
+// picking a preset closes the palette; reopen it from the toolbar before the next pick
+const openPalette = async () => {
+  if ((await page.locator('[aria-label="studio-sidebar"]').count()) === 0) {
+    await page.locator('[data-toolbar-hook="palette-toggle"]').click()
+    await page.waitForTimeout(400)
+  }
+}
 
 // ── the desk: the map, plus the Trail to switch walks with ───────────────────
 await page.getByLabel('studio-preset-explore').click()
@@ -147,6 +154,47 @@ ok('coming back to walk A finds it still hidden (per-walk state)', !(await drawn
 await eye().click()
 await page.waitForTimeout(300)
 ok('clicking the eye shows walk A again', await drawn())
+
+// ── #481: leaving the presenter does not republish the draft over a saved walk ──
+const pinSet = () => page.$$eval('svg[data-nested] [data-routestop]', (els) => els.map((el) => el.getAttribute('data-routestop')).sort())
+const pinsOnWalk = await pinSet()
+ok('the loaded walk is drawn before the presenter', pinsOnWalk.length > 0, pinsOnWalk.join(','))
+await openPalette()
+await page.getByLabel('studio-preset-present').click()
+await page.waitForTimeout(700)
+await openPalette()
+await page.getByLabel('studio-preset-plan').click()
+await page.waitForTimeout(800)
+ok('#481: the walk editor, remounted by Plan, leaves the loaded walk\'s pins alone', JSON.stringify(await pinSet()) === JSON.stringify(pinsOnWalk), `${pinsOnWalk.join(',')} -> ${(await pinSet()).join(',')}`)
+
+// ── #481: that same remount does not re-mark the trail with the road it already sent ──
+const trailCount = async () => {
+  const text = await page.locator('[aria-label="trail-strip"]').evaluate((el) => el.textContent || '')
+  const m = /Trail — (\d+) visited/.exec(text)
+  return m ? Number(m[1]) : null
+}
+await page.evaluate(() => localStorage.clear())
+await page.reload()
+await page.waitForTimeout(800)
+await page.getByLabel('studio-preset-plan').click()
+await page.waitForTimeout(800)
+await openPalette()
+await page.getByLabel('studio-inst-trail', { exact: true }).click()
+await page.waitForTimeout(500)
+// focus the draft's first stop: the presenter then lands on the trail's tip, so
+// only the editor's own remount publish could change the count.
+await page.locator('[data-walk-editor] [data-rnode][data-node]').first().click()
+await page.waitForTimeout(400)
+const trailBefore = await trailCount()
+ok('the Trail strip counts the draft before the presenter', trailBefore !== null, String(trailBefore))
+await openPalette()
+await page.getByLabel('studio-preset-present').click()
+await page.waitForTimeout(700)
+await openPalette()
+await page.getByLabel('studio-preset-plan').click()
+await page.waitForTimeout(800)
+const trailAfter = await trailCount()
+ok('#481: returning to Plan does not re-mark the trail with the road already published', trailAfter !== null && trailAfter === trailBefore, `${trailBefore} -> ${trailAfter}`)
 
 await page.evaluate(() => localStorage.clear())
 await browser.close()
