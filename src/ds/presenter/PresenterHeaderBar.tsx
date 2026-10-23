@@ -4,7 +4,16 @@ import { wrapTip } from '../chrome/IconButton'
 import { PillButton } from '../chrome/PillButton'
 
 /* Typed port of the DS components/presenter/PresenterHeaderBar.jsx (contract:
-   PresenterHeaderBar.d.ts), with the ended bar's "close the presenter" pill (owner, 21 Oct). */
+   PresenterHeaderBar.d.ts), with the ended bar's "close the presenter" pill (owner, 21 Oct).
+ *
+ * PREVIEW IS NOT A LECTURE (owner, 2026-09-03): the presenter layout is shown without anything
+ * projected. WHAT THE HOST MUST DO: start no clock while in preview; keep its own start control
+ * PRESSABLE, since pressing it is how a preview becomes the lecture; and on that press, start the
+ * clock from zero, not from when the preview opened.
+ *
+ * THE BAR ENDS; IT NEVER STARTS OR RESUMES (2026-09-03). WHAT THE HOST MUST DO: give the ended state
+ * a way to resume somewhere else, and word its tooltip to match the chip's ("▶ on the app toolbar
+ * resumes it"). */
 
 export type PresenterState = 'presenting' | 'roaming' | 'ended' | 'preview'
 

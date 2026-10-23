@@ -14,7 +14,21 @@ import { Caret, CARET_INK } from '../nav/TreeRow'
 import { BinMark } from '../sidebar/BinMark'
 
 /* Typed port of the DS components/presenter/PresentStartCard.jsx (contract:
-   PresentStartCard.d.ts), filed 2026-10-01. */
+   PresentStartCard.d.ts), filed 2026-10-01.
+ *
+ * WHEN IT OPENS (owner, 2026-10-01): ONLY from the app toolbar's ▶, when nothing is presenting
+ * (idle) or the palette's preview is up. Never from the palette's Present preset, which stays a
+ * preview; never on resume, which continues the lecture already chosen.
+ *
+ * WHAT THE HOST MUST DO.
+ * - **Store the sessions.** A session belongs to the COURSE, not to one walk, and remembers the
+ *   walk and stop it was last presented at (`last`). The card reads it and never writes it:
+ *   update `last` when a lecture ends, from the stops the lecture actually stepped through.
+ * - **Pass the walk that is open** (`openWalk`) - it is the guess for "next" when the session
+ *   finished its walk last time.
+ * - **Do what `onStart` says.** The card resolves the choice; it does not navigate.
+ * - **Mount it as a modal** over the screen Present was pressed from, and unmount it on
+ *   `onCancel`. It draws its own frame and lift, and nothing outside it. */
 
 export interface StartSession {
   id: string | number

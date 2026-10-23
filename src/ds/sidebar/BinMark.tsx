@@ -9,8 +9,11 @@ import { EDIT_MARK_LIFT } from '../chrome/EditMark'
  *  only one: the chrome family (`CloseMark`, `EditMark`, `CopyMark` and the rest) is drawn too.
  *  It carries its own optical centring — the same lift `EditMark` carries — because
  *  its mass hangs under the lid and a box-centred bin reads low; in a row beside the
- *  pencil the two now share a line. Never counter-nudge it from outside: `style` is merged
- *  UNDER the lift, so a caller can place the mark but cannot cancel its optical centring.
+ *  pencil the two now share a line. `style` is merged UNDER the lift, so a caller can place the
+ *  mark but cannot counter-nudge it. `lift={false}` is the one way to drop it, for a bin ALONE in
+ *  a round button (owner, 15 Oct): the 1.4px exists to share a line with the pencil, and with no
+ *  pencil beside it the ring is what the eye centres against - measured in `LectureNotes`' flag
+ *  row, the lifted glyph sat 1.7px above the ring's centre.
  *  Typed port of the DS BinMark.jsx. */
 export interface BinMarkProps {
   /** px. Default 11, the size inside a 20px icon button (`PresetButton`, `LectureNotes`) */
