@@ -164,10 +164,11 @@ const nextBoxKey = () => 'draft-' + seq.box++
 // ── Unsaved work ────────────────────────────────────────────────────────────
 // The draft is written to storage on every change, so "unsaved" here means edited
 // since the baseline the app opened on (a restore or the seed) or the last save
-// out as a walk. Snapshots are plain references, so undo back to the baseline is
-// clean again without comparing the trees. A draft that resolves to no stops has
-// nothing a save could keep, so it is never unsaved: the warning would offer a
-// "Save and load" that saves nothing.
+// out as a walk, or restored from a draft stored while unsaved. Snapshots are
+// plain references, so undo back to the baseline is clean again without comparing
+// the trees. A draft that resolves to no stops has nothing a save could keep, so
+// it is never unsaved: the warning would offer a "Save and load" that saves
+// nothing.
 let baseStops = stopsStore.get()
 let baseChoices = choicesStore.get()
 let baseOptionals = optionalsStore.get()
