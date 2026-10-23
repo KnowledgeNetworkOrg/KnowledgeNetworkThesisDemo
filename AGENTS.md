@@ -92,14 +92,18 @@ only inside rule 2's closing comment and any comments that continue it, each rev
 with its verdict, or, for a KnowledgeNetwork-Code run's pull request, inside the description
 the run writes.
 
-## Card review
+## Card review before sign-off
 
-Before the owner signs off a card's text, one reviewer agent reviews and refines it: a fresh
-session on Sonnet, not a copy of the conversation that wrote the card. It checks the card
-against the code and the decisions as they stand, and hands back the card with its wording
-fixed and a short list of what it changed and why. The agent that wrote the card reads that
-list, keeps or undoes each change, and gives the owner the result to sign off.
+Before the owner signs off a card as ready to be worked on, one reviewer agent reviews and
+refines its requirements and design: a fresh session on Sonnet, not a copy of the conversation
+that wrote the card. It checks the card against the code and the decisions as they stand, and
+hands back the card with its wording fixed and a short list of what it changed and why. The
+agent that wrote the card reads that list, keeps or undoes each change, and gives the owner the
+result to sign off.
 
-One reviewer is enough for a card. It needs neither a second model nor rounds until reviewers
-agree; those are for pull requests (above). If the reviewer finds a question only the owner can
-answer, the card goes to the owner with that question instead of being signed off.
+One reviewer is enough for this check. It needs neither a second model nor rounds until
+reviewers agree. If the reviewer finds a question only the owner can answer, the card goes to
+the owner with that question instead of being signed off.
+
+This covers only a card's text before it is signed off. Once the card is implemented, its change
+is a pull request and is reviewed under the pull request rules above, unchanged.
