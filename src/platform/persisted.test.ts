@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  clearPersistenceIssues, decodePersisted, persistenceIssues,
+  clearPersistenceIssues, decodePersisted, decodeStored, persistenceIssues,
   readPersisted, removePersisted, writePersisted,
 } from './persisted'
 import type { PersistedSpec } from './persisted'
@@ -96,16 +96,42 @@ describe('the envelope — one shape, one naming rule', () => {
 
   it('reports a future version and leaves the bytes exactly as they were', () => {
     const stored = JSON.stringify({ v: 3, data: 'from the future' })
-    const store = stubStore({ 'pkt.x': stored })
-    expect(readPersisted('pkt.x', SPEC)).toMatchObject({ status: 'future', from: 3 })
-    expect(store.get('pkt.x')).toBe(stored)
+    const store = stubStore({ 'pkt.future.bytes': stored })
+    expect(readPersisted('pkt.future.bytes', SPEC)).toMatchObject({ status: 'future', from: 3 })
+    expect(store.get('pkt.future.bytes')).toBe(stored)
   })
 
-  it('lets the next SAVE replace a newer build\'s payload — only the read is gentle', () => {
-    const store = stubStore({ 'pkt.x': JSON.stringify({ v: 3, data: 'from the future' }) })
-    expect(readPersisted('pkt.x', SPEC).status).toBe('future')
-    writePersisted('pkt.x', SPEC.version, 'this build')
-    expect(JSON.parse(store.get('pkt.x') as string)).toEqual({ v: 2, data: 'this build' })
+  it('refuses to write a key that read as future through readPersisted', () => {
+    const stored = JSON.stringify({ v: 3, data: 'from the future' })
+    const store = stubStore({ 'pkt.future.read': stored })
+    expect(readPersisted('pkt.future.read', SPEC).status).toBe('future')
+    expect(writePersisted('pkt.future.read', SPEC.version, 'this build')).toBe(false)
+    expect(store.get('pkt.future.read')).toBe(stored)
+  })
+
+  it('refuses to write a key that read as future through decodeStored', () => {
+    const stored = JSON.stringify({ v: 3, data: 'from the future' })
+    const store = stubStore({ 'pkt.future.decode': stored })
+    expect(decodeStored('pkt.future.decode', SPEC).status).toBe('future')
+    expect(writePersisted('pkt.future.decode', SPEC.version, 'this build')).toBe(false)
+    expect(store.get('pkt.future.decode')).toBe(stored)
+  })
+
+  it('still writes a key that read as ok, migrated, absent or corrupt', () => {
+    const store = stubStore({
+      'pkt.ok': JSON.stringify({ v: 2, data: 'now' }),
+      'pkt.migrated': JSON.stringify({ v: 1, data: 'old' }),
+      'pkt.corrupt': '{bad',
+    })
+    expect(readPersisted('pkt.ok', SPEC).status).toBe('ok')
+    expect(readPersisted('pkt.migrated', SPEC).status).toBe('migrated')
+    expect(readPersisted('pkt.absent', SPEC).status).toBe('absent')
+    expect(readPersisted('pkt.corrupt', SPEC).status).toBe('corrupt')
+
+    for (const key of ['pkt.ok', 'pkt.migrated', 'pkt.absent', 'pkt.corrupt']) {
+      expect(writePersisted(key, SPEC.version, 'this build')).toBe(true)
+      expect(JSON.parse(store.get(key) as string)).toEqual({ v: 2, data: 'this build' })
+    }
   })
 
   it('says whether the host took the write', () => {

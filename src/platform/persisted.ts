@@ -34,13 +34,16 @@
 // in the exported `persistenceIssues()` log, which is the report — there is no
 // new visible UI (#170 deliberately deletes the only one there was).
 //
-// A SAVE DOES REPLACE THEM. Only the read is gentle: the store's next write to
-// that key is this build's own envelope, so a newer build's payload survives
-// only until this build next saves it — the draft at its first edit, the saved
-// walks at their next save, the presenter stores the moment presenter mode
-// opens (it saves on open). Nothing writes a version above 1 yet, so none of
-// this can happen today. Whoever adds the first version 2 decides whether a key
-// that read as `future` stays unwritten for the session.
+// A SAVE DOES REPLACE A CORRUPT PAYLOAD. The store's next write to that key is
+// this build's own envelope — the draft at its first edit, the saved walks at
+// their next save, the presenter stores the moment presenter mode opens (it
+// saves on open).
+//
+// A KEY THAT READ AS `future` IS NEVER WRITTEN AGAIN THIS SESSION. The owner
+// decided on 2026-10-23 that an older build must not overwrite a newer build's
+// payload at its first save, so `writePersisted` refuses such a key until
+// reload. The mark is per key and in memory; the read's `future` issue already
+// tells the user.
 //
 // VERSION 0 IS "NO ENVELOPE". A payload written before this seam existed is the
 // bare value the old store wrote; it is read as version 0 and must be carried
@@ -61,6 +64,10 @@ export interface PersistenceIssue {
  *  without bound. 50 is far more than any real session sees. */
 const ISSUE_CAP = 50
 const issues: PersistenceIssue[] = []
+
+/** Keys this session read as `future`; kept separate from the capped issue log
+ *  so an old entry sliding out cannot re-enable overwriting a newer payload. */
+const futureKeys = new Set<string>()
 
 /** Every corrupt or too-new payload this session's reads ran into, oldest
  *  first. A COPY, so a caller cannot mutate the log by holding the array. */
@@ -183,7 +190,10 @@ export function decodePersisted<T>(raw: string, spec: PersistedSpec<T>, key = '<
  *  it was read from (the presenter stores read their old `.v1` names this way). */
 export function decodeStored<T>(key: string, spec: PersistedSpec<T>): PersistedRead<T> {
   const raw = platform.storage.get(key)
-  return raw === null ? { status: 'absent' } : decodePersisted(raw, spec, key)
+  if (raw === null) return { status: 'absent' }
+  const result = decodePersisted(raw, spec, key)
+  if (result.status === 'future') futureKeys.add(key)
+  return result
 }
 
 /** Read `key`, and on a successful migration write the current envelope back so
@@ -203,11 +213,12 @@ export function readPersisted<T>(key: string, spec: PersistedSpec<T>): Persisted
 }
 
 /** Store `data` as the envelope for `version`. Never throws — a refused write
- *  (quota, private mode) just means this session does not persist, exactly as
- *  every wrapper before this one behaved. Returns whether the host accepted the
- *  write, so a caller that is MOVING data (see the presenter stores) can keep
- *  the old copy when the new one did not land. */
+ *  (quota, private mode, a key that read as `future`) just means this session
+ *  does not persist, exactly as every wrapper before this one behaved. Returns
+ *  whether the write landed, so a caller that is MOVING data (see the presenter
+ *  stores) can keep the old copy when the new one did not. */
 export function writePersisted(key: string, version: number, data: unknown): boolean {
+  if (futureKeys.has(key)) return false
   return platform.storage.set(key, JSON.stringify({ v: version, data }))
 }
 
