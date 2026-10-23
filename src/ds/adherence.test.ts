@@ -354,7 +354,10 @@ describe('our DS ports document what the DS documents', () => {
   // 84 -> 103 on 2026-10-21 (OB-301): +19, bare in the DS's own .d.ts: TextInput's MatchTitleProps
   // text/style; WarningDialog's actions/cancelLabel/style and all nine of UnsavedWarningProps;
   // LoadDialog's open/maps/style; LoadPicker's maps/style.
-  const BUDGET = 103
+  // 103 -> 114 on 2026-10-23 (OB-303): +11, bare in the DS's own .d.ts: PresentStartCard's
+  // sections/onSelectSection/onStart/untitledLabel/sessionsLabel/newLabel/beginLabel/
+  // readingLabel/elsewhereLabel/elsewhereLine/style, carried over with the contract's docblocks.
+  const BUDGET = 114
 
   const undocumented: string[] = []
   for (const f of tsxUnder('src/ds')) {

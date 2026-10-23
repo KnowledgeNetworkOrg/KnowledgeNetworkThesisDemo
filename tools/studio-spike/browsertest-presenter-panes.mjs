@@ -264,15 +264,15 @@ try {
   await page.waitForTimeout(400)
 
   // ── the prepared note, corrected at the lectern ─────────────────────────────
-  await notes().getByLabel('edit the prepared notes for this slide').dispatchEvent('click')
+  await prepared().getByTitle(/^click to edit/).click()
   await page.waitForTimeout(250)
   await page.keyboard.press('Control+A')
   await page.keyboard.type('Say the handshake out loud before the diagram goes up.\n\nSYN, SYN-ACK, ACK — then ask what happens if the third is lost.')
   // PREPARED NOTES ARE PROSE, so the in-place editor treats the return key as a LINE BREAK and
-  // commits on blur instead (or on a second press of the pencil). Looking away is the save.
+  // commits on blur instead (v4 has no pencil; the words are click-to-edit). Looking away is the save.
   await leaveField()
   await page.waitForTimeout(500)
-  ok('the pencil commits the correction in place', /Say the handshake out loud/.test(await prepared().innerText()))
+  ok('looking away commits the correction in place', /Say the handshake out loud/.test(await prepared().innerText()))
   ok('and the blank line between the two paragraphs survives the round trip',
     await page.evaluate(() => {
       const book = (JSON.parse(localStorage.getItem('pkt.lecture.notes:draft') || '{}').data || {})

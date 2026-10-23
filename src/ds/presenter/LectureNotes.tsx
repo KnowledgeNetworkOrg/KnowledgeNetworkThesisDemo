@@ -820,7 +820,7 @@ export function LectureNotes({
           <div ref={prepRef} data-notes-prepared="" style={{ flex: '0 1 ' + prepPref + 'px', minHeight: M.preparedMinH, display: 'flex', flexDirection: 'column', userSelect: 'text', WebkitUserSelect: 'text' }}>
             <PaneScroller style={{ padding: '4px 4px 4px 4px', paddingRight: 8 + scrollerPadRight(), margin: '-4px -4px -4px -4px' }}>
               {canEditPrepared ? (
-                <div role="group" onMouseEnter={() => setPrepHot(true)} onMouseLeave={() => setPrepHot(false)} onClick={() => setEditingPrep(true)} aria-label="edit the prepared notes for this slide"
+                <div onMouseEnter={() => setPrepHot(true)} onMouseLeave={() => setPrepHot(false)}
                   style={{ borderRadius: 'var(--radius-xs)', outline: prepHot && !editingPrep ? '1px solid var(--border-rule)' : '1px solid transparent', outlineOffset: 3, transition: 'outline-color var(--dur-hover) var(--ease-soft)' }}>
                   <InlineText key={editingPrep ? 'edit' : 'rest'} value={prepared as string} multiline enterInserts editing={editingPrep}
                     placeholder={preparedEmpty} onOpen={() => setEditingPrep(true)}

@@ -135,7 +135,7 @@ export function FlagChip({ types, usual = 'fix', onUsualChange, onFlag, title, h
     return undefined
   // a specimen opens the ring once; this is deliberately mount-only
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openOnMount])
+  }, [])
   useEffect(() => {
     if (!ring) return undefined
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); close(); if (btn.current) btn.current.focus() } }

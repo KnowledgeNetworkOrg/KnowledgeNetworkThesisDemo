@@ -7,7 +7,8 @@ import { settleRead } from '../chrome/MeasureBox'
 
 /* Typed port of the DS components/presenter/ProjectedMap.jsx (contract: ProjectedMap.d.ts),
    part 4/5 of the presenter-mode split — OB-139 / #267, on the 2026-09-03e source (the scrim,
-   the ✕ for full screen alone, the foot's own words). */
+   the ✕ for full screen alone, the foot's own words); re-ported whole from the flags-v4
+   source in OB-303 (2026-10-21). */
 
 /** The wall's own ✕ — same manners as every other hover-revealed control in the system
  *  (`useRecede`, the recede clock `FilmRoll`'s flag/expand corners already share): invisible
