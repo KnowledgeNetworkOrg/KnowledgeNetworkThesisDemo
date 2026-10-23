@@ -43,12 +43,12 @@ export const LectureClock = { mmss, clockLabel, span }
 /** THE STAT WORDING, AS CODE: `counts` in, three `{ value, label }` out, plural decided here. */
 export const recapStats = ({ stops, slides, flags, notes, flagged }: { stops: number; slides?: number; flags?: number; notes?: number; flagged?: number }): RecapStat[] => (flags != null ? [
   { value: stops, label: stops === 1 ? 'stop covered' : 'stops covered' },
-  { value: slides == null ? 0 : slides, label: slides === 1 ? 'slide flagged' : 'slides flagged' },
+  { value: slides ?? '', label: slides === 1 ? 'slide flagged' : 'slides flagged' },
   { value: flags, label: flags === 1 ? 'flag' : 'flags' },
 ] : [
   { value: stops, label: stops === 1 ? 'stop covered' : 'stops covered' },
-  { value: notes == null ? 0 : notes, label: notes === 1 ? 'note taken' : 'notes taken' },
-  { value: flagged == null ? 0 : flagged, label: flagged === 1 ? 'slide flagged' : 'slides flagged' },
+  { value: notes ?? '', label: notes === 1 ? 'note taken' : 'notes taken' },
+  { value: flagged ?? '', label: flagged === 1 ? 'slide flagged' : 'slides flagged' },
 ])
 
 const nextTimeRuns = (last?: StartSession['last'], walks?: PresentStartCardProps['walks'], lead?: string): Array<[string, boolean]> | null => {

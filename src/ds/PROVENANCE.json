@@ -397,8 +397,9 @@
       "src/ds/sidebar/BinMark.tsx": {
         "from": "components/sidebar/BinMark.jsx",
         "contract": "components/sidebar/BinMark.d.ts",
-        "syncedAt": "2026-09-30",
+        "syncedAt": "2026-10-21",
         "deviations": [
+          "2026-10-21 OB-303 — re-ported for `lift`. The flag row needs `lift={false}`: the bin stands ALONE in a round button there, where the ring is what the eye centres against and the 1.4px lift measured 1.7px high (DS owner, 2026-10-15). `lift` defaults true, so every existing caller keeps the lift.",
           "2026-09-05 OB-144 (#270) — the bin lifts itself by `EDIT_MARK_LIFT` (1.4px), read from src/ds/chrome/EditMark.tsx exactly as the DS's .jsx reads it from EditMark.jsx. Its mass hangs under the lid so a box-centred bin read low; beside the pencil in a note row the two sat 1.6px apart (owner, 2026-09-04). The only bin on screen today is PresetButton's, which lifts 1.4px on its own — imperceptible alone, the fix beside a pencil. Docblock ported with the code. src/ds/group/inlinetext.test.ts pins that the file reads the constant and not a retyped 1.4.",
           "2026-09-30 DS OB-251 point 5 — a documented optional `style` prop, merged UNDER the 1.4px lift (a caller can place the mark but cannot cancel its optical centring), plus `flexShrink: 0`, which is in the DS's own `BinMark.jsx` style although the obligation text names only the `style` prop; the docblock's claim that this is \"the ONLY drawn icon\" is replaced by the DS's wording."
         ]
