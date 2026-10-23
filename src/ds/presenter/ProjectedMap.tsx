@@ -26,11 +26,15 @@ function CloseButton({ onClick, revealed }: { onClick?: () => void; revealed: bo
         display: 'grid', placeItems: 'center', background: hot ? 'var(--bark-800)' : 'color-mix(in srgb, var(--surface-raised) 92%, transparent)',
         border: '1px solid ' + (hot ? 'var(--bark-800)' : 'var(--border-rule)'),
         color: hot ? 'var(--text-inverse)' : 'var(--text-1)', boxShadow: hot ? 'var(--lift-2)' : 'var(--lift-1)',
-        cursor: 'pointer', fontSize: 13, lineHeight: 1,
+        cursor: 'pointer', lineHeight: 1, padding: 0,
         opacity: revealed ? 1 : 0, pointerEvents: revealed ? 'auto' : 'none',
         transition: 'var(--transition-wash), opacity var(--dur-fade) var(--ease-soft)',
-        /* drawn, never typed (OB-201): 13 was the typed glyph's point size here */
-      }}><CloseMark size={13} /></button>
+        /* THE MARK IS DRAWN, NOT TYPED (OB-201, and this button was the one place left: the app's
+           own port converted its copy on 2026-09-17 and reported ours back as a divergence). The
+           typed ✕ cannot be centred in a round button at any font size — which is why `CloseMark`
+           exists — and `fontSize` went with it, since nothing here is text now. `size` 11 is the
+           30px chip's share of `CloseMark`'s default 10 on a 24px `IconButton`. */
+      }}><CloseMark size={11} /></button>
   )
 }
 

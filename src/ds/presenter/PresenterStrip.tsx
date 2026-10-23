@@ -193,7 +193,7 @@ function HotPill({ onClick, title, style, children }: { onClick?: () => void; ti
 
 /** The caps label that names the ring, and the italic line that says what to do with it — the
  *  same two strings wherever the ring shows, because a gesture explained two ways reads as two. */
-const CAPS: CSSProperties = { fontFamily: 'var(--font-ui)', fontSize: 9, fontWeight: 'var(--fw-bold)', letterSpacing: 'var(--ls-caps)', textTransform: 'uppercase', color: 'var(--acorn-600)', whiteSpace: 'nowrap', background: '#fff', padding: '0 4px', borderRadius: 3 }
+const CAPS: CSSProperties = { fontFamily: 'var(--font-ui)', fontSize: 9, fontWeight: 'var(--fw-bold)', letterSpacing: 'var(--ls-caps)', textTransform: 'uppercase', color: 'var(--acorn-600)', whiteSpace: 'nowrap', background: 'var(--surface-raised)', padding: '0 4px', borderRadius: 3 }
 const HOLD_HINT: CSSProperties = { fontFamily: 'var(--font-ui)', fontStyle: 'italic', fontSize: 10.5, lineHeight: 1.2, color: 'var(--text-2)', whiteSpace: 'nowrap' }
 
 export interface PresenterStripStep {

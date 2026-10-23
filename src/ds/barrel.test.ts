@@ -5,6 +5,7 @@ import { CONNECTIONS_BODY_STYLE, ConnectionsSplitPane, OpenAncestors, RelationCa
 import { LEGEND_ROW } from '@/ds'
 import { ORBIT_METRICS,OrbitMath, PANE_PLACEHOLDER_METRICS, PREVIEW_BANNER_METRICS, RELATION_STATS_METRICS, RelationOrbit, RelationStats, RelationsRailMath, StatsMath, orbitKinds, orbitMarks, orbitWedge, statKindRows } from '@/ds'
 import { LEADING_DROP, LOAD_DIALOG_METRICS, LOAD_PICKER_METRICS, LoadDialog, LoadPicker, MatchMath, MatchTitle, UnsavedWarning, WARNING_DIALOG_METRICS, WarningDialog, leadStart, matchParts } from '@/ds'
+import { FLAG_CHIP_METRICS, FlagChip, FlagRing, GLYPH_DROP, NoteFlagMath, PresentStartCard, START_CARD_METRICS, StartMath, TagGlyph } from '@/ds'
 
 import provenance from './PROVENANCE.json?raw'
 
@@ -398,6 +399,38 @@ describe('the toolbar load dialog (OB-301)', () => {
     expect(leadStart('short averyverylongword', 18)).toBe(14)
     expect(MatchMath.parts).toBe(matchParts)
     expect(MatchMath.leadStart).toBe(leadStart)
+  })
+})
+
+// OB-303 — the presenter's components ported whole after flags v4. The host does not draw any of
+// these yet: OB-304 wires `onFlag`, the start card and the recap's slide. They are listed so that
+// adopting one is a deliberate edit here.
+describe('the flags-v4 presenter ports (OB-303), waiting on their host (OB-304)', () => {
+  it('FlagChip / FlagRing / FLAG_CHIP_METRICS — drawn by FilmRoll and LectureRecap from inside src/ds', () => {
+    expect(typeof FlagChip).toBe('function')
+    expect(FLAG_CHIP_METRICS.hold).toBe(300)
+    expect(FlagRing.angles).toEqual([-90, 150, 30])
+    expect(FlagRing.otherAngles).toEqual([-150, -30])
+    expect(FlagRing.petalAt(0)).toEqual({ dx: 0, dy: -FLAG_CHIP_METRICS.ring })
+  })
+
+  it('PresentStartCard / START_CARD_METRICS / StartMath — no host mounts the card yet', () => {
+    expect(typeof PresentStartCard).toBe('function')
+    expect(START_CARD_METRICS.width).toBe(640)
+    expect(StartMath.meetsLabel([0, 1, 2, 3, 4])).toBe('Mon–Fri')
+    expect(StartMath.meetsLabel([0, 2])).toBe('Mon/Wed')
+    expect(StartMath.toggleDay([2, 0], 1)).toEqual([0, 1, 2])
+    expect(StartMath.resolve(null, { id: 'r', title: 'Routing' }).line).toBe('From start of walk: Routing, stop 1')
+  })
+
+  it('GLYPH_DROP / TagGlyph / NoteFlagMath — the notes pane draws its glyphs and reads its clock through them', () => {
+    expect(typeof TagGlyph).toBe('function')
+    expect(GLYPH_DROP['!']).toBe(0.09)
+    expect(GLYPH_DROP['→']).toBe(0)
+    expect(NoteFlagMath.fresh({ text: '', at: 1000 }, 2500)).toBe(true)
+    expect(NoteFlagMath.fresh({ text: '', at: 1000 }, 3000)).toBe(false)
+    expect(NoteFlagMath.visible({ text: '', resolvedAt: 5 }, 10)).toBe(false)
+    expect(NoteFlagMath.nextExpiry([{ text: '', at: 1000 }, { text: '', at: 1500, resolvedAt: 1600 }], 1200)).toBe(3000)
   })
 })
 

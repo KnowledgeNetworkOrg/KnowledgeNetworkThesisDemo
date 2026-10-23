@@ -170,6 +170,10 @@ export type PresenterState = 'presenting' | 'roaming' | 'ended' | 'preview'
  *  NOT become ▶. Starting and resuming a lecture belong to the host's own toolbar, so the
  *  professor has one play button on screen with one meaning.
  *
+ *  ONCE ENDED, ■'S PLACE IS THE WAY OUT (owner, 21 Oct). Pass `onClose` and the ended bar draws a
+ *  "close the presenter" pill (`neutral`, small) where the faded ■ was. It leaves; it does not
+ *  resume. The recap then carries no close action of its own.
+ *
  *  TWO MARKS, ONE SENTENCE SHAPE — BUT ONLY ONE OF THEM CARRIES THE WALK HUE. `activeStop` is
  *  the lecture's own record and wears acorn; `roamingStop` is only where the professor is
  *  currently looking — provisional — and wears the system's other standing convention: DASHED
@@ -213,11 +217,18 @@ export interface PresenterHeaderBarProps {
   /** @deprecated never fired since 2026-09-03 — the bar has no ▶. Resume from the host's own
    *  toolbar instead; keep the handler there. Accepted and ignored so older call sites compile. */
   onResume?: () => void
+  /** ENDED ONLY: the way out (owner, 21 Oct). Pass it and the ended bar draws a "close the presenter"
+   *  pill where the faded ■ was. Omit it and the faded ■ stays. Pass the same handler the recap used
+   *  to get in its `actions`, and do NOT pass it there too: one way out, one place */
+  onClose?: () => void
+  /** the pill's words. Default "close the presenter" */
+  closeLabel?: string
 }
 
 export function PresenterHeaderBar({
   course, state = 'presenting', activeStop, roamingStop, elapsed, bookedLength, progressPct,
   endedTotal, confirmOpen, onEndClick, onConfirmEnd, onCancelEnd,
+  onClose, closeLabel = 'close the presenter',
 }: PresenterHeaderBarProps) {
   const ended = state === 'ended'
   const preview = state === 'preview'
@@ -234,7 +245,11 @@ export function PresenterHeaderBar({
       {/* no clock in preview either: nothing is being timed */}
       {ended || preview ? null : <Clock elapsed={elapsed} bookedLength={bookedLength} progressPct={progressPct} />}
       <span style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
-        <EndButton state={state} onEndClick={onEndClick} />
+        {/* ONCE ENDED, ■'S PLACE IS THE WAY OUT (owner, 21 Oct): the faded ■ said "nothing to stop" in
+           the one spot the eye goes to leave, while "close the presenter" sat down in the recap. With
+           `onClose`, the ended bar draws that pill there instead. Still no ▶: closing is leaving, not
+           resuming. Without `onClose` the faded ■ stays, as before. Preview keeps its faded ■. */}
+        {ended && onClose ? <PillButton size="sm" tone="neutral" onClick={onClose}>{closeLabel}</PillButton> : <EndButton state={state} onEndClick={onEndClick} />}
         {confirmOpen ? <EndConfirm onConfirmEnd={onConfirmEnd} onCancelEnd={onCancelEnd} /> : null}
       </span>
     </div>

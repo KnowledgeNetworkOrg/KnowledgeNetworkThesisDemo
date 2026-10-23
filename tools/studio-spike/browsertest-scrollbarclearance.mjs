@@ -8,7 +8,7 @@
 // (`src/ds/chrome/Pane.tsx`): 0 where the bar takes real space, `SCROLLBAR_ROOM` (10) where not.
 //
 // For every scrolling box on screen in four states — the default desk with the Explorer rail open,
-// a lecture with enough notes to scroll the During column, the stop finder, and a node picker on
+// a lecture with enough notes to scroll the flags list, the stop finder, and a node picker on
 // the plan desk — it reads the obligation's own numbers:
 //   barPx     what the bar takes out of the box (offsetWidth − clientWidth − borders)
 //   padRight  the box's computed right padding
@@ -146,12 +146,12 @@ const runEngine = async (engine) => {
     await page.setViewportSize({ width: 1600, height: 720 })
     await page.waitForTimeout(300)
 
-    // ── 2. a lecture, with enough notes to scroll the During column ─────────────
+    // ── 2. a lecture, with enough notes to scroll the flags list ────────────────
     await page.getByLabel('studio-preset-present').click()
     await page.waitForTimeout(700)
     await page.locator('[data-toolbar-hook="present"]').click()
     await page.waitForTimeout(900)
-    const field = page.locator('[data-lecture-notes="live"]').getByLabel('a note for this stop…')
+    const field = page.locator('[data-lecture-notes="live"]').getByLabel('a note for this slide…')
     for (let i = 1; i <= 14; i++) {
       await field.click()
       await page.keyboard.type(`note ${i} — the handshake, the certificate chain, and what the class asked about it`)
@@ -162,7 +162,7 @@ const runEngine = async (engine) => {
     await page.waitForTimeout(300)
     const lecture = await readScrollers(page)
     report(engine, 'lecture notes', lecture)
-    judge(engine, 'lecture notes', lecture, /notes-during/)
+    judge(engine, 'lecture notes', lecture, /notes-flags/)
 
     // ── 3. the stop finder ─────────────────────────────────────────────────────
     await page.keyboard.press('j')

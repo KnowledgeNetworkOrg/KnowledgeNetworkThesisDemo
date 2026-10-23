@@ -1,21 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { CSSProperties, ReactNode } from 'react'
+import type { CSSProperties, FocusEvent, ReactNode } from 'react'
 
 import { FlagMark } from '../chrome/FlagMark'
 import { ExpandMark } from '../chrome/ExpandMark'
 import { wrapTip, useRecede } from '../chrome/IconButton'
 import { settleRead } from '../chrome/MeasureBox'
+import { FlagChip } from './FlagChip'
+import type { FlagType } from './FlagChip'
 
 /* Typed port of the DS components/presenter/FilmRoll.jsx (contract: FilmRoll.d.ts), part 2
    of the presenter-mode split — OB-136 / #267. */
 
 const ASPECT = 630 / 1120 // every slide, whole neighbours included, is this shape
 
-/** THE FLAG BUTTON, published (2026-09-04) so the notes pane can wear the SAME control on the
- *  prepared column's head — one drawing of "flag this stop", not two. Filled acorn when set, an
- *  outline at reduced opacity when not; `size` is the hit box (24 on a slide card, 20 beside a
- *  20px pencil in a pane head), `glyphSize` the mark. It does NOT decide when it is visible —
- *  the card and the pane each reveal it by their own hover rule — so wrap it in the reveal. */
+/** THE FLAG MARK, on its own — the plain mark a flagged neighbour frame wears, and the old
+ *  switch's control. Since v4 (6 Oct) `LectureNotes` no longer wears it: the flag button moved to
+ *  the current frame as `FlagChip`. Filled acorn and full opacity when `flagged`; an outline at
+ *  reduced opacity when not; the hover wash follows the state. It does NOT decide when it is
+ *  visible — the card and the pane each reveal it by their own hover rule (filled: always;
+ *  outline: while recently hovered) — so wrap it in the reveal, don't add one. */
 export interface FlagButtonProps {
   /** filled acorn and full opacity when set; an outline at reduced opacity when not */
   flagged?: boolean
@@ -30,17 +33,23 @@ export interface FlagButtonProps {
   lift?: number
   /** flip the flag */
   onClick?: () => void
-  /** default "flag this slide" / "unflag this slide". Also the button's spoken name
-   *  (`aria-label`); `aria-pressed` follows `flagged` whenever `onClick` is passed. */
+  /** default "flag this slide", in BOTH states. Also the button's spoken name (`aria-label`);
+   *  `aria-pressed` follows `flagged` whenever `onClick` is passed, and is the ONLY carrier of
+   *  the state. PASS A FIXED NAME, NEVER ONE THAT FLIPS WITH `flagged`: a flipping name plus
+   *  `aria-pressed` reads the opposite act as already pressed (2026-10-02). */
   title?: string
-  /** Pass -1 while the reveal around it has it HIDDEN (opacity 0), so the keyboard cannot land
-   *  on an invisible control; 0 or omit while shown. The card does this itself. */
+  /** Pass -1 only where the reveal around it CANNOT be opened by focus, so the keyboard does not
+   *  land on an invisible control. The film roll card no longer passes it: focus inside the card
+   *  reveals the corner, so the flag stays in the tab order (2026-10-02). */
   tabIndex?: number
 }
 
 export function FlagButton({ flagged, dim, glyphSize = 12, size = 24, lift = 0, onClick, title, tabIndex }: FlagButtonProps) {
   const [hot, setHot] = useState(false)
-  const name = title || (flagged ? 'unflag this slide' : 'flag this slide')
+  /* ONE FIXED NAME; `aria-pressed` CARRIES THE STATE (2026-10-02). The name used to flip to its
+     negation while `aria-pressed` was also true, so a screen reader heard the state twice, in a name
+     that contradicted it. */
+  const name = title || 'flag this slide'
   return (
     <button type="button" title={wrapTip(name)} aria-label={name}
       aria-pressed={onClick ? !!flagged : undefined} tabIndex={tabIndex}
@@ -61,7 +70,7 @@ export function FlagButton({ flagged, dim, glyphSize = 12, size = 24, lift = 0, 
 function ExpandButton({ onClick, revealed }: { onClick?: () => void; revealed: boolean }) {
   const [hot, setHot] = useState(false)
   return (
-    <button type="button" title={wrapTip('full screen')} aria-label="full screen" tabIndex={revealed ? 0 : -1}
+    <button type="button" title={wrapTip('full screen')} aria-label="full screen"
       onClick={(e) => { e.stopPropagation(); if (onClick) onClick() }}
       onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)} style={{
         position: 'absolute', right: 9, bottom: 9, zIndex: 3, width: 26, height: 26, borderRadius: 7,
@@ -88,6 +97,7 @@ interface MirrorProps {
   onToggleFlag?: () => void
   onExpand?: () => void
   onNavigate?: () => void
+  chip?: ReactNode
 }
 
 /** One mirror card. Every card gets the same flag corner (top right) and the same label
@@ -101,20 +111,29 @@ interface MirrorProps {
  *  the card, if only the tag answers). `onNavigate` makes the whole card clickable, and
  *  hovering it lightens the dim wash to say so; the flag and (on the live card) the
  *  expand button stop that click from reaching the card underneath them. */
-function Mirror({ width, content, cornerLabel, live, projecting = true, dim, flagged, elapsed, onToggleFlag, onExpand, onNavigate }: MirrorProps) {
+function Mirror({ width, content, cornerLabel, live, projecting = true, dim, flagged, elapsed, onToggleFlag, onExpand, onNavigate, chip }: MirrorProps) {
   const [hot, setHot] = useState(false)
   /* the ghost flag and the expand button both wait out the app's own recede clock
      (`useRecede`, `chrome/IconButton`) before they disappear — the same grace period
      as a pane's close button, so a hover-revealed control doesn't vanish under the
      cursor's heels the instant it drifts off the card. */
-  const [revealed, showReveal, hideReveal] = useRecede()
+  const [hovered, showReveal, hideReveal] = useRecede()
+  /* KEYBOARD FOCUS REVEALS THE CORNERS TOO (2026-10-02). Both corner controls stay in the tab
+     order at rest; the moment one takes focus the card counts as revealed, the same as a hover, and
+     it stays revealed until focus leaves the card. Before, the corners left the tab order while
+     hidden, so "full screen" had no keyboard route at all. This is `PresetButton`'s keyboard reveal,
+     applied to the whole card. */
+  const [focusIn, setFocusIn] = useState(false)
+  const revealed = hovered || focusIn
+  const onFocus = () => setFocusIn(true)
+  const onBlur = (e: FocusEvent<HTMLDivElement>) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusIn(false) }
   const height = Math.round(width * ASPECT)
   const glyphSize = dim ? 13 : 16
   const clickable = !!onNavigate
   const enter = () => { setHot(true); showReveal() }
   const leave = () => { setHot(false); hideReveal() }
   return (
-    <div data-filmroll-card={live ? 'live' : 'neighbour'} onMouseEnter={enter} onMouseLeave={leave} onClick={onNavigate} style={{
+    <div data-filmroll-card={live ? 'live' : 'neighbour'} onMouseEnter={enter} onMouseLeave={leave} onFocus={onFocus} onBlur={onBlur} onClick={onNavigate} style={{
       position: 'relative', flexShrink: 0, width, height, overflow: 'hidden', cursor: clickable ? 'pointer' : 'default',
       background: 'var(--bark-50)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius-md)',
       boxShadow: live ? 'var(--lift-3)' : 'none', boxSizing: 'border-box',
@@ -152,9 +171,13 @@ function Mirror({ width, content, cornerLabel, live, projecting = true, dim, fla
       {/* the flag corner: filled and always shown once set; an outline only while this
          card (or its expand/flag control) is recently hovered — never a solid flag for a
          state that isn't true. */}
-      {onToggleFlag ? (
+      {/* THE FLAG CHIP TAKES THE CORNER ON THE CURRENT FRAME (v4, owner 6 Oct): a flagged current
+         slide shows the chip, not the mark — the notes pane beside it already lists its flags. */}
+      {chip ? (
+        <span style={{ position: 'absolute', right: 6, top: 5, zIndex: 3 }}>{chip}</span>
+      ) : onToggleFlag ? (
         <span style={{ position: 'absolute', right: 6, top: 5, zIndex: 3, opacity: flagged ? (dim ? (hot ? 0.85 : 0.7) : 1) : (revealed ? 1 : 0), pointerEvents: flagged || revealed ? 'auto' : 'none', transition: 'opacity var(--dur-fade) var(--ease-soft)' }}>
-          <FlagButton flagged={flagged} dim={dim} glyphSize={glyphSize} onClick={onToggleFlag} tabIndex={flagged || revealed ? 0 : -1} />
+          <FlagButton flagged={flagged} dim={dim} glyphSize={glyphSize} onClick={onToggleFlag} />
         </span>
       ) : flagged ? (
         <span style={{ position: 'absolute', right: 6, top: 5, zIndex: 3, opacity: dim ? 0.7 : 1, transition: 'var(--transition-wash)' }}>
@@ -203,7 +226,7 @@ export interface FilmRollNeighbour {
   content: ReactNode
   /** the corner tag's words, e.g. "stop 19" — the arrow is the roll's */
   stopLabel: string
-  /** the flag corner's state */
+  /** the flag corner's state: the plain mark, "this slide has flags" */
   flagged?: boolean
   /** the whole card is the click target for its direction; omit for a plain preview */
   onNavigate?: () => void
@@ -213,10 +236,12 @@ export interface FilmRollNeighbour {
 export interface FilmRollLive {
   /** the host's slide for the live stop */
   content: ReactNode
-  /** the flag corner's state */
+  /** the flag corner's state. Once `onFlag` is passed the chip takes the corner, so this only matters
+   *  to the old switch */
   flagged?: boolean
   /** a running duration on this stop ("00:19"), folded into the live label's pill after a thin
-   *  divider, shown ALWAYS while present — independent of `flagged`. The HOST owns resetting it
+   *  divider, shown ALWAYS while present — independent of `flagged`; time-on-stop and
+   *  marked-for-revision are different ideas and don't share a spot. The HOST owns resetting it
    *  to zero when the live stop changes — this component just displays whatever string it's given */
   elapsed?: string
   /** THE LIVE STOP'S POSITION in the walk (0-based or 1-based, either, as long as it is consistent)
@@ -299,16 +324,47 @@ export interface FilmRollProps {
   current?: FilmRollLive | null
   /** the next slide, or `null`/`undefined` at the last stop */
   next?: FilmRollNeighbour | null
-  /** flip a flag on any of the three cards. Omit to hide every flag corner (a read-only roll) */
+  /** v4 (owner, 6 Oct): THE ROLL IS FOR QUICK FLAGGING; THE NOTES PANE IS THE LOG. With `onFlag` the
+   *  CURRENT frame wears `FlagChip` at its top right — tap for the usual type, hold (or right-click)
+   *  for the ring of three — and this fires with the type's key. ADD A BARE FLAG to the shown slide
+   *  (text ''), the same entry the notes pane's composer writes. Every OTHER frame wears the plain
+   *  mark while its `flagged` is true: "this slide has flags", no type, no count, not a control. On
+   *  the current frame the chip takes that corner, so a flagged current slide shows the chip, not the
+   *  mark. `flagged` is DERIVED by the host: true while the slide has an unresolved flag. */
+  onFlag?: (category: string) => void
+  /** the ring's three types. Default `NOTE_CATEGORIES` (the first three of the user's list) */
+  flagTypes?: FlagType[]
+  /** the usual type's key — what a tap makes. Default 'fix'. HOST-HELD AND STORED (owner, 15 Oct):
+   *  a type picked on the ring becomes the usual one, through `onUsualFlagChange` */
+  usualFlag?: string
+  /** the ring picked a type that is not the usual one: it is now. Store it against the user and pass
+   *  it back as `usualFlag` here, on `LectureRecap` and on `LectureNotes` */
+  onUsualFlagChange?: (key: string) => void
+  /** the chip's "tap to flag · hold to change flag" tooltip. Default true; a host may switch it off once the
+   *  professor has opened the ring twice (count with `onFlagRingOpen`) */
+  flagHint?: boolean
+  /** the chip's ring opened — for a host counting toward switching `flagHint` off */
+  onFlagRingOpen?: () => void
+  /** @deprecated v4 — the per-slide switch, the OLD flag model. Ignored once `onFlag` is passed.
+   *  Without `onFlag` it still flips a flag on any of the three cards */
   onToggleFlag?: (which: 'prev' | 'current' | 'next') => void
-  /** full screen, live card only, revealed on that card's own hover. Omit to hide the button */
+  /** full screen, live card only, revealed on that card's own hover OR when keyboard focus is
+   *  inside the card (2026-10-02). It stays in the tab order at rest, so a keyboard user can
+   *  always reach it; focusing it reveals it. Omit to hide the button entirely */
   onExpand?: () => void
 }
 
 export function FilmRoll({
   height = 286, liveWidth = 470, neighborWidth = 336, liveLabel, projecting = true,
   prev, current, next, onToggleFlag, onExpand, minScale = 0.55, maxScale = 1.6,
+  onFlag, flagTypes, usualFlag, onUsualFlagChange, flagHint, onFlagRingOpen,
 }: FilmRollProps) {
+  /* v4 (owner, 6 Oct): THE ROLL IS FOR QUICK FLAGGING; THE NOTES PANE IS THE LOG. With `onFlag` the
+     current frame wears `FlagChip` (tap = the usual type, hold = the ring) and every other frame
+     wears the plain mark when `flagged` — no type, no count, not a control. `onToggleFlag` (the
+     per-slide switch) is the old model and is ignored once `onFlag` is passed. */
+  const toggle = onFlag ? undefined : onToggleFlag
+  const chip = onFlag ? <FlagChip types={flagTypes} usual={usualFlag} onUsualChange={onUsualFlagChange} hint={flagHint} onFlag={onFlag} onRingOpen={onFlagRingOpen} /> : null
   const label = liveLabel != null ? liveLabel : projecting ? 'On the projector now' : 'Not on the projector'
   /* TRAVEL (OB-203). The only STATE is which chevron leans — the row's movement lives entirely in a
      Web Animations animation on the row itself, so React never holds a displaced position and a
@@ -411,15 +467,15 @@ export function FilmRoll({
       <div ref={rowRef} data-filmroll-row style={{ display: 'flex', alignItems: 'center', gap: sGap, willChange: 'transform' }}>
         {prev ? (
           <Mirror width={sNeighbor} content={prev.content} cornerLabel={'← ' + prev.stopLabel} dim
-            flagged={prev.flagged} onToggleFlag={onToggleFlag && (() => onToggleFlag('prev'))}
+            flagged={prev.flagged} onToggleFlag={toggle && (() => toggle('prev'))}
             onNavigate={prev.onNavigate && navigate(-1, prev.onNavigate)} />
         ) : <div style={{ width: sNeighbor, flexShrink: 0 }} />}
         <Mirror width={sLive} content={current && current.content} cornerLabel={label} live projecting={projecting}
           flagged={current ? current.flagged : undefined} elapsed={projecting ? (current ? current.elapsed : undefined) : undefined}
-          onToggleFlag={onToggleFlag && (() => onToggleFlag('current'))} onExpand={onExpand} />
+          onToggleFlag={toggle && (() => toggle('current'))} onExpand={onExpand} chip={chip} />
         {next ? (
           <Mirror width={sNeighbor} content={next.content} cornerLabel={next.stopLabel + ' →'} dim
-            flagged={next.flagged} onToggleFlag={onToggleFlag && (() => onToggleFlag('next'))}
+            flagged={next.flagged} onToggleFlag={toggle && (() => toggle('next'))}
             onNavigate={next.onNavigate && navigate(1, next.onNavigate)} />
         ) : <div style={{ width: sNeighbor, flexShrink: 0 }} />}
       </div>

@@ -275,7 +275,7 @@ function Library({ actions, columns, onSelect, onDragStart, onDragEnd, note, onC
       {onClose ? (
         <span style={{ position: 'absolute', top: -9, right: 10, zIndex: 3, display: 'inline-flex', opacity: inside ? 1 : 0, pointerEvents: inside ? 'auto' : 'none', transition: 'opacity var(--dur-hover) var(--ease-soft)' }}>
           <span style={{ position: 'absolute', left: -3, right: -3, top: 8, height: 1, background: 'var(--surface-paper)' }} />
-          <IconButton title="Close (esc)" label="close the shelf" onClick={onClose} reveal={inside} style={{ position: 'relative', zIndex: 1 }} />
+          <IconButton title={wrapTip('Close (esc)')} label="close the shelf" onClick={onClose} reveal={inside} style={{ position: 'relative', zIndex: 1 }} />
         </span>
       ) : null}
       {/* THE HEADER IS THE HANDLE, and the grip is the affordance — `PaneHeader`'s own split: the

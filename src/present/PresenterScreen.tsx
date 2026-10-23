@@ -272,7 +272,7 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
   const [habits, setHabits] = useState<LectureHabits>(() => loadHabits())
   useEffect(() => { saveHabits(habits) }, [habits])
   const [draft, setDraft] = useState('')
-  const [draftCategory, setDraftCategory] = useState<string | undefined>(undefined)
+  const [draftCategory, setDraftCategory] = useState<string | null | undefined>(undefined)
   const stopId = steps[shown]?.id ?? ''
   const stopTitles = useMemo(() => steps.map((st) => st.title), [steps])
 
@@ -419,7 +419,6 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
                 categories={categories} onEntryCommit={commitEntry} onDeleteEntry={removeEntry}
                 style={{ flex: 1, minWidth: 0 }} />
             )}
-            flagged={flags.slice().sort((a, b) => a - b).map((i) => ({ id: i, title: steps[i].title, stop: i }))}
             actions={onLeave ? [{ label: 'close the presenter', tone: 'neutral' as const, onSelect: onLeave }] : []} />
         ) : (
           <>
@@ -468,7 +467,6 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
                 onEntryCommit={commitEntry} onDeleteEntry={removeEntry}
                 duringWidth={habits.duringWidth}
                 onDuringWidthChange={(w) => setHabits((h) => ({ ...h, duringWidth: w }))}
-                flagged={flags.indexOf(shown) >= 0} onToggleFlag={() => toggleFlag(shown)}
                 style={{ flex: 1, minWidth: 0 }} />
               <PaneDivider label="resize the notes and quick actions" now={bounds.now} min={bounds.min} max={bounds.max}
                 onDrag={onDeckDrag} onDragEnd={onDeckDragEnd} onReset={resetDeck} />
