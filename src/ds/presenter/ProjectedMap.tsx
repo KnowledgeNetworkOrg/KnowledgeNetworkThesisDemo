@@ -7,7 +7,8 @@ import { settleRead } from '../chrome/MeasureBox'
 
 /* Typed port of the DS components/presenter/ProjectedMap.jsx (contract: ProjectedMap.d.ts),
    part 4/5 of the presenter-mode split — OB-139 / #267, on the 2026-09-03e source (the scrim,
-   the ✕ for full screen alone, the foot's own words). */
+   the ✕ for full screen alone, the foot's own words); re-ported whole from the flags-v4
+   source in OB-303 (2026-10-21). */
 
 /** The wall's own ✕ — same manners as every other hover-revealed control in the system
  *  (`useRecede`, the recede clock `FilmRoll`'s flag/expand corners already share): invisible
@@ -26,11 +27,10 @@ function CloseButton({ onClick, revealed }: { onClick?: () => void; revealed: bo
         display: 'grid', placeItems: 'center', background: hot ? 'var(--bark-800)' : 'color-mix(in srgb, var(--surface-raised) 92%, transparent)',
         border: '1px solid ' + (hot ? 'var(--bark-800)' : 'var(--border-rule)'),
         color: hot ? 'var(--text-inverse)' : 'var(--text-1)', boxShadow: hot ? 'var(--lift-2)' : 'var(--lift-1)',
-        cursor: 'pointer', fontSize: 13, lineHeight: 1,
+        cursor: 'pointer', lineHeight: 1, padding: 0,
         opacity: revealed ? 1 : 0, pointerEvents: revealed ? 'auto' : 'none',
         transition: 'var(--transition-wash), opacity var(--dur-fade) var(--ease-soft)',
-        /* drawn, never typed (OB-201): 13 was the typed glyph's point size here */
-      }}><CloseMark size={13} /></button>
+      }}><CloseMark size={11} /></button>
   )
 }
 

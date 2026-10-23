@@ -200,8 +200,8 @@ export interface NodeArrowProps {
   width?: number
   /** THE SEVERAL-ARROWS-INTO-ONE-PILL LAYOUT: `width: 100%` plus `minHeight`, in place of the
    *  lone arrow's `flex: 1 0 fillMin` / `minHeight: 34`. NOT cosmetic — the default root's flex
-   *  basis is a WIDTH, and inside a column CSS reads a basis as a HEIGHT, so an unflagged arrow
-   *  in a stack sizes its own height off a width constant. Pass `minHeight` alongside it; there
+   *  basis is a WIDTH, and inside a column CSS reads a basis as a HEIGHT, so an arrow without a
+   *  flag in a stack sizes its own height off a width constant. Pass `minHeight` alongside it; there
    *  is deliberately no built-in default for the pair, because the spacing that makes a stack
    *  read as belonging to one pill (`REL_CARD_METRICS`' `blockGap`/`arrowStacked` ratio) is that
    *  caller's rhythm decision and not a fact about arrows */

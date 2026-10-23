@@ -9,13 +9,14 @@
 //     than the one the class is seeing;
 //   · a category the professor mints is theirs, and is offered again at the next stop and after
 //     a reload;
-//   · the prepared note's pencil edits IN PLACE and the correction survives a reload, without
+//   · the prepared note is click-to-edit IN PLACE and the correction survives a reload, without
 //     touching the walk the note was authored on;
 //   · the deck draws eight undecided slots and keeps six real actions on the shelf behind More;
 //   · a shelf tile RUNS its action (Project the map puts the map on the wall);
 //   · dragging a shelf action onto a slot swaps them, and the arrangement survives a reload;
 //   · ending the lecture replaces the row with the recap: the three counts, the same notes grouped
-//     under the stops they were written about, the flagged list, and a way out.
+//     under the stops they were written about (since flags v4 there is no separate flagged
+//     list), and a way out.
 //
 // Spawns vite ITSELF — backgrounded dev servers die on this machine.
 // Run from anywhere:  node tools/studio-spike/browsertest-presenter-panes.mjs
@@ -71,7 +72,7 @@ try {
   // ⏎ in the composer saves; the field must have focus first, and typing anywhere else would be
   // read by the screen's own single-letter shortcuts instead
   const write = async (text) => {
-    await notes().getByLabel('a note for this stop…').click()
+    await notes().getByLabel('a note for this slide…').click()
     await page.keyboard.type(text)
     await page.keyboard.press('Enter')
     await page.waitForTimeout(350)
@@ -86,8 +87,8 @@ try {
   ok('the panes row carries the notes pane and the quick actions deck, side by side',
     (await notes().count()) === 1 && (await page.locator('[data-presenter-panes] [data-quick-shelf-toggle]').count()) === 1)
   const preparedText = (await prepared().innerText()).replace(/\s+/g, ' ').trim()
-  ok('the prepared column says plainly that nothing was written for this stop, rather than going blank',
-    /nothing was written for this stop\./.test(preparedText) && preparedText.length > 30, preparedText.slice(0, 70))
+  ok('the prepared column says plainly that nothing was written for this slide, rather than going blank',
+    /nothing was written for this slide\./.test(preparedText) && preparedText.length > 30, preparedText.slice(0, 70))
   ok('the During column starts empty', (await during().locator('[data-lecture-note]').count()) === 0)
 
   // ── the divider between the notes and the deck (OB-254) ─────────────────────
@@ -202,7 +203,8 @@ try {
   const first = await rows()
   ok('⏎ files the note in the During column', first.length === 1 && /stumbled on the handshake/.test(first[0] || ''), (first[0] || '').slice(0, 70))
   ok('the row carries a clock reading', /\d\d:\d\d/.test(first[0] || ''), first[0])
-  ok('the head\'s tally counts it', /\b1 note\b/.test((await page.locator('[data-notes-tally]').innerText()).replace(/\s+/g, ' ')), (await page.locator('[data-notes-tally]').innerText()).replace(/\s+/g, ' ').trim())
+  // v4: the tally is a count per type glyph; the total is the head's own "1 flag"
+  ok('the head\'s tally counts it', /\b1\b/.test(await page.locator('[data-notes-tally]').innerText()) && /\b1 flag\b/.test((await notes().innerText()).replace(/\s+/g, ' ')), (await page.locator('[data-notes-tally]').innerText()).replace(/\s+/g, ' ').trim())
 
   // ── a note belongs to the stop it was written about ─────────────────────────
   await leaveField()
@@ -244,10 +246,10 @@ try {
   await page.locator('[data-note-composer]').locator('button').first().click()
   await page.waitForTimeout(300)
   ok('the category button opens the popover', (await page.locator('[data-note-categories]').count()) === 1)
-  await page.locator('[data-note-categories]').getByText('new category…').click()
+  await page.locator('[data-note-categories]').getByText('new type…').click()
   await page.waitForTimeout(300)
-  await page.getByLabel('name the new category').fill('Homework')
-  await page.getByLabel('add this category').click()
+  await page.getByLabel('name the new type').fill('Homework')
+  await page.getByLabel('add this type').click()
   await page.waitForTimeout(400)
   ok('the minted category is stored against the professor, not the lecture',
     await page.evaluate(() => ((JSON.parse(localStorage.getItem('pkt.lecture.categories') || '{}').data || {}).list || []).some((c) => c.label === 'Homework')))
@@ -263,15 +265,15 @@ try {
   await page.waitForTimeout(400)
 
   // ── the prepared note, corrected at the lectern ─────────────────────────────
-  await notes().getByLabel('edit the prepared notes for this stop').dispatchEvent('click')
+  await prepared().getByTitle(/^click to edit/).click()
   await page.waitForTimeout(250)
   await page.keyboard.press('Control+A')
   await page.keyboard.type('Say the handshake out loud before the diagram goes up.\n\nSYN, SYN-ACK, ACK — then ask what happens if the third is lost.')
   // PREPARED NOTES ARE PROSE, so the in-place editor treats the return key as a LINE BREAK and
-  // commits on blur instead (or on a second press of the pencil). Looking away is the save.
+  // commits on blur instead (v4 has no pencil; the words are click-to-edit). Looking away is the save.
   await leaveField()
   await page.waitForTimeout(500)
-  ok('the pencil commits the correction in place', /Say the handshake out loud/.test(await prepared().innerText()))
+  ok('looking away commits the correction in place', /Say the handshake out loud/.test(await prepared().innerText()))
   ok('and the blank line between the two paragraphs survives the round trip',
     await page.evaluate(() => {
       const book = (JSON.parse(localStorage.getItem('pkt.lecture.notes:draft') || '{}').data || {})
@@ -389,12 +391,17 @@ try {
   ok('ending the lecture replaces the row with the recap', (await page.locator('[data-lecture-recap]').count()) === 1 && (await notes().count()) === 0)
   const stats = (await page.locator('[data-recap-stats]').innerText()).replace(/\s+/g, ' ').trim()
   ok('the recap counts stops, notes and flags', /stops? covered/.test(stats) && /notes? taken/.test(stats) && /slides? flagged/.test(stats), stats)
-  ok('it says when the lecture started and when it ended', /started/.test(await page.locator('[data-lecture-recap]').innerText()) && /ended/.test(await page.locator('[data-lecture-recap]').innerText()))
+  // v4 (LectureClock): one line, `Fri 4 Sep 2026 13:12 – 13:40`, no "started" / "ended" words
+  ok('it says when the lecture started and when it ended', /\d\d:\d\d – (\w{3} \d+ \w{3} \d{4} )?\d\d:\d\d/.test(await page.locator('[data-lecture-recap]').innerText()))
   ok('the same notes come back in review shape, grouped under the stops they were written about',
     (await page.locator('[data-lecture-notes="review"]').count()) === 1 && (await page.locator('[data-notes-group]').count()) >= 1,
     (await page.locator('[data-notes-group]').count()) + ' group heads')
-  ok('the flagged stop is listed for revision', (await page.locator('[data-flagged-slide]').count()) === 1)
-  ok('a flagged row is a readout, not a jump — the lecture is over', await page.locator('[data-flagged-slide]').first().isDisabled())
+  // v4 dropped the "flagged for revision" list: the review pane's flags, grouped by slide, are it,
+  // and the preview beside them shows the slide a row is picked on. The rows come from the notes;
+  // the host's F still writes the old flags array until OB-304 makes a flag a note, and OB-304
+  // wires the row-to-preview pick, so those checks are OB-304's.
+  ok('the notes written live are the recap\'s rows', (await page.locator('[data-lecture-notes="review"] [data-lecture-note]').count()) >= 1,
+    (await page.locator('[data-lecture-notes="review"] [data-lecture-note]').count()) + ' rows')
   ok('and there is a way out', (await page.getByRole('button', { name: 'close the presenter' }).count()) === 1)
   await page.getByRole('button', { name: 'close the presenter' }).click()
   await page.waitForTimeout(600)
