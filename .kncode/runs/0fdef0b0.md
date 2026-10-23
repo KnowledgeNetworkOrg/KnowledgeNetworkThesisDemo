@@ -55,7 +55,13 @@ The build and tests passed. Verify: ran — passed (`npm run verify` 68 files / 
 
 ### 8. review — agent (claude) — succeeded
 
-18:59–19:04 UTC (308.3s).
+18:59–19:04 UTC (310.4s). Commit `33903a0`.
 Ran with claude-code 2.1.309 · claude-sonnet-5-5 · effort xhigh.
+Reviewed the change in 307s: MINOR. Recorded as 33903a0.
 
-### 9. land — tool — waiting
+### 9. decide — person — succeeded
+
+19:04–20:53 UTC (6514.7s).
+conflict: with the viewer left on `main`'s behaviour and always mounted, the card's trail check can't fail on `main` and a map-only Load still shows the draft's route right away. Is that accepted, or should the viewer's non-dedup publish also skip the draft after a clear?
+
+### 10. land — tool — waiting
