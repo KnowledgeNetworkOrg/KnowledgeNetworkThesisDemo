@@ -51,11 +51,13 @@ const ok = (name, cond, detail = '') => {
 }
 
 /** every y-scrolling box on the page, with the obligation's three readings. A box is NAMED by the
- *  nearest data-* hook or aria-label at or above it, so a reading can be told apart in the log. */
+ *  nearest data-* hook or aria-label at or above it, so a reading can be told apart in the log.
+ *  `data-sb` is skipped: it is the scrollbar driver's state, stamped on whichever box last
+ *  scrolled (in Firefox, the flags list that just followed a new note), not a hook. */
 const readScrollers = (page) => page.evaluate(() => {
   const nameOf = (el) => {
     for (let n = el, i = 0; n && i < 8; n = n.parentElement, i++) {
-      const hook = [...n.attributes].find((a) => a.name.startsWith('data-') && !/^data-(pane-body|kn-)/.test(a.name))
+      const hook = [...n.attributes].find((a) => a.name.startsWith('data-') && !/^data-(pane-body|kn-|sb$)/.test(a.name))
       if (hook) return '[' + hook.name + (hook.value ? '=' + hook.value.slice(0, 24) : '') + ']' + (i ? ' +' + i : '')
       const aria = n.getAttribute('aria-label') || n.getAttribute('role')
       if (aria) return aria + (i ? ' +' + i : '')

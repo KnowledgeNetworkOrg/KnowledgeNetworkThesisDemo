@@ -123,20 +123,19 @@ try {
   ok('ArrowUp returns the record', afterUp === afterDown - 1, `stop ${afterDown} → ${afterUp}`)
 
   // ── once ended, the step keys belong to the recap's scrollers ───────────────
-  // Flag every stop so the recap's flagged list overflows, then end the lecture and shrink the
+  // Write enough notes that the recap's list overflows, then end the lecture and shrink the
   // window: the list is then the keyboard's pane and PageDown must scroll it, not vanish.
-  for (let i = 1; i < total; i++) {
-    await page.keyboard.press('ArrowLeft')
-    await page.waitForTimeout(150)
+  // Typed notes, not F: since flags v4 (OB-303) the recap lists the lecture's notes, and the
+  // host's F writes the old flags array until OB-304 makes a flag a note.
+  const composer = page.locator('[data-lecture-notes="live"]').getByLabel('a note for this slide…')
+  for (let i = 1; i <= 12; i++) {
+    await composer.click()
+    await page.keyboard.type(`note ${i} — what the class asked about this slide`)
+    await page.keyboard.press('Enter')
+    await page.waitForTimeout(120)
   }
-  for (let i = 0; i < total; i++) {
-    await page.keyboard.press('f')
-    await page.waitForTimeout(150)
-    if (i < total - 1) {
-      await page.keyboard.press('ArrowRight')
-      await page.waitForTimeout(250)
-    }
-  }
+  await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur())
+  await page.waitForTimeout(200)
   await page.locator('[aria-label="end lecture"]').click()
   await page.getByRole('button', { name: 'end lecture' }).last().click()
   await page.waitForTimeout(800)
