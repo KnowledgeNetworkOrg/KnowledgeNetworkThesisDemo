@@ -34,15 +34,14 @@ describe('publishableRoad — a road already published', () => {
   it('publishes nothing for the same road, even as a fresh array', () => {
     expect(publishableRoad(road(A, B), null, routeStepsOf(road(A, B)))).toBeNull()
   })
-
-  it('publishes nothing after a clear: the bus is empty but the editor remembers what it sent', () => {
-    // clearRoute leaves bus.route empty; the editor's last publish is unchanged,
-    // so a remount must not fill the route back in on its own.
-    expect(publishableRoad(road(A, B), null, routeStepsOf(road(A, B)))).toBeNull()
-  })
 })
 
 describe('publishableRoad — a road that has changed', () => {
+  it('publishes the road on the first publish, when nothing has been sent yet', () => {
+    const first = road(A, B)
+    expect(publishableRoad(first, null, null)).toBe(first)
+  })
+
   it('publishes the road when there is no saved walk and it differs from the last publish', () => {
     const changed = road(A, B, C)
     expect(publishableRoad(changed, null, routeStepsOf(road(A, B)))).toBe(changed)

@@ -40,12 +40,13 @@ export type PublishedRouteBus = Pick<Bus, 'setRouteSteps' | 'activeWalk'>
 export function publishableRoad(
   road: Stop[],
   activeWalk: ActiveWalkState | null,
-  lastPublished: RouteStep[] | null,
+  lastSent: RouteStep[] | null,
 ): Stop[] | null {
   if (activeWalk) return null
-  return JSON.stringify(routeStepsOf(road)) === JSON.stringify(lastPublished) ? null : road
+  return JSON.stringify(routeStepsOf(road)) === JSON.stringify(lastSent) ? null : road
 }
 
+/** survives a remount, so the editor can tell it has already sent this road */
 let lastPublished: RouteStep[] | null = null
 
 /** Publishes the presented road onto the bus — WITH ITS GROUPS (#228, DS
@@ -61,8 +62,10 @@ let lastPublished: RouteStep[] | null = null
  * loaded on the desk. Nor does it republish a road already sent: `lastPublished`
  * is the last one, so a remount changes neither the route nor the trail
  * (`setRouteSteps` marks the trail, and `mark` only dedups at the log's tip).
- * After the walk is cleared the route stays as the clear left it until the
- * draft's road actually changes.
+ * After a walk is cleared, the editor stays quiet until the draft's road
+ * actually changes — the editor only: the always-mounted viewer is still on
+ * the no-`dedup` path, so it republishes the draft as soon as `activeWalk`
+ * becomes null, after any clear, not just "stop this walk".
  *
  * Without `dedup` the hook publishes whenever `road` is non-null and records
  * nothing, so the viewer can hand the draft back after "stop this walk".
@@ -71,7 +74,7 @@ let lastPublished: RouteStep[] | null = null
  * viewer can both have this mounted at once (panes bench rather than truly
  * unmount), and an unmount-time clear from one would wipe what the other
  * still wants shown. The single-caller version this replaced cleaned up via
- * bus.clearRoute(), which also nulls activeWalk - that is why closing the
+ * bus.clearRoute(), which also nulls activeWalk — that is why closing the
  * walk editor used to kill an active saved walk. Real clears now only come
  * from an explicit action: activateWalk, deactivateWalk, clearRoute. */
 export function usePublishPresentedRoute(

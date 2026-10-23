@@ -156,10 +156,10 @@ await page.waitForTimeout(300)
 ok('clicking the eye shows walk A again', await drawn())
 
 // ── #481: leaving the presenter does not republish the draft over a saved walk ──
-// compare the route's stops, not their visIds: the return from the presenter
-// re-peeks the focused stop and can move the camera to another level, where the
-// same stop carries a different visId.
-const pinSet = () => page.$$eval('svg[data-nested] [data-routestop]', (els) => els.map((el) => el.getAttribute('data-step')).sort())
+// compare each pin's run of stops by number, not its visId: the return from the
+// presenter re-peeks the focused stop and can move the camera to another level,
+// where the same stop carries a different visId and stops may merge into one pin.
+const pinSet = () => page.$$eval('svg[data-nested] [data-routestop]', (els) => els.map((el) => `${el.getAttribute('data-step')}-${el.getAttribute('data-step-end')}`).sort())
 const pinsOnWalk = await pinSet()
 ok('the loaded walk is drawn before the presenter', pinsOnWalk.length > 0, pinsOnWalk.join(','))
 await openPalette()
@@ -169,40 +169,6 @@ await openPalette()
 await page.getByLabel('studio-preset-plan').click()
 await page.waitForTimeout(800)
 ok('#481: the walk editor, remounted by Plan, leaves the loaded walk\'s pins alone', JSON.stringify(await pinSet()) === JSON.stringify(pinsOnWalk), `${pinsOnWalk.join(',')} -> ${(await pinSet()).join(',')}`)
-
-// ── #481: that same remount does not re-mark the trail with the road it already sent ──
-const trailCount = async () => {
-  const text = await page.locator('[aria-label="trail-strip"]').evaluate((el) => el.textContent || '')
-  const m = /Trail — (\d+) visited/.exec(text)
-  return m ? Number(m[1]) : null
-}
-await page.evaluate(() => localStorage.clear())
-await page.reload()
-await page.waitForTimeout(800)
-await page.getByLabel('studio-preset-plan').click()
-await page.waitForTimeout(800)
-await openPalette()
-await page.getByLabel('studio-inst-trail', { exact: true }).click()
-await page.waitForTimeout(500)
-await page.getByLabel('studio-preset-plan').click()
-await page.waitForTimeout(800)
-await openPalette()
-await page.getByLabel('studio-inst-trail', { exact: true }).click()
-await page.waitForTimeout(500)
-// open the presenter on the road's last stop, so its own arrival marks nothing and
-// the trail tip rests where a re-publish of the same road dedups.
-await page.locator('[data-walk-editor] [data-rnode][data-node]').last().click()
-await page.waitForTimeout(400)
-const trailBefore = await trailCount()
-ok('the Trail strip counts the draft before the presenter', trailBefore !== null, String(trailBefore))
-await openPalette()
-await page.getByLabel('studio-preset-present').click()
-await page.waitForTimeout(700)
-await openPalette()
-await page.getByLabel('studio-preset-plan').click()
-await page.waitForTimeout(800)
-const trailAfter = await trailCount()
-ok('#481: returning to Plan does not re-mark the trail with the road already published', trailAfter !== null && trailAfter === trailBefore, `${trailBefore} -> ${trailAfter}`)
 
 await page.evaluate(() => localStorage.clear())
 await browser.close()

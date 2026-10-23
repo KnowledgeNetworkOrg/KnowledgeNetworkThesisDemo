@@ -61,7 +61,14 @@ Reviewed the change in 307s: MINOR. Recorded as 33903a0.
 
 ### 9. decide — person — succeeded
 
-19:04–20:53 UTC (6514.7s).
-conflict: with the viewer left on `main`'s behaviour and always mounted, the card's trail check can't fail on `main` and a map-only Load still shows the draft's route right away. Is that accepted, or should the viewer's non-dedup publish also skip the draft after a clear?
+19:04–20:53 UTC (6516.7s). Commit `a2a4348`.
+conflict: with the viewer left on `main`'s behaviour and always mounted, the card's trail check can't fail on `main` and a map-only Load still shows the draft's route right away. Is that accepted, or should the viewer's non-dedup publish also skip the draft after a clear? — Continued with feedback.
 
-### 10. land — tool — waiting
+### 10. fix — agent (opencode) — succeeded
+
+20:53–20:54 UTC (64.8s).
+Ran with opencode 1.18.35 · opencode-go/deepseek-v4.1-flash.
+
+### 11. review — agent (claude) — waiting
+
+### 12. land — tool — waiting
