@@ -9,13 +9,14 @@
 //     than the one the class is seeing;
 //   · a category the professor mints is theirs, and is offered again at the next stop and after
 //     a reload;
-//   · the prepared note's pencil edits IN PLACE and the correction survives a reload, without
+//   · the prepared note is click-to-edit IN PLACE and the correction survives a reload, without
 //     touching the walk the note was authored on;
 //   · the deck draws eight undecided slots and keeps six real actions on the shelf behind More;
 //   · a shelf tile RUNS its action (Project the map puts the map on the wall);
 //   · dragging a shelf action onto a slot swaps them, and the arrangement survives a reload;
 //   · ending the lecture replaces the row with the recap: the three counts, the same notes grouped
-//     under the stops they were written about, the flagged list, and a way out.
+//     under the stops they were written about (since flags v4 there is no separate flagged
+//     list), and a way out.
 //
 // Spawns vite ITSELF — backgrounded dev servers die on this machine.
 // Run from anywhere:  node tools/studio-spike/browsertest-presenter-panes.mjs

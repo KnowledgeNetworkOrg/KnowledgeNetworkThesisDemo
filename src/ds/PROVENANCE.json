@@ -533,7 +533,7 @@
         "contract": "components/presenter/FlagChip.d.ts",
         "syncedAt": "2026-10-21",
         "deviations": [
-          "2026-10-21 NEW FILE, OB-303 — ported whole from the flags-v4 source: tap makes the usual type, hold or right-click opens the ring of the other types, and a pick becomes the usual one. The ring is portalled to `document.body` so a film-roll frame's `overflow: hidden` cannot clip it."
+          "2026-10-21 NEW FILE, OB-303 — ported whole from the flags-v4 source: tap makes the usual type, hold or right-click opens the ring of the other types, and a pick becomes the usual one. The ring is portalled to `document.body` so a film-roll frame's `overflow: hidden` cannot clip it. The .jsx's local `Tag` function is not ported: nothing in the file calls it, and lint rejects an unused declaration."
         ]
       },
       "src/ds/presenter/PresenterStrip.tsx": {
@@ -880,7 +880,8 @@
         "contract": "components/presenter/PresentStartCard.d.ts",
         "syncedAt": "2026-10-21",
         "deviations": [
-          "2026-10-21 NEW FILE, OB-303 — ported whole from the flags-v4 source: sessions, then continue / start / load another walk, with `StartMath` as the wording. OB-304 wires it into the host."
+          "2026-10-21 NEW FILE, OB-303 — ported whole from the flags-v4 source: sessions, then continue / start / load another walk, with `StartMath` as the wording. OB-304 wires it into the host.",
+          "2026-10-23 OB-303 ★ LOCAL — `onSelectSection` is typed `(id: string | number | null) => void` where the DS's .d.ts types `(id: string | number)`. The .jsx calls `onSelectSection(null)` and the contract's own docblock says null means \"the new session\", so the contract's type is the bug: a host typed to it would never handle the new-session choice. To report on #74."
         ]
       },
       "src/ds/presenter/LectureRecap.tsx": {
