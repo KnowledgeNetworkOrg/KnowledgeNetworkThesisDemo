@@ -47,6 +47,8 @@ export interface DraftSnapshot {
   stops: Stop[]
   choices: Record<string, string>
   withOptionals: boolean
+  /** written only when true; absent means the draft has no unsaved edits */
+  unsaved?: boolean
 }
 
 /** rebuild one stop from stored JSON, or null if its SHAPE is unusable. An
@@ -192,13 +194,17 @@ export function parseDraftData(parsed: unknown): DraftSnapshot | null {
     }
   }
 
-  return {
+  const snapshot: DraftSnapshot = {
     stops,
     choices,
     // the road's default is optionals ON; only an explicit stored `false` turns
     // them off, so a payload written before this field existed reads as on
     withOptionals: parsed.withOptionals !== false,
   }
+  // a payload written before this field existed reads as saved, which is what
+  // it was
+  if (parsed.unsaved === true) snapshot.unsaved = true
+  return snapshot
 }
 
 /** where the two id counters must resume so nothing they mint collides with
@@ -243,5 +249,6 @@ export function loadDraft(): DraftSnapshot | null {
 /** persist the draft. Never throws — a full or unavailable store must not break
  * an edit, it just means this session won't be there tomorrow. */
 export function saveDraft(s: DraftSnapshot): void {
-  writePersisted(KEY, VERSION, s)
+  const { unsaved, ...rest } = s
+  writePersisted(KEY, VERSION, unsaved === true ? { ...rest, unsaved: true } : rest)
 }

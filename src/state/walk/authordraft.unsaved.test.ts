@@ -90,6 +90,66 @@ describe('useDraftUnsaved — edits since the baseline', () => {
     const mod = await import('./authordraft')
     const first = probe(mod)
     expect(first.draft.stops).toHaveLength(1)
+    expect(first.draft.stops[0].node).toBe('stk-dns-naming')
     expect(first.unsaved).toBeUndefined()
+  })
+
+  it('an edit made before a reload is still unsaved after it', async () => {
+    const mod = await import('./authordraft')
+    probe(mod).draft.insertNode('stk-dns-naming')
+    expect(probe(mod).unsaved).toBe('The walk draft')
+
+    vi.resetModules()
+    const reloaded = await import('./authordraft')
+    expect(probe(reloaded).draft.stops.length).toBeGreaterThan(1)
+    expect(probe(reloaded).unsaved).toBe('The walk draft')
+  })
+
+  it('undo after a reload does not step back into a saved state', async () => {
+    const mod = await import('./authordraft')
+    probe(mod).draft.insertNode('stk-dns-naming')
+
+    vi.resetModules()
+    const reloaded = await import('./authordraft')
+    probe(reloaded).draft.insertNode('stk-ip-routing')
+    reloaded.undoDraft()
+    expect(probe(reloaded).unsaved).toBe('The walk draft')
+  })
+
+  it('saving as a walk before a reload keeps the restored draft clean', async () => {
+    const mod = await import('./authordraft')
+    probe(mod).draft.insertNode('stk-dns-naming')
+    expect(mod.saveDraftAsWalk('')).not.toBeNull()
+
+    vi.resetModules()
+    const reloaded = await import('./authordraft')
+    expect(probe(reloaded).unsaved).toBeUndefined()
+  })
+
+  it('loading without saving before a reload keeps the restored draft clean', async () => {
+    const mod = await import('./authordraft')
+    probe(mod).draft.insertNode('stk-dns-naming')
+    mod.forgetDraftUnsaved()
+
+    vi.resetModules()
+    const reloaded = await import('./authordraft')
+    expect(probe(reloaded).unsaved).toBeUndefined()
+  })
+
+  it('a restored unsaved draft with every stop deleted is not unsaved', async () => {
+    vi.resetModules()
+    stubStore({
+      'pkt.walkdesk.draft': JSON.stringify({
+        v: 1,
+        data: { stops: [{ node: 'stk-dns-naming', variants: [] }], choices: {}, withOptionals: true, unsaved: true },
+      }),
+    })
+
+    const mod = await import('./authordraft')
+    expect(probe(mod).unsaved).toBe('The walk draft')
+
+    probe(mod).draft.deleteAt([0])
+    expect(probe(mod).draft.stops).toHaveLength(0)
+    expect(probe(mod).unsaved).toBeUndefined()
   })
 })
