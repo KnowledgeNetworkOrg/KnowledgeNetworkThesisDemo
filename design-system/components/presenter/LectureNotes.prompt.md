@@ -89,9 +89,12 @@ field is empty, the save button once there are words. Do not hide it on an empty
 **Only today's flags show** (owner, Q6: "we are just presenting today's lecture"). Earlier
 lectures' unresolved flags go to the separate review of flags (Q5), not designed yet.
 
-**It is the `flex: 1; min-height: 0` child of the presenter column, under the strip.** It owns
-its scrolling; never wrap it in a scrolling ancestor and never give it a height. The composer is
-outside the scroller.
+**It fills what is left of the presenter column, under the strip, and never gets shorter than
+`LECTURE_NOTES_FIT.minHeight` (340).** Its row is `flex: 1 1 0; min-height: 340`; the presenter
+column scrolls (`overflow-y: auto; scrollbar-gutter: stable`) when the window is too short for the
+roll, the strip and that floor. That column is the one scrolling ancestor allowed: the pane still
+owns its own inner scrolling, and never gets a fixed height. The composer is outside the scroller.
+(Until 26 Oct this paragraph said `min-height: 0`, and a faithful port squeezed the pane.)
 
 **Everything here is the professor's own and never shown to the class** (owner, 2026-09-09,
 OB-166). The prepared notes are not the stop's audience-facing `note`; they live in the lecture's

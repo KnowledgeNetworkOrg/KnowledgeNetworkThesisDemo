@@ -54,12 +54,18 @@ export interface LectureNote {
  *  - NO FLAG BUTTON. It moved to the film roll's current frame (`FilmRoll onFlag` → `FlagChip`).
  *    The old head flag (`flagged`, `onToggleFlag`) is gone; passing it does nothing.
  *
- * WHAT THE COLUMN AROUND IT MUST DO — unchanged, and a port can get every prop right and still
- * break them:
- *   1. THIS PANE IS THE `flex: 1; min-height: 0` CHILD of the presenter's flex column, under the
- *      strip (`flex: none`). Do not give it a height; do not `position: absolute` it.
+ * WHAT THE COLUMN AROUND IT MUST DO — a port can get every prop right and still break them:
+ *   1. THIS PANE FILLS WHAT IS LEFT OF THE PRESENTER'S FLEX COLUMN, under the strip (`flex: none`),
+ *      AND NEVER GETS SHORTER THAN `LECTURE_NOTES_FIT.minHeight` (340): its row is
+ *      `flex: 1 1 0; min-height: LECTURE_NOTES_FIT.minHeight`, and the COLUMN itself scrolls
+ *      (`overflow-y: auto; scrollbar-gutter: stable`) when the window cannot hold the roll, the
+ *      strip and that floor. Squeezed below the floor, the flags stop scrolling and the composer
+ *      falls out of the pane (owner, 16 Oct; until 26 Oct this rule said `min-height: 0` and the
+ *      floor lived only on `LECTURE_NOTES_FIT`, and a faithful port built the squeeze). Do not give
+ *      the pane a fixed height; do not `position: absolute` it.
  *   2. IT OWNS ITS OWN SCROLL — the prepared notes scroll inside their share and the flags inside
- *      theirs. Never wrap the pane in a scrolling ancestor.
+ *      theirs. The presenter column of rule 1 is the ONE scrolling ancestor allowed, and only
+ *      past the floor; never add another.
  *   3. THE COMPOSER IS OUTSIDE THE SCROLLER, pinned to the foot of the left column.
  *   4. BOTH DIVIDERS ARE THE PANE'S, AND SO ARE THEIR CLAMPS. Set the chat's width only through
  *      `chatWidth`, the prepared height only through `preparedHeight`.
