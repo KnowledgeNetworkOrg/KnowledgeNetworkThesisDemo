@@ -51,8 +51,9 @@ import { renderStopPreview } from '../state/walk/stoppreview'
 import { BOOKED_SECONDS, clampStop, coveredBefore, lectureStart, lectureSteps, mmss } from './lecture'
 import { LectureSlide } from './LectureSlide'
 import {
-  addNote, applyDeck, deleteNote, editNote, loadHabits, loadMintedCategories, loadNotebook,
-  notebookKey, saveHabits, saveMintedCategories, saveNotebook, serialiseDeck, setPrepared,
+  addFlag, applyDeck, loadHabits, loadMintedCategories, loadNotebook, loadPrepared, mintNoteId,
+  notebookKey, resolveFlag, saveHabits, saveMintedCategories, saveNotebook, savePrepared,
+  serialiseDeck, setFlagText, setPrepared,
 } from './lecturenotes'
 import type { LectureHabits, LectureNotebook } from './lecturenotes'
 import { useProjectorSender } from './projector'
@@ -257,6 +258,7 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
      one render after the walk changed, and that render would overwrite the new walk's notes with
      the old walk's. The categories and the furniture are user-wide and need no such care. */
   const bookKey = notebookKey(play.source, bus.activeWalk?.walkId)
+  const [lectureId] = useState(() => mintNoteId(Date.now()))
   const [notebook, setNotebook] = useState<{ key: string; book: LectureNotebook }>(() => ({ key: bookKey, book: loadNotebook(bookKey) }))
   const book = notebook.book
   const setBook = useCallback((f: (b: LectureNotebook) => LectureNotebook) => setNotebook((n) => ({ ...n, book: f(n.book) })), [])
@@ -271,6 +273,8 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
   const categories = useMemo(() => NOTE_CATEGORIES.concat(minted), [minted])
   const [habits, setHabits] = useState<LectureHabits>(() => loadHabits())
   useEffect(() => { saveHabits(habits) }, [habits])
+  const [prepared, setPreparedNotes] = useState(() => loadPrepared())
+  useEffect(() => { savePrepared(prepared) }, [prepared])
   const [draft, setDraft] = useState('')
   const [draftCategory, setDraftCategory] = useState<string | undefined>(undefined)
   const stopId = steps[shown]?.id ?? ''
@@ -378,8 +382,8 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
      one notebook read twice, so the two handlers are written once here rather than beside each
      pane. `id` widens to `string | number | undefined` crossing the DS's boundary (its `LectureNote`
      does not insist on ours), so it comes back through `String`. */
-  const commitEntry = (n: { id?: string | number }, text: string) => setBook((b) => editNote(b, String(n.id), text))
-  const removeEntry = (n: { id?: string | number }) => setBook((b) => deleteNote(b, String(n.id)))
+  const commitEntry = (n: { id?: string | number }, text: string) => setBook((b) => setFlagText(b, String(n.id), text))
+  const removeEntry = (n: { id?: string | number }) => setBook((b) => resolveFlag(b, String(n.id), Date.now()))
   const courseName = course ?? play.title
   /* THE FRAME: a pane beside the palette while previewing or ended, the whole window while live.
      Both wrap the same body, from the same component, so the record survives the flip. */
@@ -413,7 +417,7 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
           <LectureRecap
             course={courseName} when={courseName === play.title ? undefined : play.title}
             elapsedS={elapsedS} bookedS={BOOKED_SECONDS} startedAt={startAt} endedAt={endedAt}
-            counts={{ stops: covered.length, notes: book.notes.length, flagged: flags.length }}
+            counts={{ stops: covered.length, notes: book.notes.filter((n) => !n.resolvedAt).length, flagged: flags.length }}
             notes={(
               <LectureNotes variant="review" entries={book.notes} stops={stopTitles}
                 categories={categories} onEntryCommit={commitEntry} onDeleteEntry={removeEntry}
@@ -453,21 +457,25 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
                    is no draft op that writes a stop's note, so the pencil stores its text against
                    the stop's id here and the walk itself is left alone. Emptying it puts the
                    authored note back rather than blanking the column. */
-                prepared={book.prepared[stopId] ?? steps[shown].note}
-                onPreparedCommit={(text) => setBook((b) => setPrepared(b, stopId, text))}
+                prepared={prepared[stopId]?.text ?? steps[shown].note}
+                onPreparedCommit={(text) => setPreparedNotes((p) => setPrepared(p, stopId, text, Date.now()))}
                 entries={book.notes} categories={categories}
                 draft={draft} onDraftChange={setDraft}
                 category={draftCategory} onCategoryChange={setDraftCategory}
                 onSave={(n) => {
-                  setBook((b) => addNote(b, { category: n.category, text: n.text, stop: n.stop ?? shown, when: mmss(elapsedS), at: Date.now() }))
+                  const at = n.stop ?? shown
+                  setBook((b) => addFlag(b, {
+                    category: n.category, text: n.text, stop: at, stopId: steps[at]?.id ?? stopId,
+                    lectureId, when: mmss(elapsedS), at: Date.now(),
+                  }))
                   setDraft('')
                 }}
                 /* A MINTED CATEGORY IS THE PROFESSOR'S, not the stop's or the walk's — it goes to
                    the user-wide store and comes back on every lecture they ever give. */
                 onAddCategory={(c) => setMinted((m) => m.concat(c))}
                 onEntryCommit={commitEntry} onDeleteEntry={removeEntry}
-                duringWidth={habits.duringWidth}
-                onDuringWidthChange={(w) => setHabits((h) => ({ ...h, duringWidth: w }))}
+                chatWidth={habits.chatWidth}
+                onChatWidthChange={(w) => setHabits((h) => ({ ...h, chatWidth: w }))}
                 flagged={flags.indexOf(shown) >= 0} onToggleFlag={() => toggleFlag(shown)}
                 style={{ flex: 1, minWidth: 0 }} />
               <PaneDivider label="resize the notes and quick actions" now={bounds.now} min={bounds.min} max={bounds.max}

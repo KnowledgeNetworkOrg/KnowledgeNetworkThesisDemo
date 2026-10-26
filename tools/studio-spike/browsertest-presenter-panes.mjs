@@ -230,10 +230,12 @@ try {
   await write('this slide needs an example, not a definition')
   const roamRows = await rows()
   ok('the note written while roaming shows on the ROAMED stop', roamRows.length === 1 && /needs an example/.test(roamRows[0] || ''), String(roamRows.length))
-  ok('and it is stamped with the roamed stop, by the pane', await page.evaluate(() => {
+  ok('and it is stamped with the roamed stop, by the pane, with its lecture and stop ids', await page.evaluate(() => {
     const book = (JSON.parse(localStorage.getItem('pkt.lecture.notes:draft') || '{}').data || {})
     const hit = (book.notes || []).find((n) => /needs an example/.test(n.text))
     return !!hit && hit.stop === 3
+      && typeof hit.lectureId === 'string' && hit.lectureId.length > 0
+      && typeof hit.stopId === 'string' && hit.stopId.length > 0
   }))
   await leaveField()
   await page.keyboard.press('Backspace')
@@ -276,8 +278,8 @@ try {
   ok('looking away commits the correction in place', /Say the handshake out loud/.test(await prepared().innerText()))
   ok('and the blank line between the two paragraphs survives the round trip',
     await page.evaluate(() => {
-      const book = (JSON.parse(localStorage.getItem('pkt.lecture.notes:draft') || '{}').data || {})
-      return Object.values(book.prepared || {}).some((v) => /goes up\.\n\nSYN/.test(v))
+      const prepared = (JSON.parse(localStorage.getItem('pkt.lecture.prepared') || '{}').data || {})
+      return Object.values(prepared).some((v) => v && /goes up\.\n\nSYN/.test(v.text))
     }))
   await page.reload()
   await page.waitForTimeout(1200)
@@ -285,7 +287,7 @@ try {
   await page.getByLabel('studio-preset-present').click()
   await page.waitForTimeout(800)
   ok('the correction survives a reload', /Say the handshake out loud/.test(await prepared().innerText()),
-    'prepared = ' + (await page.evaluate(() => JSON.stringify(((JSON.parse(localStorage.getItem('pkt.lecture.notes:draft') || '{}')).data || {}).prepared)))
+    'prepared = ' + (await page.evaluate(() => JSON.stringify((JSON.parse(localStorage.getItem('pkt.lecture.prepared') || '{}')).data)))
     + ' · shown = ' + (await page.locator('[data-presenter-chip]').innerText()).replace(/\s+/g, ' ').trim())
   ok('and so do the notes taken', (await during().locator('[data-lecture-note]').count()) === 1)
   await page.locator('[data-note-composer]').locator('button').first().click()
