@@ -1,0 +1,9 @@
+{
+  "Board": { "Owner": "KnowledgeNetworkOrg", "ProjectNumber": 1 },
+  "StatusMapping": {
+    "RunStarted": "In progress",
+    "PullRequestOpened": "Review",
+    "PullRequestMerged": "Done",
+    "RunFailed": "Ready"
+  }
+}
