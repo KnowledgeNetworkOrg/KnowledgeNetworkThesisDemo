@@ -40,12 +40,33 @@ describe('flags on the notebook', () => {
     expect(b.notes[0].id).not.toBe(b.notes[1].id)
   })
 
-  it('trims the words, and keeps a bare flag with empty text', () => {
+  it('trims the words', () => {
     expect(addFlag(book(), { lectureId: 'L1', stop: 0, stopId: 's0', text: '  spaced  ', when: '00:01', at: 1 }).notes[0].text).toBe('spaced')
-    const bare = addFlag(book(), { lectureId: 'L1', stop: 2, stopId: 's2', text: '   ', when: '00:02', at: 2 })
-    expect(bare.notes[0].text).toBe('')
-    expect(bare.notes[0].stopId).toBe('s2')
-    expect(bare.notes[0].lectureId).toBe('L1')
+  })
+
+  it('keeps a bare flag through storage, lists its stop, and unlists it only when resolved', () => {
+    const store: Record<string, string> = {}
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => (k in store ? store[k] : null),
+      setItem: (k: string, v: string) => { store[k] = v },
+      removeItem: (k: string) => { delete store[k] },
+    })
+    try {
+      const KEY = notebookKey('saved', 'bare-flag-chain')
+      saveNotebook(KEY, addFlag(book(), { lectureId: 'L1', stop: 2, stopId: 's2', text: '   ', when: '00:02', at: 2 }))
+      const loaded = loadNotebook(KEY)
+      expect(loaded.notes[0].text).toBe('')
+      expect(loaded.notes[0].stopId).toBe('s2')
+      expect(loaded.notes[0].lectureId).toBe('L1')
+      expect(flaggedStops(loaded)).toEqual(new Set(['s2']))
+
+      const resolved = resolveFlag(loaded, loaded.notes[0].id, 9)
+      expect(resolved.notes).toHaveLength(1)
+      expect(resolved.notes[0].resolvedAt).toBe(9)
+      expect(flaggedStops(resolved)).toEqual(new Set())
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('sets a flag\'s words, empty allowed, and returns the same book when they do not move', () => {
@@ -198,6 +219,63 @@ describe('storage never throws', () => {
     // not JSON is CORRUPT — read as an empty notebook, but not silently repaired
     vi.stubGlobal('localStorage', { getItem: () => 'not json at all', setItem: () => {} })
     expect(loadNotebook('k')).toEqual({ notes: [], legacy: [], prepared: {} })
+  })
+
+  it('keeps every v1 note in legacy verbatim, non-object entries included', () => {
+    const KEY = notebookKey('saved', 'v1-non-object-notes')
+    const oldNotes: unknown[] = [
+      { id: 'a', text: 'old note', stop: 0, when: '00:01', at: 1 },
+      'not a note',
+      null,
+      { id: 'b', text: 'another', stop: 2, category: 'fix', when: '00:02', at: 2 },
+    ]
+    const store: Record<string, string> = {
+      [KEY]: JSON.stringify({ v: 1, data: { notes: oldNotes, prepared: { 's1': 'kept' } } }),
+    }
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => (k in store ? store[k] : null),
+      setItem: (k: string, v: string) => { store[k] = v },
+      removeItem: (k: string) => { delete store[k] },
+    })
+
+    const loaded = loadNotebook(KEY)
+    expect(loaded.notes).toEqual([])
+    expect(loaded.legacy).toEqual(oldNotes)
+    expect(loaded.prepared).toEqual({ 's1': 'kept' })
+    const stored = JSON.parse(store[KEY])
+    expect(stored.v).toBe(2)
+    expect(stored.data.legacy).toEqual(oldNotes)
+  })
+
+  it('reads a v1 payload that is not an object as corrupt and leaves it where it is', () => {
+    const KEY = notebookKey('saved', 'v1-not-an-object')
+    const stored = JSON.stringify({ v: 1, data: 'not a notebook' })
+    const store: Record<string, string> = { [KEY]: stored }
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => (k in store ? store[k] : null),
+      setItem: (k: string, v: string) => { store[k] = v },
+      removeItem: (k: string) => { delete store[k] },
+    })
+    expect(loadNotebook(KEY)).toEqual({ notes: [], legacy: [], prepared: {} })
+    expect(store[KEY]).toBe(stored)
+  })
+
+  it('copies only prepared edits that are non-empty strings', () => {
+    const store = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      get length() { return store.size },
+      key: (i: number) => [...store.keys()][i] ?? null,
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    })
+    store.set('pkt.lecture.notes:walk:prepared-values', JSON.stringify({ v: 2, data: {
+      notes: [{ id: 'n', lectureId: 'L', stop: 0, stopId: 's0', text: 'x', when: '00:00', at: 50 }],
+      legacy: [],
+      prepared: { 'stop-1': 'kept', 'stop-2': 7, 'stop-3': '', 'stop-4': null },
+    } }))
+
+    expect(loadPrepared()).toEqual({ 'stop-1': { text: 'kept', at: 50 } })
   })
 
   it('moves a v1 notebook to v2, keeping every old note verbatim in legacy', () => {
