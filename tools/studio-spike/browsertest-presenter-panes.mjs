@@ -409,6 +409,120 @@ try {
   await page.waitForTimeout(600)
   ok('closing the presenter leaves the mode', (await page.locator('[data-presenter-header]').count()) === 0)
 
+  // ── the notes pane's floor and the scrolling column (OB-305) ───────────────
+  // A short window must not squeeze the notes pane below its own floor: the column scrolls
+  // under it and the composer stays at the pane's foot. 1280×720 is the owner's screenshot.
+  await openPalette()
+  await page.getByLabel('studio-preset-present').click()
+  await page.waitForTimeout(800)
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await page.waitForTimeout(700)
+  const paneGeometry = () => page.evaluate(() => {
+    const notesEl = document.querySelector('[data-lecture-notes="live"]')
+    const row = document.querySelector('[data-presenter-panes]')
+    const col = row && row.parentElement
+    if (!notesEl || !col) return null
+    const n = notesEl.getBoundingClientRect(), c = col.getBoundingClientRect()
+    const composer = notesEl.querySelector('[data-note-composer]')
+    const cb = composer ? composer.getBoundingClientRect() : null
+    const during = document.querySelector('[data-notes-during]')
+    const scroller = during && (during.querySelector('[data-pane-body="scroller"]') || during)
+    return {
+      paneH: n.height, paneTop: n.top, paneBottom: n.bottom,
+      colTop: c.top, colBottom: c.bottom,
+      colScrollH: col.scrollHeight, colClientH: col.clientHeight, colScrollTop: col.scrollTop,
+      colPadBottom: parseFloat(getComputedStyle(col).paddingBottom) || 0,
+      composerTop: cb ? cb.top : null, composerBottom: cb ? cb.bottom : null,
+      composerInside: !!cb && cb.top >= n.top - 1 && cb.bottom <= n.bottom + 1,
+      flagsScrollH: scroller ? scroller.scrollHeight : 0, flagsClientH: scroller ? scroller.clientHeight : 0,
+    }
+  })
+  const scrollColumnToEnd = () => page.evaluate(() => {
+    const row = document.querySelector('[data-presenter-panes]')
+    const col = row && row.parentElement
+    if (col) col.scrollTop = col.scrollHeight
+  })
+  const framedShort = await paneGeometry()
+  ok('a 1280×720 preview keeps the notes pane at its 340px floor',
+    !!framedShort && framedShort.paneH >= 339.5, framedShort ? Math.round(framedShort.paneH) + 'px' : 'no pane')
+  ok('and the presenter column scrolls to reach it',
+    !!framedShort && framedShort.colScrollH > framedShort.colClientH,
+    framedShort ? `${framedShort.colScrollH} > ${framedShort.colClientH}` : 'no column')
+  ok('the composer sits at the foot, inside the notes pane',
+    !!framedShort && framedShort.composerInside && framedShort.paneBottom - framedShort.composerBottom <= 24,
+    framedShort ? `composer bottom ${Math.round(framedShort.composerBottom)} in pane ${Math.round(framedShort.paneTop)}–${Math.round(framedShort.paneBottom)}` : 'no composer')
+  await scrollColumnToEnd()
+  await page.waitForTimeout(250)
+  const framedEnd = await paneGeometry()
+  ok('scrolled to the end, the pane\'s bottom is inside the column',
+    !!framedEnd && framedEnd.paneBottom <= framedEnd.colBottom + 1 && framedEnd.paneTop >= framedEnd.colTop - 1,
+    framedEnd ? `pane ${Math.round(framedEnd.paneTop)}–${Math.round(framedEnd.paneBottom)} in column ${Math.round(framedEnd.colTop)}–${Math.round(framedEnd.colBottom)}` : 'no column')
+  for (const t of ['first flag', 'second flag', 'third flag', 'fourth flag', 'fifth flag', 'sixth flag']) await write(t)
+  const flagsShort = await paneGeometry()
+  ok('six flags scroll inside the During column',
+    !!flagsShort && flagsShort.flagsScrollH > flagsShort.flagsClientH,
+    flagsShort ? `${flagsShort.flagsScrollH} > ${flagsShort.flagsClientH}` : 'no During column')
+
+  await page.setViewportSize({ width: 1280, height: 1200 })
+  await page.waitForTimeout(700)
+  const tall = await paneGeometry()
+  ok('a tall 1280×1200 window needs no column scrollbar',
+    !!tall && Math.abs(tall.colScrollH - tall.colClientH) <= 1,
+    tall ? `${tall.colScrollH} vs ${tall.colClientH}` : 'no column')
+  ok('and the pane fills the space below the strip',
+    !!tall && tall.paneH > 340 && Math.abs(tall.paneBottom - (tall.colBottom - tall.colPadBottom)) <= 1.5,
+    tall ? `pane ${Math.round(tall.paneH)}px, bottom ${Math.round(tall.paneBottom)} vs ${Math.round(tall.colBottom - tall.colPadBottom)}` : 'no pane')
+
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await page.waitForTimeout(600)
+  await scrollColumnToEnd()
+  await page.waitForTimeout(250)
+  await page.locator('[data-quick-shelf-toggle]').click()
+  await page.waitForTimeout(500)
+  const shelfAtShort = await page.evaluate(() => {
+    const shelf = document.querySelector('[data-quick-shelf]')
+    const row = document.querySelector('[data-presenter-panes]')
+    const col = row && row.parentElement
+    if (!shelf || !col) return null
+    const s = shelf.getBoundingClientRect(), c = col.getBoundingClientRect()
+    const inset = 8
+    const hits = [
+      [s.left + inset, s.top + inset], [s.right - inset, s.top + inset],
+      [s.left + inset, s.bottom - inset], [s.right - inset, s.bottom - inset],
+    ].map(([x, y]) => {
+      const el = document.elementFromPoint(x, y)
+      return !!el && (el === shelf || shelf.contains(el))
+    })
+    return { hits, shelf: [s.left, s.top, s.right, s.bottom].map(Math.round), column: [c.left, c.top, c.right, c.bottom].map(Math.round) }
+  })
+  ok('the quick actions shelf is not clipped by the scrolling column',
+    !!shelfAtShort && shelfAtShort.hits.every(Boolean),
+    shelfAtShort ? `corners ${shelfAtShort.hits.map((h) => (h ? 'shelf' : 'clipped')).join('/')}, shelf ${shelfAtShort.shelf.join(',')} in column ${shelfAtShort.column.join(',')}` : 'no shelf')
+  await page.locator('[data-quick-shelf-toggle]').click()
+  await page.waitForTimeout(300)
+
+  await page.locator('[data-toolbar-hook="present"]').click()
+  await page.waitForTimeout(900)
+  await page.bringToFront()
+  const liveShort = await paneGeometry()
+  ok('the live presenter at 1280×720 keeps the same 340px notes floor',
+    !!liveShort && liveShort.paneH >= 339.5, liveShort ? Math.round(liveShort.paneH) + 'px' : 'no pane')
+  ok('and its column scrolls too',
+    !!liveShort && liveShort.colScrollH > liveShort.colClientH,
+    liveShort ? `${liveShort.colScrollH} > ${liveShort.colClientH}` : 'no column')
+  ok('the composer stays inside the pane at its foot',
+    !!liveShort && liveShort.composerInside && liveShort.paneBottom - liveShort.composerBottom <= 24,
+    liveShort ? `composer bottom ${Math.round(liveShort.composerBottom)} in pane ${Math.round(liveShort.paneTop)}–${Math.round(liveShort.paneBottom)}` : 'no composer')
+  await scrollColumnToEnd()
+  await page.waitForTimeout(250)
+  const liveEnd = await paneGeometry()
+  ok('scrolled to the end, the live pane\'s bottom is inside the column',
+    !!liveEnd && liveEnd.paneBottom <= liveEnd.colBottom + 1 && liveEnd.paneTop >= liveEnd.colTop - 1,
+    liveEnd ? `pane ${Math.round(liveEnd.paneTop)}–${Math.round(liveEnd.paneBottom)} in column ${Math.round(liveEnd.colTop)}–${Math.round(liveEnd.colBottom)}` : 'no column')
+  ok('the six flags still scroll inside the During column',
+    !!liveEnd && liveEnd.flagsScrollH > liveEnd.flagsClientH,
+    liveEnd ? `${liveEnd.flagsScrollH} > ${liveEnd.flagsClientH}` : 'no During column')
+
   ok('no page errors', errors.filter((e) => e.includes('pageerror')).length === 0)
 } catch (e) {
   errors.push('exception: ' + (e && e.stack || e))
