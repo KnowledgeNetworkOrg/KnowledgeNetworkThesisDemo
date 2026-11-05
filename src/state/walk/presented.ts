@@ -70,7 +70,8 @@ let lastPublished: RouteStep[] | null = null
  *
  * Without `dedup` the hook publishes unless the bus's `routeSteps` already
  * equal the road's, and records nothing, so the viewer can hand the draft
- * back after "stop this walk".
+ * back after "stop this walk". That guard also stops the viewer's remount on
+ * the way back from the presenter from adding a trail entry.
  *
  * Deliberately has no cleanup that clears the route: the editor and the
  * viewer can both have this mounted at once (panes bench rather than truly

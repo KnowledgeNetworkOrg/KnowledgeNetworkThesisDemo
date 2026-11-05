@@ -1,7 +1,9 @@
-// #481 — the pure half of the editor's route publish. `usePublishPresentedRoute`
+// The pure half of the presented-route publish. `usePublishPresentedRoute`
 // cannot be tested here (vitest runs `environment: 'node'`, there is no renderer),
-// but the decision it makes can: which road, if any, may go on the bus while a
-// saved walk is active or when the editor has already sent this exact road.
+// but the decision it makes can: which road, if any, may go on the bus. Two
+// callers ask it — the editor, against the road it last sent and with a saved walk
+// silencing it, and the viewer, against the bus's own routeSteps — so each has
+// its own block below.
 
 import { describe, expect, it } from 'vitest'
 
