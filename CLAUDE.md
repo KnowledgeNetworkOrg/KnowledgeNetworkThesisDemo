@@ -24,9 +24,9 @@ where its `node_modules` is missing: `npm ci` for the root and
 The import rule between the folders under `src/` is written in
 `src/layering.test.ts`.
 
-## Two corpora
+## Three corpora
 
-`src/corpus/graph.ts` chooses between them; it does not contain either. Every
+`src/corpus/graph.ts` chooses between them; it does not contain any. Every
 instrument imports from it.
 
 - **teaching** (the default) — the hand-authored CS corpus in `teachingdata.ts`.
@@ -37,8 +37,14 @@ instrument imports from it.
   folder's `README.md` before touching anything in it: it records what is the
   university's data and what is the author's judgment, and the distinction is
   load-bearing for the thesis. Run it with `VITE_CORPUS=courses npm run dev`.
+- **cs2023** — the knowledge areas and units of *Computer Science Curricula 2023*,
+  with CS2023's own printed "See also" notes as its only edges, GENERATED into
+  `cs2023data.ts` by `tools/cs2023import/` from a pinned copy of the thesis's map
+  file. Its README says which parts are CS2023's, which are AI-made and under the
+  author's review, and which are proposed defaults. Run it with
+  `VITE_CORPUS=cs2023 npm run dev`.
 
-A module that names a corpus node id in a literal will crash the *other* corpus
+A module that names a corpus node id in a literal will crash the *other* corpora
 on import, which presents as a blank screen rather than an error. If you write
 one, guard it the way `model/lens.ts` and `state/walk/authordraft.ts` do — derive
 the node from the loaded data, or branch on `CORPUS_NAME`.
