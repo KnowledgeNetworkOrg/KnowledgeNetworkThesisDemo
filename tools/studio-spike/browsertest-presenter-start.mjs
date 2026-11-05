@@ -191,7 +191,8 @@ try {
   const continueLine = (await dialog().innerText()).replace(/\s+/g, ' ')
   ok('6: the Continue row names the walk and the stop just taught', continueLine.includes(`${walkTitle}, stop 4 of ${walkStops}`) && continueLine.includes(stop4Title), continueLine)
 
-  await page.keyboard.press('Enter')
+  // the clicked session row keeps focus and handles Enter itself, so the resume is pressed on its row
+  await dialog().getByRole('button').filter({ hasText: 'Continue from last presentation' }).first().click()
   await page.bringToFront()
   await page.waitForTimeout(800)
   await stepTo(`Presenting stop ${walkStops}`)
