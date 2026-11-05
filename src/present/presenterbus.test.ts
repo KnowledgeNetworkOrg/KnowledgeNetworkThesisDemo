@@ -67,11 +67,4 @@ describe('presenterBus — the presenter reads the desk but never writes it', ()
     expect(view.route).toBe(route)
     expect(view.trail).toBe(trail)
   })
-
-  it('gives the view the lecture\'s own route when the lecture has its own walk', () => {
-    const { bus } = deskBus()
-    const view = presenterBus(bus, 'walk-a', [{ id: TOPIC }, { id: OTHER, optional: true }])
-    expect(view.route).toEqual([TOPIC, OTHER])
-    expect(view.routeSteps).toEqual([{ node: TOPIC }, { node: OTHER, optional: true }])
-  })
 })

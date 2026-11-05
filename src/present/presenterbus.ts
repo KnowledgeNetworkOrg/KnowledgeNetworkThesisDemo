@@ -6,8 +6,6 @@
 // replaced with no-ops here, and the two cursor reads are pinned to the walk's
 // start; every other member passes through unchanged.
 
-import { routeLeafIds } from '../model/route'
-import type { RouteStep } from '../model/route'
 import type { PresenterScreenBus } from './PresenterScreen'
 
 /* Module-level on purpose: the view is rebuilt every render, and a fresh writer
@@ -19,18 +17,11 @@ const noSetDraftCursor = () => {}
 const noSetHover = () => {}
 const noEndHover = () => {}
 
-/** the lecture's own stops, as the presenter sees them. Given, the view publishes
- *  THEIR route, so a lecture on another walk than the desk's still draws its own
- *  road on the wall. Omitted, the desk's route passes through untouched. */
-export function presenterBus(deskBus: PresenterScreenBus, walkId: string | null | undefined, lectureSteps?: readonly { id: string; optional?: boolean }[]): PresenterScreenBus {
-  const lectureRoute: RouteStep[] | null = lectureSteps
-    ? lectureSteps.map((s) => (s.optional ? { node: s.id, optional: true } : { node: s.id }))
-    : null
+export function presenterBus(deskBus: PresenterScreenBus, walkId: string | null | undefined): PresenterScreenBus {
   return {
     ...deskBus,
     activeWalk: walkId ? { walkId, cursor: 0 } : null,
     draftCursor: 0,
-    ...(lectureRoute ? { route: routeLeafIds(lectureRoute), routeSteps: lectureRoute } : {}),
     setFocus: noSetFocus,
     clearFocus: noClearFocus,
     activateWalk: noActivateWalk,
