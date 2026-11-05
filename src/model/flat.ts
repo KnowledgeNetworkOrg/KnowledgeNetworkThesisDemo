@@ -133,6 +133,7 @@ const mixWhite = (hex: string, f: number) => {
   const ch = (v: number) => Math.round(v + (255 - v) * f)
   return `rgb(${ch((n >> 16) & 255)}, ${ch((n >> 8) & 255)}, ${ch(n & 255)})`
 }
+const ROMAN = ['II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']
 export const communityColor: string[] = []
 export const communityLabel: string[] = []
 {
@@ -146,8 +147,10 @@ export const communityLabel: string[] = []
     /* the domain's mark, resolved to a hex in JS — this feeds an SVG fill (OB-153) */
     const m = topicPaintValues(topicHueOf(dom)).mark
     const domainHex = oklchToHex(m.l, m.c, m.h)
-    communityColor.push(nth === 0 ? domainHex : mixWhite(domainHex, 0.42 * nth))
-    communityLabel.push(nth === 0 ? byId.get(dom)!.title : `${byId.get(dom)!.title} ${['II', 'III', 'IV'][nth - 1]}`)
+    // the lightening stops short of white: past the third piece of one domain (which only
+    // a corpus with many edgeless topics produces) a fourth step would leave the 0-255 range
+    communityColor.push(nth === 0 ? domainHex : mixWhite(domainHex, Math.min(0.42 * nth, 0.84)))
+    communityLabel.push(nth === 0 ? byId.get(dom)!.title : `${byId.get(dom)!.title} ${ROMAN[nth - 1] ?? nth + 1}`)
   }
 }
 
@@ -189,7 +192,11 @@ const hash01 = (s: string) => {
 
 function embed(): Record<string, XY> {
   // 1 · circular domain order: brute-force the ring that keeps heavily linked
-  // domains adjacent (6 domains → 120 orders; cost = weight × extra hops)
+  // domains adjacent (6 domains → 120 orders; cost = weight × extra hops). Past
+  // nine domains (8! = 40,320 orders) brute force stops being a module-load cost
+  // anyone would accept — 17 domains is 16! — so a larger corpus starts from the
+  // authored order and swaps pairs while any swap lowers the cost. Deterministic,
+  // and not guaranteed optimal; the six-domain corpora never take that path.
   const dIdx = new Map(domainIds.map((d, i) => [d, i]))
   const dw: number[][] = domainIds.map(() => domainIds.map(() => 0))
   for (const p of pairs) {
@@ -200,16 +207,20 @@ function embed(): Record<string, XY> {
       dw[b][a] += p.w
     }
   }
+  const ringCost = (acc: number[]) => {
+    let cost = 0
+    for (let i = 0; i < acc.length; i++)
+      for (let j = i + 1; j < acc.length; j++) {
+        const hops = Math.min(j - i, acc.length - (j - i))
+        cost += dw[acc[i]][acc[j]] * (hops - 1)
+      }
+    return cost
+  }
   let bestOrder: number[] = domainIds.map((_, i) => i)
   let bestCost = Infinity
   const permute = (acc: number[], remaining: number[]) => {
     if (remaining.length === 0) {
-      let cost = 0
-      for (let i = 0; i < acc.length; i++)
-        for (let j = i + 1; j < acc.length; j++) {
-          const hops = Math.min(j - i, acc.length - (j - i))
-          cost += dw[acc[i]][acc[j]] * (hops - 1)
-        }
+      const cost = ringCost(acc)
       if (cost < bestCost) {
         bestCost = cost
         bestOrder = acc
@@ -219,7 +230,24 @@ function embed(): Record<string, XY> {
     for (let k = 0; k < remaining.length; k++)
       permute([...acc, remaining[k]], remaining.filter((_, x) => x !== k))
   }
-  permute([0], domainIds.map((_, i) => i).slice(1))
+  if (domainIds.length <= 9) permute([0], domainIds.map((_, i) => i).slice(1))
+  else {
+    bestCost = ringCost(bestOrder)
+    for (let improved = true; improved; ) {
+      improved = false
+      for (let i = 1; i < bestOrder.length; i++)
+        for (let j = i + 1; j < bestOrder.length; j++) {
+          const next = [...bestOrder]
+          ;[next[i], next[j]] = [next[j], next[i]]
+          const cost = ringCost(next)
+          if (cost < bestCost) {
+            bestCost = cost
+            bestOrder = next
+            improved = true
+          }
+        }
+    }
+  }
 
   // 2 · anchors: domain centers on an ellipse, module anchors ringed inside
   // their domain (first module faces the interior), nested branches offset
