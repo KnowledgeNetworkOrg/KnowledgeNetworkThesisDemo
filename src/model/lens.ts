@@ -149,7 +149,10 @@ export function curriculum(goal: string, type: EdgeType, maxDepth: number): Curr
 // cone and so the hardest case for these functions. It was the literal id
 // `cry-tls-certificates` until the repo gained a second corpus, where that id
 // does not exist and this guard turned a different dataset into a crash on
-// import. Ties break on id so the choice is deterministic.
+// import. Ties break on id so the choice is deterministic. A corpus with no
+// `depends_on` edges at all (cs2023, whose only edges are CS2023's "See also"
+// notes) has no cone to check, so the guards below are skipped for it rather than
+// turning an honest absence into a crash on import.
 const HUB = (() => {
   const outDegree = new Map<string, number>()
   for (const e of edges) if (e.type === 'depends_on') outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1)
@@ -163,9 +166,10 @@ const HUB = (() => {
   }
   return best
 })()
-if (!HUB || !byId.has(HUB)) throw new Error('lens.ts guard: the corpus has no depends_on edges to pick a hub from')
+const HAS_DEPENDS_ON = edges.some((e) => e.type === 'depends_on')
+if (HAS_DEPENDS_ON && (!HUB || !byId.has(HUB))) throw new Error('lens.ts guard: no hub among the depends_on edges')
 
-{
+if (HAS_DEPENDS_ON) {
   const c = curriculum(HUB, 'depends_on', 3)
   if (new Set(c.order).size !== c.order.length) throw new Error('lens.ts guard: curriculum(HUB) has duplicate ids')
   if (!c.order.includes(HUB)) throw new Error('lens.ts guard: curriculum(HUB) missing the goal id')
@@ -174,6 +178,6 @@ if (!HUB || !byId.has(HUB)) throw new Error('lens.ts guard: the corpus has no de
   }
 }
 
-if ((lensModel(HUB, 'depends_on', 2).out.levels[0]?.length ?? 0) === 0) {
+if (HAS_DEPENDS_ON && (lensModel(HUB, 'depends_on', 2).out.levels[0]?.length ?? 0) === 0) {
   throw new Error('lens.ts guard: lensModel(HUB, depends_on, 2).out.levels[0] is empty')
 }
