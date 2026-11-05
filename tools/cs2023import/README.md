@@ -14,7 +14,7 @@ VITE_CORPUS=cs2023 npm run dev
 
 | | |
 |---|---|
-| Thesis commit | `5542a3d` on the branch `claude/clever-meitner-x2n7lj` (alwaysmiddle/MastersThesis#1, not yet on the thesis `main`) |
+| Thesis commit | `5542a3d`, on the thesis `main` (merged by alwaysmiddle/MastersThesis#1 as `47152b3`) |
 | SHA-256 | `3786fe217d7f263879f97191f7f158eae5d496f901b2daca00f417b826abddab` |
 | Copied | 2026-11-05 |
 
