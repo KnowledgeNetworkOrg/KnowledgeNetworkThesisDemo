@@ -36,6 +36,18 @@ describe('publishableRoad — a road already published', () => {
   })
 })
 
+describe('publishableRoad — the walk viewer, the bus’s own route as the last sent', () => {
+  it('publishes the road when the bus has no route yet', () => {
+    const first = road(A, B)
+    expect(publishableRoad(first, null, [])).toBe(first)
+  })
+
+  it('publishes the road when the bus shows a saved walk’s played prefix', () => {
+    const draft = road(A, B)
+    expect(publishableRoad(draft, null, routeStepsOf(road(C)))).toBe(draft)
+  })
+})
+
 describe('publishableRoad — a road that has changed', () => {
   it('publishes the road on the first publish, when nothing has been sent yet', () => {
     const first = road(A, B)

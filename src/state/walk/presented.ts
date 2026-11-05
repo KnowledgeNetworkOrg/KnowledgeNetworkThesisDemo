@@ -32,7 +32,7 @@ export function usePresentedRoad(): Stop[] {
 }
 
 /** the slice of the bus the presented-route writer uses */
-export type PublishedRouteBus = Pick<Bus, 'setRouteSteps' | 'activeWalk'>
+export type PublishedRouteBus = Pick<Bus, 'setRouteSteps' | 'activeWalk' | 'routeSteps'>
 
 /** What the editor should put on the bus: its road, or `null` when a saved walk
  * owns the route or this exact road is already published. The comparison is
@@ -64,11 +64,13 @@ let lastPublished: RouteStep[] | null = null
  * (`setRouteSteps` marks the trail, and `mark` only dedups at the log's tip).
  * After a walk is cleared, the editor stays quiet until the draft's road
  * actually changes — the editor only: the always-mounted viewer is still on
- * the no-`dedup` path, so it republishes the draft as soon as `activeWalk`
- * becomes null, after any clear, not just "stop this walk".
+ * the no-`dedup` path, so it republishes the draft whenever `activeWalk` goes
+ * from set to null. A clearRoute() with no walk active leaves `activeWalk`
+ * alone, so it does not trigger one.
  *
- * Without `dedup` the hook publishes whenever `road` is non-null and records
- * nothing, so the viewer can hand the draft back after "stop this walk".
+ * Without `dedup` the hook publishes unless the bus's `routeSteps` already
+ * equal the road's, and records nothing, so the viewer can hand the draft
+ * back after "stop this walk".
  *
  * Deliberately has no cleanup that clears the route: the editor and the
  * viewer can both have this mounted at once (panes bench rather than truly
@@ -85,6 +87,7 @@ export function usePublishPresentedRoute(
   useEffect(() => {
     if (road === null) return
     if (!dedup) {
+      if (publishableRoad(road, null, bus.routeSteps) === null) return
       bus.setRouteSteps(routeStepsOf(road))
       return
     }

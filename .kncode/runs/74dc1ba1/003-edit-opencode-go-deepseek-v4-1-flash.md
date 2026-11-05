@@ -1,0 +1,10 @@
+1. **Summary**
+
+- `src/state/walk/presented.ts`: widened `PublishedRouteBus` to include `routeSteps`, and guarded the no-`dedup` branch with `if (publishableRoad(road, null, bus.routeSteps) === null) return` — passing a literal `null` for the walk so the editor's `activeWalk` silencing never reaches the viewer, leaving `lastPublished` untouched and the effect's dependency list as it was. The hook's doc comment now says the no-`dedup` path publishes unless the bus's `routeSteps` already equal the road's, and the "after any clear" sentence was corrected to say it republishes when `activeWalk` goes from set to null (a `clearRoute()` with no walk active does not). The editor's `dedup` path is unchanged.
+- `src/state/walk/presented.test.ts`: added a viewer-path block for `activeWalk === null` with the bus's own route as the last sent — an empty route `[]` publishes the road, and a different route (a saved walk's played prefix, `routeStepsOf(road(C))`) publishes it. The existing "same road, even as a fresh array" → `null` case stays.
+- `tools/studio-spike/browsertest-presenter.mjs`: removed the optionals-toggle click, its wait and its comment from the #484 draft case; the case now reads focus, pins and trail directly and compares them.
+
+Assumptions:
+- I did not run the card's "before you start" baseline (`node tools/studio-spike/browsertest-presenter.mjs` with the toggle removed but `src/` unchanged): this step allows only one run, after the final edit. The confirm-the-failure check is left to the check step.
+- My one run was `npx vitest run src/state/walk/presented.test.ts`; it failed at startup because `node_modules` is not installed (`Cannot find package 'vitest'`), so it verified nothing. I did not install dependencies.
+- "A road against a different route (for example a saved walk's first stop)" is modelled as `routeStepsOf(road(C))` against a `road(A, B)` draft, since the test file has no other saved-walk step fixture.
