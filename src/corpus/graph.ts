@@ -106,8 +106,9 @@ export const EDGE_LABEL: Record<EdgeType, string> = {
 // One call turns the chosen corpus's authored tree, deep layers and edge list
 // into the finished graph. Every name below is one the app has imported since
 // before there was a second dataset, and the shapes are unchanged.
-// A ternary, not a lookup object: Vite folds it at build time, so each build carries
-// only the corpus it shows. A lookup object would carry all three into every build.
+// A ternary, not a lookup object: with it, the build can work out which corpus is
+// chosen and leave the other two out (a lookup object keeps all three). That also
+// depends on how CORPUS_NAME above is written; check the bundle size if you change it.
 const built = buildCorpus(CORPUS_NAME === 'courses' ? COURSES : CORPUS_NAME === 'cs2023' ? CS2023 : TEACHING, ROOT_ID)
 
 export const nodes: GNode[] = built.nodes
