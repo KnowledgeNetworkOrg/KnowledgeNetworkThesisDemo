@@ -67,9 +67,13 @@ try {
   here = await stopNumber()
   ok('the record is away from both ends, so both clicker keys can move it', here > 1 && here < total, `stop ${here} of ${total}`)
 
-  // A SHORT WINDOW MAKES THE DECK OVERFLOW, so a PageDown that is NOT claimed really does scroll
-  // a pane rather than falling on a box with nowhere to go.
-  await page.setViewportSize({ width: 1750, height: 560 })
+  // THE DECK'S OWN SCROLL AREA IS CAPPED to less than its smallest fit, so its tiles overflow and
+  // a PageDown that is NOT claimed really does scroll a pane rather than falling on a box with
+  // nowhere to go. A short window no longer buys that: the panes row keeps its 340px floor.
+  await page.evaluate(() => {
+    const el = document.querySelector('[data-quick-deck]')
+    if (el) el.style.maxHeight = '80px'
+  })
   await page.waitForTimeout(600)
   const deck = () => page.locator('[data-quick-deck]')
   const focusDeck = () => page.evaluate(() => {
