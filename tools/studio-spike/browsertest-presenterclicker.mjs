@@ -48,7 +48,11 @@ try {
   await page.waitForTimeout(700)
   const [projector] = await Promise.all([
     context.waitForEvent('page', { timeout: 8000 }).catch(() => null),
-    page.locator('[data-toolbar-hook="present"]').click(),
+    (async () => {
+      await page.locator('[data-toolbar-hook="present"]').click()
+      await page.locator('[role="dialog"][aria-label="Start presenting"]').waitFor()
+      await page.keyboard.press('Enter')
+    })(),
   ])
   await page.bringToFront()
   await page.waitForTimeout(900)

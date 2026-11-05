@@ -14,6 +14,9 @@
 // provisional, null when not roaming; `covered` is what was actually presented —
 // a stop is covered when the record LEAVES it, so a skip is a gap in the fill.
 
+import { walkAddresses } from '@/ds'
+import type { StartSession } from '@/ds'
+
 import { DOC_BODY } from '../corpus/docs'
 import { byId, domainOf, topicHueOf } from '../corpus/graph'
 import type { PlayStep } from '../state/walk/playback'
@@ -86,3 +89,30 @@ export const BOOKED_SECONDS = 50 * 60
 
 /** clamp a stop index into the walk */
 export const clampStop = (i: number, count: number): number => Math.max(0, Math.min(Math.max(0, count - 1), i))
+
+/** WHERE A SESSION GOT TO, as the start card reads it back. The walk id is the saved
+ *  walk's own or `'draft'`; the stop's node id survives an edit of the walk, so the card
+ *  can find it again rather than trusting the index. The address is for a stop inside a
+ *  group, where "stop 2.2" is the walk's own name for it. */
+export function lectureLast(args: {
+  walkId: string | null
+  walk: string
+  stop: number
+  steps: readonly PlayStep[]
+  at: number
+}): NonNullable<StartSession['last']> {
+  const { walkId, walk, steps, at } = args
+  const stop = clampStop(args.stop, steps.length)
+  const active = steps[stop]
+  const address = walkAddresses(steps)[stop]
+  return {
+    walkId: walkId ?? 'draft',
+    walk,
+    stop,
+    stopId: active?.id ?? '',
+    of: steps.length,
+    at,
+    stopTitle: active?.title ?? '',
+    ...(address && address.indexOf('.') >= 0 ? { address } : {}),
+  }
+}

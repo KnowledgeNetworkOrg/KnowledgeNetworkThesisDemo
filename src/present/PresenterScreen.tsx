@@ -41,7 +41,7 @@ import {
   Pane, PANE_DIVIDER_METRICS, PaneDivider, paneFit, PresenterHeaderBar, PresenterStrip, ProjectedMap,
   QUICK_ACTIONS_FIT, QUICK_ACTION_PLACEHOLDERS, QuickActionsDeck, StopFinder, swapActions, usePaneWidth,
 } from '@/ds'
-import type { NoteCategory, PresenterState, QuickAction } from '@/ds'
+import type { NoteCategory, PresenterState, QuickAction, StartSession } from '@/ds'
 
 import MapView from '../instruments/MapView'
 import type { MapViewBus } from '../instruments/MapView'
@@ -49,12 +49,12 @@ import { useKeptWallFrame } from './wallframe'
 import { useWalkPlayback } from '../state/walk/playback'
 import type { PlaybackBus } from '../state/walk/playback'
 import { renderStopPreview } from '../state/walk/stoppreview'
-import { BOOKED_SECONDS, clampStop, coveredBefore, lectureSteps, mmss } from './lecture'
+import { BOOKED_SECONDS, clampStop, coveredBefore, lectureLast, lectureSteps, mmss } from './lecture'
 import { LectureSlide } from './LectureSlide'
 import {
   addFlag, applyDeck, loadHabits, loadMintedCategories, loadNotebook, loadPrepared, mintNoteId,
-  notebookKey, resolveFlag, saveHabits, saveMintedCategories, saveNotebook, savePrepared,
-  serialiseDeck, setFlagText, setPrepared,
+  notebookKey, resolveFlag, saveHabits, saveMintedCategories, saveNotebook, savePrepared, saveSessions,
+  loadSessions, sessionsKey, serialiseDeck, setFlagText, setPrepared, writeSessionLast,
 } from './lecturenotes'
 import type { LectureHabits, LectureNotebook } from './lecturenotes'
 import { useProjectorSender } from './projector'
@@ -87,6 +87,13 @@ export interface PresenterScreenProps {
   walkId?: string | null
   /** the 0-based stop the lecture opens on; absent means the first, clamped to the walk */
   startStop?: number
+  /** the course session this lecture is recorded against; the host creates it before a start */
+  sessionId?: string | null
+  /** the lecture's own id, minted by the host on a start; absent keeps a preview's mount-time one */
+  lectureId?: string
+  /** false while the start card is over the presenter — its key handler must not answer the
+   *  card's ↑ ↓ or Escape first */
+  keys?: boolean
   /** is the room watching — the toolbar ▶ (true) or the palette's Present (false, a preview:
    *  no clock, nothing projected). Flipping to true STARTS the lecture here and now. */
   projecting: boolean
@@ -106,10 +113,15 @@ export interface PresenterScreenProps {
   onLeave?: () => void
 }
 
-export default function PresenterScreen({ bus: deskBus, walkId, startStop, projecting, resumeToken, onEnded, course, framed = false, onLeave }: PresenterScreenProps) {
+export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessionId, lectureId, keys = true, projecting, resumeToken, onEnded, course, framed = false, onLeave }: PresenterScreenProps) {
   const bus = presenterBus(deskBus, walkId)
   const play = useWalkPlayback(bus)
   const steps = useMemo(() => lectureSteps(play.steps, play.title), [play.steps, play.title])
+  /* THE WALL DRAWS THE LECTURE'S WALK (OB-304): the bus view passes the desk's route through, which
+     is the desk's walk when the card picked another one. The lecture's own steps replace it only
+     then, so presenting the desk's walk keeps today's route untouched. */
+  const lectureOwnRoute = (walkId ?? null) !== (deskBus.activeWalk?.walkId ?? null)
+  const mapBus = lectureOwnRoute ? presenterBus(deskBus, walkId, play.steps) : bus
   const N = steps.length
   /* the store — `startStop` is where the host opened the lecture */
   const [activeStop, setActiveStop] = useState(() => clampStop(startStop ?? 0, play.steps.length))
@@ -207,6 +219,7 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, proje
   }, [])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (!keys) return
       /* THE DECK BINDS THE KEYS IT DRAWS, on the document, and it calls `preventDefault` when it
          acts. So an M whose tile the professor has dragged onto the deck arrives here ALREADY
          HANDLED — without this line it would fire twice and the map would go up and straight back
@@ -228,7 +241,7 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, proje
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [step, roaming, shown, toggleFlag, ended, toggleFinder])
+  }, [step, roaming, shown, toggleFlag, ended, toggleFinder, keys])
   /* ended / resumed is reported up too: the shell hides its chrome for a live lecture and hands it
      back the moment the lecture ends, so ending is always a way home */
   useEffect(() => { if (onEnded) onEnded(ended) }, [ended, onEnded])
@@ -263,7 +276,30 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, proje
      one render after the walk changed, and that render would overwrite the new walk's notes with
      the old walk's. The categories and the furniture are user-wide and need no such care. */
   const bookKey = notebookKey(play.source, bus.activeWalk?.walkId)
-  const [lectureId] = useState(() => mintNoteId(Date.now()))
+  const [previewLectureId] = useState(() => mintNoteId(Date.now()))
+  const lecture = lectureId ?? previewLectureId
+  /* THE SESSION'S LAST PLACE is written from here, not from the Studio's copy: this screen
+     reads the stored list itself, so an edit made in the card meanwhile cannot be overwritten. The
+     list after the write is kept in state for the recap to read (#486). */
+  const [sessions, setSessions] = useState<StartSession[]>(() => loadSessions(sessionsKey()))
+  const writeLastAt = useCallback((stopIndex: number) => {
+    if (sessionId == null) return
+    const key = sessionsKey()
+    const list = loadSessions(key)
+    const next = writeSessionLast(list, sessionId, lectureLast({ walkId: walkId ?? null, walk: play.title, stop: stopIndex, steps: play.steps, at: Date.now() }))
+    saveSessions(key, next)
+    if (next !== sessions) setSessions(next)
+  }, [sessionId, walkId, play.title, play.steps, sessions])
+  /* the unmount write reads the latest render through refs, so the cleanup registered once sees
+     the stop the professor actually reached rather than the one the screen mounted on */
+  const live = useRef({ projecting, ended, stop: activeStop, count: play.steps.length })
+  useEffect(() => { live.current = { projecting, ended, stop: activeStop, count: play.steps.length } }, [projecting, ended, activeStop, play.steps.length])
+  const writeRef = useRef(writeLastAt)
+  useEffect(() => { writeRef.current = writeLastAt }, [writeLastAt])
+  useEffect(() => () => {
+    const last = live.current
+    if (last.projecting && !last.ended && last.count > 0) writeRef.current(last.stop)
+  }, [])
   const [notebook, setNotebook] = useState<{ key: string; book: LectureNotebook }>(() => ({ key: bookKey, book: loadNotebook(bookKey) }))
   const book = notebook.book
   const setBook = useCallback((f: (b: LectureNotebook) => LectureNotebook) => setNotebook((n) => ({ ...n, book: f(n.book) })), [])
@@ -378,7 +414,7 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, proje
   const wall = (i: number, onClose?: () => void) => (
     <WallTransition up={mapUp} slide={slideFor(i)}
       map={<ProjectedMap stop={i + 1} count={N} territory={steps[i].territory} title={steps[i].title}
-        map={<MapView bus={bus} wall={{ lit: i, covered, ...wallFrame }} />}
+        map={<MapView bus={mapBus} wall={{ lit: i, covered, ...wallFrame }} />}
         footer={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-3)' }}>{steps[i].walk} · the whole walk</span>}
         onClose={onClose} />} />
   )
@@ -409,7 +445,7 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, proje
       <PresenterHeaderBar course={courseName} state={state} activeStop={activeStop + 1} roamingStop={roaming ? roamingStop + 1 : undefined}
         elapsed={ended || !projecting ? undefined : mmss(elapsedS)} bookedLength={ended || !projecting ? undefined : mmss(BOOKED_SECONDS)} progressPct={Math.min(100, (elapsedS / BOOKED_SECONDS) * 100)} endedTotal={ended ? mmss(elapsedS) + ' total' : undefined}
         confirmOpen={confirmOpen} onEndClick={projecting ? () => setConfirmOpen(true) : undefined} onCancelEnd={() => setConfirmOpen(false)}
-        onConfirmEnd={() => { setConfirmOpen(false); setEndedAt(Date.now()); setEnded(true); setRoamingStop(null); setMapUp(false) }} />
+        onConfirmEnd={() => { writeLastAt(activeStop); setConfirmOpen(false); setEndedAt(Date.now()); setEnded(true); setRoamingStop(null); setMapUp(false) }} />
       {/* THE COLUMN: roll, strip, panes. The strip is `flex: none` (it sets that itself); the pane
           below keeps `LECTURE_NOTES_FIT.minHeight` and this column scrolls below it; the roll is
           `flex: none` at its own height. */}
@@ -472,7 +508,7 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, proje
                   const at = n.stop ?? shown
                   setBook((b) => addFlag(b, {
                     category: n.category, text: n.text, stop: at, stopId: steps[at]?.id ?? stopId,
-                    lectureId, when: mmss(elapsedS), at: Date.now(),
+                    lectureId: lecture, when: mmss(elapsedS), at: Date.now(),
                   }))
                   setDraft('')
                 }}

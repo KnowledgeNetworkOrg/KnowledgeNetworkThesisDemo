@@ -21,17 +21,19 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { CSSProperties } from 'react'
 
-import { AppHeader, CountBadge, deskBounds, EDGE_TOKEN, FamilyColumn, FIRST_SCROLL_PAD, InstrumentGroup, InstrumentRow, Pane, PaneDivider, PresetButton, SectionLabel } from '@/ds'
-import type { EdgeKind, LoadChoice, LoadMap } from '@/ds'
+import { AppHeader, CountBadge, deskBounds, EDGE_TOKEN, FamilyColumn, FIRST_SCROLL_PAD, InstrumentGroup, InstrumentRow, Pane, PaneDivider, PresetButton, PresentStartCard, SectionLabel, WARNING_DIALOG_METRICS } from '@/ds'
+import type { EdgeKind, LoadChoice, LoadMap, StartChoice, StartSession } from '@/ds'
 
 import { byId, ROOT_ID, topicHueOf } from '../corpus/graph'
 import { forgetDraftUnsaved, saveDraftAsWalk, useDraftUnsaved } from '../state/walk/authordraft'
 import { listWalks, subscribeWalks, walkById } from '../state/walkstore'
+import type { Walk } from '../state/walkstore'
 import { usePresentedRoad } from '../state/walk/presented'
 import { playSteps, stopPlayback } from '../state/walk/playback'
 import { platform } from '../platform'
 import PresenterScreen from '../present/PresenterScreen'
-import { lectureStart } from '../present/lecture'
+import { clampStop, lectureStart } from '../present/lecture'
+import { createSession, deleteSession, loadSessions, mintNoteId, renameSession, saveSessions, sessionsKey, setSessionMeets } from '../present/lecturenotes'
 import { PROJECTOR_QUERY, PROJECTOR_WINDOW } from '../present/projector'
 import { AppToolbar } from './AppToolbar'
 import { applyLoadChoice } from './loadpick'
@@ -88,6 +90,15 @@ const localStamp = (d: Date) => {
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
+
+/* ONE walk list serves the toolbar's Load and the start card. The Load dialog ignores the stop
+   ids, but the card needs them to find a stored `last.stopId` again, so both take this shape
+   rather than mapping it twice. Not exported: fast refresh wants only components out of here. */
+const courseWalks = (walks: readonly Walk[]) => walks.map((w) => ({
+  id: w.id,
+  title: w.title,
+  stops: w.stops.map((s) => ({ id: s.id, title: byId.get(s.id)?.title ?? s.id })),
+}))
 
 export default function StudioView() {
   // ── composition: which panes are on screen, and how big ───────────────────
@@ -313,28 +324,67 @@ export default function StudioView() {
   // home. `returnTo` is the composition to come back to; active/mounted/flexMap
   // stay untouched underneath, so leaving restores exactly the desk that was there.
   // Declared above ensureActive, which reads it.
-  const [presenter, setPresenter] = useState<{ projecting: boolean; ended: boolean; resumeToken: number; returnTo: Preset['id'] | null; walkId: string | null; startStop: number } | null>(null)
+  const [presenter, setPresenter] = useState<{ projecting: boolean; ended: boolean; resumeToken: number; returnTo: Preset['id'] | null; walkId: string | null; startStop: number; startKey: number; sessionId: string | null; lectureId?: string } | null>(null)
+  /* THE START CARD — the toolbar's ▶ from idle or a preview. It reads the course's sessions from
+     the store each time it opens, and creates nothing until a start asks for it. */
+  const [startOpen, setStartOpen] = useState(false)
+  const [sections, setSections] = useState<StartSession[]>([])
+  const [selectedId, setSelectedId] = useState<string | number | null>(null)
   const presenting = presenter !== null && presenter.projecting && !presenter.ended
   const presentState: PresentState = presenter === null ? 'idle' : !presenter.projecting ? 'preview' : presenter.ended ? 'ended' : 'live'
-  /* THE ▶ (DS OB-135 rules 1–3): the only start. Idle → the lecture starts at the focus;
-     previewing → the same panes start projecting; ended → resume. Always with the projector
-     window opened — SYNCHRONOUSLY from the click, the popup blocker's one condition — under a
-     fixed name, so a second press re-lands the same window rather than opening another. */
+  const commitSections = (next: StartSession[]) => {
+    saveSessions(sessionsKey(), next)
+    setSections(next)
+  }
+  const openStart = () => {
+    setSections(loadSessions(sessionsKey()))
+    setSelectedId(null)
+    setStartOpen(true)
+  }
+  /* THE START (DS OB-135 rules 1–3, OB-304): idle → the lecture starts on the card's choice; a
+     preview → the same mounted presenter is reseeded by the bumped key; ended → resume, with no
+     card. The projector window opens SYNCHRONOUSLY from the gesture — the popup blocker's one
+     condition — under a fixed name, so a second press re-lands the same window. */
   const pressPresent = () => {
     if (presentState === 'live') return
-    platform.openWindow('?' + PROJECTOR_QUERY, PROJECTOR_WINDOW)
+    if (presenter !== null && presenter.ended) {
+      platform.openWindow('?' + PROJECTOR_QUERY, PROJECTOR_WINDOW)
+      setPresenter({ ...presenter, resumeToken: presenter.resumeToken + 1 })
+      return
+    }
+    openStart()
+  }
+  const startLecture = (choice: StartChoice) => {
+    // with `walks` passed the card never asks the host to pick, so these two cannot carry a walk
+    if (choice.from === 'pick-walk') return
+    if (choice.from === 'elsewhere' && choice.walkId == null) return
+    const wanted = choice.walkId == null || choice.walkId === 'draft' ? null : String(choice.walkId)
+    const chosen = wanted ? (walkById(wanted) ?? null) : null
+    const walkId = chosen ? chosen.id : null
+    const count = chosen ? chosen.stops.length : playSteps(null, presentedRoad).length
+    const stop = clampStop(choice.stop ?? 0, count)
+    let sessionId = choice.sectionId == null ? null : String(choice.sectionId)
+    if (choice.newSession) {
+      const created = createSession(sections, Date.now())
+      commitSections(created.sessions)
+      sessionId = created.id
+    }
     if (presenter === null) stopPlayback()
-    const next = presenter === null
-      ? { ...presenterSnapshot(), projecting: true, ended: false, resumeToken: 0, returnTo: presetId }
-      : presenter.ended ? { ...presenter, resumeToken: presenter.resumeToken + 1 } : { ...presenter, projecting: true }
-    setPresenter(next)
+    platform.openWindow('?' + PROJECTOR_QUERY, PROJECTOR_WINDOW)
+    setStartOpen(false)
+    setPresenter((p) => ({
+      projecting: true, ended: false, resumeToken: 0,
+      returnTo: p ? p.returnTo : presetId,
+      walkId, startStop: stop, sessionId, lectureId: mintNoteId(Date.now()),
+      startKey: p ? p.startKey + 1 : 1,
+    }))
   }
   /* the palette's Present (rule 5): not a toggle. Idle → the preview; previewing → nothing;
      ended → back to the preview (the ended pane goes, nothing projected). */
   const pressPreview = () => {
     if (presenter === null) stopPlayback()
     const next = presenter === null
-      ? { ...presenterSnapshot(), projecting: false, ended: false, resumeToken: 0, returnTo: presetId }
+      ? { ...presenterSnapshot(), projecting: false, ended: false, resumeToken: 0, returnTo: presetId, startKey: 0, sessionId: null }
       : presenter.ended ? { ...presenter, projecting: false, ended: false } : presenter
     setPresenter(next)
   }
@@ -410,15 +460,12 @@ export default function StudioView() {
   // desk saved this session, so the list is subscribed rather than read once.
   const unsavedDraft = useDraftUnsaved()
   const allWalks = useSyncExternalStore(subscribeWalks, listWalks)
+  const walkList = courseWalks(allWalks)
   const loadMaps: LoadMap[] = [
     {
       id: ROOT_ID,
       title: byId.get(ROOT_ID)?.title ?? 'this map',
-      walks: allWalks.map((w) => ({
-        id: w.id,
-        title: w.title,
-        stops: w.stops.map((s) => ({ title: byId.get(s.id)?.title ?? s.id })),
-      })),
+      walks: walkList,
     },
   ]
   const onLoadPick = (choice: LoadChoice, how?: 'save' | 'discard') => {
@@ -692,8 +739,9 @@ export default function StudioView() {
   // screen must keep one position in the tree across live ↔ framed, or ending a
   // lecture would remount it and lose the record. The screen draws its own frame.
   const presenterScreen = presenter ? (
-    <PresenterScreen bus={bus} walkId={presenter.walkId} startStop={presenter.startStop} projecting={presenter.projecting} resumeToken={presenter.resumeToken} onEnded={onLectureEnded} framed={!presenting} onLeave={leavePresenter} />
+    <PresenterScreen key={presenter.startKey} bus={bus} walkId={presenter.walkId} startStop={presenter.startStop} sessionId={presenter.sessionId} lectureId={presenter.lectureId} keys={!startOpen} projecting={presenter.projecting} resumeToken={presenter.resumeToken} onEnded={onLectureEnded} framed={!presenting} onLeave={leavePresenter} />
   ) : null
+  const openWalk = bus.activeWalk && walkById(bus.activeWalk.walkId)
 
   return (
     <div className="h-full flex flex-col bg-canopy">
@@ -876,6 +924,31 @@ export default function StudioView() {
         </div>
         )}
       </div>
+      {startOpen ? (
+        <div onPointerDown={(e) => { if (e.target === e.currentTarget) setStartOpen(false) }}
+          style={{ position: 'fixed', inset: 0, zIndex: WARNING_DIALOG_METRICS.z, background: 'var(--scrim)', display: 'grid', placeItems: 'center', padding: 16 }}>
+          <PresentStartCard
+            course={byId.get(ROOT_ID)?.title ?? 'this map'}
+            sections={sections}
+            selectedId={selectedId}
+            onSelectSection={(id) => setSelectedId(id)}
+            onAddSection={(name) => {
+              const created = createSession(sections, Date.now())
+              commitSections(name ? renameSession(created.sessions, created.id, name) : created.sessions)
+            }}
+            onRenameSection={(id, name) => commitSections(renameSession(sections, id, name))}
+            onSetSectionMeets={(id, meets) => commitSections(setSessionMeets(sections, id, meets))}
+            onDeleteSection={(id) => {
+              commitSections(deleteSession(sections, id))
+              setSelectedId((cur) => (cur != null && String(cur) === String(id) ? null : cur))
+            }}
+            openWalk={openWalk ? { id: openWalk.id, title: openWalk.title } : undefined}
+            walks={walkList}
+            onStart={startLecture}
+            onCancel={() => setStartOpen(false)}
+          />
+        </div>
+      ) : null}
     </div>
   )
 }

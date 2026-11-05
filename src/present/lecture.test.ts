@@ -4,7 +4,8 @@ import { WALKS } from '../corpus/walks'
 import { DOC_BODY } from '../corpus/docs'
 import { byId, domainOf } from '../corpus/graph'
 import { playSteps } from '../state/walk/playback'
-import { BOOKED_SECONDS, clampStop, coveredBefore, lectureStart, lectureSteps, mmss } from './lecture'
+import { BOOKED_SECONDS, clampStop, coveredBefore, lectureLast, lectureStart, lectureSteps, mmss } from './lecture'
+import type { PlayStep } from '../state/walk/playback'
 
 /* #267 (DS OB-135) — the pure half of presenter mode, asked directly. */
 
@@ -83,5 +84,34 @@ describe('lectureStart / coveredBefore / clampStop', () => {
     expect(clampStop(5, 3)).toBe(2)
     expect(clampStop(-1, 3)).toBe(0)
     expect(clampStop(2, 0)).toBe(0)
+  })
+})
+
+describe('lectureLast — where the session got to', () => {
+  const steps: PlayStep[] = [
+    { id: 'a', title: 'Alpha', note: '', path: [1] },
+    { id: 'b', title: 'Beta', note: '', path: [2, 1] },
+    { id: 'c', title: 'Gamma', note: '', path: [2, 2] },
+  ]
+  const at = 1_700_000_000_000
+
+  it('names the saved walk and the active stop, with its node id and the count', () => {
+    expect(lectureLast({ walkId: 'walk-a', walk: 'Routing', stop: 1, steps, at })).toEqual({
+      walkId: 'walk-a', walk: 'Routing', stop: 1, stopId: 'b', of: 3, at, stopTitle: 'Beta', address: '2.1',
+    })
+  })
+
+  it('a draft has no saved id', () => {
+    expect(lectureLast({ walkId: null, walk: 'the road you are authoring', stop: 0, steps, at }))
+      .toMatchObject({ walkId: 'draft', stop: 0, stopId: 'a', of: 3, stopTitle: 'Alpha' })
+  })
+
+  it('omits the address for a top-level stop', () => {
+    expect(lectureLast({ walkId: 'walk-a', walk: 'Routing', stop: 0, steps, at })).not.toHaveProperty('address')
+  })
+
+  it('does not throw and assumes nothing when the lecture never had a stop', () => {
+    expect(lectureLast({ walkId: null, walk: 'the road you are authoring', stop: 4, steps: [], at }))
+      .toEqual({ walkId: 'draft', walk: 'the road you are authoring', stop: 0, stopId: '', of: 0, at, stopTitle: '' })
   })
 })

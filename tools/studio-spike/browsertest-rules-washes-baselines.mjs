@@ -231,6 +231,8 @@ try {
   await page.getByLabel('studio-preset-present').click()
   await page.waitForTimeout(700)
   await page.locator('[data-toolbar-hook="present"]').click()
+  await page.locator('[role="dialog"][aria-label="Start presenting"]').waitFor()
+  await page.keyboard.press('Enter')
   await page.waitForTimeout(900)
   await page.bringToFront()
   await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur())
