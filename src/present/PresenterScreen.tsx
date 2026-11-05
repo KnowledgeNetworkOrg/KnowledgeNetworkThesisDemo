@@ -25,14 +25,14 @@
 //
 // THE PANES ROW (parts 6 and 7): the notes pane and the quick actions deck,
 // side by side under the strip with a draggable divider between them. The deck
-// opens at the same 360 the recap keeps for its flagged list — so nothing moves
+// opens at the same 360 the recap keeps for its preview column — so nothing moves
 // sideways when the lecture ends — and the professor can narrow it to its floor.
 // Both are the DS's components and both store NOTHING: what the professor writes,
 // mints and rearranges lives in `lecturenotes.ts` (per walk for the notes, per
 // user for the categories and the furniture) and is handed back down as props.
 //
 // PART 8, THE RECAP, REPLACES THE WHOLE ROW when the lecture ends, with the same
-// notes in `review` shape beside what was flagged.
+// notes in `review` shape beside the slide's preview.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -41,7 +41,7 @@ import {
   Pane, PANE_DIVIDER_METRICS, PaneDivider, paneFit, PresenterHeaderBar, PresenterStrip, ProjectedMap,
   QUICK_ACTIONS_FIT, QUICK_ACTION_PLACEHOLDERS, QuickActionsDeck, StopFinder, swapActions, usePaneWidth,
 } from '@/ds'
-import type { NoteCategory, PresenterState, QuickAction, StartSession } from '@/ds'
+import type { NoteCategory, PresenterState, PresentStartCardProps, QuickAction, StartSession } from '@/ds'
 
 import MapView from '../instruments/MapView'
 import type { MapViewBus } from '../instruments/MapView'
@@ -54,9 +54,9 @@ import { renderStopPreview } from '../state/walk/stoppreview'
 import { BOOKED_SECONDS, clampStop, coveredBefore, lectureLast, lectureSteps, mmss } from './lecture'
 import { LectureSlide } from './LectureSlide'
 import {
-  addFlag, applyDeck, loadHabits, loadMintedCategories, loadNotebook, loadPrepared, mintNoteId,
+  addFlag, applyDeck, flaggedStops, lectureFlags, loadHabits, loadMintedCategories, loadNotebook, loadPrepared, mintNoteId,
   notebookKey, resolveFlag, saveHabits, saveMintedCategories, saveNotebook, savePrepared, saveSessions,
-  loadSessions, sessionsKey, serialiseDeck, setFlagText, setPrepared, writeSessionLast,
+  loadSessions, sessionsKey, serialiseDeck, setFlagCategory, setFlagText, setPrepared, writeSessionLast,
 } from './lecturenotes'
 import type { LectureHabits, LectureNotebook } from './lecturenotes'
 import { useProjectorSender } from './projector'
@@ -71,7 +71,6 @@ import type { ProjectedState } from './projector'
  *  per render, once the arrangement is known. */
 const DECK_ACTIONS: QuickAction[] = [
   { id: 'map', label: 'Project the map', key: 'm', dot: 'var(--accent-walk)', title: 'put the whole walk on the wall, in place of the slide' },
-  { id: 'flag', label: 'Flag this slide', key: 'f', dot: 'var(--acorn-600)', title: 'mark this stop to come back to after the lecture' },
   { id: 'strip', label: 'All stops', key: 'e', dot: 'var(--moss-400)', title: 'open the strip of every stop in the walk' },
   { id: 'finder', label: 'Find a stop', key: 'j', dot: 'var(--moss-400)', title: 'search the walk by name' },
   { id: 'live', label: 'Back to the live stop', dot: 'var(--bark-400)', title: 'stop looking ahead and return to what the class is seeing' },
@@ -93,6 +92,8 @@ export interface PresenterScreenProps {
   sessionId?: string | null
   /** the lecture's own id, minted by the host on a start; absent keeps a preview's mount-time one */
   lectureId?: string
+  /** the open map's walks, handed to the recap so its next-time line can look a stop up */
+  walks?: PresentStartCardProps['walks']
   /** false while the start card is over the presenter — its key handler must not answer the
    *  card's ↑ ↓ or Escape first */
   keys?: boolean
@@ -115,7 +116,7 @@ export interface PresenterScreenProps {
   onLeave?: () => void
 }
 
-export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessionId, lectureId, keys = true, projecting, resumeToken, onEnded, course, framed = false, onLeave }: PresenterScreenProps) {
+export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessionId, lectureId, walks, keys = true, projecting, resumeToken, onEnded, course, framed = false, onLeave }: PresenterScreenProps) {
   const bus = presenterBus(deskBus, walkId)
   const play = useWalkPlayback(bus)
   const steps = useMemo(() => lectureSteps(play.steps, play.title), [play.steps, play.title])
@@ -139,7 +140,7 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
   const [activeStop, setActiveStop] = useState(() => clampStop(startStop ?? 0, play.steps.length))
   const [roamingStop, setRoamingStop] = useState<number | null>(null)
   const [covered, setCovered] = useState<number[]>(() => coveredBefore(clampStop(startStop ?? 0, play.steps.length)))
-  const [flags, setFlags] = useState<number[]>([])
+  const [shownStop, setShownStop] = useState(0)
   const [finder, setFinder] = useState<DOMRect | null>(null)
   const [stripOpen, setStripOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -210,11 +211,10 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
   }, [ended, roaming, roamingStop, activeStop, N])
   const roamTo = useCallback((i: number) => { if (ended) return; setRoamingStop(i === activeStop ? null : i) }, [ended, activeStop])
   const makeActive = (i: number) => { cover(activeStop); setActiveStop(i); setRoamingStop(null); setStopStartAt(Date.now()) }
-  const toggleFlag = useCallback((i: number) => setFlags((f) => (f.indexOf(i) >= 0 ? f.filter((x) => x !== i) : f.concat(i))), [])
   /* THE KEYS, the host's (DS): → ↓ and a clicker's Page Down advance, ← ↑ and Page Up go back;
      every step key is claimed until the lecture ends (the preview included) so the panes do not
      scroll instead, and left to the browser after it, where the recap's own scrollers need them.
-     Backspace ends a roam, F flags, E opens the strip, J opens the finder (part 8), Escape closes
+     Backspace ends a roam, E opens the strip, J opens the finder (part 8), Escape closes
      things. Space and Enter stay unbound because they activate the focused control. Not while a
      field has focus. */
   /* THE FINDER HANGS OFF THE STRIP'S OWN FIND BUTTON, so opening it means measuring that button.
@@ -243,7 +243,6 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
       if (!ended && (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown')) step(1)
       else if (!ended && (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp')) step(-1)
       else if (e.key === 'Backspace' && roaming) setRoamingStop(null)
-      else if (e.key === 'f' || e.key === 'F') toggleFlag(shown)
       else if (e.key === 'e' || e.key === 'E') setStripOpen((o) => !o)
       else if ((e.key === 'm' || e.key === 'M') && !ended) setMapUp((v) => !v)
       else if (e.key === 'j' || e.key === 'J') toggleFinder()
@@ -253,7 +252,7 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [step, roaming, shown, toggleFlag, ended, toggleFinder, keys])
+  }, [step, roaming, ended, toggleFinder, keys])
   /* ended / resumed is reported up too: the shell hides its chrome for a live lecture and hands it
      back the moment the lecture ends, so ending is always a way home */
   useEffect(() => { if (onEnded) onEnded(ended) }, [ended, onEnded])
@@ -332,20 +331,26 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
   const [draftCategory, setDraftCategory] = useState<string | undefined>(undefined)
   const stopId = steps[shown]?.id ?? ''
   const stopTitles = useMemo(() => steps.map((st) => st.title), [steps])
+  /* THE LECTURE SEES ITS OWN FLAGS, AND THE ROLL'S MARKS ARE DERIVED FROM THEM: the
+     indexes of the steps whose id is in the unresolved set. Nothing is stored twice. */
+  const lectureBook = useMemo(() => lectureFlags(book, lecture), [book, lecture])
+  const flags = useMemo(() => {
+    const marked = flaggedStops(lectureBook)
+    return steps.reduce<number[]>((out, st, i) => (marked.has(st.id) ? out.concat(i) : out), [])
+  }, [lectureBook, steps])
 
   /* ── THE DECK'S ACTIONS ──────────────────────────────────────────────────────────────────────
      THE DECK ITSELF IS STILL EIGHT UNDECIDED SLOTS — which is the design, not an omission: the DS
      ships `QUICK_ACTION_PLACEHOLDERS` precisely because what belongs on a professor's deck has
      not been decided, and a dashed slot says so on screen where a guess would not. What IS
-     decided is what this host CAN offer, and those six sit on the shelf behind the More button
+     decided is what this host CAN offer, and those five sit on the shelf behind the More button
      where the professor can drag any of them onto a slot and keep it there.
-     THE HELD ONES WEAR THE ACTIVE FACE (`on`, below): the map being up, this stop being flagged,
-     the strip and the finder being open are all states, not one-shot actions, and the tile has to
-     say which way it is pointing before it is pressed. */
+     THE HELD ONES WEAR THE ACTIVE FACE (`on`, below): the map being up, the strip and the finder
+     being open are all states, not one-shot actions, and the tile has to say which way it is
+     pointing before it is pressed. */
   const deck = useMemo(() => {
     const behaviour: Record<string, { onSelect: () => void; disabled?: boolean }> = {
       map: { onSelect: () => setMapUp((v) => !v) },
-      flag: { onSelect: () => toggleFlag(shown) },
       strip: { onSelect: () => setStripOpen((o) => !o) },
       finder: { onSelect: toggleFinder },
       live: { onSelect: () => setRoamingStop(null), disabled: !roaming },
@@ -357,15 +362,14 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
       groups: arranged.groups.map((g) => ({ ...g, actions: g.actions.map(bind) })),
       library: arranged.library.map(bind),
     }
-  }, [habits.deck, shown, toggleFlag, toggleFinder, roaming, projecting])
+  }, [habits.deck, toggleFinder, roaming, projecting])
   const deckOn = useMemo(() => {
     const held: string[] = []
     if (mapUp) held.push('map')
-    if (flags.indexOf(shown) >= 0) held.push('flag')
     if (stripOpen) held.push('strip')
     if (finder) held.push('finder')
     return held
-  }, [mapUp, flags, shown, stripOpen, finder])
+  }, [mapUp, stripOpen, finder])
 
   /* ── THE NOTES/DECK DIVIDER (OB-254) ─────────────────────────────────────────────────────────
      The deck's width is a preference (`null` is the seed), but the width DRAWN is derived from the
@@ -436,7 +440,17 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
      pane. `id` widens to `string | number | undefined` crossing the DS's boundary (its `LectureNote`
      does not insist on ours), so it comes back through `String`. */
   const commitEntry = (n: { id?: string | number }, text: string) => setBook((b) => setFlagText(b, String(n.id), text))
-  const removeEntry = (n: { id?: string | number }) => setBook((b) => resolveFlag(b, String(n.id), Date.now()))
+  const changeEntryCategory = (n: { id?: string | number }, category: string | undefined) => setBook((b) => setFlagCategory(b, String(n.id), category))
+  const resolveEntry = (n: { id?: string | number }) => setBook((b) => resolveFlag(b, String(n.id), Date.now()))
+  /* A flag made on a chip is a bare entry; the preview draws the chip but records nothing. */
+  const recordFlag = (stop: number, category: string) => {
+    if (!projecting) return
+    const at = Date.now()
+    setBook((b) => addFlag(b, {
+      lectureId: lecture, sessionId: sessionId ?? undefined, stop, stopId: steps[stop]?.id ?? '',
+      category, text: '', at, when: mmss(elapsedS),
+    }))
+  }
   const courseName = course ?? play.title
   /* THE FRAME: a pane beside the palette while previewing or ended, the whole window while live.
      Both wrap the same body, from the same component, so the record survives the flip. */
@@ -457,7 +471,8 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
       <PresenterHeaderBar course={courseName} state={state} activeStop={activeStop + 1} roamingStop={roaming ? roamingStop + 1 : undefined}
         elapsed={ended || !projecting ? undefined : mmss(elapsedS)} bookedLength={ended || !projecting ? undefined : mmss(BOOKED_SECONDS)} progressPct={Math.min(100, (elapsedS / BOOKED_SECONDS) * 100)} endedTotal={ended ? mmss(elapsedS) + ' total' : undefined}
         confirmOpen={confirmOpen} onEndClick={projecting ? () => setConfirmOpen(true) : undefined} onCancelEnd={() => setConfirmOpen(false)}
-        onConfirmEnd={() => { writeLastAt(activeStop); setConfirmOpen(false); setEndedAt(Date.now()); setEnded(true); setRoamingStop(null); setMapUp(false) }} />
+        onConfirmEnd={() => { writeLastAt(activeStop); setConfirmOpen(false); setEndedAt(Date.now()); setEnded(true); setRoamingStop(null); setMapUp(false); setShownStop(0) }}
+        onClose={onLeave} />
       {/* THE COLUMN: roll, strip, panes. The strip is `flex: none` (it sets that itself); the pane
           below keeps `LECTURE_NOTES_FIT.minHeight` and this column scrolls below it; the roll is
           `flex: none` at its own height. */}
@@ -466,19 +481,26 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
           /* PART 8 — the recap takes the whole region the roll, the strip and the panes had. The
              notes come back as the SAME notebook in `review` shape (one column, grouped under the
              stop each note was written about), so nothing is re-entered and nothing is a second
-             copy. A flagged row is a READOUT here, not a jump: the lecture is over, there is no
-             live stop to jump to, and a row that navigates would restart one. */
+             copy. A row selects its slide for the preview; the lecture is over, so nothing is
+             restarted and only the shown slide moves. */
           <LectureRecap
             course={courseName} when={courseName === play.title ? undefined : play.title}
             elapsedS={elapsedS} bookedS={BOOKED_SECONDS} startedAt={startAt} endedAt={endedAt}
-            counts={{ stops: covered.length, notes: book.notes.filter((n) => !n.resolvedAt).length, flagged: flags.length }}
+            counts={{
+              stops: covered.length,
+              slides: flaggedStops(lectureBook).size,
+              flags: lectureBook.notes.filter((n) => !n.resolvedAt).length,
+            }}
             notes={(
-              <LectureNotes variant="review" entries={book.notes} stops={stopTitles}
-                categories={categories} onEntryCommit={commitEntry} onDeleteEntry={removeEntry}
+              <LectureNotes variant="review" entries={lectureBook.notes} stops={stopTitles}
+                categories={categories} selectedStop={shownStop} onSelectStop={setShownStop}
+                onEntryCommit={commitEntry} onEntryCategoryChange={changeEntryCategory} onResolveEntry={resolveEntry}
                 style={{ flex: 1, minWidth: 0 }} />
             )}
-            flagged={flags.slice().sort((a, b) => a - b).map((i) => ({ id: i, title: steps[i].title, stop: i }))}
-            actions={onLeave ? [{ label: 'close the presenter', tone: 'neutral' as const, onSelect: onLeave }] : []} />
+            shownStop={shownStop} stops={stopTitles} onShowStop={setShownStop} slide={slideFor(shownStop)}
+            onFlag={(category) => recordFlag(shownStop, category)} flagTypes={categories}
+            usualFlag={habits.usualFlag} onUsualFlagChange={(k) => setHabits((h) => ({ ...h, usualFlag: k }))}
+            session={sessionId != null ? sessions.find((s) => s.id === sessionId) : undefined} walks={walks} />
         ) : (
           <>
             <div style={{ flex: 'none' }}>
@@ -490,7 +512,8 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
                 prev={shown > 0 ? nav(shown - 1) : null}
                 current={{ content: wall(shown), flagged: flags.indexOf(shown) >= 0, elapsed: roaming || !projecting ? undefined : mmss(onStopS), stopIndex: shown }}
                 next={shown < N - 1 ? nav(shown + 1) : null}
-                onToggleFlag={(which) => toggleFlag(which === 'prev' ? shown - 1 : which === 'next' ? shown + 1 : shown)}
+                onFlag={(category) => recordFlag(shown, category)} flagTypes={categories}
+                usualFlag={habits.usualFlag} onUsualFlagChange={(k) => setHabits((h) => ({ ...h, usualFlag: k }))}
                 onExpand={() => setExpanded(true)} />
             </div>
             <div style={{ flex: 'none' }}>
@@ -502,7 +525,7 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
                 renderPreview={(_s, i) => renderStopPreview(play.steps[i], i)} />
             </div>
             {/* THE PANES ROW — the notes pane takes what is left, the deck keeps the width the
-                divider was dragged to (the recap's flagged column keeps the same width at rest,
+                divider was dragged to (the recap's preview column keeps the same width at rest,
                 so ending moves nothing sideways) */}
             <div ref={panesRef} data-presenter-panes style={{ flex: '1 1 0', minHeight: LECTURE_NOTES_FIT.minHeight, display: 'flex' }}>
               <LectureNotes
@@ -513,24 +536,26 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
                    authored note back rather than blanking the column. */
                 prepared={prepared[stopId]?.text ?? steps[shown].note}
                 onPreparedCommit={(text) => setPreparedNotes((p) => setPrepared(p, stopId, text, Date.now()))}
-                entries={book.notes} categories={categories}
+                entries={projecting ? lectureBook.notes : book.notes} categories={categories}
                 draft={draft} onDraftChange={setDraft}
                 category={draftCategory} onCategoryChange={setDraftCategory}
                 onSave={(n) => {
                   const at = n.stop ?? shown
                   setBook((b) => addFlag(b, {
                     category: n.category, text: n.text, stop: at, stopId: steps[at]?.id ?? stopId,
-                    lectureId: lecture, when: mmss(elapsedS), at: Date.now(),
+                    lectureId: lecture, sessionId: sessionId ?? undefined, when: mmss(elapsedS), at: Date.now(),
                   }))
                   setDraft('')
                 }}
                 /* A MINTED CATEGORY IS THE PROFESSOR'S, not the stop's or the walk's — it goes to
                    the user-wide store and comes back on every lecture they ever give. */
                 onAddCategory={(c) => setMinted((m) => m.concat(c))}
-                onEntryCommit={commitEntry} onDeleteEntry={removeEntry}
+                onEntryCommit={commitEntry} onEntryCategoryChange={changeEntryCategory} onResolveEntry={resolveEntry}
                 chatWidth={habits.chatWidth}
                 onChatWidthChange={(w) => setHabits((h) => ({ ...h, chatWidth: w }))}
-                flagged={flags.indexOf(shown) >= 0} onToggleFlag={() => toggleFlag(shown)}
+                preparedHeight={habits.preparedHeight}
+                onPreparedHeightChange={(h) => setHabits((s) => ({ ...s, preparedHeight: h }))}
+                usualFlag={habits.usualFlag}
                 style={{ flex: 1, minWidth: 0 }} />
               <PaneDivider label="resize the notes and quick actions" now={bounds.now} min={bounds.min} max={bounds.max}
                 onDrag={onDeckDrag} onDragEnd={onDeckDragEnd} onReset={resetDeck} />

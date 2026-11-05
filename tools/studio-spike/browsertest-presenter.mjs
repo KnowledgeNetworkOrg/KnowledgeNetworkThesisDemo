@@ -208,7 +208,7 @@ try {
   await page.waitForTimeout(200)
   ok('■ asks first', (await page.locator('[role="dialog"][aria-label="end this lecture"]').count()) === 1)
   // ── OB-164: the pill's manners on the presenter's two pill surfaces — the header bar's
-  // "keep going" (here) and the recap's closing action (below); photographed for the pull
+  // "keep going" (here) and its closing pill once the lecture ends (below); photographed for the pull
   /** OB-164: the pill's computed manners — the three properties the DS's PillButton.jsx carries
    *  and every pill surface must draw: baseline alignment, a --space-1 gap, the glyph's 1px lift */
   const pillManners = (btn) => btn.evaluate((b) => {
@@ -228,10 +228,10 @@ try {
   ok('ending brings the app chrome back', (await page.locator('[aria-label="studio-header"]').count()) === 1 && (await playBtn().count()) === 1)
   ok('the chip reads "Lecture ended <total>"', /^Lecture ended \d\d:\d\d total$/.test(await chipText()), await chipText())
   {
-    const closing = page.locator('[data-lecture-recap]').getByRole('button', { name: 'close the presenter' })
-    ok('the recap\'s closing pill is on screen', (await closing.count()) === 1)
+    const closing = page.locator('[data-presenter-header]').getByRole('button', { name: 'close the presenter' })
+    ok('the ended bar\'s closing pill is on screen', (await closing.count()) === 1)
     const cm = await pillManners(closing)
-    ok('OB-164: the recap\'s closing pill aligns on the baseline with the --space-1 gap', cm.alignItems === 'baseline' && cm.gap === '4px', JSON.stringify(cm))
+    ok('OB-164: the ended bar\'s closing pill aligns on the baseline with the --space-1 gap', cm.alignItems === 'baseline' && cm.gap === '4px', JSON.stringify(cm))
     await closing.locator('xpath=..').screenshot({ path: 'tools/studio-spike/shots/ob164-recap-closing.png' })
   }
   ok('the toolbar ▶ reads "resume" and is pressable', (await playBtn().getAttribute('title')) === 'resume' && !(await playBtn().isDisabled()))
@@ -658,7 +658,7 @@ try {
     await page.waitForTimeout(200)
     await page.getByRole('button', { name: 'end lecture' }).last().click()
     await page.waitForTimeout(700)
-    await page.locator('[data-lecture-recap]').getByRole('button', { name: 'close the presenter' }).click()
+    await page.locator('[data-presenter-header]').getByRole('button', { name: 'close the presenter' }).click()
     await page.waitForTimeout(900)
   }
   const compareDesk = (before, after) => {

@@ -11,7 +11,7 @@
 //     a reload;
 //   · the prepared note is click-to-edit IN PLACE and the correction survives a reload, without
 //     touching the walk the note was authored on;
-//   · the deck draws eight undecided slots and keeps six real actions on the shelf behind More;
+//   · the deck draws eight undecided slots and keeps five real actions on the shelf behind More;
 //   · a shelf tile RUNS its action (Project the map puts the map on the wall);
 //   · dragging a shelf action onto a slot swaps them, and the arrangement survives a reload;
 //   · ending the lecture replaces the row with the recap: the three counts, the same notes grouped
@@ -308,8 +308,8 @@ try {
   await page.locator('[data-quick-shelf-toggle]').click()
   await page.waitForTimeout(400)
   const shelf = page.locator('[data-quick-shelf]')
-  ok('More actions opens the shelf beside the pane, with this host\'s six real actions',
-    (await shelf.count()) === 1 && (await shelf.locator('[data-quick-action]').count()) === 6,
+  ok('More actions opens the shelf beside the pane, with this host\'s five real actions',
+    (await shelf.count()) === 1 && (await shelf.locator('[data-quick-action]').count()) === 5,
     String(await shelf.locator('[data-quick-action]').count()))
   ok('the shelf sits BESIDE the deck, not over it — the drop targets stay reachable', await page.evaluate(() => {
     const s = document.querySelector('[data-quick-shelf]').getBoundingClientRect()
@@ -328,7 +328,7 @@ try {
 
   // ── drag a real action onto a slot, and keep it there ───────────────────────
   const started = await page.evaluate(() => {
-    const shelfTile = document.querySelector('[data-quick-shelf] [data-quick-action="flag"]')
+    const shelfTile = document.querySelector('[data-quick-shelf] [data-quick-action="strip"]')
     if (!shelfTile) return false
     window.__dt = new DataTransfer()
     shelfTile.parentElement.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: window.__dt }))
@@ -343,7 +343,7 @@ try {
     return true
   })
   await page.waitForTimeout(500)
-  ok('a shelf action dropped on a slot takes its place', swapped && (await page.locator('[data-quick-deck] [data-quick-action="flag"]').count()) === 1)
+  ok('a shelf action dropped on a slot takes its place', swapped && (await page.locator('[data-quick-deck] [data-quick-action="strip"]').count()) === 1)
   ok('and the displaced placeholder goes back to the shelf, LAST — where the eye looks for it',
     (await page.locator('[data-quick-shelf] [data-quick-action]').last().getAttribute('data-quick-action')) === 'class-1',
     await page.locator('[data-quick-shelf] [data-quick-action]').last().getAttribute('data-quick-action'))
@@ -365,7 +365,7 @@ try {
   await openPalette()
   await page.getByLabel('studio-preset-present').click()
   await page.waitForTimeout(800)
-  ok('the arrangement survives a reload', (await page.locator('[data-quick-deck] [data-quick-action="flag"]').count()) === 1)
+  ok('the arrangement survives a reload', (await page.locator('[data-quick-deck] [data-quick-action="strip"]').count()) === 1)
   await page.locator('[data-quick-shelf-toggle]').click()
   await page.waitForTimeout(500)
   const reopened = await page.locator('[data-quick-shelf]').boundingBox()
@@ -380,7 +380,7 @@ try {
   await page.waitForTimeout(500)
   await page.locator('[data-quick-shelf-toggle]').click()
   await page.waitForTimeout(300)
-  ok('a real tile on the deck now shows its key', /\(F\)/i.test(await page.locator('[data-quick-deck] [data-quick-action="flag"]').innerText()))
+  ok('a real tile on the deck now shows its key', /\(E\)/i.test(await page.locator('[data-quick-deck] [data-quick-action="strip"]').innerText()))
 
   // ── the recap ───────────────────────────────────────────────────────────────
   await page.locator('[data-toolbar-hook="present"]').click()
@@ -390,24 +390,20 @@ try {
   await page.bringToFront()
   await write('one more, on the live lecture')
   await leaveField()
-  await page.keyboard.press('f')
-  await page.waitForTimeout(300)
-  ok('F flags the shown stop while the deck is bound to it too — once', (await page.locator('[data-quick-deck] [data-quick-action="flag"][aria-pressed="true"]').count()) === 1)
   await page.locator('[aria-label="end lecture"]').click()
   await page.getByRole('button', { name: 'end lecture' }).last().click()
   await page.waitForTimeout(800)
   ok('ending the lecture replaces the row with the recap', (await page.locator('[data-lecture-recap]').count()) === 1 && (await notes().count()) === 0)
   const stats = (await page.locator('[data-recap-stats]').innerText()).replace(/\s+/g, ' ').trim()
-  ok('the recap counts stops, notes and flags', /stops? covered/.test(stats) && /notes? taken/.test(stats) && /slides? flagged/.test(stats), stats)
+  ok('the recap counts stops covered, slides flagged and flags', /stops? covered/.test(stats) && /slides? flagged/.test(stats) && /\bflags?\b/.test(stats), stats)
   // v4 (LectureClock): one line, `Fri 4 Sep 2026 13:12 – 13:40`, no "started" / "ended" words
   ok('it says when the lecture started and when it ended', /\d\d:\d\d – (\w{3} \d+ \w{3} \d{4} )?\d\d:\d\d/.test(await page.locator('[data-lecture-recap]').innerText()))
   ok('the same notes come back in review shape, grouped under the stops they were written about',
     (await page.locator('[data-lecture-notes="review"]').count()) === 1 && (await page.locator('[data-notes-group]').count()) >= 1,
     (await page.locator('[data-notes-group]').count()) + ' group heads')
   // v4 dropped the "flagged for revision" list: the review pane's flags, grouped by slide, are it,
-  // and the preview beside them shows the slide a row is picked on. The rows come from the notes;
-  // the host's F still writes the old flags array until OB-304 makes a flag a note, and OB-304
-  // wires the row-to-preview pick, so those checks are OB-304's.
+  // and the preview beside them shows the slide a row is picked on. The rows come from the notes,
+  // the one list the live pane and the recap both read.
   ok('the notes written live are the recap\'s rows', (await page.locator('[data-lecture-notes="review"] [data-lecture-note]').count()) >= 1,
     (await page.locator('[data-lecture-notes="review"] [data-lecture-note]').count()) + ' rows')
   ok('and there is a way out', (await page.getByRole('button', { name: 'close the presenter' }).count()) === 1)

@@ -133,8 +133,8 @@ try {
   // ── once ended, the step keys belong to the recap's scrollers ───────────────
   // Write enough notes that the recap's list overflows, then end the lecture and shrink the
   // window: the list is then the keyboard's pane and PageDown must scroll it, not vanish.
-  // Typed notes, not F: since flags v4 (OB-303) the recap lists the lecture's notes, and the
-  // host's F writes the old flags array until OB-304 makes a flag a note.
+  // Typed notes: since flags v4 (OB-303/OB-304) every note is a flag, and the recap lists the
+  // lecture's own entries.
   const composer = page.locator('[data-lecture-notes="live"]').getByLabel('a note for this slide…')
   for (let i = 1; i <= 12; i++) {
     await composer.click()
