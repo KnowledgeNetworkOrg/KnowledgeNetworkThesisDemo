@@ -1,0 +1,7 @@
+1. **Summary**
+
+I added `src/present/presenterbus.ts`, a pure `presenterBus(deskBus, walkId)` view that pins `activeWalk`/`draftCursor` to the lecture’s start and replaces the six writers the presenter could reach with module-level no-ops. `PresenterScreen` now takes `walkId` and `startStop`, builds that view for both `useWalkPlayback` and the wall `MapView`, keys the notebook off the view, and no longer reports its shown stop to the desk. `StudioView` captures `walkId` and `startStop` when the presenter opens, keeps them for the whole lecture, calls the new `stopPlayback()`, and passes both props. I chose the view, as the card asked. Leaving a lecture now leaves the desk’s focus, route, trail and active walk exactly where they were before ▶, reversing #214’s return to the presenter’s last stop. I also added `presenterbus.test.ts` and two round-trip checks in `browsertest-presenter.mjs` (saved walk, and Plan’s draft road). `src/state/bus.ts` is untouched.
+
+`node --check tools/studio-spike/browsertest-presenter.mjs` passes. I could not run `npm run typecheck` or vitest because this checkout has no `node_modules`.
+
+Assumptions: `walkId: undefined` behaves like `null`; both idle open paths (toolbar ▶ and the palette’s Present) capture the snapshot and call `stopPlayback`, while resume and preview-after-end keep the captured values; the draft browser check toggles the draft’s optionals after focusing a road stop so the benched `WalkViewer`’s return republish dedups at the trail tip rather than looking like a presenter write.

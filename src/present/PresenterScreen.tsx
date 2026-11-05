@@ -13,10 +13,11 @@
 // THE STORE — the three facts and the transient UI, all here. `activeStop` is the
 // record, `roamingStop` where the professor is looking, `covered` what was
 // presented (a stop is covered when the record LEAVES it). Components ask; this
-// decides. THE LECTURE IS THE WALK BEING PLAYED — `useWalkPlayback`'s steps, the
-// saved walk if one is active and the desk's road otherwise — and it starts at
-// the Studio's focus, reporting the shown stop back to the bus so the header's
-// focus follows the lecture.
+// decides. THE LECTURE IS ITS OWN WALK — `walkId` names the saved walk it plays
+// (null: the desk's draft road) and `startStop` is where it opens. It reads the
+// desk's bus through `presenterBus`, whose writers do nothing, so the shown stop
+// never moves the desk's focus, route, trail or active walk: leaving puts the
+// desk back exactly as it was before ▶.
 //
 // WHAT IS PROJECTED (clause 2): the roll's live card content — the slide — goes
 // to the projector window through `useProjectorSender`; the preview projects
@@ -48,7 +49,7 @@ import { useKeptWallFrame } from './wallframe'
 import { useWalkPlayback } from '../state/walk/playback'
 import type { PlaybackBus } from '../state/walk/playback'
 import { renderStopPreview } from '../state/walk/stoppreview'
-import { BOOKED_SECONDS, clampStop, coveredBefore, lectureStart, lectureSteps, mmss } from './lecture'
+import { BOOKED_SECONDS, clampStop, coveredBefore, lectureSteps, mmss } from './lecture'
 import { LectureSlide } from './LectureSlide'
 import {
   addFlag, applyDeck, loadHabits, loadMintedCategories, loadNotebook, loadPrepared, mintNoteId,
@@ -57,6 +58,7 @@ import {
 } from './lecturenotes'
 import type { LectureHabits, LectureNotebook } from './lecturenotes'
 import { useProjectorSender } from './projector'
+import { presenterBus } from './presenterbus'
 import { WallTransition } from './WallTransition'
 import type { ProjectedState } from './projector'
 
@@ -74,12 +76,17 @@ const DECK_ACTIONS: QuickAction[] = [
   { id: 'end', label: 'End the lecture', dot: 'var(--state-danger)', title: 'end the lecture and show the recap' },
 ]
 
-/** the slice of the bus the presenter needs — playback's, plus the map's, because it hands its
- *  bus to MapView. */
+/** the slice of the bus the presenter reads — playback's, plus the map's, because it hands this
+ *  view to MapView. `presenterBus` supplies it with its writers replaced by no-ops, so the
+ *  presenter can never write the desk. */
 export type PresenterScreenBus = PlaybackBus & MapViewBus
 
 export interface PresenterScreenProps {
   bus: PresenterScreenBus
+  /** the saved walk to play; null or absent plays the desk's draft road */
+  walkId?: string | null
+  /** the 0-based stop the lecture opens on; absent means the first, clamped to the walk */
+  startStop?: number
   /** is the room watching — the toolbar ▶ (true) or the palette's Present (false, a preview:
    *  no clock, nothing projected). Flipping to true STARTS the lecture here and now. */
   projecting: boolean
@@ -99,14 +106,15 @@ export interface PresenterScreenProps {
   onLeave?: () => void
 }
 
-export default function PresenterScreen({ bus, projecting, resumeToken, onEnded, course, framed = false, onLeave }: PresenterScreenProps) {
+export default function PresenterScreen({ bus: deskBus, walkId, startStop, projecting, resumeToken, onEnded, course, framed = false, onLeave }: PresenterScreenProps) {
+  const bus = presenterBus(deskBus, walkId)
   const play = useWalkPlayback(bus)
   const steps = useMemo(() => lectureSteps(play.steps, play.title), [play.steps, play.title])
   const N = steps.length
-  /* the store — `startAt` is the Studio's focus when the mode opened */
-  const [activeStop, setActiveStop] = useState(() => lectureStart(play.steps, bus.focus))
+  /* the store — `startStop` is where the host opened the lecture */
+  const [activeStop, setActiveStop] = useState(() => clampStop(startStop ?? 0, play.steps.length))
   const [roamingStop, setRoamingStop] = useState<number | null>(null)
-  const [covered, setCovered] = useState<number[]>(() => coveredBefore(lectureStart(play.steps, bus.focus)))
+  const [covered, setCovered] = useState<number[]>(() => coveredBefore(clampStop(startStop ?? 0, play.steps.length)))
   const [flags, setFlags] = useState<number[]>([])
   const [finder, setFinder] = useState<DOMRect | null>(null)
   const [stripOpen, setStripOpen] = useState(false)
@@ -221,9 +229,6 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [step, roaming, shown, toggleFlag, ended, toggleFinder])
-  /* the shown stop is reported up so the shell's focus (and its visited count) follow the lecture */
-  const setFocus = bus.setFocus
-  useEffect(() => { const s = steps[shown]; if (s && bus.focus !== s.id) setFocus(s.id, 'walk') }, [shown, steps, setFocus, bus.focus])
   /* ended / resumed is reported up too: the shell hides its chrome for a live lecture and hands it
      back the moment the lecture ends, so ending is always a way home */
   useEffect(() => { if (onEnded) onEnded(ended) }, [ended, onEnded])
