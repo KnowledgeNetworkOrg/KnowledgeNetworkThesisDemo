@@ -27,16 +27,22 @@ replaces this one, with this table updated, and the generator is run again.
   with their ids, labels (verbatim), tiers and pages; and the 520 *see also* edges, each one
   of CS2023's printed "(See also: …)" notes, drawn unit to unit in the printed direction.
   *Computer Science Curricula 2023*, ACM/IEEE-CS/AAAI.
-- **AI-made, under the author's review:** the extraction of the "See also" notes, and which
-  CS2023 places the TMU courses stop at (that choice decides which places below a unit are
-  in the file). The file's `meta.status` says the same.
+- **AI-made, under the author's review:** everything above *as it reaches this file*. The
+  tree was transcribed from CS2023 by an AI agent (opencode / DeepSeek; the thesis's
+  `data/derived/cs2023/README.md`, whose `coder` column says so on every row), and the
+  "See also" notes were extracted by one (Claude Code). Neither is reviewed yet, so the labels
+  are *meant* to be CS2023's verbatim words, not yet checked to be. Also AI-made: which
+  CS2023 places the TMU courses stop at, which decides which places below a unit are in the
+  file. The file's `meta.status` says the same, and every document body in the app carries a
+  line saying the data is AI-transcribed and not yet reviewed.
 - **The thesis author's:** the design (CS2023 as the map, each course a route over it), and
   the Science exception group.
 - **This generator's, proposed and not yet decided by the author:**
   - the knowledge unit is the app's "topic" level (default D1 in the thesis's
     `thesisdemo_brief.md` §5), directly under its area: CS2023 has no level between them,
     so none is added;
-  - below a unit, only the places some course stops at (D3; the file already holds only these);
+  - below a unit, only the places some course stops at and the places above them (D3; the
+    file already holds only these);
   - colours: areas take the ring's hues in area order; the 17th area (SPD) wraps onto the
     1st's (AI) hue, the ring's own rule (`topicHue`). The 16th (SEP) gets `mallow`, which is
     also the colour of a *see also* edge, this corpus's only edge type;

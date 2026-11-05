@@ -98,7 +98,7 @@ function detectCommunities(): { groups: string[][]; Q: number } {
       const dQ = 2 * (e.get(key)! - a.get(i)! * a.get(j)!)
       if (!bestPair || dQ > bestPair.dQ) bestPair = { ci: i, cj: j, dQ }
     }
-    if (!bestPair) break // disconnected remainder — cannot happen, corpus is connected
+    if (!bestPair) break // the rest is disconnected: no link joins what is left (cs2023 has such units)
     const { ci, cj, dQ } = bestPair
     for (const x of neighborsOf(cj)) {
       if (x === ci) continue
@@ -192,11 +192,12 @@ const hash01 = (s: string) => {
 
 function embed(): Record<string, XY> {
   // 1 · circular domain order: brute-force the ring that keeps heavily linked
-  // domains adjacent (6 domains → 120 orders; cost = weight × extra hops). Past
-  // nine domains (8! = 40,320 orders) brute force stops being a module-load cost
-  // anyone would accept — 17 domains is 16! — so a larger corpus starts from the
-  // authored order and swaps pairs while any swap lowers the cost. Deterministic,
-  // and not guaranteed optimal; the six-domain corpora never take that path.
+  // domains adjacent (6 domains → 120 orders; cost = weight × extra hops). Nine
+  // domains (8! = 40,320 orders) is the most brute-forced; past that it stops
+  // being a module-load cost anyone would accept — 17 domains is 16! — so a larger
+  // corpus starts from the authored order and swaps pairs while any swap lowers
+  // the cost. Deterministic, and not guaranteed optimal; the teaching (6) and
+  // courses (7) corpora never take that path.
   const dIdx = new Map(domainIds.map((d, i) => [d, i]))
   const dw: number[][] = domainIds.map(() => domainIds.map(() => 0))
   for (const p of pairs) {

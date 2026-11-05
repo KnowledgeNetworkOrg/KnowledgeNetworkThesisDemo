@@ -3,8 +3,9 @@
 //
 // Written by `node tools/cs2023import/generate.mjs` from
 // `tools/cs2023import/cs2023_map.json`, a pinned copy of the thesis repository's
-// map file (`tools/cs2023import/README.md` names its commit). The labels are
-// CS2023's own, verbatim; the edges are CS2023's printed "See also" notes.
+// map file (`tools/cs2023import/README.md` names its commit). The labels are meant
+// to be CS2023's own, verbatim, and the edges its printed "See also" notes; both were
+// transcribed by an AI agent and are not yet reviewed by the thesis author.
 
 import type { CorpusSpec, GNode } from './graphshape'
 

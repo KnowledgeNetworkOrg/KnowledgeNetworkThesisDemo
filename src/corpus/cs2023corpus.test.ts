@@ -38,8 +38,12 @@ describe('the CS2023 tree', () => {
   })
 
   it('siblings CS2023 gives the same title stay separate places', () => {
-    expect(built.byId.get('AI-ML.T12')?.title).toBe(built.byId.get('AI-ML.T22')?.title)
-    expect(built.byId.get('AL-Strategies.T1')?.title).toBe(built.byId.get('AL-Strategies.T4')?.title)
+    for (const [a, b] of [['AI-ML.T12', 'AI-ML.T22'], ['AL-Strategies.T1', 'AL-Strategies.T4']]) {
+      const na = built.byId.get(a), nb = built.byId.get(b)
+      expect(na && nb, `${a} and ${b} are both places`).toBeTruthy()
+      expect(na?.title).toBe(nb?.title)
+      expect(na?.parentId).toBe(nb?.parentId)
+    }
   })
 
   it('every domain stores the ring hue the ring would hand it in area order', () => {
