@@ -152,6 +152,8 @@ const runEngine = async (engine) => {
     await page.getByLabel('studio-preset-present').click()
     await page.waitForTimeout(700)
     await page.locator('[data-toolbar-hook="present"]').click()
+    await page.locator('[role="dialog"][aria-label="Start presenting"]').waitFor()
+    await page.keyboard.press('Enter')
     await page.waitForTimeout(900)
     const field = page.locator('[data-lecture-notes="live"]').getByLabel('a note for this slide…')
     for (let i = 1; i <= 14; i++) {

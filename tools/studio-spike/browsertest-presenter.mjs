@@ -77,7 +77,11 @@ try {
   // ── ▶ turns the preview into the lecture, and projects ──────────────────────
   const [projector] = await Promise.all([
     context.waitForEvent('page', { timeout: 8000 }).catch(() => null),
-    playBtn().click(),
+    (async () => {
+      await playBtn().click()
+      await page.locator('[role="dialog"][aria-label="Start presenting"]').waitFor()
+      await page.keyboard.press('Enter')
+    })(),
   ])
   // THE PRESENTER'S WINDOW COMES BACK TO THE FRONT. Opening the projector focuses it, and a
   // background window gets no animation frames from Chromium — the walk's own clock runs on
@@ -637,7 +641,11 @@ try {
   const presentTo4AndLeave = async () => {
     await Promise.all([
       context.waitForEvent('page', { timeout: 4000 }).catch(() => null),
-      playBtn().click(),
+      (async () => {
+        await playBtn().click()
+        await page.locator('[role="dialog"][aria-label="Start presenting"]').waitFor()
+        await page.keyboard.press('Enter')
+      })(),
     ])
     await page.bringToFront()
     await page.waitForTimeout(700)

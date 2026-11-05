@@ -84,6 +84,8 @@ try {
   await page.getByLabel('studio-preset-present').click()
   await page.waitForTimeout(700)
   await page.locator('[data-toolbar-hook="present"]').click()
+  await page.locator('[role="dialog"][aria-label="Start presenting"]').waitFor()
+  await page.keyboard.press('Enter')
   await page.waitForTimeout(900)
   await page.bringToFront()
   ok('the panes row carries the notes pane and the quick actions deck, side by side',
@@ -382,6 +384,8 @@ try {
 
   // ── the recap ───────────────────────────────────────────────────────────────
   await page.locator('[data-toolbar-hook="present"]').click()
+  await page.locator('[role="dialog"][aria-label="Start presenting"]').waitFor()
+  await page.keyboard.press('Enter')
   await page.waitForTimeout(900)
   await page.bringToFront()
   await write('one more, on the live lecture')
@@ -504,6 +508,8 @@ try {
   await page.waitForTimeout(300)
 
   await page.locator('[data-toolbar-hook="present"]').click()
+  await page.locator('[role="dialog"][aria-label="Start presenting"]').waitFor()
+  await page.keyboard.press('Enter')
   await page.waitForTimeout(900)
   await page.bringToFront()
   const liveShort = await paneGeometry()
