@@ -10,7 +10,7 @@
 import type { CorpusSpec, GNode } from './graphshape'
 
 /** the tree: CS2023 areas, then knowledge units as the edge-bearing level — a UNIT is
- *  this corpus's "topic" — then the CS2023 topics and subtopics some course stops at,
+ *  this corpus's "topic" — then the CS2023 topics and subtopics some course stops at, and those above them,
  *  under their CS2023 ids */
 const nodes: GNode[] = [
   {

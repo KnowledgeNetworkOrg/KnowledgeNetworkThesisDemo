@@ -26,6 +26,9 @@ replaces this one, with this table updated, and the generator is run again.
 - **CS2023's own:** the areas, the knowledge units and the topics and subtopics below them,
   with their ids, labels (verbatim), tiers and pages; and the 520 *see also* edges, each one
   of CS2023's printed "(See also: …)" notes, drawn unit to unit in the printed direction.
+  Of those, 9 rest on a printed target that matches its unit only inexactly (the edge's
+  `match` field says so), and one printed target (MSF-Protection) matches no unit and is not
+  drawn; the file's `meta.rules` records both.
   *Computer Science Curricula 2023*, ACM/IEEE-CS/AAAI.
 - **AI-made, under the author's review:** everything above *as it reaches this file*. The
   tree was transcribed from CS2023 by an AI agent (opencode / DeepSeek; the thesis's
@@ -44,7 +47,7 @@ replaces this one, with this table updated, and the generator is run again.
   - below a unit, only the places some course stops at and the places above them (D3; the
     file already holds only these);
   - colours: areas take the ring's hues in area order; the 17th area (SPD) wraps onto the
-    1st's (AI) hue, the ring's own rule (`topicHue`). The 16th (SEP) gets `mallow`, which is
+    1st's (AI) hue, the ring's own rule (`topicHue`). The 16th (SF) gets `mallow`, which is
     also the colour of a *see also* edge, this corpus's only edge type;
   - **Science is left out for now.** It holds no unit, only course stops, and the map cannot
     draw a domain with no topic. It joins with the routes, in the card that decides how it

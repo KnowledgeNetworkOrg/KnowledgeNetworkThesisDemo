@@ -31,7 +31,7 @@ describe('the CS2023 tree', () => {
     for (const id of built.topicIds) expect(built.depthOf(id), id).toBe(3)
   })
 
-  it('below the units, the 305 CS2023 places some course stops at, under CS2023 ids', () => {
+  it('below the units, the 305 CS2023 places some course stops at and the places above them, under CS2023 ids', () => {
     const deep = built.nodes.filter((n) => built.depthOf(n.id) > 3)
     expect(deep.length).toBe(305)
     for (const n of deep) expect(n.id, n.id).toMatch(/^[A-Z]+-[A-Za-z-]+\.T\d+/)

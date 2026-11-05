@@ -42,9 +42,9 @@ const hueOf = (n) => HUE_RING[TOPIC_WALK[n % 16]]
 
 // ── Tree ─────────────────────────────────────────────────────────────────────
 // area → domain, unit → topic (default D1), and below a unit only the CS2023
-// places some course stops at (default D3, already applied in the JSON). Deep nodes
-// keep CS2023's own ids: the title-slug rule of `spec.deep` would collide on real
-// data ("Deep learning" twice under AI-ML, "Paradigms" twice under AL-Strategies).
+// places some course stops at and the places above them (default D3, already
+// applied in the JSON). Deep nodes keep CS2023's own ids: the title-slug rule of
+// `spec.deep` would collide on real data ("Deep learning" twice under AI-ML, "Paradigms" twice under AL-Strategies).
 const tree = data.tree
 const byId = new Map(tree.map((t) => [t.id, t]))
 for (const t of tree) {
@@ -98,7 +98,7 @@ const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 const doc = {}
 doc[ROOT] =
   `The knowledge areas and knowledge units of Computer Science Curricula 2023 (ACM/IEEE-CS/AAAI), the published ` +
-  `curriculum standard: ${areas.length} areas and ${units.length} units; the ` +
+  `curricular guidelines: ${areas.length} areas and ${units.length} units; the ` +
   `${edges.length} links are CS2023's own printed "See also" notes, drawn unit to unit. Below a unit, only the ` +
   `places some Toronto Metropolitan University course stops at, and the places above them, are shown. ${DRAFT}`
 
@@ -146,7 +146,7 @@ writeFileSync(
 import type { CorpusSpec, GNode } from './graphshape'
 
 /** the tree: CS2023 areas, then knowledge units as the edge-bearing level — a UNIT is
- *  this corpus's "topic" — then the CS2023 topics and subtopics some course stops at,
+ *  this corpus's "topic" — then the CS2023 topics and subtopics some course stops at, and those above them,
  *  under their CS2023 ids */
 const nodes: GNode[] = ${lit(nodes)}
 
