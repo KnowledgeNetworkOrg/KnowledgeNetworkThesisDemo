@@ -740,7 +740,7 @@ export default function StudioView() {
   // screen must keep one position in the tree across live ↔ framed, or ending a
   // lecture would remount it and lose the record. The screen draws its own frame.
   const presenterScreen = presenter ? (
-    <PresenterScreen key={presenter.startKey} bus={bus} walkId={presenter.walkId} startStop={presenter.startStop} sessionId={presenter.sessionId} lectureId={presenter.lectureId} keys={!startOpen} projecting={presenter.projecting} resumeToken={presenter.resumeToken} onEnded={onLectureEnded} framed={!presenting} onLeave={leavePresenter} />
+    <PresenterScreen key={presenter.startKey} bus={bus} walkId={presenter.walkId} startStop={presenter.startStop} sessionId={presenter.sessionId} lectureId={presenter.lectureId} walks={walkList} keys={!startOpen} projecting={presenter.projecting} resumeToken={presenter.resumeToken} onEnded={onLectureEnded} framed={!presenting} onLeave={leavePresenter} />
   ) : null
   const openWalk = bus.activeWalk && walkById(bus.activeWalk.walkId)
 

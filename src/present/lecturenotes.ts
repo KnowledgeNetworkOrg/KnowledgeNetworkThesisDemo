@@ -387,6 +387,13 @@ export function resolveFlag(book: LectureNotebook, id: string, at: number): Lect
   return hit ? { ...book, notes } : book
 }
 
+/** the entries one lecture wrote. Resolved ones stay: the panes hide them and the
+ *  review still needs them. The same book comes back when nothing is filtered out */
+export function lectureFlags(book: LectureNotebook, lectureId: string): LectureNotebook {
+  const notes = book.notes.filter((n) => n.lectureId === lectureId)
+  return notes.length === book.notes.length ? book : { ...book, notes }
+}
+
 /** "flagged" is derived, never stored: the stops with an unresolved flag */
 export function flaggedStops(book: LectureNotebook): Set<string> {
   const out = new Set<string>()

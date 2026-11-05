@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  addFlag, applyDeck, createSession, deleteSession, flaggedStops, loadHabits, loadMintedCategories,
+  addFlag, applyDeck, createSession, deleteSession, flaggedStops, lectureFlags, loadHabits, loadMintedCategories,
   loadNotebook, loadPrepared, loadSessions, notebookKey, renameSession, resolveFlag, saveHabits,
   saveMintedCategories, saveNotebook, saveSessions, serialiseDeck, sessionsKey, setFlagCategory,
   setFlagText, setPrepared, setSessionMeets, writeSessionLast,
@@ -87,6 +87,20 @@ describe('flags on the notebook', () => {
     expect(plain.notes[0].category).toBeUndefined()
     expect(Object.prototype.hasOwnProperty.call(plain.notes[0], 'category')).toBe(false)
     expect(setFlagCategory(typed, 'a', 'fix')).toBe(typed)
+  })
+
+  it('keeps only the given lecture\'s entries, resolved ones included, and the same book when none are dropped', () => {
+    const before = book({ notes: [
+      flag('a', 'first', { lectureId: 'L1' }),
+      flag('b', 'second', { lectureId: 'L1', resolvedAt: 3 }),
+      flag('c', 'other', { lectureId: 'L2' }),
+    ] })
+    const mine = lectureFlags(before, 'L1')
+    expect(mine.notes.map((n) => n.id)).toEqual(['a', 'b'])
+    expect(mine.notes[1].resolvedAt).toBe(3)
+    expect(before.notes).toHaveLength(3)
+    const all = book({ notes: [flag('a', 'first'), flag('b', 'second')] })
+    expect(lectureFlags(all, 'L1')).toBe(all)
   })
 
   it('resolves by stamping and keeping the entry, and lists only unresolved stop ids', () => {
