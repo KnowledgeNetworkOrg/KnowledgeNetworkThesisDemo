@@ -45,6 +45,8 @@ import type { NoteCategory, PresenterState, QuickAction, StartSession } from '@/
 
 import MapView from '../instruments/MapView'
 import type { MapViewBus } from '../instruments/MapView'
+import { routeLeafIds } from '../model/route'
+import type { RouteStep } from '../model/route'
 import { useKeptWallFrame } from './wallframe'
 import { useWalkPlayback } from '../state/walk/playback'
 import type { PlaybackBus } from '../state/walk/playback'
@@ -119,9 +121,19 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
   const steps = useMemo(() => lectureSteps(play.steps, play.title), [play.steps, play.title])
   /* THE WALL DRAWS THE LECTURE'S WALK (OB-304): the bus view passes the desk's route through, which
      is the desk's walk when the card picked another one. The lecture's own steps replace it only
-     then, so presenting the desk's walk keeps today's route untouched. */
+     then, so presenting the desk's walk keeps today's route untouched. Its route is memoised on the
+     stops' ids and flags: `useWallFit` re-fits whenever `route`'s identity moves, and this screen
+     renders every second. */
   const lectureOwnRoute = (walkId ?? null) !== (deskBus.activeWalk?.walkId ?? null)
-  const mapBus = lectureOwnRoute ? presenterBus(deskBus, walkId, play.steps) : bus
+  const ownIds = play.steps.map((s) => s.id).join('\n')
+  const ownOptionals = play.steps.map((s) => (s.optional ? 1 : 0)).join('')
+  const ownRouteSteps = useMemo<RouteStep[] | null>(() => {
+    if (!lectureOwnRoute) return null
+    const ids = ownIds ? ownIds.split('\n') : []
+    return ids.map((node, i) => (ownOptionals[i] === '1' ? { node, optional: true } : { node }))
+  }, [lectureOwnRoute, ownIds, ownOptionals])
+  const ownRoute = useMemo(() => (ownRouteSteps ? routeLeafIds(ownRouteSteps) : null), [ownRouteSteps])
+  const mapBus = ownRoute && ownRouteSteps ? { ...bus, route: ownRoute, routeSteps: ownRouteSteps } : bus
   const N = steps.length
   /* the store — `startStop` is where the host opened the lecture */
   const [activeStop, setActiveStop] = useState(() => clampStop(startStop ?? 0, play.steps.length))

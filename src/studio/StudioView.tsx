@@ -372,10 +372,11 @@ export default function StudioView() {
     if (presenter === null) stopPlayback()
     platform.openWindow('?' + PROJECTOR_QUERY, PROJECTOR_WINDOW)
     setStartOpen(false)
+    const lectureId = mintNoteId(Date.now())
     setPresenter((p) => ({
       projecting: true, ended: false, resumeToken: 0,
       returnTo: p ? p.returnTo : presetId,
-      walkId, startStop: stop, sessionId, lectureId: mintNoteId(Date.now()),
+      walkId, startStop: stop, sessionId, lectureId,
       startKey: p ? p.startKey + 1 : 1,
     }))
   }
