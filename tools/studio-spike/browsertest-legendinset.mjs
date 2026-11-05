@@ -125,6 +125,23 @@ for (const preset of ['present', 'explore', 'plan']) {
   await openPalette()
   await page.getByLabel(`studio-preset-${preset}`).click()
   await page.waitForTimeout(500)
+  if (preset === 'explore') {
+    // with nothing chosen the Document pane centres its placeholder, so a topic is needed to
+    // measure the body's real first line
+    if (!(await page.evaluate(() => !!document.querySelector('[data-explorer-rail] [data-node-id]')))) {
+      await page.locator('[data-explorer-corner] button').click()
+      await page.waitForTimeout(450)
+    }
+    const chosen = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('[data-explorer-rail] [data-node-id]')]
+      const r = rows.find((el) => el.getAttribute('data-node-id') !== 'root')
+      return r ? r.getAttribute('data-node-id') : null
+    })
+    if (chosen) {
+      await page.locator(`[data-explorer-rail] [data-node-id="${chosen}"]`).first().click()
+      await page.waitForTimeout(800)
+    }
+  }
   await collect(preset)
 }
 for (const inst of Object.values(PADDED)) {
