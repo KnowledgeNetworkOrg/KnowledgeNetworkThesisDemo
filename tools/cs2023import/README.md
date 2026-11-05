@@ -27,7 +27,8 @@ replaces this one, with this table updated, and the generator is run again.
   with their ids, labels (verbatim), tiers and pages; and the 520 *see also* edges, each one
   of CS2023's printed "(See also: …)" notes, drawn unit to unit in the printed direction.
   Of those, 9 rest on a printed target that matches its unit only inexactly (the edge's
-  `match` field says so, and the thesis's `cs2023_see_also.csv` gives the reason), and one
+  `match` field says so, and the thesis's
+  `data/derived/cs2023/cs2023_see_also.csv` gives the reason), and one
   printed target (MSF-Protection) matches no unit and is not drawn (`meta.rules` says so).
   *Computer Science Curricula 2023*, ACM/IEEE-CS/AAAI.
 - **AI-made, under the author's review:** everything above *as it reaches this file*. The
