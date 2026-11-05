@@ -16,7 +16,9 @@
 //   · dragging a shelf action onto a slot swaps them, and the arrangement survives a reload;
 //   · ending the lecture replaces the row with the recap: the three counts, the same notes grouped
 //     under the stops they were written about (since flags v4 there is no separate flagged
-//     list), and a way out.
+//     list), and a way out;
+//   · a short window keeps the notes pane at its 340px floor, with the presenter column scrolling
+//     to reach it, and the quick actions shelf stays unclipped by that column (OB-305).
 //
 // Spawns vite ITSELF — backgrounded dev servers die on this machine.
 // Run from anywhere:  node tools/studio-spike/browsertest-presenter-panes.mjs
@@ -426,7 +428,7 @@ try {
     const composer = notesEl.querySelector('[data-note-composer]')
     const cb = composer ? composer.getBoundingClientRect() : null
     const during = document.querySelector('[data-notes-during]')
-    const scroller = during && (during.querySelector('[data-pane-body="scroller"]') || during)
+    const scroller = during && during.querySelector('[data-pane-body="scroller"]')
     return {
       paneH: n.height, paneTop: n.top, paneBottom: n.bottom,
       colTop: c.top, colBottom: c.bottom,
@@ -519,9 +521,11 @@ try {
   ok('scrolled to the end, the live pane\'s bottom is inside the column',
     !!liveEnd && liveEnd.paneBottom <= liveEnd.colBottom + 1 && liveEnd.paneTop >= liveEnd.colTop - 1,
     liveEnd ? `pane ${Math.round(liveEnd.paneTop)}–${Math.round(liveEnd.paneBottom)} in column ${Math.round(liveEnd.colTop)}–${Math.round(liveEnd.colBottom)}` : 'no column')
-  ok('the six flags still scroll inside the During column',
-    !!liveEnd && liveEnd.flagsScrollH > liveEnd.flagsClientH,
-    liveEnd ? `${liveEnd.flagsScrollH} > ${liveEnd.flagsClientH}` : 'no During column')
+  for (const t of ['live first flag', 'live second flag', 'live third flag', 'live fourth flag', 'live fifth flag', 'live sixth flag']) await write(t)
+  const liveFlags = await paneGeometry()
+  ok('six flags typed live scroll inside the During column',
+    !!liveFlags && liveFlags.flagsScrollH > liveFlags.flagsClientH,
+    liveFlags ? `${liveFlags.flagsScrollH} > ${liveFlags.flagsClientH}` : 'no During column')
 
   ok('no page errors', errors.filter((e) => e.includes('pageerror')).length === 0)
 } catch (e) {
