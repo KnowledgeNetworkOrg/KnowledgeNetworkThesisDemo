@@ -112,8 +112,8 @@ for (const u of units) {
       ? `It prints ${plural(out[u.id] ?? 0, '"See also" link')} to other units, and ${plural(inn[u.id] ?? 0, 'unit')} print${(inn[u.id] ?? 0) === 1 ? 's' : ''} one to it.`
       : 'No "See also" note joins it to another unit.'
   doc[u.id] =
-    `${u.label} — a CS2023 knowledge unit. CS2023 lists ${plural(u.cs2023_topics_in_unit, 'topic')} in it; only those ` +
-    `some course stops at, and the places above them, are shown below it. ${links} ${where(u)} ${DRAFT_LINE}`
+    `${u.label} — a CS2023 knowledge unit. CS2023 lists ${plural(u.cs2023_topics_in_unit, 'topic')} in it; only the ` +
+    `places some course stops at, and the places above them, are shown below it. ${links} ${where(u)} ${DRAFT_LINE}`
 }
 for (const d of deepNodes) doc[d.id] = `${d.label} — a CS2023 ${d.level === 'subsubtopic' ? 'sub-subtopic' : d.level}. ${where(d)} ${DRAFT_LINE}`
 
