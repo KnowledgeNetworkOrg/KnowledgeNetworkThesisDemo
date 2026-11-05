@@ -696,11 +696,6 @@ try {
   ok('#484: the plan road offers stops to focus', (await roadChips.count()) >= 2, `${await roadChips.count()} stops`)
   await roadChips.nth(1).click()
   await page.waitForTimeout(400)
-  /* the benched WalkViewer republishes the draft road when the desk comes back;
-     toggling the optionals leaves its last stop at the trail's tip, so that
-     republish is the same entry rather than a new one */
-  await page.locator('[aria-label="studio-pane-walkeditor"]').getByRole('button', { name: /optionals:/ }).click()
-  await page.waitForTimeout(500)
   await territoryLevel()
   const beforeDraft = await deskNow()
   ok('#484: the draft desk has a focus, pins and a trail to compare', !!beforeDraft.focus && beforeDraft.pins.length > 0 && beforeDraft.trail !== null, JSON.stringify(beforeDraft))
