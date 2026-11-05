@@ -15,7 +15,7 @@ import { CORPUS_NAME, DEEP_DOC, nodes } from './graph'
 import { TEACHING_DOC } from './teachingdocs'
 
 export const DOC_BODY: Record<string, string> = {
-  ...{ teaching: TEACHING_DOC, courses: COURSE_DOC, cs2023: CS2023_DOC }[CORPUS_NAME],
+  ...(CORPUS_NAME === 'courses' ? COURSE_DOC : CORPUS_NAME === 'cs2023' ? CS2023_DOC : TEACHING_DOC),
   // the deep layers' one-line blurbs, authored alongside their structure
   ...DEEP_DOC,
 }

@@ -1,8 +1,9 @@
 // THE CS2023 CORPUS, CHECKED WHETHER OR NOT IT IS THE ONE LOADED.
 //
-// Like `coursecorpus.test.ts`: `cs2023data.ts` is generated, nothing imports it on
-// a default build, so this file imports it DIRECTLY — not through `graph.ts` — and
-// `npm run verify` builds and checks it every time, on the default corpus.
+// Like `coursecorpus.test.ts`: `cs2023data.ts` is generated, and `graph.ts` only
+// builds it when `VITE_CORPUS=cs2023`, so this file imports it DIRECTLY — not
+// through `graph.ts` — and `npm run verify` builds and checks it every time, on the
+// default corpus.
 //
 // What it asserts is what the thesis's map file promises: the CS2023 hierarchy with
 // knowledge units as the edge-bearing level, and no edge but CS2023's own printed

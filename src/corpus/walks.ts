@@ -20,7 +20,8 @@ export interface Walk {
   stops: { id: string; note: string }[] // ids are leaf ids
 }
 
-export const WALKS: Walk[] = { teaching: TEACHING_WALKS, courses: COURSE_WALKS, cs2023: CS2023_WALKS }[CORPUS_NAME]
+export const WALKS: Walk[] =
+  CORPUS_NAME === 'courses' ? COURSE_WALKS : CORPUS_NAME === 'cs2023' ? CS2023_WALKS : TEACHING_WALKS
 
 // Module-load guard: every stop id must be a real topic in the chosen corpus.
 for (const w of WALKS) {
