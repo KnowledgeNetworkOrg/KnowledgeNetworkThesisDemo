@@ -411,8 +411,9 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, proje
         confirmOpen={confirmOpen} onEndClick={projecting ? () => setConfirmOpen(true) : undefined} onCancelEnd={() => setConfirmOpen(false)}
         onConfirmEnd={() => { setConfirmOpen(false); setEndedAt(Date.now()); setEnded(true); setRoamingStop(null); setMapUp(false) }} />
       {/* THE COLUMN: roll, strip, panes. The strip is `flex: none` (it sets that itself); the pane
-          below is `flex: 1; min-height: 0`; the roll is `flex: none` at its own height. */}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', padding: 'var(--space-3)' }}>
+          below keeps `LECTURE_NOTES_FIT.minHeight` and this column scrolls below it; the roll is
+          `flex: none` at its own height. */}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', padding: 'var(--space-3)', overflowY: 'auto', overflowX: 'hidden', scrollbarGutter: 'stable' }}>
         {ended ? (
           /* PART 8 — the recap takes the whole region the roll, the strip and the panes had. The
              notes come back as the SAME notebook in `review` shape (one column, grouped under the
@@ -455,7 +456,7 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, proje
             {/* THE PANES ROW — the notes pane takes what is left, the deck keeps the width the
                 divider was dragged to (the recap's flagged column keeps the same width at rest,
                 so ending moves nothing sideways) */}
-            <div ref={panesRef} data-presenter-panes style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+            <div ref={panesRef} data-presenter-panes style={{ flex: '1 1 0', minHeight: LECTURE_NOTES_FIT.minHeight, display: 'flex' }}>
               <LectureNotes
                 stop={shown} stopNumber={shown + 1} stopTitle={steps[shown].title} roaming={roaming}
                 /* THE LECTERN'S CORRECTION WINS OVER THE AUTHORED NOTE, and it is an OVERLAY: there
