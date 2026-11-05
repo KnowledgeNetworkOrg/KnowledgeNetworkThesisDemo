@@ -611,6 +611,102 @@ try {
   await page.getByLabel('studio-preset-explore').click()
   await page.waitForTimeout(600)
   ok('picking a composition preset leaves the presenter', (await page.locator('[data-presenter-header]').count()) === 0 && (await page.locator('[aria-label="studio-pane-map"]').count()) === 1)
+
+  // ── #484: presenting never changes the desk ─────────────────────────────────
+  // The presenter keeps its own walk, shown stop and focus. Read the desk's focus,
+  // its pin RUNS (not visIds — the return peek can change the level) and its trail
+  // count before ▶, present through to stop 4, end and leave, then read them again.
+  const focusNow = () => page.locator('[data-focus]').getAttribute('data-focus')
+  const pinsNow = () => page.$$eval('svg[data-nested] [data-routestop]', (els) =>
+    els.map((el) => `${el.getAttribute('data-step')}-${el.getAttribute('data-step-end')}`).sort())
+  const trailNow = async () => {
+    const text = (await page.locator('[aria-label="trail-strip"]').innerText()).replace(/\s+/g, ' ')
+    const m = /Trail — (\d+) visited/.exec(text)
+    return m ? Number(m[1]) : null
+  }
+  const deskNow = async () => ({ focus: await focusNow(), pins: await pinsNow(), trail: await trailNow() })
+  /** the return peek flies to a topic's territory (level 2); start there so the
+   *  same stop cannot split or merge its pin run between the two reads */
+  const territoryLevel = async () => {
+    const level = () => page.evaluate(() => Number(document.querySelector('svg[data-nested]')?.getAttribute('data-level')))
+    for (let i = 0; i < 4 && (await level()) < 2; i++) {
+      await page.getByLabel('zoom in').click()
+      await page.waitForTimeout(400)
+    }
+  }
+  const presentTo4AndLeave = async () => {
+    await Promise.all([
+      context.waitForEvent('page', { timeout: 4000 }).catch(() => null),
+      playBtn().click(),
+    ])
+    await page.bringToFront()
+    await page.waitForTimeout(700)
+    for (let i = 0; i < 8 && (await chipText()) !== 'Presenting stop 4'; i++) {
+      await page.keyboard.press('ArrowRight')
+      await page.waitForTimeout(400)
+    }
+    ok('#484: the lecture reaches stop 4', (await chipText()) === 'Presenting stop 4', await chipText())
+    await page.locator('[aria-label="end lecture"]').click()
+    await page.waitForTimeout(200)
+    await page.getByRole('button', { name: 'end lecture' }).last().click()
+    await page.waitForTimeout(700)
+    await page.locator('[data-lecture-recap]').getByRole('button', { name: 'close the presenter' }).click()
+    await page.waitForTimeout(900)
+  }
+  const compareDesk = (before, after) => {
+    ok('#484: the desk still focuses the node it had before ▶', !!before.focus && after.focus === before.focus, `${before.focus} -> ${after.focus}`)
+    ok('#484: and draws the same pins', JSON.stringify(after.pins) === JSON.stringify(before.pins), `${before.pins.join(',')} -> ${after.pins.join(',')}`)
+    ok('#484: and its trail has not grown', before.trail !== null && after.trail === before.trail, `${before.trail} -> ${after.trail}`)
+  }
+
+  // a saved walk, advanced on the map's dock to a stop that is not its first
+  await page.evaluate(() => localStorage.clear())
+  await page.reload()
+  await page.waitForTimeout(800)
+  await page.getByLabel('studio-preset-explore').click()
+  await page.waitForTimeout(500)
+  await openPalette()
+  await page.getByLabel('studio-inst-trail', { exact: true }).click()
+  await page.waitForTimeout(500)
+  const trailStrip = page.locator('[aria-label="trail-strip"]')
+  const playWalk = () => trailStrip.getByRole('button').filter({ hasText: '▶' })
+  await playWalk().nth(0).click()
+  await page.waitForTimeout(700)
+  const walkStops = Number((await trailStrip.innerText()).match(/stop \d+ of (\d+)/)?.[1] ?? 0)
+  ok('#484: the walk under test has at least five stops', walkStops >= 5, `${walkStops} stops`)
+  await page.locator('[data-walk-dock]').focus()
+  await page.keyboard.press('ArrowRight')
+  await page.waitForTimeout(500)
+  await territoryLevel()
+  const beforeWalk = await deskNow()
+  ok('#484: the saved-walk desk has a focus, pins and a trail to compare', !!beforeWalk.focus && beforeWalk.pins.length > 0 && beforeWalk.trail !== null, JSON.stringify(beforeWalk))
+  await presentTo4AndLeave()
+  compareDesk(beforeWalk, await deskNow())
+
+  // no active walk: Plan's own draft road, focused from its editor
+  await page.evaluate(() => localStorage.clear())
+  await page.reload()
+  await page.waitForTimeout(800)
+  await page.getByLabel('studio-preset-plan').click()
+  await page.waitForTimeout(700)
+  await openPalette()
+  await page.getByLabel('studio-inst-trail', { exact: true }).click()
+  await page.waitForTimeout(500)
+  const roadChips = page.locator('[data-road-root] [data-rnode][data-node]')
+  ok('#484: the plan road offers stops to focus', (await roadChips.count()) >= 2, `${await roadChips.count()} stops`)
+  await roadChips.nth(1).click()
+  await page.waitForTimeout(400)
+  /* the benched WalkViewer republishes the draft road when the desk comes back;
+     toggling the optionals leaves its last stop at the trail's tip, so that
+     republish is the same entry rather than a new one */
+  await page.locator('[aria-label="studio-pane-walkeditor"]').getByRole('button', { name: /optionals:/ }).click()
+  await page.waitForTimeout(500)
+  await territoryLevel()
+  const beforeDraft = await deskNow()
+  ok('#484: the draft desk has a focus, pins and a trail to compare', !!beforeDraft.focus && beforeDraft.pins.length > 0 && beforeDraft.trail !== null, JSON.stringify(beforeDraft))
+  await presentTo4AndLeave()
+  compareDesk(beforeDraft, await deskNow())
+
   ok('no page errors', errors.filter((e) => e.includes('pageerror')).length === 0)
 } catch (e) {
   errors.push('exception: ' + (e && e.stack || e))

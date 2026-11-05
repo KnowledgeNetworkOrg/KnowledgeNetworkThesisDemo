@@ -218,6 +218,12 @@ function setPlaying(next: boolean) {
   notify()
 }
 
+/** stop the shared clock from outside a mount — a desk walk still playing must
+ *  not drive the presenter's own walk through the view's no-op writers. */
+export function stopPlayback(): void {
+  setPlaying(false)
+}
+
 /** put the clock ON a stop, phase 0 — every seek does this, so a seek while
  *  playing continues from the stop it landed on rather than from where the
  *  clock was. */

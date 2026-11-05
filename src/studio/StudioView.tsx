@@ -26,9 +26,12 @@ import type { EdgeKind, LoadChoice, LoadMap } from '@/ds'
 
 import { byId, ROOT_ID, topicHueOf } from '../corpus/graph'
 import { forgetDraftUnsaved, saveDraftAsWalk, useDraftUnsaved } from '../state/walk/authordraft'
-import { listWalks, subscribeWalks } from '../state/walkstore'
+import { listWalks, subscribeWalks, walkById } from '../state/walkstore'
+import { usePresentedRoad } from '../state/walk/presented'
+import { playSteps, stopPlayback } from '../state/walk/playback'
 import { platform } from '../platform'
 import PresenterScreen from '../present/PresenterScreen'
+import { lectureStart } from '../present/lecture'
 import { PROJECTOR_QUERY, PROJECTOR_WINDOW } from '../present/projector'
 import { AppToolbar } from './AppToolbar'
 import { applyLoadChoice } from './loadpick'
@@ -310,7 +313,7 @@ export default function StudioView() {
   // home. `returnTo` is the composition to come back to; active/mounted/flexMap
   // stay untouched underneath, so leaving restores exactly the desk that was there.
   // Declared above ensureActive, which reads it.
-  const [presenter, setPresenter] = useState<{ projecting: boolean; ended: boolean; resumeToken: number; returnTo: Preset['id'] | null } | null>(null)
+  const [presenter, setPresenter] = useState<{ projecting: boolean; ended: boolean; resumeToken: number; returnTo: Preset['id'] | null; walkId: string | null; startStop: number } | null>(null)
   const presenting = presenter !== null && presenter.projecting && !presenter.ended
   const presentState: PresentState = presenter === null ? 'idle' : !presenter.projecting ? 'preview' : presenter.ended ? 'ended' : 'live'
   /* THE ▶ (DS OB-135 rules 1–3): the only start. Idle → the lecture starts at the focus;
@@ -320,16 +323,20 @@ export default function StudioView() {
   const pressPresent = () => {
     if (presentState === 'live') return
     platform.openWindow('?' + PROJECTOR_QUERY, PROJECTOR_WINDOW)
-    setPresenter((p) => (p === null
-      ? { projecting: true, ended: false, resumeToken: 0, returnTo: presetId }
-      : p.ended ? { ...p, resumeToken: p.resumeToken + 1 } : { ...p, projecting: true }))
+    if (presenter === null) stopPlayback()
+    const next = presenter === null
+      ? { ...presenterSnapshot(), projecting: true, ended: false, resumeToken: 0, returnTo: presetId }
+      : presenter.ended ? { ...presenter, resumeToken: presenter.resumeToken + 1 } : { ...presenter, projecting: true }
+    setPresenter(next)
   }
   /* the palette's Present (rule 5): not a toggle. Idle → the preview; previewing → nothing;
      ended → back to the preview (the ended pane goes, nothing projected). */
   const pressPreview = () => {
-    setPresenter((p) => (p === null
-      ? { projecting: false, ended: false, resumeToken: 0, returnTo: presetId }
-      : p.ended ? { ...p, projecting: false, ended: false } : p))
+    if (presenter === null) stopPlayback()
+    const next = presenter === null
+      ? { ...presenterSnapshot(), projecting: false, ended: false, resumeToken: 0, returnTo: presetId }
+      : presenter.ended ? { ...presenter, projecting: false, ended: false } : presenter
+    setPresenter(next)
   }
   const leavePresenter = () => setPresenter(null)
   const onLectureEnded = (ended: boolean) => setPresenter((p) => (p === null || p.ended === ended ? p : { ...p, ended }))
@@ -390,6 +397,13 @@ export default function StudioView() {
 
   // ── the bus ───────────────────────────────────────────────────────────────
   const bus = useStudioBus<InstrumentId>(ensureActive)
+  /* THE LECTURE'S OPENING SNAPSHOT — captured when the presenter opens and kept in
+     `presenter`, so the walk and its starting stop cannot change while it is up. */
+  const presentedRoad = usePresentedRoad()
+  const presenterSnapshot = () => {
+    const saved = bus.activeWalk ? (walkById(bus.activeWalk.walkId) ?? null) : null
+    return { walkId: bus.activeWalk?.walkId ?? null, startStop: lectureStart(playSteps(saved, presentedRoad), bus.focus) }
+  }
 
   // ── the toolbar's Load ────────────────────────────────────────────────────
   // The app has one corpus map; its walks are the registry's, including any the
@@ -428,6 +442,9 @@ export default function StudioView() {
   // look at the current focus, which flies the map to that node's territory in
   // exactly the way ENTERING already does. The same place, not the same pixels —
   // #195's own rule, applied to the half of the round trip that never had it.
+  //
+  // The presenter never writes the desk's focus (#484), so this is still the node
+  // that was focused when ▶ was pressed — nothing happens if nothing was focused.
   //
   // Watching `presenter` rather than patching each exit means every way out is
   // covered: the presenter pane's ✕, and picking a different preset (which also
@@ -675,7 +692,7 @@ export default function StudioView() {
   // screen must keep one position in the tree across live ↔ framed, or ending a
   // lecture would remount it and lose the record. The screen draws its own frame.
   const presenterScreen = presenter ? (
-    <PresenterScreen bus={bus} projecting={presenter.projecting} resumeToken={presenter.resumeToken} onEnded={onLectureEnded} framed={!presenting} onLeave={leavePresenter} />
+    <PresenterScreen bus={bus} walkId={presenter.walkId} startStop={presenter.startStop} projecting={presenter.projecting} resumeToken={presenter.resumeToken} onEnded={onLectureEnded} framed={!presenting} onLeave={leavePresenter} />
   ) : null
 
   return (
