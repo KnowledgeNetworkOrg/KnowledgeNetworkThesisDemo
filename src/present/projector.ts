@@ -51,6 +51,8 @@ export interface ProjectedState {
   count: number
   /** THE MAP IS UP (OB-139): the wall shows the map with the walk on it instead of the slide */
   mapUp: boolean
+  /** THE ROOM IS BLANKED (#435): B puts the wall dark without moving the lecture */
+  blank: boolean
   /** the lecture's stops, as corpus ids — what the projector's own map draws the walk from */
   ids: string[]
   /** which of those stops the walk may skip, INDEXED LIKE `ids` — the projected map's pins dash
@@ -62,7 +64,12 @@ export interface ProjectedState {
   covered: number[]
 }
 
-export const NOTHING_PROJECTED: ProjectedState = { live: false, slide: null, stop: 0, count: 0, mapUp: false, ids: [], optional: [], covered: [] }
+export const NOTHING_PROJECTED: ProjectedState = { live: false, slide: null, stop: 0, count: 0, mapUp: false, blank: false, ids: [], optional: [], covered: [] }
+
+/** PowerPoint's B, and only B: a white fill would be a design decision nobody asked for. */
+export function blankKey(key: string, opts: { ended: boolean; modified: boolean }): boolean {
+  return !opts.ended && !opts.modified && (key === 'b' || key === 'B')
+}
 
 export type ProjectorMessage =
   | { kind: 'connect' }

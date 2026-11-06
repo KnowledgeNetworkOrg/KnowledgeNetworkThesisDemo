@@ -113,6 +113,33 @@ try {
     await projector.waitForTimeout(300)
     ok('and the projector follows', (await projector.locator('[data-slide-title]').innerText()).trim() === t2)
   }
+
+  // ── #435: B blanks the room; the presenter screen keeps showing everything ────
+  if (projector) {
+    const beforeBlank = await chipText()
+    await page.keyboard.press('b')
+    await page.waitForTimeout(400)
+    ok('#435: B blanks the projector', (await projector.locator('[data-projector="dark"]').count()) === 1 && (await projector.locator('[data-slide-title]').count()) === 0)
+    ok('#435: and the presenter screen still shows the same stop', (await chipText()) === beforeBlank && (await page.locator('[data-filmroll-card="live"] [data-slide-title]').count()) === 1, `${beforeBlank} → ${await chipText()}`)
+    // stepping while blanked keeps the room dark; B then shows the stop the presenter is on
+    await page.keyboard.press('ArrowRight')
+    await page.waitForTimeout(500)
+    const blankedNext = await liveTitle()
+    ok('#435: stepping while blanked keeps the projector dark', (await projector.locator('[data-projector="dark"]').count()) === 1)
+    // a projector opened or reloaded while blanked gets the blank state replayed
+    await projector.reload()
+    await projector.waitForSelector('[data-projector="dark"]', { timeout: 8000 }).catch(() => null)
+    // the placeholder going is the proof the blank STATE arrived, not merely that a fresh
+    // window is dark before the presenter answers: a blank wall draws no caption
+    await projector.getByText('nothing is projected').waitFor({ state: 'detached', timeout: 8000 }).catch(() => null)
+    ok('#435: a projector reloaded while blanked comes up dark', (await projector.locator('[data-projector="dark"]').count()) === 1 && (await projector.getByText('nothing is projected').count()) === 0)
+    await page.keyboard.press('b')
+    await page.waitForTimeout(400)
+    ok('#435: B again brings the current stop back on the projector', (await projector.locator('[data-projector="live"]').count()) === 1 && (await projector.locator('[data-slide-title]').innerText()).trim() === blankedNext, `expect "${blankedNext}"`)
+    // put the record back where the rest of the run expects it, unblanked
+    await page.keyboard.press('ArrowLeft')
+    await page.waitForTimeout(400)
+  }
   const activeAfterStep = (await chipText()).match(/\d+/)[0]
 
   // ── a tick on the strip only ROAMS ───────────────────────────────────────────
@@ -239,12 +266,19 @@ try {
     await projector.waitForTimeout(300)
     ok('the projector went dark', (await projector.locator('[data-projector="dark"]').count()) === 1)
   }
+  await page.keyboard.press('b')
+  await page.waitForTimeout(300)
+  ok('#435: B does nothing once the lecture has ended', /^Lecture ended/.test(await chipText()) && (!projector || (await projector.locator('[data-projector="dark"]').count()) === 1), await chipText())
 
   // ── ▶ resumes; the palette's Present after an end returns to the preview ─────
   await playBtn().click()
   await page.bringToFront()
   await page.waitForTimeout(700)
   ok('▶ resumes: the lecture is live again, chrome gone, chip "Presenting stop 3"', (await page.locator('[aria-label="studio-header"]').count()) === 0 && (await chipText()) === 'Presenting stop 3', await chipText())
+  if (projector) {
+    await projector.waitForTimeout(500)
+    ok('#435: and the resumed lecture is on the projector, not left blanked', (await projector.locator('[data-projector="live"]').count()) === 1)
+  }
 
   // ── OB-203: advancing the film roll plays a TRAVEL FRAME, so the direction is visible ────────────
   // The roll used to CUT: all three cards swapped contents between two frames and nothing on screen

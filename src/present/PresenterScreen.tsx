@@ -59,7 +59,7 @@ import {
   loadSessions, sessionsKey, serialiseDeck, setFlagCategory, setFlagText, setPrepared, writeSessionLast,
 } from './lecturenotes'
 import type { LectureHabits, LectureNotebook } from './lecturenotes'
-import { useProjectorSender } from './projector'
+import { blankKey, useProjectorSender } from './projector'
 import { presenterBus } from './presenterbus'
 import { WallTransition } from './WallTransition'
 import type { ProjectedState } from './projector'
@@ -151,6 +151,9 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
      Ending the lecture takes it down. It replaces the slide on every wall surface (the roll's
      live card, full screen, the projector) and on none of the others. */
   const [mapUp, setMapUp] = useState(false)
+  /* THE ROOM BLANKED (#435) — B only, and only B: stepping keeps it up, so the presenter can
+     move on unseen and show the new stop when B brings the wall back. */
+  const [blank, setBlank] = useState(false)
   /* the clocks: lecture elapsed (stops when ended), and time on the current stop. Four instants,
      all STATE: `now` ticks once a second from the effect below, and the moments the lecture
      started, the stop started and the lecture ended are written from effects and handlers — so
@@ -187,11 +190,13 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
       setEnded(false)
       setRoamingStop(null)
       setCovered(coveredBefore(activeRef.current))
+      setBlank(false)
     } else {
       setEndedAt(null)
       setEnded(false)
       setConfirmOpen(false)
       setRoamingStop(null)
+      setBlank(false)
     }
   }, [projecting])
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -245,6 +250,7 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
       else if (e.key === 'Backspace' && roaming) setRoamingStop(null)
       else if (e.key === 'e' || e.key === 'E') setStripOpen((o) => !o)
       else if ((e.key === 'm' || e.key === 'M') && !ended) setMapUp((v) => !v)
+      else if (blankKey(e.key, { ended, modified: e.shiftKey })) setBlank((v) => !v)
       else if (e.key === 'j' || e.key === 'J') toggleFinder()
       else if (e.key === 'Escape') { setExpanded(false); setFinder(null); setConfirmOpen(false) }
       else return
@@ -264,7 +270,7 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
     lastResume.current = resumeToken
     // the host bumped the token: the pause is added back once, on that one change
     /* eslint-disable react-hooks/set-state-in-effect */
-    if (ended && endedAt != null) { const paused = Date.now() - endedAt; setStartAt((s0) => s0 + paused); setEndedAt(null); setEnded(false) }
+    if (ended && endedAt != null) { const paused = Date.now() - endedAt; setStartAt((s0) => s0 + paused); setEndedAt(null); setEnded(false); setBlank(false) }
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [resumeToken, ended, endedAt])
   /* WHAT THE ROOM SEES: the live slide while projecting and not ended; dark otherwise */
@@ -274,11 +280,12 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
     stop: shown + 1,
     count: N,
     mapUp: mapUp && !ended,
+    blank: blank && !ended,
     ids: steps.map((st) => st.id),
     // the lecture's stops are `play.steps` one for one, so the flags line up with `ids` (OB-214)
     optional: play.steps.map((st) => st.optional === true),
     covered,
-  }), [projecting, ended, steps, play.steps, shown, N, mapUp, covered])
+  }), [projecting, ended, steps, play.steps, shown, N, mapUp, blank, covered])
   useProjectorSender(projected)
 
   /* ── WHAT THE LECTURE WRITES DOWN (parts 6-8) ────────────────────────────────────────────────
@@ -471,7 +478,7 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
       <PresenterHeaderBar course={courseName} state={state} activeStop={activeStop + 1} roamingStop={roaming ? roamingStop + 1 : undefined}
         elapsed={ended || !projecting ? undefined : mmss(elapsedS)} bookedLength={ended || !projecting ? undefined : mmss(BOOKED_SECONDS)} progressPct={Math.min(100, (elapsedS / BOOKED_SECONDS) * 100)} endedTotal={ended ? mmss(elapsedS) + ' total' : undefined}
         confirmOpen={confirmOpen} onEndClick={projecting ? () => setConfirmOpen(true) : undefined} onCancelEnd={() => setConfirmOpen(false)}
-        onConfirmEnd={() => { writeLastAt(activeStop); setConfirmOpen(false); setEndedAt(Date.now()); setEnded(true); setRoamingStop(null); setMapUp(false); setShownStop(0) }}
+        onConfirmEnd={() => { writeLastAt(activeStop); setConfirmOpen(false); setEndedAt(Date.now()); setEnded(true); setRoamingStop(null); setMapUp(false); setBlank(false); setShownStop(0) }}
         onClose={onLeave} />
       {/* THE COLUMN: roll, strip, panes. The strip is `flex: none` (it sets that itself); the pane
           below keeps `LECTURE_NOTES_FIT.minHeight` and this column scrolls below it; the roll is
