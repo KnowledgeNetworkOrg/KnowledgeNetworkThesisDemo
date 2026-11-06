@@ -7,7 +7,7 @@ import { byId, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, ROOT_ID } from '../../c
 import type { Bundle } from '../../model/atlas'
 import { colorOf } from '../../model/color'
 import type { XY } from '../../model/derive'
-import { descendantCount, parentOf } from '../../model/nav'
+import { descendantCount, kindLabel, parentOf } from '../../model/nav'
 
 export interface MapTooltipCardProps {
   /** the cursor's position in the pane — the mount's own `{pointerPos && tipLive && (…)}` gate narrows it */
@@ -41,7 +41,7 @@ export function MapTooltipCard({ pointerPos, hoverEdge, cardNode, hoverRelIn, ho
             kind="node"
             hue={colorOf(cardNode!)}
             title={byId.get(cardNode!)!.title}
-            typeLabel={byId.get(cardNode!)!.topic ? 'topic' : byId.get(cardNode!)!.kind}
+            typeLabel={kindLabel(cardNode!)}
             nodeCount={byId.get(cardNode!)!.kind === 'container' ? descendantCount(cardNode!) : undefined}
             relationsIn={hoverRelIn}
             relationsOut={hoverRelOut}

@@ -7,6 +7,10 @@ node tools/cs2023import/generate.mjs
 VITE_CORPUS=cs2023 npm run dev
 ```
 
+It writes three committed modules: `src/corpus/cs2023data.ts` (the tree and the
+edges), `src/corpus/cs2023docs.ts` (one document body per node) and
+`src/corpus/cs2023walks.ts` (the TMU courses as routes).
+
 ## The input, and where it came from
 
 `cs2023_map.json` is a **pinned, byte-identical copy** of
@@ -47,18 +51,52 @@ replaces this one, with this table updated, and the generator is run again.
     so none is added;
   - below a unit, only the places some course stops at and the places above them (D3; the
     file already holds only these);
-  - colours: areas take the ring's hues in area order; the 17th area (SPD) wraps onto the
-    1st's (AI) hue, the ring's own rule (`topicHue`). The 16th (SF) gets `mallow`, which is
-    also the colour of a *see also* edge, this corpus's only edge type;
-  - **Science is left out for now.** It holds no unit, only course stops, and the map cannot
-    draw a domain with no topic. It joins with the routes, in the card that decides how it
-    is drawn.
+  - colours: areas take the ring's hues in area order, Science included as the 18th area.
+    CS2023's 17th area (SPD) wraps onto the 1st's (AI) hue and Science, the 18th, onto the
+    2nd's (AL's, `fern`) — the ring's own rule (`topicHue`). The 16th (SF) gets `mallow`,
+    which is also the colour of a *see also* edge, this corpus's only edge type;
+  - **Science is drawn as the 18th area.** It is the author's exception group, outside
+    CS2023, and holds no unit: only course stops sit on it. The map draws a domain with no
+    topics as a hexagon at that domain's ring anchor, big enough to label and click, so
+    Science is selectable and a route can stop there. What it looks like is still the
+    author's to decide.
+
+## The routes
+
+`cs2023walks.ts` carries the 61 TMU courses as routes over the map: 60 with stops, one
+(`CPS 40A/B`) with none, 637 stops in all.
+
+- **A route per course.** `id` is the course code lower-cased with every run of
+  non-alphanumerics made one `-` (`cps-109`, `cps-40a-b`); `title` is the code and title
+  verbatim; `category` and `group` are the calendar's. The 61 ids are distinct.
+- **Stops are outline items, in outline order,** each on the place the thesis file put it.
+  A stop may sit on an area, a unit, or any topic or subtopic below a unit, and its route
+  keeps it there rather than lifting it to a unit. A stop's `id` is that place.
+- **A stop's words are the course's own.** `note` and `label` both carry the outline item's
+  verbatim label. `source` is `outline`, `split` or `filled`; `confidence` is `clear`,
+  `judgment call`, `not matched` or `exception`; `item` is the item's `item_id`.
+- **Secondary tags are listed, never resolved.** A stop's `secondary` carries the 129 tags
+  the data records (id, label, confidence); only 69 of them name a place in the tree, so
+  they are text here and are not checked as node ids (default D4).
+- **Repeats are kept.** 45 routes stop at the same place more than once, and every visit
+  stays in position: playback and "walks through here" read stops by position, not by node.
+- **CPS 40A/B has no stops by design.** Its description is the data's own route `note`
+  verbatim, and a player opening it does nothing.
+- **A measure over walks skips `split` and `filled` stops.** Those say where the data
+  divided an item across places or filled a gap the outline left, not what the outline
+  named; counting them would inflate the course.
+
+Every other route's description is the calendar's words plus the standing line
+"Placements are AI-suggested and under the author's review." The generator composes no
+other route text.
+
+A stop below a unit, or on an area, survives the Walk Desk's stored draft and the saved
+walks: `src/state/persistguard.ts` asks whether the place exists on this corpus, and
+`src/state/walk/draftpersist.ts` and `src/state/walkstore.ts` read through it.
 
 ## What is not carried yet
 
-- **Routes.** `cs2023walks.ts` is empty: the 61 TMU courses as routes over this map are a
-  later card. (The Walk Desk's opening plan for any corpus but `teaching` is a placeholder
-  seeded from the first topics; it is not data.)
+- **Prerequisites.** The file's `prerequisite_wording` is not a route or an edge here.
 - **Each edge's notes.** The file gives every edge its note ids, the topic each note sits
   under (`attached_to`) and its pages. `GEdge` has no place for them, so drawing unit to
   unit hides which topic a note was attached to; they stay in the JSON.

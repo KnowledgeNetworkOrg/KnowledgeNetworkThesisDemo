@@ -6,16 +6,18 @@
 //                                               (README.md names its commit); never edit it here
 // Output src/corpus/cs2023data.ts            — the tree and the see_also edges
 //        src/corpus/cs2023docs.ts            — one document body per node
-//        src/corpus/cs2023walks.ts           — the routes (none yet: a later card)
+//        src/corpus/cs2023walks.ts           — the TMU courses as routes
 //
 // The outputs are COMMITTED, as with `tools/courseimport/`. Re-run this only after
 // replacing the JSON with a newer copy from the thesis repository.
 //
 // The rule this script enforces on itself: it invents no content. Every title is a
 // CS2023 label as the thesis file transcribes it, verbatim; every edge is one of
-// CS2023's printed "See also" notes as the file extracts it.
+// CS2023's printed "See also" notes as the file extracts it; every route stop is an
+// outline item on the place the file put it, with the item's own words as its note.
 // The only strings composed here are the connective sentences of the document
-// bodies, and each says plainly what it is and where its facts came from.
+// bodies and the routes' standing draft notice, and each says plainly what it is
+// and where its facts came from.
 
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -31,11 +33,11 @@ const ROOT = 'root'
 // ── Hues ─────────────────────────────────────────────────────────────────────
 // A copy of `HUE_RING` and `TOPIC_WALK` in `src/ds/graph/hueslots.ts` (this script
 // is plain node and cannot import TypeScript); `cs2023corpus.test.ts` asserts the
-// generated hues still agree with `topicHue(n)`. Areas take the ring in area order.
-// CS2023 has 17 areas, so 17 domains on 16 hues: the 17th wraps onto the 1st's
-// hue, the ring's own documented rule (`topicHue`). CS2023 publishes no grouping
-// of areas, so none is invented to decide who shares. A PROPOSAL, for the author
-// to decide.
+// generated hues still agree with `topicHue(n)`. Areas take the ring in area order,
+// Science included as the 18th. CS2023 has 17 areas and the ring 16 hues, so the
+// 17th wraps onto the 1st and the 18th onto the 2nd, the ring's own documented rule
+// (`topicHue`). CS2023 publishes no grouping of areas, so none is invented to
+// decide who shares. A PROPOSAL, for the author to decide.
 const HUE_RING = ['rose', 'brick', 'clay', 'amber', 'honey', 'olive', 'lime', 'leaf', 'fern', 'jade', 'teal', 'river', 'cobalt', 'iris', 'violet', 'mallow']
 const TOPIC_WALK = [0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15]
 const hueOf = (n) => HUE_RING[TOPIC_WALK[n % 16]]
@@ -51,14 +53,16 @@ for (const t of tree) {
   if (t.parent !== null && !byId.has(t.parent)) throw new Error(`${t.id} has an unknown parent: ${t.parent}`)
   if (t.level === 'unit' && byId.get(t.parent)?.level !== 'area') throw new Error(`unit ${t.id} is not directly under an area`)
 }
-// SCIENCE IS LEFT OUT FOR NOW. It is the thesis author's exception group for the
-// program's biology, chemistry and physics courses, outside CS2023, and it holds no
-// unit: only course stops sit on it, and routes are a later card. A domain with no
-// topic has no place to draw (the map's region and label arithmetic needs at least
-// one), so it joins when its stops do, and that card decides how it is drawn.
+// SCIENCE IS THE AUTHOR'S EXCEPTION GROUP, not a CS2023 area. It is where the
+// program's biology, chemistry and physics courses sit, outside CS2023, and it
+// holds no unit: only course stops sit on it. It still gets a node, a hue and a
+// place in the ring, because the routes stop there; `model/nested.ts` draws a
+// domain with no topics as a small region at its ring anchor.
 const science = tree.filter((t) => t.level === 'area' && t.kind === 'exception')
-if (tree.some((t) => science.some((s) => t.parent === s.id))) throw new Error('Science now has children: bring it in')
-const areas = tree.filter((t) => t.level === 'area' && t.kind !== 'exception')
+if (science.length !== 1) throw new Error(`expected one Science exception area, found ${science.length}`)
+if (tree.some((t) => t.parent === science[0].id)) throw new Error('the Science exception group gained a child; its document says it holds no CS2023 unit')
+const areas = tree.filter((t) => t.level === 'area')
+const cs2023Areas = areas.filter((t) => t.kind !== 'exception')
 const units = tree.filter((t) => t.level === 'unit')
 const deepNodes = tree.filter((t) => !['area', 'unit'].includes(t.level))
 
@@ -98,12 +102,21 @@ const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 const doc = {}
 doc[ROOT] =
   `The knowledge areas and knowledge units of Computer Science Curricula 2023 (ACM/IEEE-CS/AAAI), the published ` +
-  `curricular guidelines: ${areas.length} areas and ${units.length} units; the ` +
+  `curricular guidelines: ${cs2023Areas.length} areas and ${units.length} units; the ` +
   `${edges.length} links are CS2023's own printed "See also" notes, drawn unit to unit. Below a unit, only the ` +
-  `places some Toronto Metropolitan University course stops at, and the places above them, are shown. ${DRAFT}`
+  `places some Toronto Metropolitan University course stops at, and the places above them, are shown.` +
+  (science.length ? ' The Science group is the thesis author\'s exception, outside CS2023.' : '') +
+  ` ${DRAFT}`
 
 for (const a of areas) {
   const n = units.filter((u) => u.parent === a.id).length
+  if (a.kind === 'exception') {
+    const decided = a.decided_by ? ` The author's decision${a.date ? ` (${a.date})` : ''}.` : ''
+    doc[a.id] =
+      `${a.label} — the thesis author's exception group, outside CS2023: the program's biology, chemistry and ` +
+      `physics courses, for which CS2023 has no node. It holds no CS2023 knowledge unit.${decided} ${DRAFT_LINE}`
+    continue
+  }
   doc[a.id] = `${a.label} — a CS2023 knowledge area, holding ${plural(n, 'knowledge unit')}. ${where(a)} ${DRAFT_LINE}`
 }
 for (const u of units) {
@@ -118,6 +131,42 @@ for (const u of units) {
 for (const d of deepNodes) doc[d.id] = `${d.label} — a CS2023 ${d.level === 'subsubtopic' ? 'sub-subtopic' : d.level}. ${where(d)} ${DRAFT_LINE}`
 
 for (const k of Object.keys(doc)) doc[k] = doc[k].replace(/ {2,}/g, ' ')
+
+// ── Routes: each course a walk over the tree ─────────────────────────────────
+// The stops are the outline items in outline order, each on the place the data
+// put it, repeats kept. A route's id is its course code slugged; its title is the
+// code and title verbatim; its description is the calendar's words plus the
+// standing draft line — except the empty route, which carries the data's own note.
+// No course word here is composed.
+const STANDING = "Placements are AI-suggested and under the author's review."
+const routeIdOf = (course) => course.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+const routes = data.routes.map((r) => {
+  const stops = r.stops.map((s) => {
+    const stop = {
+      id: s.node,
+      note: s.label,
+      label: s.label,
+      source: s.source,
+      confidence: s.confidence,
+    }
+    if (s.secondary.length) stop.secondary = s.secondary.map((t) => ({ id: t.id, label: t.label, confidence: t.confidence }))
+    stop.item = s.item_id
+    return stop
+  })
+  return {
+    id: routeIdOf(r.course),
+    title: `${r.course} ${r.title}`,
+    description: stops.length === 0 && r.note ? r.note : `${r.calendar_description} ${STANDING}`,
+    category: r.category,
+    group: r.group,
+    stops,
+  }
+})
+
+const routeIds = new Set(routes.map((r) => r.id))
+if (routeIds.size !== routes.length) throw new Error('two course codes slug to the same route id')
+for (const r of routes) for (const s of r.stops) if (!byId.has(s.id)) throw new Error(`route ${r.id} stops on an unknown node: ${s.id}`)
+const stopCount = routes.reduce((n, r) => n + r.stops.length, 0)
 
 // ── Emit ─────────────────────────────────────────────────────────────────────
 const banner = (what) => `// GENERATED FILE — DO NOT EDIT BY HAND.
@@ -142,7 +191,7 @@ const lit = (v, indent = 0) => {
 
 writeFileSync(
   join(OUT, 'cs2023data.ts'),
-  `${banner(`The CS2023 corpus: ${areas.length} areas, ${units.length} knowledge units, ${edges.length} "See also" edges.`)}
+  `${banner(`The CS2023 corpus: ${cs2023Areas.length} CS2023 knowledge areas and the Science exception group, ${units.length} knowledge units, ${edges.length} "See also" edges.`)}
 import type { CorpusSpec, GNode } from './graphshape'
 
 /** the tree: CS2023 areas, then knowledge units as the edge-bearing level — a UNIT is
@@ -169,15 +218,16 @@ export const CS2023_DOC: Record<string, string> = ${lit(doc)}
 
 writeFileSync(
   join(OUT, 'cs2023walks.ts'),
-  `${banner('The TMU courses as routes over the CS2023 map — none yet; they come in a later card.')}
+  `${banner(`The TMU courses as routes over the CS2023 map — ${routes.length} routes, ${stopCount} stops.`)}
 import type { Walk } from './walks'
 
-export const CS2023_WALKS: Walk[] = []
+export const CS2023_WALKS: Walk[] = ${lit(routes)}
 `,
   'utf8',
 )
 
 console.log(
   `wrote src/corpus/cs2023data.ts, cs2023docs.ts, cs2023walks.ts\n` +
-    `  ${areas.length} areas (${science.length} exception group left out), ${units.length} units, ${deepNodes.length} deeper places, ${edges.length} see_also edges`,
+    `  ${cs2023Areas.length} CS2023 areas + ${science.length} exception (Science), ${units.length} units, ${deepNodes.length} deeper places, ${edges.length} see_also edges\n` +
+    `  ${routes.length} routes, ${stopCount} stops`,
 )

@@ -190,7 +190,7 @@ const hash01 = (s: string) => {
   return (h >>> 0) / 4294967296
 }
 
-function embed(): Record<string, XY> {
+function embed(): { leafPos: Record<string, XY>; domainAnchor: Record<string, XY> } {
   // 1 · circular domain order: brute-force the ring that keeps heavily linked
   // domains adjacent (6 domains → 120 orders; cost = weight × extra hops). Nine
   // domains (8! = 40,320 orders) is the most brute-forced; past that it stops
@@ -260,6 +260,8 @@ function embed(): Record<string, XY> {
     const a = -Math.PI / 2 + (2 * Math.PI * slot) / bestOrder.length
     anchor.set(domainIds[di], { x: cx + Math.cos(a) * FLAT_W * 0.315, y: cy + Math.sin(a) * FLAT_H * 0.3 })
   })
+  const domainAnchors: Record<string, XY> = {}
+  for (const d of domainIds) domainAnchors[d] = anchor.get(d)!
   for (const d of domainIds) {
     const mods = childrenOf.get(d) ?? []
     const c = anchor.get(d)!
@@ -396,9 +398,13 @@ function embed(): Record<string, XY> {
 
   const out: Record<string, XY> = {}
   topicIds.forEach((id, i) => (out[id] = { x: px[i], y: py[i] }))
-  return out
+  return { leafPos: out, domainAnchor: domainAnchors }
 }
-export const leafPos: Record<string, XY> = embed()
+const embedded = embed()
+export const leafPos: Record<string, XY> = embedded.leafPos
+/** each domain's place on the ring — the centre a domain that holds no topics is
+ *  drawn and labelled from, where a centroid of no places would be 0/0 */
+export const domainAnchor: Record<string, XY> = embedded.domainAnchor
 
 /** The centre of a set of places: the mean of their map positions, the raw
  *  centroid the map's region labels and road anchors are placed from (atlas.ts

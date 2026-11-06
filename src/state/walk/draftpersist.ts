@@ -9,7 +9,7 @@
 // Two decisions make it more than JSON.stringify:
 //
 //   REPAIR, DON'T REJECT. A stored leaf whose corpus id no longer exists cannot
-//   be drawn — but throwing away a whole authored plan because one topic was
+//   be drawn — but throwing away a whole authored plan because one place was
 //   renamed is a worse answer than showing the hole. Such a leaf comes back
 //   `unset`, which is the model's OWN placeholder (mockwalk.Stop): it draws as
 //   "pick a node", it is dropped from the projection so nothing downstream ever
@@ -26,7 +26,7 @@
 //   restored tree rather than storing them alongside means the two can never
 //   disagree: the tree is the only thing that could be wrong about its own ids.
 
-import { isObj, isTopic } from '../persistguard'
+import { isObj, isWalkStop } from '../persistguard'
 import { readPersisted, writePersisted } from '../../platform/persisted'
 import type { PersistedSpec } from '../../platform/persisted'
 import { forEachStop, isBox } from './mockwalk'
@@ -63,9 +63,9 @@ function readStop(v: unknown): Stop | null {
   const optional = v.optional === true ? true : undefined
 
   if (v.variants.length === 0) {
-    // a leaf. Bound to a topic that still exists, or a placeholder — including
+    // a leaf. Bound to a place that still exists, or a placeholder — including
     // the case where it was already a placeholder when it was stored.
-    if (v.unset === true || !isTopic(v.node)) return { node: '', unset: true, note, optional, variants: [] }
+    if (v.unset === true || !isWalkStop(v.node)) return { node: '', unset: true, note, optional, variants: [] }
     return { node: v.node as string, note, optional, variants: [] }
   }
 

@@ -10,7 +10,7 @@
 
 import { byId, domainIds, domainOf, pathTo, topicIds, topicsUnder } from '../corpus/graph'
 import type { EdgeType, GEdge } from '../corpus/graph'
-import { centroidOf, edgesTouching, leafPos, provinceIds, provinceOf } from './flat'
+import { centroidOf, domainAnchor, edgesTouching, leafPos, provinceIds, provinceOf } from './flat'
 import type { XY } from './derive'
 import { EDGE_TYPES } from './nav'
 
@@ -144,8 +144,12 @@ export function starFor(currentId: string): Star {
 // Region centres — the raw centroids the map's roads leave from. Shared with
 // atlas.ts (flat.ts's centroidOf), so a region lands on the same bearing in both
 // views.
+const domainCenter = (d: string): XY => {
+  const ts = topicIds.filter((t) => domainOf(t) === d)
+  return ts.length ? centroidOf(ts) : domainAnchor[d]
+}
 const regionCenter = new Map<string, XY>([
-  ...domainIds.map((d) => [d, centroidOf(topicIds.filter((t) => domainOf(t) === d))] as const),
+  ...domainIds.map((d) => [d, domainCenter(d)] as const),
   ...provinceIds.map((m) => [m, centroidOf(topicIds.filter((t) => provinceOf(t) === m))] as const),
 ])
 

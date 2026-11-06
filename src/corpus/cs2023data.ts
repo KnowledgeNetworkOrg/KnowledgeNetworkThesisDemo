@@ -1,5 +1,5 @@
 // GENERATED FILE — DO NOT EDIT BY HAND.
-// The CS2023 corpus: 17 areas, 162 knowledge units, 520 "See also" edges.
+// The CS2023 corpus: 17 CS2023 knowledge areas and the Science exception group, 162 knowledge units, 520 "See also" edges.
 //
 // Written by `node tools/cs2023import/generate.mjs` from
 // `tools/cs2023import/cs2023_map.json`, a pinned copy of the thesis repository's
@@ -137,6 +137,13 @@ const nodes: GNode[] = [
     parentId: "root",
     title: "Specialized Platform Development (SPD)",
     hue: "rose",
+  },
+  {
+    id: "X-Science",
+    kind: "container",
+    parentId: "root",
+    title: "Science",
+    hue: "fern",
   },
   {
     id: "AI-Introduction",

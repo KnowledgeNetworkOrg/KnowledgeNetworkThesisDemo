@@ -5,7 +5,8 @@
 
 import { describe, expect, test } from 'vitest'
 
-import { HISTORY_EMPTY, mark, step, visit } from './nav'
+import { domainIds, topicIds } from '../corpus/graph'
+import { HISTORY_EMPTY, kindLabel, mark, step, visit } from './nav'
 import type { History } from './nav'
 
 const visitAll = (ids: string[], h: History = HISTORY_EMPTY) => ids.reduce((acc, id) => visit(acc, id, 'map'), h)
@@ -122,5 +123,21 @@ describe('the log — every navigation event, forever', () => {
     let h = visit(HISTORY_EMPTY, 'a', 'map')
     h = visit(h, 'b', 'link', true)
     expect(h.log[1]).toEqual({ id: 'b', via: 'link', jump: true })
+  })
+})
+
+describe('kindLabel — the word the document header and hover card give a place', () => {
+  test('every top-level domain reads as a container, whether or not it holds a unit', () => {
+    expect(domainIds.length).toBeGreaterThan(0)
+    for (const d of domainIds) expect(kindLabel(d), d).toBe('container')
+  })
+
+  test('a topic reads as a topic', () => {
+    expect(topicIds.length).toBeGreaterThan(0)
+    for (const t of topicIds) expect(kindLabel(t), t).toBe('topic')
+  })
+
+  test('an id the corpus does not hold reads as a leaf', () => {
+    expect(kindLabel('no-such-place')).toBe('leaf')
   })
 })
