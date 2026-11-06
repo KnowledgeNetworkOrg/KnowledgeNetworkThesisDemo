@@ -266,6 +266,8 @@ try {
     await projector.waitForTimeout(300)
     ok('the projector went dark', (await projector.locator('[data-projector="dark"]').count()) === 1)
   }
+  // The projector is dark after the end whether or not B did anything, so this check alone proves
+  // nothing: the guard it looks for is `blankKey`'s, pinned in the projector unit test.
   await page.keyboard.press('b')
   await page.waitForTimeout(300)
   ok('#435: B does nothing once the lecture has ended', /^Lecture ended/.test(await chipText()) && (!projector || (await projector.locator('[data-projector="dark"]').count()) === 1), await chipText())

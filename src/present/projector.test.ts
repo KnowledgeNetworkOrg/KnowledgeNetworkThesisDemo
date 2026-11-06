@@ -15,8 +15,14 @@ describe('receiveProjection — what the room holds after each message', () => {
   it('a room that has been given nothing is not blanked', () => {
     expect(NOTHING_PROJECTED.blank).toBe(false)
   })
-  it('close darkens the wall', () => {
+  it('a blanked state is held as sent, so a late or reloaded projector comes up blank', () => {
+    const blanked = { ...live, blank: true }
+    expect(receiveProjection(NOTHING_PROJECTED, { kind: 'state', state: blanked })).toBe(blanked)
+    expect(receiveProjection(NOTHING_PROJECTED, { kind: 'state', state: blanked }).blank).toBe(true)
+  })
+  it('close darkens the wall, and the dark wall is not blanked — it has closed', () => {
     expect(receiveProjection(live, { kind: 'close' })).toBe(NOTHING_PROJECTED)
+    expect(receiveProjection({ ...live, blank: true }, { kind: 'close' }).blank).toBe(false)
   })
   it('the handshake words carry nothing', () => {
     expect(receiveProjection(live, { kind: 'connect' })).toBe(live)
@@ -36,18 +42,18 @@ describe('isProjectorMessage — a stranger on the channel is not a slide', () =
 
 describe('blankKey — B blanks and unblanks the room', () => {
   it('B and b toggle while the lecture is live', () => {
-    expect(blankKey('b', { ended: false, modified: false })).toBe(true)
-    expect(blankKey('B', { ended: false, modified: false })).toBe(true)
+    expect(blankKey('b', { live: true, shifted: false })).toBe(true)
+    expect(blankKey('B', { live: true, shifted: false })).toBe(true)
   })
   it('W is not a blank key', () => {
-    expect(blankKey('w', { ended: false, modified: false })).toBe(false)
-    expect(blankKey('W', { ended: false, modified: false })).toBe(false)
+    expect(blankKey('w', { live: true, shifted: false })).toBe(false)
+    expect(blankKey('W', { live: true, shifted: false })).toBe(false)
   })
   it('nothing happens once the lecture has ended', () => {
-    expect(blankKey('b', { ended: true, modified: false })).toBe(false)
+    expect(blankKey('b', { live: false, shifted: false })).toBe(false)
   })
-  it('a held modifier leaves B alone', () => {
-    expect(blankKey('B', { ended: false, modified: true })).toBe(false)
+  it('a held shift leaves B alone', () => {
+    expect(blankKey('B', { live: true, shifted: true })).toBe(false)
   })
 })
 

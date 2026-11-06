@@ -66,9 +66,12 @@ export interface ProjectedState {
 
 export const NOTHING_PROJECTED: ProjectedState = { live: false, slide: null, stop: 0, count: 0, mapUp: false, blank: false, ids: [], optional: [], covered: [] }
 
-/** PowerPoint's B, and only B: a white fill would be a design decision nobody asked for. */
-export function blankKey(key: string, opts: { ended: boolean; modified: boolean }): boolean {
-  return !opts.ended && !opts.modified && (key === 'b' || key === 'B')
+/** PowerPoint's B, and only B: a white fill would be a design decision nobody asked for.
+ *  `live` is a lecture projecting and not ended — the same fact the published state calls `live`.
+ *  `shifted` is SHIFT alone; Ctrl, Meta and Alt never reach here, the screen's handler returns on
+ *  them first. A plain letter is `b` or `B` by Caps Lock, not by SHIFT. */
+export function blankKey(key: string, opts: { live: boolean; shifted: boolean }): boolean {
+  return opts.live && !opts.shifted && (key === 'b' || key === 'B')
 }
 
 export type ProjectorMessage =

@@ -250,7 +250,7 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
       else if (e.key === 'Backspace' && roaming) setRoamingStop(null)
       else if (e.key === 'e' || e.key === 'E') setStripOpen((o) => !o)
       else if ((e.key === 'm' || e.key === 'M') && !ended) setMapUp((v) => !v)
-      else if (blankKey(e.key, { ended, modified: e.shiftKey })) setBlank((v) => !v)
+      else if (blankKey(e.key, { live: projecting && !ended, shifted: e.shiftKey })) setBlank((v) => !v)
       else if (e.key === 'j' || e.key === 'J') toggleFinder()
       else if (e.key === 'Escape') { setExpanded(false); setFinder(null); setConfirmOpen(false) }
       else return
@@ -258,7 +258,7 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [step, roaming, ended, toggleFinder, keys])
+  }, [step, roaming, ended, toggleFinder, keys, projecting])
   /* ended / resumed is reported up too: the shell hides its chrome for a live lecture and hands it
      back the moment the lecture ends, so ending is always a way home */
   useEffect(() => { if (onEnded) onEnded(ended) }, [ended, onEnded])
@@ -280,7 +280,7 @@ export default function PresenterScreen({ bus: deskBus, walkId, startStop, sessi
     stop: shown + 1,
     count: N,
     mapUp: mapUp && !ended,
-    blank: blank && !ended,
+    blank: blank && projecting && !ended,
     ids: steps.map((st) => st.id),
     // the lecture's stops are `play.steps` one for one, so the flags line up with `ids` (OB-214)
     optional: play.steps.map((st) => st.optional === true),
