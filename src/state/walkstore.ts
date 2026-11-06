@@ -1,7 +1,8 @@
 // The walk registry (#16) — every walk the app knows about, built-in or authored.
 //
-// `corpus/walks.ts` holds two hand-written walks as a module const, guarded at
-// load: every stop must be a real topic or the module throws. That is right for
+// `corpus/walks.ts` holds the built-in walks as a module const, guarded at
+// load: every stop must be a real place — a topic, or on cs2023 any existing
+// node — or the module throws. That is right for
 // shipped data and wrong for user data, which arrives from storage long after
 // the corpus was compiled and must never be able to white-screen the app. So
 // this file is the seam: WALKS stays exactly what it is, and everything that

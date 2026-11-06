@@ -42,7 +42,7 @@ import {
 } from '@/ds'
 import type { PreviewController, Relation, RelItem } from '@/ds'
 
-import { byId, pathTo, topicHueOf } from '../corpus/graph'
+import { byId, pathTo, ROOT_ID, topicHueOf } from '../corpus/graph'
 import { DOC_BODY } from '../corpus/docs'
 import { throughWalksAt } from '../model/throughwalks'
 import { listWalks, subscribeWalks } from '../state/walkstore'
@@ -209,6 +209,8 @@ function DocumentBody({ bus, currentId, previewId, paneW, railOpen, onRailOpenCh
   const ancestry = pathTo(currentId)
     .map((id) => byId.get(id)!.title)
     .join(' / ')
+  // A domain with no topic below it is still an area; corpusbuild calls any childless node a leaf.
+  const kind = node.topic ? 'topic' : node.kind === 'leaf' && node.parentId === ROOT_ID ? 'area' : node.kind
   // #16: authored walks count as walks through here too — that is the whole
   // point of a desk that can save one.
   const throughWalks = throughWalksAt(walks, currentId)
@@ -238,7 +240,7 @@ function DocumentBody({ bus, currentId, previewId, paneW, railOpen, onRailOpenCh
           the text, leaving the figure with nothing on screen naming its centre. The rail's way back
           sits at this row's outer end, which is the corner it occupies when open. */}
       <DocHeader
-        kind={node.topic ? 'topic' : node.kind} title={node.title} domain={topicHueOf(currentId) ?? ''} ancestry={ancestry}
+        kind={kind} title={node.title} domain={topicHueOf(currentId) ?? ''} ancestry={ancestry}
         aside={<RelationsRailCorner paneW={paneW} open={railOpen} onOpenChange={onRailOpenChange} count={relCount} />}
       />
       <div style={{ display: 'flex', flex: 1, minHeight: 0, width: '100%', position: 'relative' }}>

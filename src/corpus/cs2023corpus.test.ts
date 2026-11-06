@@ -10,6 +10,8 @@
 // "See also" notes, the author's Science exception alongside it, and the TMU
 // courses as routes over the map.
 
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
 import { topicHue } from '../ds/graph/hueslots'
@@ -22,6 +24,12 @@ import { ROOT_ID } from './graphshape'
 
 const built = buildCorpus({ ...CS2023, nodes: CS2023.nodes.map((n) => ({ ...n })) }, ROOT_ID)
 const stops = CS2023_WALKS.flatMap((w) => w.stops)
+const pinned = JSON.parse(readFileSync(new URL('../../tools/cs2023import/cs2023_map.json', import.meta.url), 'utf8')) as {
+  routes: { course: string; stops: unknown[] }[]
+}
+const pinnedStopCounts = new Map(
+  pinned.routes.map((r) => [r.course.toLowerCase().replace(/[^a-z0-9]+/g, '-'), r.stops.length]),
+)
 
 describe('the CS2023 tree', () => {
   it('has 18 domains: the 17 CS2023 knowledge areas and Science', () => {
@@ -117,7 +125,7 @@ describe('the documents and the routes', () => {
   it('keeps every stop of the 45 routes that visit a place more than once', () => {
     const repeated = CS2023_WALKS.filter((w) => new Set(w.stops.map((s) => s.id)).size < w.stops.length)
     expect(repeated.length).toBe(45)
-    for (const w of repeated) expect(new Set(w.stops.map((s) => s.id)).size, w.id).toBeLessThan(w.stops.length)
+    for (const w of repeated) expect(w.stops.length, w.id).toBe(pinnedStopCounts.get(w.id))
     expect(stops.length).toBe(637)
   })
 

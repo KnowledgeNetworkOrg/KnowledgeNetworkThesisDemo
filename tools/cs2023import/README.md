@@ -90,6 +90,10 @@ Every other route's description is the calendar's words plus the standing line
 "Placements are AI-suggested and under the author's review." The generator composes no
 other route text.
 
+A stop below a unit, or on an area, survives the Walk Desk's stored draft and the saved
+walks: `src/state/persistguard.ts` asks whether the place exists on this corpus, and
+`src/state/walk/draftpersist.ts` and `src/state/walkstore.ts` read through it.
+
 ## What is not carried yet
 
 - **Prerequisites.** The file's `prerequisite_wording` is not a route or an edge here.

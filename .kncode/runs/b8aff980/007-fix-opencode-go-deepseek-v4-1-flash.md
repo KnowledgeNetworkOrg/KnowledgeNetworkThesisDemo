@@ -1,0 +1,11 @@
+1. R0-1 — fixed: `tools/cs2023import/generate.mjs:62` now requires one Science exception and throws if any node gains it as a parent.
+2. R0-2 — fixed: `tools/cs2023import/README.md` names `persistguard.ts`, `draftpersist.ts` and `walkstore.ts`, and `browsertest-cs2023corpus.mjs` now stores a CPS 109 draft, reloads, reopens the desk and checks all 12 stops again.
+3. R0-3 — fixed: `src/instruments/DocumentPanel.tsx:214` reports a childless top-level domain as `area` instead of `leaf`.
+4. R0-4 — fixed: stale topic-only wording updated in `src/state/walkstore.ts:4` and `src/state/walk/draftpersist.ts:12,66`.
+5. R0-5 — fixed: `src/corpus/cs2023corpus.test.ts:121` compares every repeated route’s stop count with the pinned map JSON, so the assertion can fail.
+
+Assumptions: the reload check seeds `pkt.walkdesk.draft` directly, because the desk does not write its seed until the draft changes; this still exercises the widened stored-draft reader. The PR description is outside this step, so the renamed Files list is recorded in the importer README instead.
+
+<!-- kncode-findings
+{"reports":[],"answers":[{"id":"R0-1","answer":"Fixed","because":"generate.mjs now requires exactly one Science exception and throws if any node names it as parent, so its document and the empty-domain drawing cannot silently disagree with the data.","duplicateOf":null},{"id":"R0-2","answer":"Fixed","because":"The importer README now names persistguard.ts, draftpersist.ts and walkstore.ts; the browser driver seeds a stored CPS 109 draft, reloads, reopens the desk and re-checks all 12 stops including the deep and area ones.","duplicateOf":null},{"id":"R0-3","answer":"Fixed","because":"DocumentPanel reports a childless top-level domain as \u0022area\u0022 rather than corpusbuild\u0027s derived \u0022leaf\u0022, so Science\u0027s header matches what the owner is being shown.","duplicateOf":null},{"id":"R0-4","answer":"Fixed","because":"The stale comments in walkstore.ts and draftpersist.ts now say an existing place, matching the cs2023 rule rather than the topic-only rule.","duplicateOf":null},{"id":"R0-5","answer":"Fixed","because":"cs2023corpus.test.ts now compares each of the 45 repeated routes\u0027 stop count with the pinned map JSON, so the per-route assertion can fail.","duplicateOf":null}]}
+-->

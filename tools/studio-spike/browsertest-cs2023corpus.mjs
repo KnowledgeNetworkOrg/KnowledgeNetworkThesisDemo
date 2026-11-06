@@ -13,7 +13,8 @@
 //   3. CPS 209 plays stop by stop to its last stop, in order, repeats kept;
 //   4. CPS 40A/B, which has no stops, does nothing;
 //   5. the Walk Desk opens on CPS 109's own stops, at any depth;
-//   6. no page error.
+//   6. a stored draft keeps those stops across a reload;
+//   7. no page error.
 //
 // Spawns vite ITSELF — backgrounded dev servers die on this machine.
 // Run from anywhere:  node tools/studio-spike/browsertest-cs2023corpus.mjs
@@ -78,6 +79,9 @@ const walkButtons = () => page.locator('[aria-label="trail-strip"] button', { ha
 
 try {
   await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' })
+  // a leftover draft would make the desk's opening road something other than the seed
+  await page.evaluate(() => localStorage.clear())
+  await page.reload({ waitUntil: 'networkidle' })
   await page.waitForTimeout(1400)
 
   // 1. the app mounted at all — a module-load throw would deny this
@@ -170,6 +174,28 @@ try {
   if (JSON.stringify(road) !== JSON.stringify(opening)) {
     fail(`the Walk Desk opens on ${JSON.stringify(road)}, expected CPS 109's ${JSON.stringify(opening)}`)
   }
+
+  // 6. the stored draft reader keeps a stop below a unit, or on an area, across
+  //    a reload — the seed itself is not written until the draft changes
+  await page.evaluate((stops) => {
+    localStorage.setItem('pkt.walkdesk.draft', JSON.stringify({
+      v: 1,
+      data: { stops, choices: {}, withOptionals: true },
+    }))
+  }, cps109.stops.map((s) => ({ node: s.node, note: s.label, variants: [] })))
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1400)
+  await page.locator('[aria-label="studio-preset-plan"]').click()
+  await page.waitForTimeout(1000)
+  const reloaded = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-road-root] [data-rnode]')]
+      .map((el) => el.getAttribute('data-node'))
+      .filter((id) => id !== null && id !== ''),
+  )
+  if (JSON.stringify(reloaded) !== JSON.stringify(opening)) {
+    fail(`after a reload the Walk Desk holds ${JSON.stringify(reloaded)}, expected CPS 109's ${JSON.stringify(opening)}`)
+  }
+  await page.evaluate(() => localStorage.clear())
 
   await page.screenshot({ path: OUT + '/cs2023corpus-routes.png' })
   console.log('shot in tools/studio-spike/out/cs2023corpus-routes.png')

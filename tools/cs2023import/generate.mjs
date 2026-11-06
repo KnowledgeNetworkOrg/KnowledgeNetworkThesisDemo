@@ -59,6 +59,8 @@ for (const t of tree) {
 // place in the ring, because the routes stop there; `model/nested.ts` draws a
 // domain with no topics as a small region at its ring anchor.
 const science = tree.filter((t) => t.level === 'area' && t.kind === 'exception')
+if (science.length !== 1) throw new Error(`expected one Science exception area, found ${science.length}`)
+if (tree.some((t) => t.parent === science[0].id)) throw new Error('the Science exception group gained a child; its document says it holds no CS2023 unit')
 const areas = tree.filter((t) => t.level === 'area')
 const cs2023Areas = areas.filter((t) => t.kind !== 'exception')
 const units = tree.filter((t) => t.level === 'unit')
