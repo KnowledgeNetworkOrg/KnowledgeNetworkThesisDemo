@@ -36,7 +36,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 
-import { byId } from '../corpus/graph'
+import { byId, CORPUS_NAME } from '../corpus/graph'
 import { walkById } from './walkstore'
 import { curriculum } from '../model/lens'
 import { HISTORY_EMPTY, mark, step, visit } from '../model/nav'
@@ -123,8 +123,9 @@ export interface BusState {
   /** the log, by its familiar name — history.log, nothing more. The trail
    * strip and `visited` read provenance and don't care about the cursor. */
   trail: TrailEntry[]
-  /** DERIVED from the trail (topics only, matching the grain the header counts).
-   * Never written — a channel with two writers is a channel with a bug. */
+  /** DERIVED from the trail (topics only, matching the grain the header counts —
+   *  except on cs2023, whose routes stop at any depth, so every visited place
+   *  counts). Never written — a channel with two writers is a channel with a bug. */
   visited: ReadonlySet<string>
   activeWalk: ActiveWalkState | null
   /** the cursor into the DRAFT road (the walk currently open on the desk),
@@ -217,7 +218,10 @@ export function useStudioBus<Id extends string>(reveal: (inst: Id | BusRevealTar
   const [activeWalk, setActiveWalk] = useState<ActiveWalkState | null>(null)
   const [draftCursor, setDraftCursorState] = useState(0)
 
-  const visited = useMemo(() => new Set(hist.log.filter((t) => byId.get(t.id)?.topic).map((t) => t.id)), [hist.log])
+  const visited = useMemo(
+    () => new Set(hist.log.filter((t) => (CORPUS_NAME === 'cs2023' ? byId.has(t.id) : byId.get(t.id)?.topic)).map((t) => t.id)),
+    [hist.log],
+  )
 
   /** provenance-only history write (the engine's mark), corpus-guarded */
   const markTrail = (id: string | null, via: TrailVia, jump = false) => {

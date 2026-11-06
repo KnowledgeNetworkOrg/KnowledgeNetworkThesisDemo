@@ -132,6 +132,39 @@ describe('playSteps — a saved walk', () => {
   })
 })
 
+describe('playSteps — a built-in route\'s marks', () => {
+  const marked: Walk = {
+    id: 'mth-110',
+    title: 'MTH 110 Discrete Mathematics I',
+    description: '',
+    stops: [
+      { id: A, note: 'a', source: 'split', confidence: 'not matched' },
+      {
+        id: B,
+        note: 'b',
+        source: 'split',
+        confidence: 'clear',
+        secondary: [{ id: 'some-place', label: 'a label', confidence: 'clear' }],
+      },
+    ],
+  }
+
+  it('carries source, confidence and the secondary places onto the step', () => {
+    const [first, second] = playSteps(marked, [])
+    expect(first.source).toBe('split')
+    expect(first.confidence).toBe('not matched')
+    expect(first.secondary).toBeUndefined()
+    expect(second.secondary).toEqual([{ id: 'some-place', label: 'a label', confidence: 'clear' }])
+  })
+
+  it('leaves the draft road and an authored saved walk mark-free', () => {
+    const road = resolveRoad([leaf(A)], {}, true)
+    const authored: Walk = { id: 'authored-x', title: 'a saved one', description: '', stops: [{ id: A, note: '' }] }
+    expect(playSteps(null, road)[0].source).toBeUndefined()
+    expect(playSteps(authored, [])[0].source).toBeUndefined()
+  })
+})
+
 describe('clampCursor', () => {
   it('holds the cursor inside the list', () => {
     expect(clampCursor(-3, 5)).toBe(0)

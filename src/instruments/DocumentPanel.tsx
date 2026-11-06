@@ -46,15 +46,17 @@ import { byId, pathTo, topicHueOf } from '../corpus/graph'
 import { DOC_BODY } from '../corpus/docs'
 import { kindLabel } from '../model/nav'
 import { throughWalksAt } from '../model/throughwalks'
-import { listWalks, subscribeWalks } from '../state/walkstore'
+import { listWalks, subscribeWalks, walkById } from '../state/walkstore'
 import type { Bus } from '../state/bus'
+import { StopMarks, StopSecondary } from '../state/walk/StopMarks'
 import { summaryOfNode } from './corpustree'
 import { cardRelationsOf, neighbourhoodOf, neighbourLitBy, orbitKeyParts } from './relations'
 import type { Neighbourhood } from './relations'
+import StandingNotice from './StandingNotice'
 
 /** the slice of the bus the document reads and writes — the rail's figure publishes a target on the
  *  hover channel and the hub on the centre's own (OB-230), and a foreign hover previews a node here */
-type DocumentPanelBus = Pick<Bus, 'focus' | 'hover' | 'activateWalk' | 'setHover' | 'endHover' | 'setHoverCenter'>
+type DocumentPanelBus = Pick<Bus, 'focus' | 'hover' | 'activeWalk' | 'activateWalk' | 'setHover' | 'endHover' | 'setHoverCenter'>
 
 /** the sentence-form header the hover card wears (OB-242) — mounted through the DS's published
  *  parts, so the wording and the plural are the component's and no call site carries either */
@@ -214,6 +216,11 @@ function DocumentBody({ bus, currentId, previewId, paneW, railOpen, onRailOpenCh
   // #16: authored walks count as walks through here too — that is the whole
   // point of a desk that can save one.
   const throughWalks = throughWalksAt(walks, currentId)
+  /* a secondary list belongs to a STOP POSITION, not a node: the same node may be
+     stopped on twice and only one of those stops may carry one. */
+  const activeWalk = bus.activeWalk ? walkById(bus.activeWalk.walkId) : null
+  const activeStop = activeWalk && bus.activeWalk ? activeWalk.stops[bus.activeWalk.cursor] : undefined
+  const activeSecondary = activeStop && activeStop.id === currentId ? activeStop.secondary : undefined
 
   /* WHAT IS POINTED AT, AS THE FIGURE'S KEY: its own pointer's, or — with the pointer elsewhere —
      the neighbour a cell on the MAP is on (the reverse of lighting the map). The map's hover lights
@@ -253,6 +260,13 @@ function DocumentBody({ bus, currentId, previewId, paneW, railOpen, onRailOpenCh
               inside the clause's ±1px. */}
           <div className="pr-4 py-3 text-[12px] leading-relaxed text-slate-700" style={{ paddingLeft: LEGEND_INSET, borderBottom: '1px solid var(--border-hair)' }}>{DOC_BODY[currentId]}</div>
 
+          {activeSecondary?.length ? (
+            <div className="pr-4 py-3" style={{ paddingLeft: LEGEND_INSET, borderBottom: '1px solid var(--border-hair)' }}>
+              <SectionLabel count={activeSecondary.length}>secondary places</SectionLabel>
+              <StopSecondary secondary={activeSecondary} />
+            </div>
+          ) : null}
+
           <div className="pr-4 py-3" style={{ paddingLeft: LEGEND_INSET }}>
             <SectionLabel count={throughWalks.length}>walks through here</SectionLabel>
             {throughWalks.length === 0 ? (
@@ -260,15 +274,20 @@ function DocumentBody({ bus, currentId, previewId, paneW, railOpen, onRailOpenCh
             ) : (
               <div className="flex flex-col gap-1">
                 {throughWalks.map(({ walk, idx }) => (
-                  <WalkCard
-                    key={`${walk.id}:${idx}`}
-                    title={walk.title}
-                    meta={`stop ${idx + 1} of ${walk.stops.length} — ${walk.stops[idx].note}`}
-                    onClick={() => bus.activateWalk(walk.id, idx)}
-                  />
+                  <div key={`${walk.id}:${idx}`} className="flex flex-col gap-1">
+                    <StopMarks source={walk.stops[idx].source} confidence={walk.stops[idx].confidence} />
+                    <WalkCard
+                      title={walk.title}
+                      meta={`stop ${idx + 1} of ${walk.stops.length} — ${walk.stops[idx].note}`}
+                      onClick={() => bus.activateWalk(walk.id, idx)}
+                    />
+                  </div>
                 ))}
               </div>
             )}
+            {throughWalks.length ? (
+              <StandingNotice walk={throughWalks[0].walk} className="mt-2 text-[10px] leading-snug text-slate-500" />
+            ) : null}
           </div>
         </PaneScroller>
         <RelationsRail

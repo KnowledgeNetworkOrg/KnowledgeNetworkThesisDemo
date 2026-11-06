@@ -20,7 +20,7 @@ import type { ReactNode } from 'react'
 
 import { LEGEND_INSET, scrollerPadRight } from '@/ds'
 
-import { byId, domainOf, EDGE_COLOR, EDGE_LABEL } from '../corpus/graph'
+import { byId, CORPUS_NAME, domainOf, EDGE_COLOR, EDGE_LABEL, pathTo } from '../corpus/graph'
 import { colorOf } from '../model/color'
 import type { EdgeType } from '../corpus/graph'
 import { lensModel } from '../model/lens'
@@ -290,7 +290,18 @@ export default function LensPane({ bus, type }: LensPaneProps) {
   if (!focus) {
     body = <EmptyState text="click a node in the tree — every lens recenters on it" />
   } else if (!byId.get(focus)?.topic) {
-    body = <EmptyState text="lenses read topics — typed links live at the topic level" />
+    const enclosing = CORPUS_NAME === 'cs2023'
+      ? [...pathTo(focus)].reverse().find((id) => id !== focus && byId.get(id)?.topic)
+      : undefined
+    body = (
+      <EmptyState text={
+        CORPUS_NAME !== 'cs2023'
+          ? 'lenses read topics — typed links live at the topic level'
+          : enclosing
+            ? `this stop sits inside ${byId.get(enclosing)!.title} — lenses read its knowledge unit`
+            : 'this stop is an area — lenses read its knowledge units'
+      } />
+    )
   } else if (!model || !scene) {
     body = null // unreachable in practice: focus is a topic, so model/scene always compute
   } else if (model.out.levels.length === 0 && model.in.levels.length === 0) {

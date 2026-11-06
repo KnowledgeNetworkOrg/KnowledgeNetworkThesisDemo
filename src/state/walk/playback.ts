@@ -48,6 +48,7 @@ import { walkAdvance, walkArrival } from '@/ds'
 import type { WalkStep } from '@/ds'
 
 import { byId } from '../../corpus/graph'
+import type { StopConfidence, StopSource, WalkStop } from '../../corpus/walks'
 import { walkById } from '../walkstore'
 import type { Walk } from '../walkstore'
 import { leafStops, routeStepsOf } from './mockwalk'
@@ -72,6 +73,11 @@ import type { Bus } from '../bus'
  *  `steps`, `cursor` and `seek` keep their shapes; `WalkViewer` needs no edit. */
 export interface PlayStep extends WalkStep {
   stop?: Stop
+  /** a built-in route's placement marks, carried so every surface that shows the
+   *  step can draw them; an authored draft or saved walk has none */
+  source?: StopSource
+  confidence?: StopConfidence
+  secondary?: WalkStop['secondary']
   /* `path` is `WalkStep.path` (DS OB-188): the step's position in the group structure,
      outermost first, 1-based — `[2, 1]` for "2.1". Undefined for a top-level step and for
      every step of a saved walk (saved walks are flat). The hover card prints it whole; a map
@@ -129,7 +135,16 @@ export interface Playback {
  *  ({id, note} — no containers, no optionals, no variants); a draft road is a
  *  resolved tree that still has to be walked down to its leaves. */
 export function playSteps(saved: Walk | null, road: Stop[]): PlayStep[] {
-  if (saved) return saved.stops.map((s) => ({ id: s.id, title: byId.get(s.id)!.title, note: s.note }))
+  if (saved) {
+    return saved.stops.map((s) => ({
+      id: s.id,
+      title: byId.get(s.id)!.title,
+      note: s.note,
+      source: s.source,
+      confidence: s.confidence,
+      secondary: s.secondary,
+    }))
+  }
   // one entry per leaf, in the same order — route.ts and leafStops walk the tree alike
   const numbers = routeNumbers(routeStepsOf(road))
   return leafStops(road).map((s, i) => ({
