@@ -92,6 +92,16 @@ export function parentOf(id: string): string {
   return byId.get(id)?.parentId ?? ROOT_ID
 }
 
+/** The word a node's header and hover card give it. A top-level domain owns its
+ * area whether or not it holds a unit, so a childless one still reads as a
+ * container, beside its sibling areas. */
+export function kindLabel(id: string): string {
+  const n = byId.get(id)
+  if (!n) return 'leaf'
+  if (n.topic) return 'topic'
+  return n.parentId === ROOT_ID ? 'container' : n.kind
+}
+
 /** How many nodes `id` contains, at every depth — for a hover readout that
  * wants "this container holds N nodes" (OB-096) without a caller re-walking
  * `childrenOf` by hand. 0 for a leaf. */

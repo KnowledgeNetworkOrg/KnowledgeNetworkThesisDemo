@@ -42,8 +42,9 @@ import {
 } from '@/ds'
 import type { PreviewController, Relation, RelItem } from '@/ds'
 
-import { byId, pathTo, ROOT_ID, topicHueOf } from '../corpus/graph'
+import { byId, pathTo, topicHueOf } from '../corpus/graph'
 import { DOC_BODY } from '../corpus/docs'
+import { kindLabel } from '../model/nav'
 import { throughWalksAt } from '../model/throughwalks'
 import { listWalks, subscribeWalks } from '../state/walkstore'
 import type { Bus } from '../state/bus'
@@ -209,8 +210,7 @@ function DocumentBody({ bus, currentId, previewId, paneW, railOpen, onRailOpenCh
   const ancestry = pathTo(currentId)
     .map((id) => byId.get(id)!.title)
     .join(' / ')
-  // A domain with no topic below it is still an area; corpusbuild calls any childless node a leaf.
-  const kind = node.topic ? 'topic' : node.kind === 'leaf' && node.parentId === ROOT_ID ? 'area' : node.kind
+  const kind = kindLabel(currentId)
   // #16: authored walks count as walks through here too — that is the whole
   // point of a desk that can save one.
   const throughWalks = throughWalksAt(walks, currentId)
