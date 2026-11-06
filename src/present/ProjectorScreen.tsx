@@ -36,7 +36,7 @@ export default function ProjectorScreen() {
     // the bus object is rebuilt every render; only the published stops should republish
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsKey, optKey])
-  useEffect(() => { document.title = state.live && state.slide ? state.slide.title : 'projector' }, [state])
+  useEffect(() => { document.title = state.live && !state.blank && state.slide ? state.slide.title : 'projector' }, [state])
   /* the wall's frame, held for the lecture and keyed to the walk (DS OB-163) — the presenter's
      rule, the same hook, so the projector's own M down / M up is one picture */
   const wallFrame = useKeptWallFrame(idsKey)
@@ -44,16 +44,17 @@ export default function ProjectorScreen() {
   // A script-opened window may close itself; one the user opened by hand ignores
   // this and goes dark instead, which is the honest floor.
   useEffect(() => { if (closed) window.close() }, [closed])
+  const dark = !state.live || state.blank
   return (
-    <div data-projector={state.live ? 'live' : 'dark'} style={{ position: 'fixed', inset: 0, background: 'var(--bark-900)', display: 'grid', placeItems: 'center' }}>
-      {state.live && state.slide ? (
+    <div data-projector={dark ? 'dark' : 'live'} style={{ position: 'fixed', inset: 0, background: 'var(--bark-900)', display: 'grid', placeItems: 'center' }}>
+      {!dark && state.slide ? (
         <div style={{ position: 'relative', width: 'min(100vw, 177.78vh)', aspectRatio: '1120 / 630' }}>
           <WallTransition up={state.mapUp} slide={<LectureSlide step={state.slide} index={state.stop - 1} count={state.count} />}
             map={<ProjectedMap stop={state.stop} count={state.count} territory={state.slide.territory} title={state.slide.title}
               map={<MapView bus={bus} wall={{ lit: state.stop - 1, covered: state.covered, ...wallFrame }} />}
               footer={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-3)' }}>{state.slide.walk} · the whole walk</span>} />} />
         </div>
-      ) : (
+      ) : state.blank ? null : (
         <div style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', color: 'var(--bark-500)' }}>{closed ? 'the lecture has closed' : 'nothing is projected'}</div>
       )}
     </div>
