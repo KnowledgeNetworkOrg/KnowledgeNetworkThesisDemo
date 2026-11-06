@@ -26,7 +26,7 @@
 //   restored tree rather than storing them alongside means the two can never
 //   disagree: the tree is the only thing that could be wrong about its own ids.
 
-import { isObj, isTopic } from '../persistguard'
+import { isObj, isWalkStop } from '../persistguard'
 import { readPersisted, writePersisted } from '../../platform/persisted'
 import type { PersistedSpec } from '../../platform/persisted'
 import { forEachStop, isBox } from './mockwalk'
@@ -65,7 +65,7 @@ function readStop(v: unknown): Stop | null {
   if (v.variants.length === 0) {
     // a leaf. Bound to a topic that still exists, or a placeholder — including
     // the case where it was already a placeholder when it was stored.
-    if (v.unset === true || !isTopic(v.node)) return { node: '', unset: true, note, optional, variants: [] }
+    if (v.unset === true || !isWalkStop(v.node)) return { node: '', unset: true, note, optional, variants: [] }
     return { node: v.node as string, note, optional, variants: [] }
   }
 

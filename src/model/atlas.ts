@@ -13,15 +13,22 @@ import { byId, domainIds, domainOf, pathTo, ROOT_ID, topicIds, topicsUnder } fro
 import type { EdgeType, GEdge } from '../corpus/graph'
 import type { XY } from './derive'
 import type { LabelBox } from './labelfit'
-import { centroidOf, edgesTouching, leafPos, provinceIds, provinceOf, topicAnchorOf } from './flat'
+import { centroidOf, domainAnchor, edgesTouching, leafPos, provinceIds, provinceOf, topicAnchorOf } from './flat'
 import { countryPath, countryRings, pointInPoly, provincePath, provinceRings, rootPath, territories, topicPoly } from './nested'
 
 // ── Geography: the label anchors and region centres, derived once ────────────
+/** a domain's centre: the mean of its topics' places, or its ring anchor when it
+ *  holds no topic (a centroid of nothing would be 0/0) */
+const centerOfDomain = (d: string): XY => {
+  const ts = topicIds.filter((t) => domainOf(t) === d)
+  return ts.length ? centroidOf(ts) : domainAnchor[d]
+}
+
 /** domain name anchors — RAW centroids. The overlap-spread nudge went with the
  * single-line rendering it served: names wrap INSIDE their regions now
  * (fitRegionLabel), and a wrap anchored off-centre defeats the fit. */
 export const countryLabels = domainIds.map((d) => ({
-  ...centroidOf(topicIds.filter((t) => domainOf(t) === d)),
+  ...centerOfDomain(d),
   label: byId.get(d)!.title,
   key: d,
 }))
@@ -39,7 +46,7 @@ export const rootLabel = { ...centroidOf(topicIds), label: byId.get(ROOT_ID)!.ti
 // region anchor points for the rolled-up arrows — RAW centroids, not the
 // overlap-spread label positions (a road must leave from where the region is,
 // not from where its name was nudged to)
-const domainCenter = new Map(domainIds.map((d) => [d, centroidOf(topicIds.filter((t) => domainOf(t) === d))]))
+const domainCenter = new Map(domainIds.map((d) => [d, centerOfDomain(d)]))
 const provinceCenter = new Map(provinceIds.map((m) => [m, centroidOf(topicIds.filter((t) => provinceOf(t) === m))]))
 
 const terrD = new Map(territories.map((t) => [t.id, t.d]))

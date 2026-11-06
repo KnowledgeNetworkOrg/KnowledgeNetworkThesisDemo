@@ -152,8 +152,10 @@ function planFromWalks(): Plan {
 }
 
 /** the Walk Desk's opening road: the authored plan on the teaching corpus, a
- *  shape-equivalent one built from the corpus's own walks on any other */
-export const PLAN: Plan = CORPUS_NAME === 'teaching' ? teachingPlan() : planFromWalks()
+ *  shape-equivalent one built from the corpus's own walks on courses, and none on
+ *  cs2023 — its routes stop at any depth, and this plan is a topics-only fixture */
+export const PLAN: Plan =
+  CORPUS_NAME === 'teaching' ? teachingPlan() : CORPUS_NAME === 'courses' ? planFromWalks() : { title: 'An empty plan', stops: [] }
 
 // ── Projection ──────────────────────────────────────────────────────────────
 // Turning a resolved stop tree into the flat route the bus would read.

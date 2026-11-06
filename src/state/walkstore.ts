@@ -23,7 +23,7 @@ import { WALKS } from '../corpus/walks'
 import type { Walk } from '../corpus/walks'
 import { readPersisted, writePersisted } from '../platform/persisted'
 import type { PersistedSpec } from '../platform/persisted'
-import { isObj, isTopic } from './persistguard'
+import { isObj, isWalkStop } from './persistguard'
 
 export type { Walk }
 
@@ -53,7 +53,7 @@ function readWalk(v: unknown): Walk | null {
   if (!Array.isArray(v.stops)) return null
   const stops: Walk['stops'] = []
   for (const s of v.stops) {
-    if (!isObj(s) || !isTopic(s.id)) continue // the corpus moved under this stop
+    if (!isObj(s) || !isWalkStop(s.id)) continue // the corpus moved under this stop
     stops.push({ id: s.id as string, note: typeof s.note === 'string' ? s.note : '' })
   }
   if (stops.length === 0) return null

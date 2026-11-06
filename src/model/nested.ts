@@ -27,7 +27,7 @@ import { Delaunay } from 'd3-delaunay'
 
 import { childrenOf, domainIds, domainOf, topicIds } from '../corpus/graph'
 import type { GNode } from '../corpus/graph'
-import { atlasPos, FLAT_H, FLAT_W, leafPos, provinceIds, provinceOf } from './flat'
+import { atlasPos, domainAnchor, FLAT_H, FLAT_W, leafPos, provinceIds, provinceOf } from './flat'
 import type { XY } from './derive'
 
 // ── Global topic tessellation (duplicated from MapView — see header) ────────
@@ -102,11 +102,23 @@ const regionGeom = (memberTopics: string[]) => {
   return { d: ringsToPath(rings), rings: rings.map((r) => r.map((p) => ({ x: p[0], y: p[1] }))) }
 }
 
+/** A domain with no topics has no cells to union, so it is drawn as a hexagon at
+ *  its place on the domain ring: enough ground to label, select and anchor a walk
+ *  stop on, and nothing invented below it. */
+const anchorRegion = (c: XY) => {
+  const rings: XY[][] = [Array.from({ length: 6 }, (_, i) => {
+    const a = -Math.PI / 2 + (2 * Math.PI * i) / 6
+    return { x: c.x + Math.cos(a) * 60, y: c.y + Math.sin(a) * 60 }
+  })]
+  return { d: ringsToPath(rings.map((r) => r.map((p) => [p.x, p.y] as Pt))), rings }
+}
+
 export const countryPath: Record<string, string> = {}
 /** region outline polygons (may be multi-ring) — arrow trimming at L0 */
 export const countryRings: Record<string, XY[][]> = {}
 for (const d of domainIds) {
-  const g = regionGeom(topicIds.filter((t) => domainOf(t) === d))
+  const members = topicIds.filter((t) => domainOf(t) === d)
+  const g = members.length ? regionGeom(members) : anchorRegion(domainAnchor[d])
   countryPath[d] = g.d
   countryRings[d] = g.rings
 }

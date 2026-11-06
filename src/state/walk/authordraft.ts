@@ -13,6 +13,7 @@
 import { useSyncExternalStore } from 'react'
 
 import { CORPUS_NAME, topicIds } from '../../corpus/graph'
+import { WALKS } from '../../corpus/walks'
 import { mintId, saveWalk, walkById } from '../walkstore'
 import type { Walk } from '../walkstore'
 import { loadDraft, nextIds, saveDraft } from './draftpersist'
@@ -130,7 +131,15 @@ function genericSeed(): Stop[] {
   return seed
 }
 
-const SEED: Stop[] = CORPUS_NAME === 'teaching' ? teachingSeed() : genericSeed()
+/** The cs2023 desk opens on the course the owner chose, as a flat road: the
+ *  route's own stops, in its order, wherever in the tree they sit. */
+function cs2023Seed(): Stop[] {
+  const opening = WALKS.find((w) => w.id === 'cps-109')
+  return opening ? opening.stops.map((s) => ({ node: s.id, note: s.note, variants: [] })) : []
+}
+
+const SEED: Stop[] =
+  CORPUS_NAME === 'teaching' ? teachingSeed() : CORPUS_NAME === 'cs2023' ? cs2023Seed() : genericSeed()
 
 // ── Restored, or seeded (#16) ───────────────────────────────────────────────
 // The stores are module-level, which since #21 has made the draft SHARED. It did

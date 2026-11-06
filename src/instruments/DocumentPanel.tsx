@@ -28,9 +28,9 @@
 // lists is its own Studio instrument (NeighborhoodPanel); the CONTAINMENT list left with the
 // Explorer rail on the map (#341).
 //
-// Walks only resolve for topics: a Walk's stops are always topic ids (see
-// walks.ts) — nodes above the topic level (domains, modules) and below it
-// (deep layers) just show the document, which is honest: that IS all they have.
+// Walks resolve anywhere a route may stop. The other corpora's walks stop on
+// topics; a cs2023 course route stops at whatever depth its outline item was
+// placed, an area included (see walks.ts).
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
@@ -44,6 +44,7 @@ import type { PreviewController, Relation, RelItem } from '@/ds'
 
 import { byId, pathTo, topicHueOf } from '../corpus/graph'
 import { DOC_BODY } from '../corpus/docs'
+import { throughWalksAt } from '../model/throughwalks'
 import { listWalks, subscribeWalks } from '../state/walkstore'
 import type { Bus } from '../state/bus'
 import { summaryOfNode } from './corpustree'
@@ -210,10 +211,7 @@ function DocumentBody({ bus, currentId, previewId, paneW, railOpen, onRailOpenCh
     .join(' / ')
   // #16: authored walks count as walks through here too — that is the whole
   // point of a desk that can save one.
-  const throughWalks = walks.flatMap((w) => {
-    const idx = w.stops.findIndex((s) => s.id === currentId)
-    return idx >= 0 ? [{ walk: w, idx }] : []
-  })
+  const throughWalks = throughWalksAt(walks, currentId)
 
   /* WHAT IS POINTED AT, AS THE FIGURE'S KEY: its own pointer's, or — with the pointer elsewhere —
      the neighbour a cell on the MAP is on (the reverse of lighting the map). The map's hover lights
@@ -261,7 +259,7 @@ function DocumentBody({ bus, currentId, previewId, paneW, railOpen, onRailOpenCh
               <div className="flex flex-col gap-1">
                 {throughWalks.map(({ walk, idx }) => (
                   <WalkCard
-                    key={walk.id}
+                    key={`${walk.id}:${idx}`}
                     title={walk.title}
                     meta={`stop ${idx + 1} of ${walk.stops.length} — ${walk.stops[idx].note}`}
                     onClick={() => bus.activateWalk(walk.id, idx)}
