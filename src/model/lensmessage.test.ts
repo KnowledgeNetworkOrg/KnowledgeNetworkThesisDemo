@@ -5,12 +5,12 @@ import { nonTopicLensMessage } from './lensmessage'
 describe('nonTopicLensMessage — a lens centred on a place that is not a topic', () => {
   it('names the enclosing knowledge unit for a stop inside one', () => {
     expect(nonTopicLensMessage({ corpus: 'cs2023', isScience: false, enclosingTitle: 'Digital Logic' }))
-      .toBe('this stop sits inside Digital Logic — lenses read its knowledge unit')
+      .toBe('this place sits inside Digital Logic — lenses read its knowledge unit')
   })
 
   it('calls a place with no unit ancestor an area', () => {
     expect(nonTopicLensMessage({ corpus: 'cs2023', isScience: false }))
-      .toBe('this stop is an area — lenses read its knowledge units')
+      .toBe('this place is an area — lenses read its knowledge units')
   })
 
   it('gives the Science exception group its own wording, never an area claim', () => {

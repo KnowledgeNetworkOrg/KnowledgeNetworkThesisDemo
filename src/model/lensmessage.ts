@@ -14,6 +14,6 @@ export interface NonTopicLensCase {
 export function nonTopicLensMessage({ corpus, isScience, enclosingTitle }: NonTopicLensCase): string {
   if (corpus !== 'cs2023') return 'lenses read topics — typed links live at the topic level'
   if (isScience) return 'Science is outside CS2023 — it has no knowledge units for the lenses to read'
-  if (enclosingTitle) return `this stop sits inside ${enclosingTitle} — lenses read its knowledge unit`
-  return 'this stop is an area — lenses read its knowledge units'
+  if (enclosingTitle) return `this place sits inside ${enclosingTitle} — lenses read its knowledge unit`
+  return 'this place is an area — lenses read its knowledge units'
 }

@@ -1,5 +1,5 @@
 // THE TWO PIECES OF A STOP'S MARKS a surface can draw: the notable badges and
-// the secondary places in full. They live together because a stop preview and
+// the secondary tags in full. They live together because a stop preview and
 // the document panel show the same pair, and the values come from one helper
 // (`model/stopmarks.ts`) so a badge cannot say something the data does not.
 //
@@ -46,7 +46,7 @@ export function StopMarks({ source, confidence }: Pick<PlayStep, 'source' | 'con
   )
 }
 
-/** a stop position's secondary places, in full: no clamp, so a long label wraps
+/** a stop position's secondary tags, in full: no clamp, so a long label wraps
  *  rather than losing its end. */
 export function StopSecondary({ secondary }: { secondary?: WalkStop['secondary'] }) {
   if (!secondary?.length) return null

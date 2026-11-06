@@ -46,6 +46,7 @@ import { byId, pathTo, topicHueOf } from '../corpus/graph'
 import { DOC_BODY } from '../corpus/docs'
 import { kindLabel } from '../model/nav'
 import { throughWalksAt } from '../model/throughwalks'
+import { secondaryTagsAt } from '../model/stopsecondary'
 import { listWalks, subscribeWalks, walkById } from '../state/walkstore'
 import type { Bus } from '../state/bus'
 import { StopMarks, StopSecondary } from '../state/walk/StopMarks'
@@ -216,11 +217,10 @@ function DocumentBody({ bus, currentId, previewId, paneW, railOpen, onRailOpenCh
   // #16: authored walks count as walks through here too — that is the whole
   // point of a desk that can save one.
   const throughWalks = throughWalksAt(walks, currentId)
-  /* a secondary list belongs to a STOP POSITION, not a node: the same node may be
-     stopped on twice and only one of those stops may carry one. */
+  /* a secondary list belongs to a STOP POSITION: `secondaryTagsAt` holds that rule,
+     and the walk's cursor is what the document needs along with the node. */
   const activeWalk = bus.activeWalk ? walkById(bus.activeWalk.walkId) : null
-  const activeStop = activeWalk && bus.activeWalk ? activeWalk.stops[bus.activeWalk.cursor] : undefined
-  const activeSecondary = activeStop && activeStop.id === currentId ? activeStop.secondary : undefined
+  const activeSecondary = secondaryTagsAt(activeWalk, bus.activeWalk?.cursor, currentId)
 
   /* WHAT IS POINTED AT, AS THE FIGURE'S KEY: its own pointer's, or — with the pointer elsewhere —
      the neighbour a cell on the MAP is on (the reverse of lighting the map). The map's hover lights
@@ -262,7 +262,7 @@ function DocumentBody({ bus, currentId, previewId, paneW, railOpen, onRailOpenCh
 
           {activeSecondary?.length ? (
             <div className="pr-4 py-3" style={{ paddingLeft: LEGEND_INSET, borderBottom: '1px solid var(--border-hair)' }}>
-              <SectionLabel count={activeSecondary.length}>secondary places</SectionLabel>
+              <SectionLabel count={activeSecondary.length}>secondary tags</SectionLabel>
               <StopSecondary secondary={activeSecondary} />
             </div>
           ) : null}

@@ -297,7 +297,7 @@ export default function LensPane({ bus, type }: LensPaneProps) {
     body = (
       <EmptyState text={nonTopicLensMessage({
         corpus: CORPUS_NAME,
-        isScience: focus === 'X-Science',
+        isScience: CORPUS_NAME === 'cs2023' && focus === 'X-Science',
         enclosingTitle: enclosing ? byId.get(enclosing)!.title : undefined,
       })} />
     )
