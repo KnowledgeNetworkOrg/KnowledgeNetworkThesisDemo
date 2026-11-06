@@ -1,19 +1,24 @@
 // THE STANDING NOTICE a cs2023 route carries wherever it is shown. The sentence
-// is the one the generated route descriptions already end with (60 of 61; the
-// zero-stop CPS 40A/B has none), so the data stays the one source of the
-// wording and the generator is not touched. The tail is returned rather than a
-// constant copied out of it.
+// is the one each generated route description already ends with, so the data
+// stays the one source of the wording and the generator is not touched. A
+// zero-stop route has no stops to place and so carries none.
+//
+// The opener identifies the sentence; it is not a copy of the wording, which
+// stays in the description. A naive last-sentence split would swallow the
+// abbreviation before it ("(2 hr. Lab every other week)").
 
 import type { Walk } from '../corpus/walks'
 
-export const PLACEMENT_NOTICE = "Placements are AI-suggested and under the author's review."
+const NOTICE_OPENER = 'Placements are'
 
-/** the notice for a route, or null when this corpus has none or this route's
- *  description does not end with it. */
-export function standingNotice(walk: Pick<Walk, 'description'> | null | undefined, corpus: string): string | null {
-  if (corpus !== 'cs2023' || !walk) return null
+/** the notice for a route, or null when this corpus has none, this route has no
+ *  stops, or its description does not carry the notice. */
+export function standingNotice(
+  walk: Pick<Walk, 'description' | 'stops'> | null | undefined,
+  corpus: string,
+): string | null {
+  if (corpus !== 'cs2023' || !walk || !walk.stops.length) return null
   const description = (walk.description ?? '').trim()
-  return description.endsWith(PLACEMENT_NOTICE)
-    ? description.slice(description.length - PLACEMENT_NOTICE.length)
-    : null
+  const at = description.lastIndexOf(NOTICE_OPENER)
+  return at === -1 ? null : description.slice(at)
 }

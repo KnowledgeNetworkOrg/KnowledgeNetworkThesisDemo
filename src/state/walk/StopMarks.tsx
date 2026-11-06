@@ -2,6 +2,10 @@
 // the secondary places in full. They live together because a stop preview and
 // the document panel show the same pair, and the values come from one helper
 // (`model/stopmarks.ts`) so a badge cannot say something the data does not.
+//
+// THE BADGES SIT WITH THE APP-OWNED TITLES, not in the viewer strip: the DS
+// WalkStrip's step carries no mark field, so a mark there would be a DS change
+// this card does not make.
 
 import type { WalkStop } from '../../corpus/walks'
 import { stopMarksOf } from '../../model/stopmarks'
@@ -10,7 +14,9 @@ import type { PlayStep } from './playback'
 
 const MARK_TONE: Record<StopMarkTone, { ink: string; wash: string; rule: string }> = {
   split: { ink: 'var(--hue-jade-ink)', wash: 'var(--hue-jade-wash)', rule: 'var(--hue-jade-stroke)' },
-  filled: { ink: 'var(--hue-fern-ink)', wash: 'var(--hue-fern-wash)', rule: 'var(--hue-fern-stroke)' },
+  // violet sits far enough from jade that split and filled read as two marks,
+  // not one mark with two words
+  filled: { ink: 'var(--hue-violet-ink)', wash: 'var(--hue-violet-wash)', rule: 'var(--hue-violet-stroke)' },
   unmatched: { ink: 'var(--hue-amber-ink)', wash: 'var(--hue-amber-wash)', rule: 'var(--hue-amber-stroke)' },
   exception: { ink: 'var(--hue-brick-ink)', wash: 'var(--hue-brick-wash)', rule: 'var(--hue-brick-stroke)' },
 }
@@ -20,7 +26,11 @@ export function StopMarks({ source, confidence }: Pick<PlayStep, 'source' | 'con
   const marks = stopMarksOf({ source, confidence })
   if (!marks.length) return null
   return (
-    <span data-stop-marks="" style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4 }}>
+    <span data-stop-marks="" style={{
+      display: 'inline-flex', flexWrap: 'wrap', gap: 4,
+      background: 'var(--surface-paper)', border: '1px solid var(--border-hair)',
+      borderRadius: 'var(--radius-pill)', padding: '2px 5px',
+    }}>
       {marks.map((m) => {
         const tone = MARK_TONE[m.tone]
         return (

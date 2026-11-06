@@ -227,6 +227,10 @@ try {
     else {
       await first.click()
       await page.waitForTimeout(700)
+      const stripText = await page.locator('[aria-label="trail-strip"]').innerText()
+      if (!/stop \d+ of \d+/.test(stripText)) {
+        fail(`${corpus}: the route did not become active, so the notice check proves nothing`)
+      }
       const notices = await page.locator('[data-standing-notice]').count()
       if (notices !== 0) fail(`${corpus}: ${notices} standing notice(s) on a screen that should have none`)
     }

@@ -24,6 +24,7 @@ import { byId, CORPUS_NAME, domainOf, EDGE_COLOR, EDGE_LABEL, pathTo } from '../
 import { colorOf } from '../model/color'
 import type { EdgeType } from '../corpus/graph'
 import { lensModel } from '../model/lens'
+import { nonTopicLensMessage } from '../model/lensmessage'
 import type { ConeSide, LensModel } from '../model/lens'
 import type { Bus } from '../state/bus'
 
@@ -294,13 +295,11 @@ export default function LensPane({ bus, type }: LensPaneProps) {
       ? [...pathTo(focus)].reverse().find((id) => id !== focus && byId.get(id)?.topic)
       : undefined
     body = (
-      <EmptyState text={
-        CORPUS_NAME !== 'cs2023'
-          ? 'lenses read topics — typed links live at the topic level'
-          : enclosing
-            ? `this stop sits inside ${byId.get(enclosing)!.title} — lenses read its knowledge unit`
-            : 'this stop is an area — lenses read its knowledge units'
-      } />
+      <EmptyState text={nonTopicLensMessage({
+        corpus: CORPUS_NAME,
+        isScience: focus === 'X-Science',
+        enclosingTitle: enclosing ? byId.get(enclosing)!.title : undefined,
+      })} />
     )
   } else if (!model || !scene) {
     body = null // unreachable in practice: focus is a topic, so model/scene always compute

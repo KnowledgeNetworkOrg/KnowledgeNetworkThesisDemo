@@ -9,7 +9,7 @@ import type { Walk } from '../corpus/walks'
 import { standingNotice } from '../model/standingnotice'
 
 export default function StandingNotice({ walk, className, style }: {
-  walk: Pick<Walk, 'description'> | null | undefined
+  walk: Pick<Walk, 'description' | 'stops'> | null | undefined
   className?: string
   style?: CSSProperties
 }) {

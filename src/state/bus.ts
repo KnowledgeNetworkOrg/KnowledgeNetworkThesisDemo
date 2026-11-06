@@ -41,6 +41,7 @@ import { walkById } from './walkstore'
 import { curriculum } from '../model/lens'
 import { HISTORY_EMPTY, mark, step, visit } from '../model/nav'
 import { routeLeafIds, routeOfIds } from '../model/route'
+import { visitedIds } from '../model/visited'
 import type { RouteStep } from '../model/route'
 import type { ActiveWalkState, History, TrailEntry, TrailVia } from '../model/nav'
 
@@ -219,7 +220,7 @@ export function useStudioBus<Id extends string>(reveal: (inst: Id | BusRevealTar
   const [draftCursor, setDraftCursorState] = useState(0)
 
   const visited = useMemo(
-    () => new Set(hist.log.filter((t) => (CORPUS_NAME === 'cs2023' ? byId.has(t.id) : byId.get(t.id)?.topic)).map((t) => t.id)),
+    () => new Set(visitedIds(hist.log, CORPUS_NAME, (id) => byId.get(id))),
     [hist.log],
   )
 
