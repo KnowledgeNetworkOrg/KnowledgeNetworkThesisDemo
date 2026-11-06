@@ -7,7 +7,7 @@ import type { WalkStop } from '../corpus/walks'
 
 /** the active stop's secondary tags, only while its stop is the node being read */
 export function secondaryTagsAt(
-  walk: { stops: readonly { id: string; secondary?: WalkStop['secondary'] }[] } | null,
+  walk: { stops: readonly { id: string; secondary?: WalkStop['secondary'] }[] } | null | undefined,
   cursor: number | undefined,
   nodeId: string,
 ): WalkStop['secondary'] {
