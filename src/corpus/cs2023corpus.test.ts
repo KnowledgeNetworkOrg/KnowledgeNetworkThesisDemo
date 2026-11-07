@@ -203,7 +203,8 @@ describe('the routes build on the published prerequisites', () => {
         if (l.alternative_group) entry.group = l.alternative_group
         return entry
       })
-      expect(w.buildsOn ?? [], w.id).toEqual(expected)
+      if (expected.length === 0) expect(w.buildsOn, w.id).toBeUndefined()
+      else expect(w.buildsOn, w.id).toEqual(expected)
     }
   })
 })

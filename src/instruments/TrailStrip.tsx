@@ -33,8 +33,8 @@ type TrailStripBus = Pick<Bus, 'trail' | 'activeWalk' | 'setFocus' | 'activateWa
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const normCourse = (s: string) => s.replace(/\s+/g, '')
 
-/** the wording split into its text and the course codes it names; each course's
- *  first entry decides whether the code opens a route or stays text */
+/** the wording split into its text and the course codes it names; the last
+ *  entry for a code decides whether it opens a route or stays text */
 function BuildsOnWording({ entries, onActivate }: { entries: WalkBuildsOn[]; onActivate: (walkId: string) => void }) {
   const byCourse = new Map<string, WalkBuildsOn>(entries.map((e) => [normCourse(e.course), e]))
   const courses = [...new Set(entries.map((e) => e.course))].sort((a, b) => b.length - a.length)
