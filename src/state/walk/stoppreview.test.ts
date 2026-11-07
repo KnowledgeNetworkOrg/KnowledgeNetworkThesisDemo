@@ -74,6 +74,26 @@ describe('renderStopPreview — the card carries the document, not just the name
   it('draws nothing for a step that is not there (a strip mid-edit)', () => {
     expect(renderStopPreview(undefined, 3)).toBeNull()
   })
+
+  it("draws a stop's notable marks and its secondary labels", () => {
+    const html = draw({
+      ...stepOf(deep.id),
+      source: 'split',
+      confidence: 'not matched',
+      secondary: [{ id: 'somewhere', label: 'Proof techniques (induction, proof by contradiction)', confidence: 'clear' }],
+    }, 0)
+    expect(html.match(/data-stop-mark="/g)).toHaveLength(2)
+    expect(html).toContain('data-stop-mark="split"')
+    expect(html).toContain('data-stop-mark="not matched"')
+    expect(text(html)).toContain('Proof techniques (induction, proof by contradiction)')
+    expect(html).toContain('data-stop-secondary')
+    // the app's card carries no utility classes; the DS and this file style inline
+    expect(html).not.toMatch(/class="/)
+  })
+
+  it('draws no mark badge for a quiet stop', () => {
+    expect(draw({ ...stepOf(deep.id), source: 'outline', confidence: 'judgment call' }, 0)).not.toContain('data-stop-mark')
+  })
 })
 
 describe('stopPlacement — the containment path with the root and the node left out', () => {

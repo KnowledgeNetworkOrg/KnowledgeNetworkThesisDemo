@@ -13,6 +13,7 @@ import { byId, topicHueOf } from '../corpus/graph'
 import { listWalks, subscribeWalks } from '../state/walkstore'
 import type { TrailVia } from '../model/nav'
 import type { Bus } from '../state/bus'
+import StandingNotice from './StandingNotice'
 
 const VIA_TAG: Record<TrailVia, string> = {
   map: 'MAP',
@@ -88,13 +89,16 @@ export default function TrailStrip({ bus }: { bus: TrailStripBus }) {
             ))}
           </div>
         ) : (
-          <div className="flex items-center gap-2 text-[11px]">
-            <span className="font-semibold text-amber-700 truncate max-w-[140px]">{walk.title}</span>
-            <span className="text-slate-400 shrink-0">
-              stop {cursor + 1} of {walk.stops.length} · {walk.stops.length - 1 - cursor} remaining
-            </span>
-            <span className="flex-1" />
-            <IconButton onClick={onDeactivateWalk} title="stop this walk" />
+          <div>
+            <div className="flex items-center gap-2 text-[11px]">
+              <span className="font-semibold text-amber-700 truncate max-w-[140px]">{walk.title}</span>
+              <span className="text-slate-400 shrink-0">
+                stop {cursor + 1} of {walk.stops.length} · {walk.stops.length - 1 - cursor} remaining
+              </span>
+              <span className="flex-1" />
+              <IconButton onClick={onDeactivateWalk} title="stop this walk" />
+            </div>
+            <StandingNotice walk={walk} className="mt-1 text-[10px] leading-snug text-slate-500" />
           </div>
         )}
       </PaneScroller>

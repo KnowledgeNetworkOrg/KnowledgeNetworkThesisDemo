@@ -31,14 +31,15 @@
 
 import type { ReactNode } from 'react'
 
-import { StopCard } from '@/ds'
+import { StopCard, STOP_CARD_METRICS } from '@/ds'
 import type { WalkMark, WalkStep } from '@/ds'
 
 import { DOC_BODY } from '../../corpus/docs'
 import { byId, pathTo } from '../../corpus/graph'
 import type { PlayStep } from './playback'
+import { StopMarks, StopSecondary } from './StopMarks'
 
-type StopLike = WalkStep & Partial<Pick<PlayStep, 'path'>>
+type StopLike = WalkStep & Partial<Pick<PlayStep, 'path' | 'source' | 'confidence' | 'secondary'>>
 
 /** WHERE THE STOP SITS, as `StopCard`'s one-line placement: the containment path with the
  *  ROOT AND THE NODE ITSELF left out ("Core Computer Science › Digital Logic"). `pathTo` is
@@ -72,14 +73,26 @@ export function renderStopPreview(step: StopLike | undefined, index?: number, ma
     : index !== undefined ? index + 1 : undefined
   const address = step.path && step.path.length ? step.path.join('.') : own
   return (
-    <StopCard
-      address={address}
-      title={step.title}
-      optional={!!step.optional}
-      ancestry={stopPlacement(step.id) || undefined}
-      note={step.note || undefined}
-      body={DOC_BODY[step.id] || undefined}
-      mark={mark}
-    />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: STOP_CARD_METRICS.width, alignItems: 'flex-start' }}>
+      <StopMarks source={step.source} confidence={step.confidence} />
+      <StopCard
+        address={address}
+        title={step.title}
+        optional={!!step.optional}
+        ancestry={stopPlacement(step.id) || undefined}
+        note={step.note || undefined}
+        body={DOC_BODY[step.id] || undefined}
+        mark={mark}
+      />
+      {step.secondary?.length ? (
+        <div style={{
+          width: '100%', boxSizing: 'border-box', border: '1px solid var(--border-hair)',
+          borderRadius: 'var(--radius-md)', background: 'var(--surface-paper)',
+          boxShadow: 'var(--lift-2)', padding: '5px 11px 7px',
+        }}>
+          <StopSecondary secondary={step.secondary} />
+        </div>
+      ) : null}
+    </div>
   )
 }
