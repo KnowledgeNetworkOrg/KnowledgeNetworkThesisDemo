@@ -22,6 +22,7 @@ import { saveDraftAsWalk, useAuthorDraft, usePreviewOpen, useRoad } from '../../
 import { listWalks, subscribeWalks } from '../../state/walkstore'
 import { IconButton, Toolbar, wrapTip } from '@/ds'
 import type { ToolbarItemSpec } from '@/ds'
+import WalkList from '../WalkList'
 
 export default function WalkUtilityBar() {
   const state = useAuthorDraft()
@@ -125,22 +126,26 @@ export default function WalkUtilityBar() {
       )}
 
       {picking && (
-        <div data-walk-picker className="px-2 py-1 flex flex-wrap gap-1">
-          {walks.map((w) => (
-            <button
-              key={w.id}
-              onClick={() => {
-                state.insertWalkAsStage(w.id)
-                setPicking(false)
-              }}
-              title={wrapTip(w.description || `${w.stops.length} stops`)}
-              className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border border-[var(--border-rule)] max-w-full truncate"
-              style={{ color: 'var(--text-2)', background: 'var(--surface-raised)' }}
-            >
-              {w.title}
-              <span className="ml-1" style={{ color: 'var(--text-3)' }}>{w.stops.length}</span>
-            </button>
-          ))}
+        <div data-walk-picker className="px-2 py-1">
+          <WalkList
+            walks={walks}
+            variant="picker"
+            renderWalk={(w) => (
+              <button
+                key={w.id}
+                onClick={() => {
+                  state.insertWalkAsStage(w.id)
+                  setPicking(false)
+                }}
+                title={wrapTip(w.description || `${w.stops.length} stops`)}
+                className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border border-[var(--border-rule)] max-w-full truncate"
+                style={{ color: 'var(--text-2)', background: 'var(--surface-raised)' }}
+              >
+                {w.title}
+                <span className="ml-1" style={{ color: 'var(--text-3)' }}>{w.stops.length}</span>
+              </button>
+            )}
+          />
         </div>
       )}
     </>
