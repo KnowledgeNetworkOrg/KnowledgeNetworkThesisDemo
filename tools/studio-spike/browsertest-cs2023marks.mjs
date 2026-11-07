@@ -124,7 +124,7 @@ const activate = async (title) => {
 }
 
 /** the hover card for stop `i`, after the dock's own cursor has been put on it */
-const readStop = async (i) => {
+const readStop = async (i, title, count) => {
   const dock = page.locator('[data-walk-dock]')
   await dock.focus()
   await page.keyboard.press(i === 0 ? 'Home' : 'ArrowRight')
@@ -139,7 +139,16 @@ const readStop = async (i) => {
   const markTexts = await preview.locator('[data-stop-mark]').allTextContents()
   const secondary = await preview.locator('[data-stop-secondary-item]').allTextContents()
   const docSecondary = await page.locator('[aria-label="studio-pane-document"] [data-stop-secondary-item]').allTextContents()
-  return { id: await focusId(), marks, markTexts, secondary, docSecondary }
+  // this route's entry in "walks through here" at this stop position: the
+  // badges sit in the same group as its card, so read them from the card's parent
+  const entry = page.locator('[aria-label="studio-pane-document"] button')
+    .filter({ hasText: title })
+    .filter({ hasText: `stop ${i + 1} of ${count} —` })
+  const entries = await entry.count()
+  const docMarks = entries === 1
+    ? await entry.locator('xpath=..').locator('[data-stop-mark]').evaluateAll((els) => els.map((e) => e.getAttribute('data-stop-mark')))
+    : null
+  return { id: await focusId(), marks, markTexts, secondary, docSecondary, docMarks, entries }
 }
 
 let server = null
@@ -162,7 +171,7 @@ try {
     const seen = []
     for (let i = 0; i < route.stops.length; i++) {
       const stop = route.stops[i]
-      const read = await readStop(i)
+      const read = await readStop(i, title, route.stops.length)
       if (read.error) {
         fail(`${course} stop ${i + 1}: ${read.error}`)
         continue
@@ -179,6 +188,11 @@ try {
       }
       if (!same(read.markTexts, wantMarks)) {
         fail(`${course} stop ${i + 1}: badge words ${JSON.stringify(read.markTexts)}, expected ${JSON.stringify(wantMarks)}`)
+      }
+      if (read.entries !== 1) {
+        fail(`${course} stop ${i + 1}: "walks through here" lists this stop ${read.entries} times, expected once`)
+      } else if (!same(read.docMarks, wantMarks)) {
+        fail(`${course} stop ${i + 1}: document-panel marks ${JSON.stringify(read.docMarks)}, expected ${JSON.stringify(wantMarks)}`)
       }
       const wantSecondary = secondaryOf(stop)
       if (!same(read.secondary, wantSecondary)) {
