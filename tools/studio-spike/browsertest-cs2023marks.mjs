@@ -8,7 +8,7 @@
 // throughout; BLG 143 is split and an exception on Science. At each stop it also
 // reads the document panel: the secondary tags, and the badges above this
 // route's entry in "walks through here" at that stop position. The same screen
-// must carry the standing placement notice. Teaching and courses must not.
+// must carry the standing placement notice. Teaching must not.
 //
 // Spawns vite ITSELF — backgrounded dev servers die on this machine.
 // Run from anywhere:  node tools/studio-spike/browsertest-cs2023marks.mjs
@@ -235,7 +235,7 @@ try {
   await stopServer(server)
   server = null
 
-  for (const corpus of ['teaching', 'courses']) {
+  for (const corpus of ['teaching']) {
     server = await startVite({ env: { VITE_CORPUS: corpus } })
     await load(server.port)
     const first = walkButtons().first()

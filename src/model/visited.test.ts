@@ -14,7 +14,6 @@ const log = [{ id: 'topic' }, { id: 'area' }, { id: 'deep' }, { id: 'topic' }, {
 describe('visitedIds — the places a trail counts', () => {
   it('counts topics only on a topic corpus', () => {
     expect(visitedIds(log, 'teaching', lookup)).toEqual(['topic'])
-    expect(visitedIds(log, 'courses', lookup)).toEqual(['topic'])
   })
 
   it('counts every real place on cs2023, areas and deeper included', () => {

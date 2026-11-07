@@ -24,7 +24,7 @@ where its `node_modules` is missing: `npm ci` for the root and
 The import rule between the folders under `src/` is written in
 `src/layering.test.ts`.
 
-## Three corpora
+## Two corpora
 
 `src/corpus/graph.ts` chooses between them; it does not contain any. Every
 instrument imports from it.
@@ -32,11 +32,6 @@ instrument imports from it.
 - **teaching** (the default) — the hand-authored CS corpus in `teachingdata.ts`.
   Six domains, sixteen modules, 53 topics, 116 authored edges. **Every pinned
   count in the test suite measures this one**, so leave it the default.
-- **courses** — 36 real courses from Toronto Metropolitan University's published
-  outlines, GENERATED into `coursedata.ts` by `tools/courseimport/`. Read that
-  folder's `README.md` before touching anything in it: it records what is the
-  university's data and what is the author's judgment, and the distinction is
-  load-bearing for the thesis. Run it with `VITE_CORPUS=courses npm run dev`.
 - **cs2023** — the knowledge areas and units of *Computer Science Curricula 2023*,
   with CS2023's own printed "See also" notes as its only edges, GENERATED into
   `cs2023data.ts` by `tools/cs2023import/` from a pinned copy of the thesis's map

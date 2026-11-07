@@ -21,7 +21,7 @@
 // PINNING. `port` asks for one particular port instead (the probes' PROBE_PORT, for pointing
 // a browser of your own at the server). A pinned port is tried once and never replaced.
 //
-// `env` is added to vite's environment (browsertest-coursecorpus sets VITE_CORPUS).
+// `env` is added to vite's environment (browsertest-cs2023corpus sets VITE_CORPUS).
 // Returns { vite, port }: the child process, to be killed when the driver is done, and the
 // port it is serving on.
 import { spawn } from 'node:child_process'

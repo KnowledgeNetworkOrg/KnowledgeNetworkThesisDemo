@@ -21,7 +21,7 @@ describe('nonTopicLensMessage — a lens centred on a place that is not a topic'
   it('leaves the topic corpora wording unchanged', () => {
     expect(nonTopicLensMessage({ corpus: 'teaching', isScience: false }))
       .toBe('lenses read topics — typed links live at the topic level')
-    expect(nonTopicLensMessage({ corpus: 'courses', isScience: false, enclosingTitle: 'Anything' }))
+    expect(nonTopicLensMessage({ corpus: 'teaching', isScience: false, enclosingTitle: 'Anything' }))
       .toBe('lenses read topics — typed links live at the topic level')
   })
 })

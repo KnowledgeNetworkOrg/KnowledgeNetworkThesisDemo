@@ -8,8 +8,8 @@
 //        src/corpus/cs2023docs.ts            — one document body per node
 //        src/corpus/cs2023walks.ts           — the TMU courses as routes
 //
-// The outputs are COMMITTED, as with `tools/courseimport/`. Re-run this only after
-// replacing the JSON with a newer copy from the thesis repository.
+// The outputs are COMMITTED. Re-run this only after replacing the JSON with a
+// newer copy from the thesis repository.
 //
 // The rule this script enforces on itself: it invents no content. Every title is a
 // CS2023 label as the thesis file transcribes it, verbatim; every edge is one of

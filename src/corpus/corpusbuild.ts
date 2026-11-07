@@ -1,9 +1,9 @@
 // Turning an AUTHORED corpus into a usable one. Everything here used to sit at
 // the bottom of graph.ts, where it could only ever serve the one hand-authored
 // CS teaching corpus. It is a separate module now because the repo holds a
-// SECOND corpus — `coursedata.ts`, generated from Toronto Metropolitan
-// University's published course outlines — and both need identical derivation
-// or the instruments would be comparing two different things.
+// SECOND corpus — `cs2023data.ts`, generated from the thesis's CS2023 map
+// file — and both need identical derivation or the instruments would be
+// comparing two different things.
 //
 // The split is exactly: an AUTHORED corpus is a tree of nodes, a set of deep
 // layers keyed by topic, and a list of edge triples. Everything else —

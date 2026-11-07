@@ -13,7 +13,6 @@ describe('standingNotice — the cs2023 placement sentence', () => {
 
   it('is null on the other corpora even when the sentence is there', () => {
     expect(standingNotice(route('A course. Placements are AI-suggested and under the author\'s review.'), 'teaching')).toBeNull()
-    expect(standingNotice(route('A course. Placements are AI-suggested and under the author\'s review.'), 'courses')).toBeNull()
   })
 
   it('is null for a route with no stops, no description, or no notice', () => {
