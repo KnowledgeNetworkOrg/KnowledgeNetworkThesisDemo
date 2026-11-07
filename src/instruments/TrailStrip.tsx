@@ -60,7 +60,7 @@ function BuildsOnWording({ entries, onActivate }: { entries: WalkBuildsOn[]; onA
             </button>
           )
         }
-        return <span key={i} title={entry.title} className="text-slate-600">{part}</span>
+        return <span key={i} title={wrapTip(entry.title)} className="text-slate-600">{part}</span>
       })}
     </>
   )

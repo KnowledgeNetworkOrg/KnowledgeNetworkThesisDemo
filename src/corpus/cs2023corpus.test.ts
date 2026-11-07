@@ -190,7 +190,10 @@ describe('the routes build on the published prerequisites', () => {
     for (const w of CS2023_WALKS) {
       const course = routeCourseById.get(w.id)!
       const expected = pinned.route_links.filter((l) => l.from === course).map((l) => {
-        const entry: { course: string; walkId?: string; title?: string; group?: string; wording: string } = { course: l.to }
+        const entry: { course: string; walkId?: string; title?: string; group?: string; wording: string } = {
+          course: l.to,
+          wording: l.calendar_wording,
+        }
         const id = routeIdOf(l.to)
         if (routeIds.has(id)) entry.walkId = id
         else {
@@ -198,7 +201,6 @@ describe('the routes build on the published prerequisites', () => {
           if (title) entry.title = title
         }
         if (l.alternative_group) entry.group = l.alternative_group
-        entry.wording = l.calendar_wording
         return entry
       })
       expect(w.buildsOn ?? [], w.id).toEqual(expected)
