@@ -38,6 +38,21 @@ export interface WalkStop {
   item?: string
 }
 
+/** one prerequisite row: the route this route builds on, or an outside course
+ *  the calendar names. `group` is the row's alternative group — its `.B` suffix
+ *  kept, because an "and" can sit inside one alternative — not the route's own
+ *  `group`. */
+export interface WalkBuildsOn {
+  course: string
+  /** set when `course` is one of the routes; absent for an outside course */
+  walkId?: string
+  /** the calendar's title for an outside course, when the data gives one */
+  title?: string
+  group?: string
+  /** the calendar's prerequisite sentence, verbatim */
+  wording: string
+}
+
 /** A route across the corpus. A course route's stops sit on the places its
  *  outline items were placed on, at any depth, and repeat visits are kept in
  *  order. A measure over walks skips the `split` and `filled` stops of a course
@@ -49,6 +64,7 @@ export interface Walk {
   description: string
   category?: string
   group?: string
+  buildsOn?: WalkBuildsOn[]
   stops: WalkStop[]
 }
 
