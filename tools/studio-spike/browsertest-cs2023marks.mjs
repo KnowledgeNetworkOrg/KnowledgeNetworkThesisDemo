@@ -5,8 +5,10 @@
 // Desk's draft road carries no marks), and checks the hover card each stop draws:
 // MTH 110 has split stops and a not-matched stop on the MSF area, and one
 // secondary tag at stop 5 and none at stops 3 and 4; CPS 803 is filled
-// throughout; BLG 143 is split and an exception on Science. The same screen must
-// carry the standing placement notice. Teaching and courses must not.
+// throughout; BLG 143 is split and an exception on Science. At each stop it also
+// reads the document panel: the secondary tags, and the badges above this
+// route's entry in "walks through here" at that stop position. The same screen
+// must carry the standing placement notice. Teaching and courses must not.
 //
 // Spawns vite ITSELF — backgrounded dev servers die on this machine.
 // Run from anywhere:  node tools/studio-spike/browsertest-cs2023marks.mjs
