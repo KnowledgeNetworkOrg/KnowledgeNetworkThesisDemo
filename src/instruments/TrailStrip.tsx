@@ -15,6 +15,7 @@ import { listWalks, subscribeWalks } from '../state/walkstore'
 import type { TrailVia } from '../model/nav'
 import type { Bus } from '../state/bus'
 import StandingNotice from './StandingNotice'
+import WalkList from './WalkList'
 
 const VIA_TAG: Record<TrailVia, string> = {
   map: 'MAP',
@@ -124,8 +125,10 @@ export default function TrailStrip({ bus }: { bus: TrailStripBus }) {
       <PaneScroller style={{ width: 420, flex: 'none', padding: '6px 12px' }}>
         <div className="text-[10px] font-bold text-slate-500 mb-1">Walks</div>
         {!walk ? (
-          <div className="flex flex-wrap gap-1.5">
-            {walks.map((w) => (
+          <WalkList
+            walks={walks}
+            variant="trail"
+            renderWalk={(w) => (
               <button
                 key={w.id}
                 onClick={() => onActivateWalk(w.id)}
@@ -134,8 +137,8 @@ export default function TrailStrip({ bus }: { bus: TrailStripBus }) {
               >
                 ▶ {w.title}
               </button>
-            ))}
-          </div>
+            )}
+          />
         ) : (
           <div>
             <div className="flex items-center gap-2 text-[11px]">
