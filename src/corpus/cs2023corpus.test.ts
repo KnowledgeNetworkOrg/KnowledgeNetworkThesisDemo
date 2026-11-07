@@ -28,6 +28,12 @@ const pinnedStopCounts = new Map(
   pinned.routes.map((r) => [r.course.toLowerCase().replace(/[^a-z0-9]+/g, '-'), r.stops.length]),
 )
 
+const routeIdOf = (course: string) => course.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+const routeCourseById = new Map(pinned.routes.map((r) => [routeIdOf(r.course), r.course]))
+const routeIds = new Set(pinned.routes.map((r) => routeIdOf(r.course)))
+const outsideTitleByCourse = new Map(pinned.outside_courses.map((c) => [c.code, c.title]))
+const buildsOn = CS2023_WALKS.flatMap((w) => (w.buildsOn ?? []).map((b) => ({ from: routeCourseById.get(w.id)!, ...b })))
+
 describe('the CS2023 tree', () => {
   it('has 18 domains: the 17 CS2023 knowledge areas and Science', () => {
     expect(built.domainIds.length).toBe(18)
@@ -146,6 +152,59 @@ describe('the documents and the routes', () => {
     for (const w of CS2023_WALKS) {
       if (w.stops.length === 0) continue
       expect(w.description, w.id).toContain("Placements are AI-suggested and under the author's review.")
+    }
+  })
+})
+
+describe('the routes build on the published prerequisites', () => {
+  it('107 rows over 48 routes, 105 distinct (from, to) pairs', () => {
+    expect(buildsOn.length).toBe(107)
+    expect(CS2023_WALKS.filter((w) => w.buildsOn?.length).length).toBe(48)
+    expect(new Set(buildsOn.map((b) => `${b.from}|${b.course}`)).size).toBe(105)
+  })
+
+  it('every course is one of the routes or an outside course; walkId is set exactly for the routes', () => {
+    for (const b of buildsOn) {
+      const id = routeIdOf(b.course)
+      if (routeIds.has(id)) expect(b.walkId, `${b.from} builds on ${b.course}`).toBe(id)
+      else {
+        expect(outsideTitleByCourse.has(b.course), `${b.course} is neither a route nor an outside course`).toBe(true)
+        expect(b.walkId, `${b.course} is an outside course`).toBeUndefined()
+      }
+      if (b.walkId) expect(b.title, `${b.course} is a route`).toBeUndefined()
+      else expect(b.title, `${b.course}`).toBe(outsideTitleByCourse.get(b.course) ?? undefined)
+    }
+    expect(buildsOn.filter((b) => b.walkId).length).toBe(71)
+    expect(buildsOn.filter((b) => !b.walkId).length).toBe(36)
+  })
+
+  it('47 rows sit in no group, the other 60 in 29 groups (24 without the .B suffix)', () => {
+    const groups = buildsOn.flatMap((b) => (b.group ? [b.group] : []))
+    expect(buildsOn.filter((b) => !b.group).length).toBe(47)
+    expect(groups.length).toBe(60)
+    expect(new Set(groups).size).toBe(29)
+    expect(new Set(groups.map((g) => g.replace(/\.B\d+$/, ''))).size).toBe(24)
+  })
+
+  it('keeps each route\'s rows in the file\'s order, wording verbatim', () => {
+    for (const w of CS2023_WALKS) {
+      const course = routeCourseById.get(w.id)!
+      const expected = pinned.route_links.filter((l) => l.from === course).map((l) => {
+        const entry: { course: string; walkId?: string; title?: string; group?: string; wording: string } = {
+          course: l.to,
+          wording: l.calendar_wording,
+        }
+        const id = routeIdOf(l.to)
+        if (routeIds.has(id)) entry.walkId = id
+        else {
+          const title = outsideTitleByCourse.get(l.to)
+          if (title) entry.title = title
+        }
+        if (l.alternative_group) entry.group = l.alternative_group
+        return entry
+      })
+      if (expected.length === 0) expect(w.buildsOn, w.id).toBeUndefined()
+      else expect(w.buildsOn, w.id).toEqual(expected)
     }
   })
 })

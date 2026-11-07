@@ -10,6 +10,7 @@ import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { IconButton, LEGEND_INSET, PaneScroller, TrailChip, wrapTip } from '@/ds'
 
 import { byId, topicHueOf } from '../corpus/graph'
+import type { WalkBuildsOn } from '../corpus/walks'
 import { listWalks, subscribeWalks } from '../state/walkstore'
 import type { TrailVia } from '../model/nav'
 import type { Bus } from '../state/bus'
@@ -28,6 +29,53 @@ const VIA_TAG: Record<TrailVia, string> = {
 
 /** the slice of the bus the trail strip reads and writes */
 type TrailStripBus = Pick<Bus, 'trail' | 'activeWalk' | 'setFocus' | 'activateWalk' | 'deactivateWalk'>
+
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const normCourse = (s: string) => s.replace(/\s+/g, '')
+
+/** the wording split into its text and the course codes it names; the last
+ *  entry for a code decides whether it opens a route or stays text */
+function BuildsOnWording({ entries, onActivate }: { entries: WalkBuildsOn[]; onActivate: (walkId: string) => void }) {
+  const byCourse = new Map<string, WalkBuildsOn>(entries.map((e) => [normCourse(e.course), e]))
+  const courses = [...new Set(entries.map((e) => e.course))].sort((a, b) => b.length - a.length)
+  const pattern = new RegExp(
+    `(${courses.map((c) => `(?<![A-Za-z0-9])${escapeRegExp(c).replace(/ /g, '\\s*')}(?![A-Za-z0-9])`).join('|')})`,
+    'g',
+  )
+  const parts = entries[0].wording.split(pattern)
+  return (
+    <>
+      {parts.map((part, i) => {
+        const entry = byCourse.get(normCourse(part))
+        if (!entry) return <span key={i}>{part}</span>
+        if (entry.walkId) {
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onActivate(entry.walkId!)}
+              className="font-medium text-amber-700 underline decoration-dotted underline-offset-2 hover:text-amber-800"
+            >
+              {part}
+            </button>
+          )
+        }
+        return <span key={i} title={wrapTip(entry.title)} className="text-slate-600">{part}</span>
+      })}
+    </>
+  )
+}
+
+/** one line per distinct wording, so an either/or's rows do not repeat it */
+function buildsOnWordings(entries: WalkBuildsOn[]) {
+  const wordings: { wording: string; entries: WalkBuildsOn[] }[] = []
+  for (const e of entries) {
+    const w = wordings.find((x) => x.wording === e.wording)
+    if (w) w.entries.push(e)
+    else wordings.push({ wording: e.wording, entries: [e] })
+  }
+  return wordings
+}
 
 export default function TrailStrip({ bus }: { bus: TrailStripBus }) {
   const { trail, activeWalk } = bus
@@ -99,6 +147,11 @@ export default function TrailStrip({ bus }: { bus: TrailStripBus }) {
               <IconButton onClick={onDeactivateWalk} title="stop this walk" />
             </div>
             <StandingNotice walk={walk} className="mt-1 text-[10px] leading-snug text-slate-500" />
+            {buildsOnWordings(walk.buildsOn ?? []).map((w) => (
+              <p key={w.wording} data-builds-on="" className="mt-1 text-[10px] leading-snug text-slate-500">
+                Builds on: <BuildsOnWording entries={w.entries} onActivate={onActivateWalk} />
+              </p>
+            ))}
           </div>
         )}
       </PaneScroller>

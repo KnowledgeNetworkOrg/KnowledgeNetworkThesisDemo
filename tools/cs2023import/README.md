@@ -85,6 +85,13 @@ replaces this one, with this table updated, and the generator is run again.
 - **A measure over walks skips `split` and `filled` stops.** Those say where the data
   divided an item across places or filled a gap the outline left, not what the outline
   named; counting them would inflate the course.
+- **Prerequisites are "builds on" links between routes.** `buildsOn` carries the
+  calendar's prerequisite rows in the file's order: `course` is the required course,
+  `walkId` the route it is (absent for the 16 outside courses, which carry `title`
+  when the data has one), `group` the row's `alternative_group` verbatim (its `.B`
+  suffix kept, because an "and" can sit inside one alternative), and `wording` the
+  calendar's sentence, verbatim. An either/or keeps its rows and its one wording;
+  nothing is split or merged. No `depends_on` edge is drawn on the map.
 
 Every other route's description is the calendar's words plus the standing line
 "Placements are AI-suggested and under the author's review." The generator composes no
@@ -96,7 +103,6 @@ walks: `src/state/persistguard.ts` asks whether the place exists on this corpus,
 
 ## What is not carried yet
 
-- **Prerequisites.** The file's `prerequisite_wording` is not a route or an edge here.
 - **Each edge's notes.** The file gives every edge its note ids, the topic each note sits
   under (`attached_to`) and its pages. `GEdge` has no place for them, so drawing unit to
   unit hides which topic a note was attached to; they stay in the JSON.

@@ -140,6 +140,28 @@ for (const k of Object.keys(doc)) doc[k] = doc[k].replace(/ {2,}/g, ' ')
 // No course word here is composed.
 const STANDING = "Placements are AI-suggested and under the author's review."
 const routeIdOf = (course) => course.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+
+// ── Builds on: the calendar's prerequisites, as links between routes ─────────
+// One entry per prerequisite row, in the file's order. An either/or keeps its
+// rows and shares its group and wording; nothing is split or merged here.
+const routeIdByCourse = new Map(data.routes.map((r) => [r.course, routeIdOf(r.course)]))
+const outsideByCourse = new Map(data.outside_courses.map((c) => [c.code, c]))
+const buildsOn = new Map()
+for (const link of data.route_links) {
+  const fromId = routeIdByCourse.get(link.from)
+  if (!fromId) throw new Error(`prerequisite row names no route: ${link.from}`)
+  const walkId = routeIdByCourse.get(link.to)
+  const outside = outsideByCourse.get(link.to)
+  if (!walkId && !outside) throw new Error(`prerequisite row points at neither a route nor an outside course: ${link.to}`)
+  const entry = { course: link.to }
+  if (walkId) entry.walkId = walkId
+  else if (outside.title) entry.title = outside.title
+  if (link.alternative_group) entry.group = link.alternative_group
+  entry.wording = link.calendar_wording
+  if (!buildsOn.has(fromId)) buildsOn.set(fromId, [])
+  buildsOn.get(fromId).push(entry)
+}
+
 const routes = data.routes.map((r) => {
   const stops = r.stops.map((s) => {
     const stop = {
@@ -159,6 +181,7 @@ const routes = data.routes.map((r) => {
     description: stops.length === 0 && r.note ? r.note : `${r.calendar_description} ${STANDING}`,
     category: r.category,
     group: r.group,
+    buildsOn: buildsOn.get(routeIdOf(r.course)),
     stops,
   }
 })

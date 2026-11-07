@@ -624,6 +624,20 @@ export const CS2023_WALKS: Walk[] = [
     description: "A continuation of CPS 109. Emphasis is placed on code structure, algorithm development, and Object Oriented design principles. Placements are AI-suggested and under the author's review.",
     category: "REQUIRED",
     group: "2nd Semester",
+    buildsOn: [
+      {
+        course: "CPS 109",
+        walkId: "cps-109",
+        group: "CPS209.ALT1",
+        wording: "CPS 109 or CPS 106",
+      },
+      {
+        course: "CPS 106",
+        title: "Introduction to Multimedia Computation",
+        group: "CPS209.ALT1",
+        wording: "CPS 109 or CPS 106",
+      },
+    ],
     stops: [
       {
         id: "SDF-Fundamentals",
@@ -782,6 +796,19 @@ export const CS2023_WALKS: Walk[] = [
     description: "A continuation of CPS 213. Memory; CPU architecture and instruction set; the instruction processing sequence; generic assembler level programming illustrated for specific CPUs; I/O essentials including interrupts and DMA; characteristics of major peripherals interfaces; RISC and CISC architectures compared; parallel processing. The laboratory requires using a specific assembler/editor for the creation of programs illustrating some of the principles discussed in lectures. Placements are AI-suggested and under the author's review.",
     category: "REQUIRED",
     group: "2nd Semester",
+    buildsOn: [
+      {
+        course: "CPS 211",
+        group: "CPS310.ALT1",
+        wording: "CPS 211 or CPS 213",
+      },
+      {
+        course: "CPS 213",
+        walkId: "cps-213",
+        group: "CPS310.ALT1",
+        wording: "CPS 211 or CPS 213",
+      },
+    ],
     stops: [
       {
         id: "AR-Memory",
@@ -1045,6 +1072,13 @@ export const CS2023_WALKS: Walk[] = [
     description: "Introduction to data structures and algorithms. Data structures covered will include stacks, queues, lists, trees, and graphs. Algorithm topics will include searching, sorting, hashing, algorithm design, greedy approaches, dynamic programming, recursion and complexity analysis. Placements are AI-suggested and under the author's review.",
     category: "REQUIRED",
     group: "3rd Semester",
+    buildsOn: [
+      {
+        course: "CPS 209",
+        walkId: "cps-209",
+        wording: "CPS 209",
+      },
+    ],
     stops: [
       {
         id: "FPL-Functional",
@@ -1183,6 +1217,13 @@ export const CS2023_WALKS: Walk[] = [
     description: "The course introduces the UNIX operating system, and the C and C++ languages. UNIX topics include: I/O, redirection, processes, and shell scripts. C and C++ are introduced with an emphasis on differences from previously studied languages. C topics include pointers, structures, memory allocation, and paradigm differences. C++ topics include class formalisms, static and dynamic instantiation, inheritance, constructors and destructors, polymorphism with virtual functions, operator overloading, and time permitting, friends. Stream I/O may be introduced. Placements are AI-suggested and under the author's review.",
     category: "REQUIRED",
     group: "3rd Semester",
+    buildsOn: [
+      {
+        course: "CPS 209",
+        walkId: "cps-209",
+        wording: "CPS 209",
+      },
+    ],
     stops: [
       {
         id: "FPL-Scripting",
@@ -1588,6 +1629,19 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course introduces the study of Object-Oriented software engineering. Topics include software project management, requirements gathering, requirements analysis, modeling, design, implementation and testing. UML diagrams and design patterns are also discussed. A major portion of the course is a team project, taking a system from the initial requirements to the final implementation. (2 hr Lab every other week). Placements are AI-suggested and under the author's review.",
     category: "REQUIRED",
     group: "4th Semester",
+    buildsOn: [
+      {
+        course: "CPS 311",
+        group: "CPS406.ALT1",
+        wording: "CPS 311 or CPS 209",
+      },
+      {
+        course: "CPS 209",
+        walkId: "cps-209",
+        group: "CPS406.ALT1",
+        wording: "CPS 311 or CPS 209",
+      },
+    ],
     stops: [
       {
         id: "SE",
@@ -1708,6 +1762,18 @@ export const CS2023_WALKS: Walk[] = [
     description: "Introduction to discrete structures as they apply to design and analysis. Review of proof techniques. Induction and recursion. Graphs and trees, and their applications in computing. Finite automata and regular expressions. Counting: arithmetic and geometric progressions, permutations and combinations, modular arithmetic. Placements are AI-suggested and under the author's review.",
     category: "REQUIRED",
     group: "4th Semester",
+    buildsOn: [
+      {
+        course: "CPS 305",
+        walkId: "cps-305",
+        wording: "CPS 305, MTH 110",
+      },
+      {
+        course: "MTH 110",
+        walkId: "mth-110",
+        wording: "CPS 305, MTH 110",
+      },
+    ],
     stops: [
       {
         id: "MSF-Discrete.T3",
@@ -1867,6 +1933,13 @@ export const CS2023_WALKS: Walk[] = [
     description: "A survey of major programming paradigms, with emphasis on the functional paradigm. Discussion of data typing, program decomposition, scoping rules, control structures parameter passing. Programming languages will likely include commercially important functional languages such as Haskell, Clojure and Erlang, with examples of others as time permits. Placements are AI-suggested and under the author's review.",
     category: "REQUIRED",
     group: "4th Semester",
+    buildsOn: [
+      {
+        course: "CPS 209",
+        walkId: "cps-209",
+        wording: "CPS 209",
+      },
+    ],
     stops: [
       {
         id: "FPL-OOP",
@@ -2016,6 +2089,18 @@ export const CS2023_WALKS: Walk[] = [
     description: "Introduction to O/S (system calls, interrupts, synchronous and asynchronous traps, O/S structure), using processes (process communication and synchronization), primitive communications (signals and signal management calls), pipes, messages, semaphores, shared memory, memory management, file systems, and (time permitting) remote procedure calls. Placements are AI-suggested and under the author's review.",
     category: "REQUIRED",
     group: "4th Semester",
+    buildsOn: [
+      {
+        course: "CPS 305",
+        walkId: "cps-305",
+        wording: "CPS 305 and CPS 393",
+      },
+      {
+        course: "CPS 393",
+        walkId: "cps-393",
+        wording: "CPS 305 and CPS 393",
+      },
+    ],
     stops: [
       {
         id: "OS-Purpose",
@@ -2160,6 +2245,26 @@ export const CS2023_WALKS: Walk[] = [
     description: "Advanced file management techniques involving fundamentals of database organization, design and management. Emphasis is given to Relational Database Management Systems including relational algebra, normal Forms, physical Database Structures and their implementation, and Relational Database Languages. Other types of Database Managers are also discussed such as Hierarchical, Network and Inverted Files. Placements are AI-suggested and under the author's review.",
     category: "REQUIRED",
     group: "5th Semester",
+    buildsOn: [
+      {
+        course: "CPS 305",
+        walkId: "cps-305",
+        group: "CPS510.ALT1.B1",
+        wording: "CPS 305 or (COE 428 and COE 528)",
+      },
+      {
+        course: "COE 428",
+        title: "Engineering Algorithms and Data Structures",
+        group: "CPS510.ALT1.B2",
+        wording: "CPS 305 or (COE 428 and COE 528)",
+      },
+      {
+        course: "COE 528",
+        title: "Object Oriented Eng Analysis and Design",
+        group: "CPS510.ALT1.B2",
+        wording: "CPS 305 or (COE 428 and COE 528)",
+      },
+    ],
     stops: [
       {
         id: "DM-Core.T4",
@@ -2265,6 +2370,13 @@ export const CS2023_WALKS: Walk[] = [
     description: "History and examples of computer crime. Security policies and mechanisms. Access control models. Implementation and usability issues. Physical security. Authentication technologies. Operating system security. Encryption algorithms and protocols. External and internal firewalls. Software flaws and malware. Ethical issues in computer security. Sample privacy noncompliance litigation cases, Social implications of computing networked communication. Placements are AI-suggested and under the author's review.",
     category: "REQUIRED",
     group: "5th Semester",
+    buildsOn: [
+      {
+        course: "CPS 420",
+        walkId: "cps-420",
+        wording: "CPS 420",
+      },
+    ],
     stops: [
       {
         id: "SEC",
@@ -2370,6 +2482,30 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course provides introduction to several important AI problems and techniques, including knowledge representation and reasoning, constraints satisfaction, search, natural language understanding, planning, uncertainty, belief networks, learning. Placements are AI-suggested and under the author's review.",
     category: "REQUIRED",
     group: "5th Semester",
+    buildsOn: [
+      {
+        course: "CPS 305",
+        walkId: "cps-305",
+        wording: "CPS 305 and CPS 420 and (MTH 380 or MTH 304)",
+      },
+      {
+        course: "CPS 420",
+        walkId: "cps-420",
+        wording: "CPS 305 and CPS 420 and (MTH 380 or MTH 304)",
+      },
+      {
+        course: "MTH 380",
+        title: "Probability and Statistics I",
+        group: "CPS721.ALT1",
+        wording: "CPS 305 and CPS 420 and (MTH 380 or MTH 304)",
+      },
+      {
+        course: "MTH 304",
+        title: "Probability",
+        group: "CPS721.ALT1",
+        wording: "CPS 305 and CPS 420 and (MTH 380 or MTH 304)",
+      },
+    ],
     stops: [
       {
         id: "AI-LRR.T2",
@@ -2442,6 +2578,32 @@ export const CS2023_WALKS: Walk[] = [
     description: "Complexity analysis and order notations, recurrence equations, brute force, divide-and-conquer techniques and the master theorem, transform-and-conquer and problem reduction, greedy method, dynamic programming, the knapsack and travelling salesman problems, graph algorithms, text processing and pattern matching techniques, P, NP, and NP-complete classes. Placements are AI-suggested and under the author's review.",
     category: "REQUIRED",
     group: "6th Semester",
+    buildsOn: [
+      {
+        course: "CPS 305",
+        walkId: "cps-305",
+        group: "CPS616.ALT1.B1",
+        wording: "(CPS 305 and MTH 210) or (CPS 305 and CPS 420)",
+      },
+      {
+        course: "MTH 210",
+        title: "Discrete Mathematics II",
+        group: "CPS616.ALT1.B1",
+        wording: "(CPS 305 and MTH 210) or (CPS 305 and CPS 420)",
+      },
+      {
+        course: "CPS 305",
+        walkId: "cps-305",
+        group: "CPS616.ALT1.B2",
+        wording: "(CPS 305 and MTH 210) or (CPS 305 and CPS 420)",
+      },
+      {
+        course: "CPS 420",
+        walkId: "cps-420",
+        group: "CPS616.ALT1.B2",
+        wording: "(CPS 305 and MTH 210) or (CPS 305 and CPS 420)",
+      },
+    ],
     stops: [
       {
         id: "AL",
@@ -2515,6 +2677,13 @@ export const CS2023_WALKS: Walk[] = [
     description: "Internet, the network edge, the network core, delay, loss and throughput, protocol layers. Application Layer: principles of network applications, web. Transport Layer -UDP, connection oriented transport TCP, TCP congestion control. Network layer -The internet protocol (IP): Forwarding and addressing in the Internet. Routing algorithms. The link layer and local area networks. Placements are AI-suggested and under the author's review.",
     category: "REQUIRED",
     group: "6th Semester",
+    buildsOn: [
+      {
+        course: "CPS 590",
+        walkId: "cps-590",
+        wording: "CPS 590",
+      },
+    ],
     stops: [
       {
         id: "NC-Fundamentals.T2",
@@ -2572,6 +2741,37 @@ export const CS2023_WALKS: Walk[] = [
     description: "Introduction to analysis, management, and visualization of cellular information at the molecular level. The course includes an overview of mathematical modeling and simulation, pattern matching, methods for phylogenetics, gene recognition, distributed and parallel biological computing, designing and managing biological databases (both relational and object-oriented), linking disparate databases and data, data mining, reasoning by analogy, hypothesis formation and testing by machine. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 106",
+        title: "Introduction to Multimedia Computation",
+        group: "CPS501.ALT1",
+        wording: "(CPS 106 or CPS 109 or CPS 118 or CPS 125 ) and BLG 143",
+      },
+      {
+        course: "CPS 109",
+        walkId: "cps-109",
+        group: "CPS501.ALT1",
+        wording: "(CPS 106 or CPS 109 or CPS 118 or CPS 125 ) and BLG 143",
+      },
+      {
+        course: "CPS 118",
+        title: "Introductory Programming for Scientists",
+        group: "CPS501.ALT1",
+        wording: "(CPS 106 or CPS 109 or CPS 118 or CPS 125 ) and BLG 143",
+      },
+      {
+        course: "CPS 125",
+        title: "Digital Computation and Programming",
+        group: "CPS501.ALT1",
+        wording: "(CPS 106 or CPS 109 or CPS 118 or CPS 125 ) and BLG 143",
+      },
+      {
+        course: "BLG 143",
+        walkId: "blg-143",
+        wording: "(CPS 106 or CPS 109 or CPS 118 or CPS 125 ) and BLG 143",
+      },
+    ],
     stops: [
       {
         id: "DM",
@@ -2780,6 +2980,18 @@ export const CS2023_WALKS: Walk[] = [
     description: "Software and hardware considerations in computer graphics. Mathematical manipulation of graphical objects; interactive graphics and the user interface; representation of 3-D shapes; fundamental implementation of algorithms. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 305",
+        walkId: "cps-305",
+        wording: "CPS 305 and MTH 108",
+      },
+      {
+        course: "MTH 108",
+        walkId: "mth-108",
+        wording: "CPS 305 and MTH 108",
+      },
+    ],
     stops: [
       {
         id: "GIT-Rendering.T4",
@@ -2885,6 +3097,13 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course presents the concepts and applications of the technologies to design and develop creative and successful web services. It covers design fundamentals and also programming languages for both server-side and client-side environments. Responsive design, search engine optimization and monetization strategies are also introduced. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 209",
+        walkId: "cps-209",
+        wording: "CPS 209",
+      },
+    ],
     stops: [
       {
         id: "SPD-Web",
@@ -3042,6 +3261,13 @@ export const CS2023_WALKS: Walk[] = [
     description: "An advanced overview of computer architecture and organization. A study of the relationship between software and hardware and how this affects the design of architectural features: instruction execution, processor internals (including pipelining, parallelism and microcode). Instruction sets, memory and caches, busses, auxiliary storage (disk) controllers and vector processors. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 310",
+        walkId: "cps-310",
+        wording: "CPS 310",
+      },
+    ],
     stops: [
       {
         id: "AR-Representation.T1",
@@ -3121,6 +3347,32 @@ export const CS2023_WALKS: Walk[] = [
     description: "An introductory course in the design and implementation of autonomous vehicles. Topics will include the nature of autonomy and autonomous behaviour. Issues involving sensing and actuation will be discussed. Students will be introduced to the constraints and issues involved in building systems designed to interact with an environment independently. Students will be expected to construct working robots. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 106",
+        title: "Introduction to Multimedia Computation",
+        group: "CPS607.ALT1",
+        wording: "CPS 106 or CPS 109 or CPS 125 or CPS 188",
+      },
+      {
+        course: "CPS 109",
+        walkId: "cps-109",
+        group: "CPS607.ALT1",
+        wording: "CPS 106 or CPS 109 or CPS 125 or CPS 188",
+      },
+      {
+        course: "CPS 125",
+        title: "Digital Computation and Programming",
+        group: "CPS607.ALT1",
+        wording: "CPS 106 or CPS 109 or CPS 125 or CPS 188",
+      },
+      {
+        course: "CPS 188",
+        title: "Computer Programming Fundamentals",
+        group: "CPS607.ALT1",
+        wording: "CPS 106 or CPS 109 or CPS 125 or CPS 188",
+      },
+    ],
     stops: [
       {
         id: "AI-Introduction.T5.a",
@@ -3232,6 +3484,13 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course is a continuation of CPS510. Topics include: embedded DB languages (e.g. JDBC class libraries) and Embedded SQL, Transaction management, Distributed Databases, Transaction Concurrency Control, Concurrency Control through Locking/protocol and time stamps, Object-Oriented and Object-Relational Database Systems, non-structured and NOSQL databases (e.g. Mongo DB). Introduction to big data management, Map-Reduce and Hadoop. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 510",
+        walkId: "cps-510",
+        wording: "CPS 510",
+      },
+    ],
     stops: [
       {
         id: "DM-Relational",
@@ -3289,6 +3548,13 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course introduces the concepts of human-computer interaction and usability testing. Topics include: human information processing, usability principles, models of interaction, user interface paradigms, design of user interfaces. Students will also learn how to develop Graphical User Interfaces using a specific User Interface Management system. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 209",
+        walkId: "cps-209",
+        wording: "CPS 209",
+      },
+    ],
     stops: [
       {
         id: "HCI-User.T1",
@@ -3417,6 +3683,18 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course introduces students to the theory of computation. Topics include: regular expressions and languages, finite state automata, context-free languages, pushdown automata, Turing machines, computability, and NP-completeness. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 305",
+        walkId: "cps-305",
+        wording: "CPS 305 and CPS 420",
+      },
+      {
+        course: "CPS 420",
+        walkId: "cps-420",
+        wording: "CPS 305 and CPS 420",
+      },
+    ],
     stops: [
       {
         id: "MSF",
@@ -3694,6 +3972,25 @@ export const CS2023_WALKS: Walk[] = [
     description: "Multimedia data is becoming increasingly important in many scientific and commercial arenas. In this course, students will be introduced to principles and current technologies of multimedia system design. Topics include: multimedia data representation, processing multimedia visual information, video and audio compression, retrieval of multimedia data, such as text, graphics, colour images and video. In addition, issues related to multimedia hardware and software as well as specific applications will be discussed. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 106",
+        title: "Introduction to Multimedia Computation",
+        group: "CPS621.ALT1",
+        wording: "(CPS 106 or CPS 109) and CPS 393",
+      },
+      {
+        course: "CPS 109",
+        walkId: "cps-109",
+        group: "CPS621.ALT1",
+        wording: "(CPS 106 or CPS 109) and CPS 393",
+      },
+      {
+        course: "CPS 393",
+        walkId: "cps-393",
+        wording: "(CPS 106 or CPS 109) and CPS 393",
+      },
+    ],
     stops: [
       {
         id: "GIT",
@@ -3791,6 +4088,18 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course is a continuation of CPS 530. Students will learn advanced techniques for designing and building (client and server) web applications using modern technologies. Topics include: web application development process, cross browser compatibility issues, responsive design, templating and database connectivity and web security, modular design and various web frameworks. At the end of this course students will be able to design and implement a database application with a commercial grade web interface for desktop and mobile computing platforms. (2 hr. Lab every other week). Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 510",
+        walkId: "cps-510",
+        wording: "CPS 510 and CPS 530",
+      },
+      {
+        course: "CPS 530",
+        walkId: "cps-530",
+        wording: "CPS 510 and CPS 530",
+      },
+    ],
     stops: [
       {
         id: "SPD-Web.T1",
@@ -3953,6 +4262,13 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course describes the underlying concepts and algorithms of Virtual Reality (VR) systems. A review of current VR technology and the fundamental principles of interaction, modelling and simulation for VR are presented. This is a lab-based and project-based course in which students will use VR hardware and a VR software framework to design, model and program an interactive virtual environment for various application areas. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 511",
+        walkId: "cps-511",
+        wording: "CPS 511",
+      },
+    ],
     stops: [
       {
         id: "GIT-Immersion.T4.a",
@@ -4078,6 +4394,30 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course introduces the topics of verification and validation of computer software. Material covered may include statistical and functional approaches to testing, test data analysis, testability, static analysis techniques, dynamic analysis techniques, selected state-of-the-art results, and real-world applications. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 406",
+        walkId: "cps-406",
+        wording: "CPS 406 and CPS 420 and (MTH 380 or MTH 304)",
+      },
+      {
+        course: "CPS 420",
+        walkId: "cps-420",
+        wording: "CPS 406 and CPS 420 and (MTH 380 or MTH 304)",
+      },
+      {
+        course: "MTH 380",
+        title: "Probability and Statistics I",
+        group: "CPS707.ALT1",
+        wording: "CPS 406 and CPS 420 and (MTH 380 or MTH 304)",
+      },
+      {
+        course: "MTH 304",
+        title: "Probability",
+        group: "CPS707.ALT1",
+        wording: "CPS 406 and CPS 420 and (MTH 380 or MTH 304)",
+      },
+    ],
     stops: [
       {
         id: "SE-Validation.T1",
@@ -4185,6 +4525,32 @@ export const CS2023_WALKS: Walk[] = [
     description: "Introduction to compiler design: theory, techniques, and tools. Students will develop an interpreter or compiler. Assembler and preprocessors will also be briefly discussed. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 305",
+        walkId: "cps-305",
+        group: "CPS710.ALT1",
+        wording: "(CPS 305 or COE 428) and (CPS 420 or MTH 314)",
+      },
+      {
+        course: "COE 428",
+        title: "Engineering Algorithms and Data Structures",
+        group: "CPS710.ALT1",
+        wording: "(CPS 305 or COE 428) and (CPS 420 or MTH 314)",
+      },
+      {
+        course: "CPS 420",
+        walkId: "cps-420",
+        group: "CPS710.ALT2",
+        wording: "(CPS 305 or COE 428) and (CPS 420 or MTH 314)",
+      },
+      {
+        course: "MTH 314",
+        title: "Discrete Mathematics for Engineers",
+        group: "CPS710.ALT2",
+        wording: "(CPS 305 or COE 428) and (CPS 420 or MTH 314)",
+      },
+    ],
     stops: [
       {
         id: "FPL-Translation.T8",
@@ -4272,6 +4638,18 @@ export const CS2023_WALKS: Walk[] = [
     description: "The notion of secure communication. Classical cryptography. Pseudo-random number generation. The Data Encryption Standard and Advanced Encryption Standard. Cryptographically secure hash functions. Public key crypto system. Digital signature schemes. E-commerce and digital cash. Secret sharing schemes. Authentication applications. Electronic mail security. IP and Web security. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 209",
+        walkId: "cps-209",
+        wording: "CPS 209 and CPS 633",
+      },
+      {
+        course: "CPS 633",
+        walkId: "cps-633",
+        wording: "CPS 209 and CPS 633",
+      },
+    ],
     stops: [
       {
         id: "SEC",
@@ -4353,6 +4731,26 @@ export const CS2023_WALKS: Walk[] = [
     description: "Introduction to issues involved in managing large, complex software projects. Introduction to industry-standard project management techniques and tools needed to use them, as well as their application to software projects. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 406",
+        walkId: "cps-406",
+        group: "CPS714.ALT1.B1",
+        wording: "CPS 406 or (COE 691 and COE 692)",
+      },
+      {
+        course: "COE 691",
+        title: "Software Requirements Analysis and SPEC",
+        group: "CPS714.ALT1.B2",
+        wording: "CPS 406 or (COE 691 and COE 692)",
+      },
+      {
+        course: "COE 692",
+        title: "Software Design and Architecture",
+        group: "CPS714.ALT1.B2",
+        wording: "CPS 406 or (COE 691 and COE 692)",
+      },
+    ],
     stops: [
       {
         id: "SE-Teamwork.T5",
@@ -4458,6 +4856,13 @@ export const CS2023_WALKS: Walk[] = [
     description: "Advanced Internet routing algorithms (inter-AS routing, broadcast and multicast routing, switch design). Advanced data link layer topics (virtual local area networks, multi-protocol label switching). Multimedia Networking (streaming, real-time transport protocols, content distribution networks, scheduling and policing algorithms, providing quality of service). Wireless/Mobile Networks, (cellular networks, WiFi, mobility management, routing in MANET). Network Management. Special topics in networking. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 706",
+        walkId: "cps-706",
+        wording: "CPS 706",
+      },
+    ],
     stops: [
       {
         id: "NC-Emerging.T2",
@@ -4619,6 +5024,20 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course focuses on understanding the core technologies underlying the World Wide Web, such as protocols (e.g., HTTP) , software components (i.e., client, server and proxy) and important web applications (e.g., web caching). Another part of this course is introduction to performance measurement and in particular Web Performance Measurement. The course consists of assignments and practical examples (based on Unix/Linux) which helps students to understand the principles of how distributed applications are built. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 393",
+        walkId: "cps-393",
+        group: "CPS730.ALT1",
+        wording: "CPS 393 or CPS 590",
+      },
+      {
+        course: "CPS 590",
+        walkId: "cps-590",
+        group: "CPS730.ALT1",
+        wording: "CPS 393 or CPS 590",
+      },
+    ],
     stops: [
       {
         id: "SPD-Web.T9",
@@ -4714,6 +5133,13 @@ export const CS2023_WALKS: Walk[] = [
     description: "Essential methods for the Systematic approach to the development, operation, maintenance, and retirement of Software. Software Life Cycles, process modelling, configuration management, managing Software quality, requirements analysis, specification, verification and validation, Software design, implementation, testing and maintenance. Software Tools, CASE tools and documentation. (2 hr. Lab every other week) Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 406",
+        walkId: "cps-406",
+        wording: "CPS 406",
+      },
+    ],
     stops: [
       {
         id: "SE",
@@ -4833,6 +5259,13 @@ export const CS2023_WALKS: Walk[] = [
     description: "The topics of this course centre around the concepts of parallel processors and supercomputers with emphasis on processor technology, performance, and software, parallel computer models, program flow control and scheduling, metrics and measures, scalability of parallel algorithms, memory hierarchy technology, pipeline design, multivector and SIMD organizations, scalability and multithreading, software and compliers, case studies of the CRAY Y-MP and CM-5 environments. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 310",
+        walkId: "cps-310",
+        wording: "CPS 310",
+      },
+    ],
     stops: [
       {
         id: "PDC-Programs.T5",
@@ -4982,6 +5415,18 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course covers the principal internal functions of operating systems with particular emphasis on UNIX/Linux and systems programming. Topics covered in this course are: OS structure, process management (including concurrency and synchronization), memory management, file systems, input-output and device management, and elements of distributed systems. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 305",
+        walkId: "cps-305",
+        wording: "CPS 305 and CPS 590",
+      },
+      {
+        course: "CPS 590",
+        walkId: "cps-590",
+        wording: "CPS 305 and CPS 590",
+      },
+    ],
     stops: [
       {
         id: "OS-Purpose",
@@ -5039,6 +5484,35 @@ export const CS2023_WALKS: Walk[] = [
     description: "Machine learning involves the study of algorithms capable of learning from data or prior experience. This course develops an aptitude for applying machine learning algorithms to different problem domains while at the same time, understanding the theoretical basis for machine learning algorithms. Machine learning has many applications in medicine, autonomous systems, computational biology, finance, computer vision and other domains. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "MTH 108",
+        walkId: "mth-108",
+        wording: "MTH 108 and MTH 207 and CPS 305 and (MTH 380 or MTH 304)",
+      },
+      {
+        course: "MTH 207",
+        walkId: "mth-207",
+        wording: "MTH 108 and MTH 207 and CPS 305 and (MTH 380 or MTH 304)",
+      },
+      {
+        course: "CPS 305",
+        walkId: "cps-305",
+        wording: "MTH 108 and MTH 207 and CPS 305 and (MTH 380 or MTH 304)",
+      },
+      {
+        course: "MTH 380",
+        title: "Probability and Statistics I",
+        group: "CPS803.ALT1",
+        wording: "MTH 108 and MTH 207 and CPS 305 and (MTH 380 or MTH 304)",
+      },
+      {
+        course: "MTH 304",
+        title: "Probability",
+        group: "CPS803.ALT1",
+        wording: "MTH 108 and MTH 207 and CPS 305 and (MTH 380 or MTH 304)",
+      },
+    ],
     stops: [
       {
         id: "AI-ML",
@@ -5080,6 +5554,13 @@ export const CS2023_WALKS: Walk[] = [
     description: "A continuation of CPS 706. This course deals with the concepts of internetworking as an extension of data communications. Topics will include routing and the TCP/IP suite of protocols. An introduction to X Windows programming allows students to investigate the aspects of distributed systems using Remote Procedure Calling, shared files and directories, NFS and NIS, the Internet, and other Distributed Computing Environments. Case studies will involve NFS, Amoeba, Mach and Grapevine. Concurrency aspects will be considered in the topics of collaborating servers and file replication. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 706",
+        walkId: "cps-706",
+        wording: "CPS 706",
+      },
+    ],
     stops: [
       {
         id: "NC-Fundamentals",
@@ -5213,6 +5694,13 @@ export const CS2023_WALKS: Walk[] = [
     description: "From the first time a human picked up a stick and attempted to knock down food from an unreachable branch we have attempted to use technology to extend our influence on the world. This course will examine physical robotic systems designed to extend human presence to remote locations. Topics may include Presence, Situational Awareness, Telerobotics and Agency. The course is designed to provide students with a practical introduction that will involve the design and construction of working robotic systems designed to interact with remote environments. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 607",
+        walkId: "cps-607",
+        wording: "CPS 607",
+      },
+    ],
     stops: [
       {
         id: "AI-Robotics.T14",
@@ -5254,6 +5742,13 @@ export const CS2023_WALKS: Walk[] = [
     description: "The course will focus on the theory and implementation of discreet dynamical systems considered from the perspective of artificial intelligence. Modern logical representations of actions and their effects will be discussed in detail. The emphasis will be on the compromises required to ensure computational tractability of reasoning about effects of actions. The course will show how these research issues are relevant to artificial intelligence and to applications beyond the traditional area of artificial intelligence. Topics may include: logical foundations, reasoning about direct and indirect effects of actions, deductive planning, time and concurrency, causality, stochastic actions, modular representations. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 721",
+        walkId: "cps-721",
+        wording: "CPS 721",
+      },
+    ],
     stops: [
       {
         id: "AI-LRR.T1",
@@ -5408,6 +5903,25 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course focuses on topics related to reinforcement learning. The course will cover making decisions under uncertainty, Markov decision processes, dynamic programming, temporal-difference learning, eligibility traces, value function approximation methods, Monte Carlo reinforcement learning methods, and the integration of learning and planning. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 305",
+        walkId: "cps-305",
+        wording: "CPS 305 and (MTH 380 or MTH 304)",
+      },
+      {
+        course: "MTH 380",
+        title: "Probability and Statistics I",
+        group: "CPS824.ALT1",
+        wording: "CPS 305 and (MTH 380 or MTH 304)",
+      },
+      {
+        course: "MTH 304",
+        title: "Probability",
+        group: "CPS824.ALT1",
+        wording: "CPS 305 and (MTH 380 or MTH 304)",
+      },
+    ],
     stops: [
       {
         id: "AI-ML.T14",
@@ -5596,6 +6110,13 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course is a continuation of CPS 731. Topics include: Formal specification, algebraic specification, model oriented Specification, Software reliability, fault-tolerance, Software tools, programming environments, Toolkits, Method based Environments. Software development work benches, Software reliability, Software metrics, software standards, complexity measures, Software quality assurance, automated programming, CASE Tools. (2 hr. Lab every other week). Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 731",
+        walkId: "cps-731",
+        wording: "CPS 731",
+      },
+    ],
     stops: [
       {
         id: "SE-Design.T2",
@@ -5660,6 +6181,18 @@ export const CS2023_WALKS: Walk[] = [
     description: "An overview course on mainframe hardware systems and the main operating systems running on these machines. Emphasis is on the internal system software structure of these highly complex systems, and how the hardware supports this. The course provides a comprehensive coverage of the system at several levels. After completing this course the students will have had hands-on experience in running programs and manipulating datasets on a mainframe. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 310",
+        walkId: "cps-310",
+        wording: "CPS 310 and CPS 590",
+      },
+      {
+        course: "CPS 590",
+        walkId: "cps-590",
+        wording: "CPS 310 and CPS 590",
+      },
+    ],
     stops: [
       {
         id: "OS-Purpose.T3",
@@ -5820,6 +6353,31 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course discusses basic information retrieval models, evaluation methods, state of art of search engines and new trends in web search. Topics covered include basic IR models, indexing, query operation, evaluation, categorization and clustering, web search, link analysis, web crawling, web mining, etc. After completing this course, students will have acquired the core techniques in building text retrieval systems, hands-on experience in building the core parts of a web-based search engine, and knowledge of IR applications on the world wide web. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 305",
+        walkId: "cps-305",
+        group: "CPS842.ALT1.B1",
+        wording: "(CPS 305 and CPS 311) or (CPS 209 and CPS 305)",
+      },
+      {
+        course: "CPS 311",
+        group: "CPS842.ALT1.B1",
+        wording: "(CPS 305 and CPS 311) or (CPS 209 and CPS 305)",
+      },
+      {
+        course: "CPS 209",
+        walkId: "cps-209",
+        group: "CPS842.ALT1.B2",
+        wording: "(CPS 305 and CPS 311) or (CPS 209 and CPS 305)",
+      },
+      {
+        course: "CPS 305",
+        walkId: "cps-305",
+        group: "CPS842.ALT1.B2",
+        wording: "(CPS 305 and CPS 311) or (CPS 209 and CPS 305)",
+      },
+    ],
     stops: [
       {
         id: "AI-NLP.T8",
@@ -5963,6 +6521,44 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course describes foundational concepts of computer vision. In particular, the course covers the image formation process, image representation, feature extraction, model fitting, motion analysis, 3D parameter estimation and applications. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 305",
+        walkId: "cps-305",
+        group: "CPS843.ALT1.B1",
+        wording: "[CPS 305 and MTH 108 and MTH 207 and (MTH 380 or MTH 304)] or ELE 532",
+      },
+      {
+        course: "MTH 108",
+        walkId: "mth-108",
+        group: "CPS843.ALT1.B1",
+        wording: "[CPS 305 and MTH 108 and MTH 207 and (MTH 380 or MTH 304)] or ELE 532",
+      },
+      {
+        course: "MTH 207",
+        walkId: "mth-207",
+        group: "CPS843.ALT1.B1",
+        wording: "[CPS 305 and MTH 108 and MTH 207 and (MTH 380 or MTH 304)] or ELE 532",
+      },
+      {
+        course: "MTH 380",
+        title: "Probability and Statistics I",
+        group: "CPS843.ALT2",
+        wording: "[CPS 305 and MTH 108 and MTH 207 and (MTH 380 or MTH 304)] or ELE 532",
+      },
+      {
+        course: "MTH 304",
+        title: "Probability",
+        group: "CPS843.ALT2",
+        wording: "[CPS 305 and MTH 108 and MTH 207 and (MTH 380 or MTH 304)] or ELE 532",
+      },
+      {
+        course: "ELE 532",
+        title: "Signals and Systems I",
+        group: "CPS843.ALT1.B2",
+        wording: "[CPS 305 and MTH 108 and MTH 207 and (MTH 380 or MTH 304)] or ELE 532",
+      },
+    ],
     stops: [
       {
         id: "AI",
@@ -6068,6 +6664,20 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course introduces the basic data mining concepts, methods, implementations, as well as applications in different areas, especially on the world wide web. Topics covered include the basic data mining techniques, data preprocessing, association rule mining, classification, clustering, web mining, and data mining application (e.g. in web personalization, recommender system, security). At the end of this course, students should be able to implement and use some of important data mining algorithms in practical applications. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "MTH 380",
+        title: "Probability and Statistics I",
+        group: "CPS844.ALT1",
+        wording: "MTH 380 or MTH 304",
+      },
+      {
+        course: "MTH 304",
+        title: "Probability",
+        group: "CPS844.ALT1",
+        wording: "MTH 380 or MTH 304",
+      },
+    ],
     stops: [
       {
         id: "DM-Analytics",
@@ -6165,6 +6775,13 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course presents the main principles of Extreme Programming (XP) development, including: development methodology; rules and practices; application domains; public resources, such as forums, literature, and supportive tools. Other agile methods are covered as appropriate. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 406",
+        walkId: "cps-406",
+        wording: "CPS 406",
+      },
+    ],
     stops: [
       {
         id: "SE",
@@ -6214,6 +6831,13 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course will discuss core tools, frameworks, and packages used by modern startups. These areas include but are not limited to source code management, project management, databases, middleware and front-end libraries. The labs and assignments will offer hands-on experience with the software. Sample tools may include: git, ZenHub, GitOps, Terraform, Docker, Ethereum, Django, Vue, MongoDb, and QisKit. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 209",
+        walkId: "cps-209",
+        wording: "CPS 209",
+      },
+    ],
     stops: [
       {
         id: "SE-Tools.T1",
@@ -6311,6 +6935,37 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course will discuss how to build Big Data analytic and transactional systems. The course will provide introduction to the theory and practice of large-scale software systems. We will focus on defining Big Data properties and architecting the systems to accommodate these properties. In addition, we will cover quality assurance of such systems, as well as management (risk estimation, planning, team management, etc.) Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 406",
+        walkId: "cps-406",
+        wording: "CPS406 and (CPS420 or MTH210) and (CPS510 or ITM500)",
+      },
+      {
+        course: "CPS 420",
+        walkId: "cps-420",
+        group: "CPS853.ALT1",
+        wording: "CPS406 and (CPS420 or MTH210) and (CPS510 or ITM500)",
+      },
+      {
+        course: "MTH 210",
+        title: "Discrete Mathematics II",
+        group: "CPS853.ALT1",
+        wording: "CPS406 and (CPS420 or MTH210) and (CPS510 or ITM500)",
+      },
+      {
+        course: "CPS 510",
+        walkId: "cps-510",
+        group: "CPS853.ALT2",
+        wording: "CPS406 and (CPS420 or MTH210) and (CPS510 or ITM500)",
+      },
+      {
+        course: "ITM 500",
+        title: "Data and Information Management",
+        group: "CPS853.ALT2",
+        wording: "CPS406 and (CPS420 or MTH210) and (CPS510 or ITM500)",
+      },
+    ],
     stops: [
       {
         id: "DM-Analytics",
@@ -6376,6 +7031,13 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course discusses the foundations and technical aspects of Model-Driven Software Engineering (MDSE). Topics include: models and transformations, driving principles, application scenarios, and standards like Model-Driven Architecture (MDA), the integration of MDSE in existing development processes, and the design of domain-specific modeling languages and Model-to-Text and Model-to-Model transformations. The course also introduces tools that support the management of MDSE projects. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 406",
+        walkId: "cps-406",
+        wording: "CPS 406",
+      },
+    ],
     stops: [
       {
         id: "FPL-Constructs.T7",
@@ -6463,6 +7125,32 @@ export const CS2023_WALKS: Walk[] = [
     description: "This course will examine the state-of-the-art in applied Natural Language Processing (NLP), with an emphasis on how well the algorithms work and how they can be used (or not) in applications. Topics will include POS tagging, parsing, language models and classification. Placements are AI-suggested and under the author's review.",
     category: "Professionally-Related Table I",
     group: "Table I",
+    buildsOn: [
+      {
+        course: "CPS 420",
+        walkId: "cps-420",
+        group: "CPS870.ALT1",
+        wording: "(CPS 420 or MTH 210) and (MTH 380 or MTH 304)",
+      },
+      {
+        course: "MTH 210",
+        title: "Discrete Mathematics II",
+        group: "CPS870.ALT1",
+        wording: "(CPS 420 or MTH 210) and (MTH 380 or MTH 304)",
+      },
+      {
+        course: "MTH 380",
+        title: "Probability and Statistics I",
+        group: "CPS870.ALT2",
+        wording: "(CPS 420 or MTH 210) and (MTH 380 or MTH 304)",
+      },
+      {
+        course: "MTH 304",
+        title: "Probability",
+        group: "CPS870.ALT2",
+        wording: "(CPS 420 or MTH 210) and (MTH 380 or MTH 304)",
+      },
+    ],
     stops: [
       {
         id: "AI-NLP",
