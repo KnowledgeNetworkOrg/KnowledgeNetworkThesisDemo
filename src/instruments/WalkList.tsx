@@ -7,6 +7,7 @@ import type { ReactNode } from 'react'
 
 import type { Walk } from '../corpus/walks'
 import { groupWalks } from './walkgroups'
+import type { WalkGroup } from './walkgroups'
 
 export type WalkListVariant = 'trail' | 'picker'
 
@@ -20,7 +21,9 @@ const STACK: Record<WalkListVariant, string> = {
   picker: 'flex flex-col gap-1',
 }
 const HEADING: Record<WalkListVariant, string> = {
-  trail: 'mb-1 text-[10px] font-bold text-slate-500',
+  // the Trail's "Walks" label is 10px bold slate-500: a lighter, inset heading
+  // keeps a category reading as a child of it rather than a second label
+  trail: 'mb-0.5 pl-1 text-[10px] font-medium text-slate-400',
   picker: 'mb-0.5 text-[var(--fs-caption)] px-1',
 }
 
@@ -37,19 +40,18 @@ export default function WalkList({
   if (groups.length === 1 && groups[0].heading === null) {
     return <div className={ROW[variant]}>{groups[0].walks.map(renderWalk)}</div>
   }
+  const grouped = groups.filter((g): g is WalkGroup & { heading: string } => g.heading !== null)
   return (
     <div className={STACK[variant]}>
-      {groups.map((g) => (
-        <div key={g.heading} data-walk-group={g.heading ?? ''}>
-          {g.heading !== null && (
-            <div
-              data-walk-heading
-              className={HEADING[variant]}
-              style={variant === 'picker' ? { color: 'var(--text-3)' } : undefined}
-            >
-              {g.heading}
-            </div>
-          )}
+      {grouped.map((g) => (
+        <div key={g.heading} data-walk-group={g.heading}>
+          <div
+            data-walk-heading
+            className={HEADING[variant]}
+            style={variant === 'picker' ? { color: 'var(--text-3)' } : undefined}
+          >
+            {g.heading}
+          </div>
           <div className={ROW[variant]}>{g.walks.map(renderWalk)}</div>
         </div>
       ))}

@@ -3,7 +3,8 @@
 // A TEST. It opens the cs2023 build and reads both walk lists: the Trail's Walks
 // column and the Walk Editor's picker. Every route must stay a button, under the
 // three categories the map publishes, in the order the data first meets them,
-// with 20 / 3 / 38 routes and CPS 109 first. Then it loads teaching, which
+// with 20 / 3 / 38 routes and CPS 109 first. A walk the desk saved has no
+// category, so it must go last under "Saved walks". Then it loads teaching, which
 // publishes no category, and the two walks must stay a flat list.
 //
 // The route titles and category counts come from cs2023_map.json, not from
@@ -49,6 +50,10 @@ const titleOf = (text) => {
 }
 
 const TEACHING_WALKS = 2
+const SAVED_HEADING = 'Saved walks'
+const SAVED_TITLE = 'Driver saved walk'
+/** CPS 109's first stop — a place cs2023 has, so the store keeps the walk */
+const SAVED_STOP = 'SF'
 
 const require = createRequire(REPO + '/package.json')
 const { chromium } = require('playwright-core')
@@ -89,17 +94,55 @@ const stopServer = async (server) => {
   })
 }
 
-const load = async (port) => {
-  await page.goto(`http://localhost:${port}/`, { waitUntil: 'networkidle' })
-  await page.evaluate(() => localStorage.clear())
-  await page.reload({ waitUntil: 'networkidle' })
-  await page.waitForTimeout(1400)
+const openTrail = async () => {
   await withPalette(async () => {
     if ((await page.locator('[aria-label="studio-pane-trail"]').count()) === 0) {
       await page.locator('[aria-label="studio-inst-trail"]').click()
     }
   })
   await page.waitForTimeout(500)
+}
+
+const load = async (port) => {
+  await page.goto(`http://localhost:${port}/`, { waitUntil: 'networkidle' })
+  await page.evaluate(() => localStorage.clear())
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1400)
+  await openTrail()
+}
+
+/** Seed a stored walk rather than build one on the desk: the save path is
+ *  walkstore.test.ts's subject, and this driver's is where a saved walk is listed. */
+const seedSavedWalk = async () => {
+  await page.evaluate(
+    ([key, title, stop]) => {
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          v: 1,
+          data: [{ id: 'authored-driver-saved-walk', title, description: '', stops: [{ id: stop, note: '' }] }],
+        }),
+      )
+    },
+    ['pkt.walks.saved', SAVED_TITLE, SAVED_STOP],
+  )
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1400)
+  await openTrail()
+}
+
+/** a saved walk sits last, and the program's headings are unchanged around it */
+const checkSavedWalk = (label, groups) => {
+  const last = groups[groups.length - 1]
+  if (last?.heading !== SAVED_HEADING) {
+    fail(`${label}: the last heading is ${JSON.stringify(last?.heading)}, expected "${SAVED_HEADING}"`)
+  } else if (last.buttons.length !== 1) {
+    fail(`${label}: "Saved walks" holds ${last.buttons.length} walks, expected 1`)
+  }
+  const program = groups.slice(0, -1).map((g) => g.heading)
+  if (JSON.stringify(program) !== JSON.stringify(expectedHeadings)) {
+    fail(`${label}: the program's headings are ${JSON.stringify(program)}, expected ${JSON.stringify(expectedHeadings)}`)
+  }
 }
 
 /** the groups inside one list; a flat list has no [data-walk-group] at all */
@@ -160,6 +203,15 @@ try {
   if (titleOf(picker[0]?.buttons[0] ?? '') !== routeTitles[0]) fail('picker: the first route is not CPS 109')
   await page.locator('[aria-label="studio-pane-walkeditor"]').screenshot({ path: OUT + '/cs2023lists-picker.png' })
 
+  await seedSavedWalk()
+  const trailSaved = await readGroups('[aria-label="trail-strip"] [data-walk-group]')
+  checkSavedWalk('Trail with a saved walk', trailSaved)
+  await page.screenshot({ path: OUT + '/cs2023lists-saved.png' })
+
+  await openPicker()
+  const pickerSaved = await readGroups('[data-walk-picker] [data-walk-group]')
+  checkSavedWalk('picker with a saved walk', pickerSaved)
+
   await stopServer(server)
   server = null
 
@@ -182,7 +234,7 @@ try {
   await page.screenshot({ path: OUT + '/teachinglists.png' })
 
   console.log(`cs2023: ${expectedHeadings.map((h) => `${h} (${expectedCount.get(h)})`).join(', ')}`)
-  console.log('shots in tools/studio-spike/out/cs2023lists-trail.png, cs2023lists-picker.png and teachinglists.png')
+  console.log('shots in tools/studio-spike/out/cs2023lists-trail.png, cs2023lists-picker.png, cs2023lists-saved.png and teachinglists.png')
 } finally {
   await stopServer(server)
   await browser.close()
@@ -192,4 +244,4 @@ if (errors.length) {
   console.log('\n' + errors.join('\n'))
   process.exit(1)
 }
-console.log('PASS — cs2023 shows every route under REQUIRED / REQUIRED GROUP 1 / Professionally-Related Table I, and teaching stays flat')
+console.log('PASS — cs2023 shows every route under REQUIRED / REQUIRED GROUP 1 / Professionally-Related Table I, a saved walk last under "Saved walks", and teaching stays flat')
