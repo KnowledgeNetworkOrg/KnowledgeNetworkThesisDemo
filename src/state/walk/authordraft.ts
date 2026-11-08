@@ -12,7 +12,7 @@
 
 import { useSyncExternalStore } from 'react'
 
-import { CORPUS_NAME, topicIds } from '../../corpus/graph'
+import { CORPUS_NAME } from '../../corpus/graph'
 import { WALKS } from '../../corpus/walks'
 import { mintId, saveWalk, walkById } from '../walkstore'
 import type { Walk } from '../walkstore'
@@ -101,36 +101,6 @@ const teachingSeed = (): Stop[] => [
   { node: 'app-authentication-authorization', variants: [] },
 ]
 
-/** The same SHAPE — a plain leaf, a group, a fork of two variants, an optional,
- *  a closing leaf — over whatever topics the loaded corpus actually has, named
- *  by position rather than by id. A fixture for the desk to open on, nothing more. */
-function genericSeed(): Stop[] {
-  const t = (i: number): Stop | null => (topicIds[i] ? { node: topicIds[i], variants: [] } : null)
-  const some = (from: number, n: number): Stop[] => topicIds.slice(from, from + n).map((node) => ({ node, variants: [] }))
-  const seed: Stop[] = []
-  const first = t(0)
-  if (first) seed.push(first)
-  const groupSteps = some(1, 2)
-  if (groupSteps.length) seed.push({ key: 'seed-group', title: 'A first leg', variants: [{ id: 'seed-group-v0', label: '', steps: groupSteps }] })
-  const shortLane = some(3, 1)
-  const longLane = some(3, 3)
-  if (shortLane.length && longLane.length > 1) {
-    seed.push({
-      key: 'seed-fork',
-      title: 'Two ways on',
-      variants: [
-        { id: 'seed-fork-v0', label: 'the short way', steps: shortLane },
-        { id: 'seed-fork-v1', label: 'the long way', steps: longLane },
-      ],
-    })
-  }
-  const opt = topicIds[6]
-  if (opt) seed.push({ node: opt, optional: true, variants: [] })
-  const last = t(7)
-  if (last) seed.push(last)
-  return seed
-}
-
 /** The cs2023 desk opens on the course the owner chose, as a flat road: the
  *  route's own stops, in its order, wherever in the tree they sit. */
 function cs2023Seed(): Stop[] {
@@ -138,8 +108,7 @@ function cs2023Seed(): Stop[] {
   return opening ? opening.stops.map((s) => ({ node: s.id, note: s.note, variants: [] })) : []
 }
 
-const SEED: Stop[] =
-  CORPUS_NAME === 'teaching' ? teachingSeed() : CORPUS_NAME === 'cs2023' ? cs2023Seed() : genericSeed()
+const SEED: Stop[] = CORPUS_NAME === 'teaching' ? teachingSeed() : cs2023Seed()
 
 // ── Restored, or seeded (#16) ───────────────────────────────────────────────
 // The stores are module-level, which since #21 has made the draft SHARED. It did

@@ -2,8 +2,8 @@
 // id — no data and no logic, so anything may import it without dragging a
 // corpus in behind it.
 //
-// These lived in graph.ts until the repo gained a second corpus (`coursedata.ts`,
-// generated from real university course outlines). graph.ts re-exports every
+// These lived in graph.ts until the repo gained a second corpus (`cs2023data.ts`,
+// generated from the thesis's CS2023 map file). graph.ts re-exports every
 // name here, so an importer that has always said `from '../corpus/graph'` is
 // unaffected and should keep saying it.
 

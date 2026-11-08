@@ -15,9 +15,9 @@
 // and the seam's drag (OB-253), since the rail's card is sized against it.
 //
 // It runs against BOTH corpora, booting vite twice on fresh ports: the teaching corpus for the
-// rail's own behaviour, and the course corpus (`VITE_CORPUS=courses`) for the two shapes the
-// hand-authored one guarantees it cannot produce — a course with no relationships at all, and a
-// corpus whose only relation kind is `depends_on`.
+// rail's own behaviour, and cs2023 (`VITE_CORPUS=cs2023`) for the two shapes the
+// hand-authored one guarantees it cannot produce — a unit with no relationships at all, and a
+// corpus whose only relation kind is `see_also`.
 //
 // WHAT IT SELECTS BY, AND WHY NOT TITLES. Every surface it needs has a data-* hook:
 // `[data-relation-orbit]` / `[data-orbit]` / `[data-orbit-lit]` (the figure), `[data-orbit-card]`
@@ -622,9 +622,9 @@ await withApp('teaching', {}, async (page) => {
 })
 
 // ════════════════════════════════════════════════════════════════════════════
-// THE COURSE CORPUS — the two shapes the hand-authored one cannot produce
+// CS2023 — the two shapes the hand-authored corpus cannot produce
 // ════════════════════════════════════════════════════════════════════════════
-await withApp('courses', { VITE_CORPUS: 'courses' }, async (page) => {
+await withApp('cs2023', { VITE_CORPUS: 'cs2023' }, async (page) => {
   const k = kit(page)
   const { has, count, text, attr, glideTo, corpus, DOC } = k
   const pick = await corpus((g, r) => {
@@ -633,9 +633,9 @@ await withApp('courses', { VITE_CORPUS: 'courses' }, async (page) => {
     const none = g.nodes.find((n) => n.topic && !hood(n.id).direct.length && !hood(n.id).via.length)
     return { rich: { id: rich[0], title: g.byId.get(rich[0]).title, n: rich[1] }, none: none && { id: none.id, title: none.title }, kinds: [...new Set(g.edges.map((e) => e.type))] }
   })
-  ok('the course corpus loads with ONE relation kind', pick.kinds.length === 1 && pick.kinds[0] === 'depends_on', JSON.stringify(pick.kinds))
-  ok('found a course with prerequisites and a course with none at all', !!(pick.rich && pick.none), JSON.stringify(pick))
-  ok('first load on the course corpus: the Document pane is the placeholder too', await has(`${DOC} [data-pane-placeholder]`))
+  ok('cs2023 loads with ONE relation kind', pick.kinds.length === 1 && pick.kinds[0] === 'see_also', JSON.stringify(pick.kinds))
+  ok('found a unit with relationships and a unit with none at all', !!(pick.rich && pick.none), JSON.stringify(pick))
+  ok('first load on cs2023: the Document pane is the placeholder too', await has(`${DOC} [data-pane-placeholder]`))
 
   await page.getByLabel('studio-preset-explore').click()
   await page.waitForTimeout(800)
@@ -648,7 +648,7 @@ await withApp('courses', { VITE_CORPUS: 'courses' }, async (page) => {
     const ends = [...svg.querySelectorAll('line:not([data-orbit])')].map((l) => +l.getAttribute('x2'))
     return { cx, ends }
   })
-  ok(`a course with ${pick.rich.n} prerequisites draws ${pick.rich.n} marks`, geom.ends.length === pick.rich.n, `${geom.ends.length}`)
+  ok(`a unit with ${pick.rich.n} relationships draws ${pick.rich.n} marks`, geom.ends.length === pick.rich.n, `${geom.ends.length}`)
   ok('ONE kind takes half the circle: every mark sits on one side of the hub (OB-229 clause 6)', geom.ends.every((x) => x >= geom.cx - 0.01), JSON.stringify(geom.ends.map((x) => Math.round(x - geom.cx))))
   const row = await page.evaluate((DOC) => {
     const e = document.querySelector(DOC + ' [data-stat-kind]'); if (!e) return null
@@ -667,9 +667,9 @@ await withApp('courses', { VITE_CORPUS: 'courses' }, async (page) => {
     await k.park()
   } else ok('the reading has a kind row', false)
 
-  // OB-229 clause 5 / OB-235 clause 6: an unconnected course
+  // OB-229 clause 5 / OB-235 clause 6: an unconnected unit
   await k.select(pick.none.id, pick.none.title)
-  ok('a course that states no prerequisite and that nothing depends on is the Document\'s node', (await attr(DOC, 'data-current')) === pick.none.id)
+  ok('a unit that has no "see also" link and that nothing links to is the Document\'s node', (await attr(DOC, 'data-current')) === pick.none.id)
   const empty = await page.evaluate((DOC) => {
     const fig = document.querySelector(DOC + ' [data-relations-figure]')
     const next = fig && fig.nextElementSibling

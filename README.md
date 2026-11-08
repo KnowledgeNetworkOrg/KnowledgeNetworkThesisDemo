@@ -34,7 +34,7 @@ npm run dev
 ```text
 KnowledgeNetworkThesisDemo/
 ├── src/
-│   ├── corpus/              # the two corpora (teaching, hand-authored; courses, generated) and graph.ts, which picks one
+│   ├── corpus/              # the two corpora (teaching, hand-authored; cs2023, generated) and graph.ts, which picks one
 │   ├── model/               # pure derivations — layouts, lenses, visibility, nav helpers
 │   ├── instruments/         # one file per navigation view (map, walk, tree, plex, trail, …)
 │   ├── studio/              # StudioView — the instrument palette + presets

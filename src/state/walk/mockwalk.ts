@@ -126,36 +126,9 @@ const teachingPlan = (): Plan => ({
   ],
 })
 
-// ── A seed for any other corpus ──────────────────────────────────────────────
-// The plan above names eleven ids of the hand-authored teaching corpus, so it
-// cannot seed a different one. This builds the same SHAPES — a sub-walk by
-// reference, nested groups, a deliberate revisit, a bare leaf at the end — out
-// of whatever walks the loaded corpus actually has, naming nothing. It is a
-// fixture, not a curriculum: the Walk Desk needs something on the road to open
-// with, and this is the least opinionated thing that can be there.
-function planFromWalks(): Plan {
-  const [first, ...rest] = WALKS
-  if (!first) return { title: 'An empty plan', stops: [] }
-  const stops: Stop[] = [groupFromWalk('opening', first.id)]
-  for (const w of rest) {
-    const half = Math.max(1, Math.ceil(w.stops.length / 2))
-    const head = w.stops.slice(0, half).map((s) => v(s.id, s.note))
-    const tail = w.stops.slice(half).map((s) => v(s.id, s.note))
-    stops.push(group(w.id, w.title, tail.length ? [...head, group(`${w.id}-rest`, 'And onward', tail)] : head))
-  }
-  // a revisit, on purpose: the last walk's first stop, seen once more
-  const revisit = rest[rest.length - 1]?.stops[0] ?? first.stops[0]
-  if (revisit) stops.push(v(revisit.id, 'the same stop again — a revisit, on purpose'))
-  const closing = first.stops[first.stops.length - 1]
-  if (closing) stops.push(v(closing.id, 'the closing leaf'))
-  return { title: `${first.title} — a plan`, stops }
-}
-
-/** the Walk Desk's opening road: the authored plan on the teaching corpus, a
- *  shape-equivalent one built from the corpus's own walks on courses, and none on
- *  cs2023 — its routes stop at any depth, and this plan is a topics-only fixture */
-export const PLAN: Plan =
-  CORPUS_NAME === 'teaching' ? teachingPlan() : CORPUS_NAME === 'courses' ? planFromWalks() : { title: 'An empty plan', stops: [] }
+/** the Walk Desk's opening road: the authored plan on the teaching corpus, and none
+ *  on cs2023 — its routes stop at any depth, and this plan is a topics-only fixture */
+export const PLAN: Plan = CORPUS_NAME === 'teaching' ? teachingPlan() : { title: 'An empty plan', stops: [] }
 
 // ── Projection ──────────────────────────────────────────────────────────────
 // Turning a resolved stop tree into the flat route the bus would read.

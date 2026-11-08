@@ -488,7 +488,7 @@ describe('storage never throws', () => {
       removeItem: (k: string) => { delete store[k] },
     })
     const A = sessionsKey('teaching', 'root')
-    const B = sessionsKey('courses', 'root')
+    const B = sessionsKey('cs2023', 'root')
     const created = createSession([], 1000)
     const last = { walkId: 'w1', walk: 'Routing', stop: 2, stopId: 's2', of: 7, at: 123456, stopTitle: 'Forwarding', address: '2.1' }
     const done = writeSessionLast(renameSession(created.sessions, created.id, 'Section B'), created.id, last)

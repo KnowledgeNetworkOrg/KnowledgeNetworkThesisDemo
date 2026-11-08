@@ -196,8 +196,8 @@ function embed(): { leafPos: Record<string, XY>; domainAnchor: Record<string, XY
   // domains (8! = 40,320 orders) is the most brute-forced; past that it stops
   // being a module-load cost anyone would accept — 17 domains is 16! — so a larger
   // corpus starts from the authored order and swaps pairs while any swap lowers
-  // the cost. Deterministic, and not guaranteed optimal; the teaching (6) and
-  // courses (7) corpora never take that path.
+  // the cost. Deterministic, and not guaranteed optimal; the teaching corpus (6
+  // domains) never takes that path.
   const dIdx = new Map(domainIds.map((d, i) => [d, i]))
   const dw: number[][] = domainIds.map(() => domainIds.map(() => 0))
   for (const p of pairs) {
