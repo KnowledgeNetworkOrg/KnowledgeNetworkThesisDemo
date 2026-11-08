@@ -39,7 +39,7 @@ instrument imports from it.
   author's review, and which are proposed defaults. Run it with
   `VITE_CORPUS=cs2023 npm run dev`.
 
-A module that names a corpus node id in a literal will crash the *other* corpora
+A module that names a corpus node id in a literal will crash the *other* corpus
 on import, which presents as a blank screen rather than an error. If you write
 one, guard it the way `model/lens.ts` and `state/walk/authordraft.ts` do — derive
 the node from the loaded data, or branch on `CORPUS_NAME`.
