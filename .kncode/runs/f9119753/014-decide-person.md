@@ -1,0 +1,1 @@
+Yes. A browser test that starts its own vite server is allowed; run node tools/studio-spike/browsertest-datasetswitch.mjs and npm run test:browser. Also build the base commit 4c06ce8 and report how much the main bundle grew.
