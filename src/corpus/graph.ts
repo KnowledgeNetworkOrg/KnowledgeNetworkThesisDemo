@@ -15,11 +15,13 @@
 //                       "topics" are knowledge units, and its only edges are
 //                       CS2023's own printed "See also" notes.
 //
-// CHOOSING ONE: `VITE_CORPUS=cs2023 npm run dev`, or the same variable in front
-// of `npm run build`. Unset means teaching, so every existing script, test and
-// screenshot run behaves as before. The switch is BUILD-TIME on purpose: the
-// corpus is a module-level constant that forty files import directly, and making
-// it swappable while the app is running is a different and much larger change.
+// CHOOSING ONE: the address's `?corpus=cs2023` wins; failing that
+// `VITE_CORPUS=cs2023 npm run dev` (or the same variable in front of
+// `npm run build`); failing that teaching, so every existing script, test and
+// screenshot run behaves as before. Both corpora ship in every build and the
+// choice is made once, at load: the corpus is a module-level constant that forty
+// files import directly, so the header's switch reloads the page rather than
+// swapping it while the app is running — a different and much larger change.
 
 import { buildCorpus } from './corpusbuild'
 import { CS2023 } from './cs2023data'
@@ -30,14 +32,28 @@ import { TEACHING } from './teachingdata'
 export type { CorpusSpec, DeepSpec, EdgeType, GEdge, GNode } from './graphshape'
 export { ROOT_ID, slug } from './graphshape'
 
-/** which corpus this build is carrying — read by `docs.ts` and `walks.ts` so all
+export type CorpusName = 'teaching' | 'cs2023'
+/** every corpus the app can show, in the order the header's switch lists them */
+export const CORPUS_NAMES: readonly CorpusName[] = ['teaching', 'cs2023']
+
+/** the corpus a page opens on: the address's `corpus` value when it exactly names
+ *  one, else the build's default, else teaching. An unknown value (another case,
+ *  the retired `courses`) falls through rather than blanking the page. */
+export function parseCorpusName(search: string, buildDefault?: string): CorpusName {
+  const asked = new URLSearchParams(search).get('corpus')
+  const named = CORPUS_NAMES.find((n) => n === asked) ?? CORPUS_NAMES.find((n) => n === buildDefault)
+  return named ?? 'teaching'
+}
+
+/** which corpus this page is showing — read by `docs.ts` and `walks.ts` so all
  *  three make the same choice, and by anything that wants to say so on screen */
 // `import.meta.env` is Vite's, and is simply absent under plain node — the cast
 // is what lets this file typecheck in both places without pulling vite/client
-// types into the app's tsconfig. Same reasoning as `src/platform/index.ts`.
+// types into the app's tsconfig. Same reasoning as `src/platform/index.ts`. The
+// address is read off `globalThis` for the same reason: `corpus/` may import
+// nothing outside itself, so it cannot ask the platform seam.
 const buildEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env
-export type CorpusName = 'teaching' | 'cs2023'
-export const CORPUS_NAME: CorpusName = buildEnv?.VITE_CORPUS === 'cs2023' ? 'cs2023' : 'teaching'
+export const CORPUS_NAME: CorpusName = parseCorpusName(globalThis.location?.search ?? '', buildEnv?.VITE_CORPUS)
 
 // ── Palette ──────────────────────────────────────────────────────────────────
 // THERE IS NO DOMAIN COLOUR TABLE (DS OB-153, 2026-09-14). Six authored hexes
@@ -96,9 +112,6 @@ export const EDGE_LABEL: Record<EdgeType, string> = {
 // One call turns the chosen corpus's authored tree, deep layers and edge list
 // into the finished graph. Every name below is one the app has imported since
 // before there was a second dataset, and the shapes are unchanged.
-// A ternary, not a lookup object: with it, the build can work out which corpus is
-// chosen and leave the other one out (a lookup object keeps both). That also
-// depends on how CORPUS_NAME above is written; check the bundle size if you change it.
 const built = buildCorpus(CORPUS_NAME === 'cs2023' ? CS2023 : TEACHING, ROOT_ID)
 
 export const nodes: GNode[] = built.nodes

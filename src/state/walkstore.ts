@@ -24,11 +24,12 @@ import { WALKS } from '../corpus/walks'
 import type { Walk } from '../corpus/walks'
 import { readPersisted, writePersisted } from '../platform/persisted'
 import type { PersistedSpec } from '../platform/persisted'
+import { corpusKey } from './corpuskey'
 import { isObj, isWalkStop } from './persistguard'
 
 export type { Walk }
 
-const KEY = 'pkt.walks.saved'
+const KEY = corpusKey('pkt.walks.saved')
 /** the current envelope version. A payload with no envelope is v0 — the bare
  *  `Walk[]` an earlier build wrote — and the identity migration carries it:
  *  the saved-walk shape has not changed, only gained a version marker. */

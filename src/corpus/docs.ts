@@ -1,4 +1,4 @@
-// THE DOCUMENT BODY FOR EVERY NODE, for whichever corpus this build carries.
+// THE DOCUMENT BODY FOR EVERY NODE, for whichever corpus this page shows.
 // One body per node, no exceptions — the guard at the bottom is what makes that
 // true rather than hoped for.
 //

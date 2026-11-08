@@ -26,13 +26,14 @@
 //   restored tree rather than storing them alongside means the two can never
 //   disagree: the tree is the only thing that could be wrong about its own ids.
 
+import { corpusKey } from '../corpuskey'
 import { isObj, isWalkStop } from '../persistguard'
 import { readPersisted, writePersisted } from '../../platform/persisted'
 import type { PersistedSpec } from '../../platform/persisted'
 import { forEachStop, isBox } from './mockwalk'
 import type { Stop, Variant } from './mockwalk'
 
-const KEY = 'pkt.walkdesk.draft'
+const KEY = corpusKey('pkt.walkdesk.draft')
 /** the current envelope version. A payload with no envelope is v0 — the bare
  *  `DraftSnapshot` an earlier build wrote — and migrateDraftFromV0 carries it. */
 const VERSION = 1
