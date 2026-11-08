@@ -1,1 +1,0 @@
-That notification is the last of the monitors I'd armed on the browser suite. It reports the same result I already gave: 42/42 passed in 262s, exit 0. It adds nothing new, so my PASS verdict and the report above stand.
