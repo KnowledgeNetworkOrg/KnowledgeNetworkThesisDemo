@@ -262,4 +262,4 @@ if (errors.length) {
   console.log('\n' + errors.join('\n'))
   process.exit(1)
 }
-console.log('PASS — cs2023 shows stop marks, secondary places and the standing notice; the other corpora do not')
+console.log('PASS — cs2023 shows stop marks, secondary places and the standing notice; teaching does not')
