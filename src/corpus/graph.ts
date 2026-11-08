@@ -50,10 +50,12 @@ export function parseCorpusName(search: string, buildDefault?: string): CorpusNa
 // `import.meta.env` is Vite's, and is simply absent under plain node — the cast
 // is what lets this file typecheck in both places without pulling vite/client
 // types into the app's tsconfig. Same reasoning as `src/platform/index.ts`. The
-// address is read off `globalThis` for the same reason: `corpus/` may import
-// nothing outside itself, so it cannot ask the platform seam.
+// address is read off `globalThis` through a cast for the same reason, and
+// because the node-side tsconfig has no DOM lib: `corpus/` may import nothing
+// outside itself, so it cannot ask the platform seam.
 const buildEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env
-export const CORPUS_NAME: CorpusName = parseCorpusName(globalThis.location?.search ?? '', buildEnv?.VITE_CORPUS)
+const pageAddress = (globalThis as unknown as { location?: { search?: string } }).location
+export const CORPUS_NAME: CorpusName = parseCorpusName(pageAddress?.search ?? '', buildEnv?.VITE_CORPUS)
 
 // ── Palette ──────────────────────────────────────────────────────────────────
 // THERE IS NO DOMAIN COLOUR TABLE (DS OB-153, 2026-09-14). Six authored hexes
