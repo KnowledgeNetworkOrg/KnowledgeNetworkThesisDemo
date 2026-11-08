@@ -45,8 +45,6 @@ export function parseCorpusName(search: string, buildDefault?: string): CorpusNa
   return named ?? 'teaching'
 }
 
-/** which corpus this page is showing — read by `docs.ts` and `walks.ts` so all
- *  three make the same choice, and by anything that wants to say so on screen */
 // `import.meta.env` is Vite's, and is simply absent under plain node — the cast
 // is what lets this file typecheck in both places without pulling vite/client
 // types into the app's tsconfig. Same reasoning as `src/platform/index.ts`. The
@@ -55,6 +53,8 @@ export function parseCorpusName(search: string, buildDefault?: string): CorpusNa
 // outside itself, so it cannot ask the platform seam.
 const buildEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env
 const pageAddress = (globalThis as unknown as { location?: { search?: string } }).location
+/** which corpus this page is showing — read by `docs.ts` and `walks.ts` so all
+ *  three make the same choice, and by anything that wants to say so on screen */
 export const CORPUS_NAME: CorpusName = parseCorpusName(pageAddress?.search ?? '', buildEnv?.VITE_CORPUS)
 
 // ── Palette ──────────────────────────────────────────────────────────────────

@@ -4,11 +4,11 @@
 // header bar loads the page again with the address changed. This opens the app with NO
 // VITE_CORPUS and no `corpus` value, so the build default (teaching) is what it finds, then:
 //   1. teaching is showing, and the switch marks it;
-//   2. a walk saved under today's key belongs to teaching: cs2023 does not list it, and
-//      switching back finds it again with all its stops;
+//   2. a walk saved under today's key belongs to teaching: cs2023 does not list it;
 //   3. pressing the dataset that is already showing does nothing;
-//   4. an unknown `corpus` value opens teaching, and the switch keeps other query values;
-//   5. a lecture started from cs2023 opens a projector window on the same dataset.
+//   4. switching back finds the walk again with all its stops;
+//   5. an unknown `corpus` value opens teaching, and the switch keeps other query values;
+//   6. a lecture started from cs2023 opens a projector window on the same dataset.
 //
 // Spawns vite ITSELF — backgrounded dev servers die on this machine.
 // Run from anywhere:  node tools/studio-spike/browsertest-datasetswitch.mjs
@@ -119,26 +119,27 @@ try {
   await page.waitForTimeout(800)
   ok('3: pressing the current dataset does not load the page again', await page.evaluate(() => window.__stillHere === true))
 
+  // ── 4. switching back: the walk and all its stops ────────────────────────────────────
   await switchTo('teaching')
-  ok('2: the address names teaching', search().get('corpus') === 'teaching', page.url())
-  ok('2: teaching is marked again', (await pressed('teaching')) === 'true' && (await pressed('cs2023')) === 'false')
+  ok('4: the address names teaching', search().get('corpus') === 'teaching', page.url())
+  ok('4: teaching is marked again', (await pressed('teaching')) === 'true' && (await pressed('cs2023')) === 'false')
   await openTrail()
-  ok('2: the saved walk is back', (await walkButtons().count()) === TEACHING_WALKS + 1 && (await page.locator('[aria-label="trail-strip"]').innerText()).includes(SAVED_TITLE))
+  ok('4: the saved walk is back', (await walkButtons().count()) === TEACHING_WALKS + 1 && (await page.locator('[aria-label="trail-strip"]').innerText()).includes(SAVED_TITLE))
   await page.locator('[aria-label="trail-strip"] button', { hasText: SAVED_TITLE }).click()
   await page.waitForTimeout(500)
   const dock = (await page.locator('[data-walk-dock]').innerText().catch(() => '')).replace(/\s+/g, ' ')
-  ok('2: with all its stops', dock.includes(`1 / ${SAVED_STOPS.length}`), dock)
+  ok('4: with all its stops', dock.includes(`1 / ${SAVED_STOPS.length}`), dock)
 
-  // ── 4. an unknown value is teaching, and the switch keeps what else the address holds ──
+  // ── 5. an unknown value is teaching, and the switch keeps what else the address holds ──
   await page.goto(BASE + '?corpus=nonsense&keep=1', { waitUntil: 'networkidle' })
   await page.waitForTimeout(1400)
-  ok('4: ?corpus=nonsense opens teaching', (await pressed('teaching')) === 'true' && (await pressed('cs2023')) === 'false')
+  ok('5: ?corpus=nonsense opens teaching', (await pressed('teaching')) === 'true' && (await pressed('cs2023')) === 'false')
   await Promise.all([page.waitForURL((u) => u.searchParams.get('corpus') === 'cs2023'), pill('cs2023').click()])
   await settle()
-  ok('4: the switch keeps the other query values', search().get('keep') === '1', page.url())
-  ok('4: and lands on cs2023', (await pressed('cs2023')) === 'true')
+  ok('5: the switch keeps the other query values', search().get('keep') === '1', page.url())
+  ok('5: and lands on cs2023', (await pressed('cs2023')) === 'true')
 
-  // ── 5. a lecture started from cs2023 opens its projector on cs2023 ────────────────────
+  // ── 6. a lecture started from cs2023 opens its projector on cs2023 ────────────────────
   await page.goto(BASE + '?corpus=cs2023', { waitUntil: 'networkidle' })
   await page.evaluate(() => localStorage.clear())
   await page.reload({ waitUntil: 'networkidle' })
@@ -151,12 +152,15 @@ try {
       await page.keyboard.press('Enter')
     })(),
   ])
-  if (ok('5: starting a lecture opens the projector window', projector !== null)) {
+  if (ok('6: starting a lecture opens the projector window', projector !== null)) {
     await projector.waitForLoadState('domcontentloaded')
     const at = new URL(projector.url())
-    ok('5: it is the projector', at.searchParams.has('projector'), projector.url())
-    ok('5: and it names cs2023', at.searchParams.get('corpus') === 'cs2023', projector.url())
+    ok('6: it is the projector', at.searchParams.has('projector'), projector.url())
+    ok('6: and it names cs2023', at.searchParams.get('corpus') === 'cs2023', projector.url())
   }
+} catch (e) {
+  // a step that throws (a wait that timed out) still reports the checks made before it
+  errors.push('driver threw: ' + (e instanceof Error ? e.message : String(e)))
 } finally {
   await browser.close()
   vite.kill()
