@@ -1,4 +1,4 @@
-// THE AUTHORED WALKS, for whichever corpus this build carries. A walk is a
+// THE AUTHORED WALKS, for whichever corpus this page shows. A walk is a
 // route across the graph with a note at every stop — the narrative artifact the
 // Walk Desk edits and Presentation Mode presents.
 //

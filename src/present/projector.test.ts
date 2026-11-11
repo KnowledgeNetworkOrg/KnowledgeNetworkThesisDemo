@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { blankKey, isProjectorLocation, isProjectorMessage, NOTHING_PROJECTED, receiveProjection } from './projector'
+import { blankKey, isProjectorLocation, isProjectorMessage, NOTHING_PROJECTED, projectorPath, receiveProjection } from './projector'
 import type { ProjectedState } from './projector'
 
 /* #267 (DS OB-135 clauses 2/3, #197) — the projector protocol, the pure half. The hooks need a
@@ -63,5 +63,17 @@ describe('isProjectorLocation — the one route this app has', () => {
     expect(isProjectorLocation('?projector=1&x=2')).toBe(true)
     expect(isProjectorLocation('')).toBe(false)
     expect(isProjectorLocation('?present')).toBe(false)
+  })
+})
+
+describe('projectorPath — the room opens on the presenter\'s dataset', () => {
+  it('carries the corpus after the projector flag', () => {
+    expect(projectorPath('cs2023')).toBe('?projector&corpus=cs2023')
+    expect(projectorPath('teaching')).toBe('?projector&corpus=teaching')
+  })
+  it('is still recognised as the projector, and names the corpus', () => {
+    const path = projectorPath('cs2023')
+    expect(isProjectorLocation(path)).toBe(true)
+    expect(new URLSearchParams(path).get('corpus')).toBe('cs2023')
   })
 })

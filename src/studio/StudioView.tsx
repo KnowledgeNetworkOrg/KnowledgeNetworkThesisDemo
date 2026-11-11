@@ -24,7 +24,7 @@ import type { CSSProperties } from 'react'
 import { AppHeader, CountBadge, deskBounds, EDGE_TOKEN, FamilyColumn, FIRST_SCROLL_PAD, InstrumentGroup, InstrumentRow, Pane, PaneDivider, PresetButton, PresentStartCard, SectionLabel, WARNING_DIALOG_METRICS } from '@/ds'
 import type { EdgeKind, LoadChoice, LoadMap, StartChoice, StartSession } from '@/ds'
 
-import { byId, ROOT_ID, topicHueOf } from '../corpus/graph'
+import { byId, CORPUS_NAME, ROOT_ID, topicHueOf } from '../corpus/graph'
 import { forgetDraftUnsaved, saveDraftAsWalk, useDraftUnsaved } from '../state/walk/authordraft'
 import { listWalks, subscribeWalks, walkById } from '../state/walkstore'
 import type { Walk } from '../state/walkstore'
@@ -34,8 +34,9 @@ import { platform } from '../platform'
 import PresenterScreen from '../present/PresenterScreen'
 import { clampStop, lectureStart } from '../present/lecture'
 import { createSession, deleteSession, loadSessions, mintNoteId, renameSession, saveSessions, sessionsKey, setSessionMeets } from '../present/lecturenotes'
-import { PROJECTOR_QUERY, PROJECTOR_WINDOW } from '../present/projector'
+import { PROJECTOR_WINDOW, projectorPath } from '../present/projector'
 import { AppToolbar } from './AppToolbar'
+import { CorpusSwitch } from './CorpusSwitch'
 import { applyLoadChoice } from './loadpick'
 import type { PresentState } from './presentbutton'
 import { PALETTE_HOOK_SELECTOR } from './PaletteGlyph'
@@ -348,7 +349,7 @@ export default function StudioView() {
   const pressPresent = () => {
     if (presentState === 'live') return
     if (presenter !== null && presenter.ended) {
-      platform.openWindow('?' + PROJECTOR_QUERY, PROJECTOR_WINDOW)
+      platform.openWindow(projectorPath(CORPUS_NAME), PROJECTOR_WINDOW)
       setPresenter({ ...presenter, resumeToken: presenter.resumeToken + 1 })
       return
     }
@@ -370,7 +371,7 @@ export default function StudioView() {
       sessionId = created.id
     }
     if (presenter === null) stopPlayback()
-    platform.openWindow('?' + PROJECTOR_QUERY, PROJECTOR_WINDOW)
+    platform.openWindow(projectorPath(CORPUS_NAME), PROJECTOR_WINDOW)
     setStartOpen(false)
     const lectureId = mintNoteId(Date.now())
     setPresenter((p) => ({
@@ -769,6 +770,7 @@ export default function StudioView() {
           <span aria-label="studio-route">
             <CountBadge value={bus.route.length} label="route" />
           </span>
+          <CorpusSwitch />
         </AppHeader>
         {/* hidden readout twin: the shot driver reads focus id + title from here */}
         <span data-focus={bus.focus ?? ''} style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>

@@ -22,6 +22,13 @@ describe('the notebook is keyed by the walk', () => {
     // a saved source with no id is still a draft, not a notebook called "walk:null"
     expect(notebookKey('saved', null)).toBe('pkt.lecture.notes:draft')
   })
+
+  it('keeps cs2023 notebooks apart, so one title saved in both datasets does not share flags', () => {
+    expect(notebookKey('saved', 'w7', 'teaching')).toBe('pkt.lecture.notes:walk:w7')
+    expect(notebookKey('saved', 'w7', 'cs2023')).toBe('pkt.lecture.notes:cs2023:walk:w7')
+    expect(notebookKey('draft', null, 'cs2023')).toBe('pkt.lecture.notes:cs2023:draft')
+    expect(notebookKey('saved', null, 'cs2023')).not.toBe(notebookKey('saved', null, 'teaching'))
+  })
 })
 
 describe('flags on the notebook', () => {

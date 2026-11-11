@@ -160,3 +160,37 @@ describe('an old saved-walks list upgrades without erasing what this corpus cann
     expect(JSON.parse(map.get('pkt.walks.saved')!)).toEqual({ v: 1, data: stored })
   })
 })
+
+describe('saved walks are kept per corpus (#520)', () => {
+  afterEach(() => {
+    vi.doUnmock('./corpuskey')
+    vi.unstubAllGlobals()
+    vi.resetModules()
+  })
+
+  it('reads and writes the key corpusKey gives it, and leaves the plain key alone', async () => {
+    const envelope = (data: unknown) => JSON.stringify({ v: 1, data })
+    const map = new Map<string, string>([
+      ['pkt.walks.saved', envelope([walk('authored-teaching-only', [A])])],
+      ['pkt.walks.saved:cs2023', envelope([walk('authored-other-corpus', [A, B])])],
+    ])
+    vi.stubGlobal('localStorage', {
+      get length() { return map.size },
+      key: (i: number) => [...map.keys()][i] ?? null,
+      getItem: (k: string) => map.get(k) ?? null,
+      setItem: (k: string, v: string) => void map.set(k, v),
+      removeItem: (k: string) => void map.delete(k),
+    })
+    vi.doMock('./corpuskey', () => ({ corpusKey: (base: string) => base + ':cs2023' }))
+    vi.resetModules()
+    const mod = await import('./walkstore')
+
+    expect(mod.walkById('authored-other-corpus')?.stops.map((s) => s.id)).toEqual([A, B])
+    expect(mod.walkById('authored-teaching-only')).toBeUndefined()
+
+    mod.saveWalk(walk('authored-new', [B]))
+    const ids = (key: string) => (JSON.parse(map.get(key)!).data as Walk[]).map((w) => w.id)
+    expect(ids('pkt.walks.saved:cs2023')).toEqual(['authored-other-corpus', 'authored-new'])
+    expect(ids('pkt.walks.saved')).toEqual(['authored-teaching-only'])
+  })
+})

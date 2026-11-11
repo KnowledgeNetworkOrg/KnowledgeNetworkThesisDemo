@@ -178,7 +178,7 @@ try {
   // 6. the stored draft reader keeps a stop below a unit, or on an area, across
   //    a reload — the seed itself is not written until the draft changes
   await page.evaluate((stops) => {
-    localStorage.setItem('pkt.walkdesk.draft', JSON.stringify({
+    localStorage.setItem('pkt.walkdesk.draft:cs2023', JSON.stringify({
       v: 1,
       data: { stops, choices: {}, withOptionals: true },
     }))

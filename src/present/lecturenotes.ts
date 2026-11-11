@@ -31,9 +31,11 @@
 
 import type { LectureNote, NoteCategory, StartSession } from '@/ds'
 import { CORPUS_NAME, ROOT_ID } from '../corpus/graph'
+import type { CorpusName } from '../corpus/graph'
 import { platform } from '../platform'
 import { decodeStored, readPersisted, removePersisted, writePersisted } from '../platform/persisted'
 import type { Migration, PersistedSpec } from '../platform/persisted'
+import { corpusKey } from '../state/corpuskey'
 
 /** the v1 note shape, kept so an old notebook's notes can survive verbatim in `legacy` */
 export interface LectureNoteRecord {
@@ -129,9 +131,11 @@ const identity: Migration = (data) => data
 /** WHICH NOTEBOOK THIS LECTURE OPENS. A saved walk has an id and keeps its notes
  *  across sessions; the desk's draft is one moving target, so all of its lectures
  *  share the one 'draft' notebook — which is right, because it is the walk you
- *  are currently building and there is only ever one of it. */
-export function notebookKey(source: string, walkId?: string | null): string {
-  return NOTES_KEY + ':' + (source === 'saved' && walkId ? 'walk:' + walkId : 'draft')
+ *  are currently building and there is only ever one of it. A flag stores its
+ *  stop's node id, so each corpus keeps its own notebooks: `draft` and a saved
+ *  walk's title are the same in both. */
+export function notebookKey(source: string, walkId?: string | null, corpus: CorpusName = CORPUS_NAME): string {
+  return corpusKey(NOTES_KEY, corpus) + ':' + (source === 'saved' && walkId ? 'walk:' + walkId : 'draft')
 }
 
 const EMPTY: LectureNotebook = { notes: [], legacy: [], prepared: {} }

@@ -27,7 +27,12 @@ The import rule between the folders under `src/` is written in
 ## Two corpora
 
 `src/corpus/graph.ts` chooses between them; it does not contain any. Every
-instrument imports from it.
+instrument imports from it. Both ship in every build, and the choice is made
+once, when the page loads: the address's `?corpus=cs2023` wins, then
+`VITE_CORPUS`, then `teaching`. The switch in the header bar reloads the page
+with the address changed. Saved walks, the Walk Desk draft and the lecture
+notebooks are kept per corpus (`src/state/corpuskey.ts`); work saved before
+that has no corpus and is `teaching`'s.
 
 - **teaching** (the default) — the hand-authored CS corpus in `teachingdata.ts`.
   Six domains, sixteen modules, 53 topics, 116 authored edges. **Every pinned
@@ -36,8 +41,8 @@ instrument imports from it.
   with CS2023's own printed "See also" notes as its only edges, GENERATED into
   `cs2023data.ts` by `tools/cs2023import/` from a pinned copy of the thesis's map
   file. Its README says which parts are CS2023's, which are AI-made and under the
-  author's review, and which are proposed defaults. Run it with
-  `VITE_CORPUS=cs2023 npm run dev`.
+  author's review, and which are proposed defaults. Open it with `?corpus=cs2023`
+  on the address, or run it by default with `VITE_CORPUS=cs2023 npm run dev`.
 
 A module that names a corpus node id in a literal will crash the *other* corpus
 on import, which presents as a blank screen rather than an error. If you write

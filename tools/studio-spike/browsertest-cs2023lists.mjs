@@ -124,7 +124,7 @@ const seedSavedWalk = async () => {
         }),
       )
     },
-    ['pkt.walks.saved', SAVED_TITLE, SAVED_STOP],
+    ['pkt.walks.saved:cs2023', SAVED_TITLE, SAVED_STOP],
   )
   await page.reload({ waitUntil: 'networkidle' })
   await page.waitForTimeout(1400)

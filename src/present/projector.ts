@@ -39,6 +39,10 @@ export const PROJECTOR_QUERY = 'projector'
 /** is this window the projector? Read off the location's query string */
 export const isProjectorLocation = (search: string): boolean => new URLSearchParams(search).has(PROJECTOR_QUERY)
 
+/** where the projector window opens. It carries the presenter's corpus: the room
+ *  would otherwise open on the build's default and show a different dataset. */
+export const projectorPath = (corpus: string): string => '?' + PROJECTOR_QUERY + '&corpus=' + corpus
+
 /** what the room sees: the live slide, or nothing */
 export interface ProjectedState {
   /** a lecture is live — projecting and not ended. False = the wall goes dark */

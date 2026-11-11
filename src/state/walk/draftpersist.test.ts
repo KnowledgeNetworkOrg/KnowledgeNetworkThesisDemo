@@ -254,3 +254,34 @@ describe('loadDraft / saveDraft — never throw', () => {
     expect(() => saveDraft({ stops: [leaf(A)], choices: {}, withOptionals: true })).not.toThrow()
   })
 })
+
+describe('the draft is kept per corpus (#520)', () => {
+  afterEach(() => {
+    vi.doUnmock('../corpuskey')
+    vi.unstubAllGlobals()
+    vi.resetModules()
+  })
+
+  it('reads and writes the key corpusKey gives it, and leaves the plain key alone', async () => {
+    const teaching: DraftSnapshot = { stops: [leaf(A)], choices: {}, withOptionals: true }
+    const other: DraftSnapshot = { stops: [leaf(B)], choices: {}, withOptionals: false }
+    const map = new Map<string, string>([
+      ['pkt.walkdesk.draft', JSON.stringify({ v: 1, data: teaching })],
+      ['pkt.walkdesk.draft:cs2023', JSON.stringify({ v: 1, data: other })],
+    ])
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => map.get(k) ?? null,
+      setItem: (k: string, v: string) => void map.set(k, v),
+    })
+    vi.doMock('../corpuskey', () => ({ corpusKey: (base: string) => base + ':cs2023' }))
+    vi.resetModules()
+    const mod = await import('./draftpersist')
+
+    expect(mod.loadDraft()).toEqual(other)
+
+    const next: DraftSnapshot = { stops: [leaf(A), leaf(B)], choices: {}, withOptionals: true }
+    mod.saveDraft(next)
+    expect(JSON.parse(map.get('pkt.walkdesk.draft:cs2023')!).data).toEqual(next)
+    expect(JSON.parse(map.get('pkt.walkdesk.draft')!).data).toEqual(teaching)
+  })
+})
