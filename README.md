@@ -1,5 +1,15 @@
 # KnowledgeNetworkThesisDemo
 
+## Live site
+
+**https://knowledgenetworkorg.github.io/KnowledgeNetworkThesisDemo/**
+
+It opens in any browser, with nothing to install, and is rebuilt on every merge
+to `main`. The bare link opens the TMU courses (cs2023); the header switches to
+the teaching dataset. Anything a visitor saves stays in their own browser (local
+storage on the `knowledgenetworkorg.github.io` address) and is never sent
+anywhere.
+
 Implementation-first thesis demo: turning course material into a navigable
 knowledge-node network with an editable presentation path.
 
