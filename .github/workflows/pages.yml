@@ -1,0 +1,73 @@
+name: pages
+
+# Publishes the app as a static website on GitHub Pages, at
+# https://knowledgenetworkorg.github.io/KnowledgeNetworkThesisDemo/ (#523),
+# rebuilt on every merge to main, so a reader on any machine opens a link and
+# sees the current app. The app has no server and bundles its data into the
+# JavaScript, so the ordinary build output is the whole site.
+#
+# This is not gated on code-verify: main is already gated by the PR checks, and
+# a red main would still deploy.
+#
+# One-time owner step: Settings -> Pages -> Source -> "GitHub Actions". Until
+# then the deploy job fails with a Pages-not-enabled error.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Two merges never deploy at once, and a deploy is never cut off halfway.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # The root package only: the web build never touches desktop/.
+      - name: Install dependencies
+        run: npm ci
+
+      - uses: actions/configure-pages@v5
+
+      # The site is served from the /KnowledgeNetworkThesisDemo/ subfolder, so
+      # its asset addresses must start there. The base is set HERE and not in
+      # vite.config.ts because the desktop host loads dist/ from
+      # app://local/index.html (desktop/main.ts) and needs the root-relative
+      # base a plain `npm run build` gives.
+      #
+      # VITE_CORPUS makes the bare link open the TMU courses (cs2023), which is
+      # what a reader is being shown; `?corpus=` and the header switch still
+      # pick the other dataset.
+      - name: Build
+        run: npm run build -- --base=/KnowledgeNetworkThesisDemo/
+        env:
+          VITE_CORPUS: cs2023
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
